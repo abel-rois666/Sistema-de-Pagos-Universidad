@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus } from 'lucide-react';
-import { PaymentPlan, Alumno, CicloEscolar } from '../types';
+import { PaymentPlan, Alumno, CicloEscolar, Catalogos } from '../types';
 import { isPaid } from '../utils';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -9,11 +9,12 @@ interface PlanPagosProps {
   plans: PaymentPlan[];
   alumnos?: Alumno[];
   activeCiclo?: CicloEscolar;
+  catalogos?: Catalogos;
   onBack: () => void;
   onSavePlan: (plan: PaymentPlan) => void;
 }
 
-export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, onSavePlan }: PlanPagosProps) {
+export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos, onBack, onSavePlan }: PlanPagosProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string>(plans[0]?.id || '');
   const [searchTerm, setSearchTerm] = useState<string>(plans[0]?.nombre_alumno || '');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -24,7 +25,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
   const [isNewPlanModalOpen, setIsNewPlanModalOpen] = useState(false);
   const [selectedPaymentIndex, setSelectedPaymentIndex] = useState<number>(1);
   const [paymentInput, setPaymentInput] = useState('');
-  
+
   // Edit Plan State
   const [editForm, setEditForm] = useState<Partial<PaymentPlan>>({});
   const [newPlanForm, setNewPlanForm] = useState<Partial<PaymentPlan>>({
@@ -48,22 +49,14 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
     setModalState({ isOpen: true, title, message });
   };
 
-  const CONCEPTOS_CATALOGO = [
-    'INSCRIPCIÓN',
-    'REINSCRIPCIÓN',
-    '1ER PAGO',
-    '2DO PAGO',
-    '3ER PAGO',
-    '4TO PAGO',
-    '5TO PAGO',
-    '6TO PAGO',
-    '7MO PAGO',
-    '8VO PAGO',
-    'CONSTANCIAS RENOVACIÓN DE BECA',
-    'SEGURO ESTUDIANTIL',
-    'CREDENCIAL',
-    'OTROS'
-  ];
+  // Usa los conceptos del catálogo configurable; fallback al listado estático si no hay catálogo
+  const CONCEPTOS_CATALOGO = catalogos?.conceptos?.length
+    ? catalogos.conceptos
+    : [
+      'INSCRIPCIÓN', 'REINSCRIPCIÓN', '1ER PAGO', '2DO PAGO', '3ER PAGO', '4TO PAGO',
+      '5TO PAGO', '6TO PAGO', '7MO PAGO', '8VO PAGO', 'CONSTANCIAS RENOVACIÓN DE BECA',
+      'SEGURO ESTUDIANTIL', 'CREDENCIAL', 'OTROS'
+    ];
 
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return '';
@@ -104,11 +97,11 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
           return true;
         }
       });
-      
+
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (printRef.current.offsetHeight * pdfWidth) / printRef.current.offsetWidth;
-      
+
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Plan_Pagos_${selectedPlan.nombre_alumno.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
@@ -128,14 +121,14 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
           <h2 className="text-2xl font-bold text-gray-800 mb-3">Sin Planes de Pago</h2>
           <p className="text-gray-500 mb-8">No hay planes de pago registrados para este ciclo escolar. Por favor, selecciona otro ciclo o inscribe alumnos.</p>
           <div className="flex flex-col gap-3">
-            <button 
+            <button
               onClick={() => setIsNewPlanModalOpen(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
             >
               <Plus size={20} /> Crear Nuevo Plan
             </button>
-            <button 
-              onClick={onBack} 
+            <button
+              onClick={onBack}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
             >
               <ArrowLeft size={20} /> Volver al Inicio
@@ -155,31 +148,31 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                   <X size={20} />
                 </button>
               </div>
-              
+
               <div className="p-6 overflow-y-auto flex-grow space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Alumno</label>
-                  <select 
+                  <select
                     className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     value={newPlanForm.alumno_id || ''}
                     onChange={(e) => {
                       const alumno = alumnos.find(a => a.id === e.target.value);
                       if (alumno) {
                         setNewPlanForm({
-                          ...newPlanForm, 
+                          ...newPlanForm,
                           alumno_id: alumno.id,
                           nombre_alumno: alumno.nombre_completo,
                           licenciatura: alumno.licenciatura,
                           grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
                         });
                       } else {
-                        setNewPlanForm({...newPlanForm, alumno_id: ''});
+                        setNewPlanForm({ ...newPlanForm, alumno_id: '' });
                       }
                     }}
                   >
                     <option value="">-- Seleccionar Alumno --</option>
                     {alumnos
-                      .filter(a => !plans.some(p => p.alumno_id === a.id))
+                      .filter(a => !plans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo))
                       .map(a => (
                         <option key={a.id} value={a.id}>{a.nombre_completo}</option>
                       ))
@@ -192,10 +185,10 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
-                  <select 
+                  <select
                     className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     value={newPlanForm.tipo_plan || 'Cuatrimestral'}
-                    onChange={(e) => setNewPlanForm({...newPlanForm, tipo_plan: e.target.value as 'Cuatrimestral' | 'Semestral'})}
+                    onChange={(e) => setNewPlanForm({ ...newPlanForm, tipo_plan: e.target.value as 'Cuatrimestral' | 'Semestral' })}
                   >
                     <option value="Cuatrimestral">Cuatrimestral (Hasta 7 pagos)</option>
                     <option value="Semestral">Semestral (Hasta 9 pagos)</option>
@@ -205,21 +198,21 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
                       value={newPlanForm.beca_porcentaje || ''}
-                      onChange={(e) => setNewPlanForm({...newPlanForm, beca_porcentaje: e.target.value})}
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })}
                       placeholder="Ej. 0%"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
                       value={newPlanForm.beca_tipo || ''}
-                      onChange={(e) => setNewPlanForm({...newPlanForm, beca_tipo: e.target.value})}
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })}
                       placeholder="Ej. NINGUNA"
                     />
                   </div>
@@ -227,13 +220,13 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
               </div>
 
               <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-                <button 
+                <button
                   onClick={() => setIsNewPlanModalOpen(false)}
                   className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     if (!newPlanForm.alumno_id) {
                       showAlert('Error', 'Por favor selecciona un alumno');
@@ -278,7 +271,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId) || plans[0];
 
-  const filteredPlans = plans.filter(p => 
+  const filteredPlans = plans.filter(p =>
     p.nombre_alumno.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -355,8 +348,8 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
           {paid ? (
             <div className="flex items-center justify-center gap-2 group">
               <span className="text-green-700 font-bold print:text-black">{estatus}</span>
-              <button 
-                onClick={() => openPaymentModal(index)} 
+              <button
+                onClick={() => openPaymentModal(index)}
                 className="text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
                 title="Editar recibo"
                 data-html2canvas-ignore="true"
@@ -365,8 +358,8 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
               </button>
             </div>
           ) : (
-            <button 
-              onClick={() => openPaymentModal(index)} 
+            <button
+              onClick={() => openPaymentModal(index)}
               className="bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1 rounded text-xs font-bold flex items-center gap-1 mx-auto transition-colors print:hidden"
               data-html2canvas-ignore="true"
             >
@@ -384,14 +377,14 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 flex justify-center items-start font-sans print:p-0 print:bg-white">
-      <div 
+      <div
         ref={printRef}
         className="bg-[#d4d4d4] border-2 border-gray-400 shadow-2xl w-full max-w-5xl p-6 relative print:shadow-none print:border-none print:bg-white print:p-0"
       >
-        
+
         {/* Top Action Bar - Hidden in Print */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 print:hidden" data-html2canvas-ignore="true">
-          <button 
+          <button
             onClick={onBack}
             className="flex items-center gap-2 text-gray-700 hover:text-black font-bold transition-colors"
           >
@@ -403,7 +396,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
             <div className="relative flex-grow">
               <div className="bg-white border border-gray-400 p-2 rounded-lg flex items-center shadow-sm">
                 <Search size={18} className="text-gray-400 mr-2" />
-                <input 
+                <input
                   type="text"
                   className="w-full bg-transparent outline-none text-sm font-bold"
                   value={searchTerm}
@@ -430,8 +423,8 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                 <div className="absolute z-50 w-full bg-white border border-gray-400 mt-1 max-h-60 overflow-y-auto shadow-xl rounded-b-lg">
                   {filteredPlans.length > 0 ? (
                     filteredPlans.map(p => (
-                      <div 
-                        key={p.id} 
+                      <div
+                        key={p.id}
                         className="p-3 text-sm hover:bg-blue-500 hover:text-white cursor-pointer border-b border-gray-100 last:border-0"
                         onMouseDown={(e) => {
                           e.preventDefault();
@@ -447,7 +440,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                 </div>
               )}
             </div>
-            
+
             <button
               onClick={() => setIsNewPlanModalOpen(true)}
               className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap shadow-sm"
@@ -458,15 +451,15 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
           </div>
 
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={handleGeneratePDF}
               disabled={isGeneratingPDF}
               className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2 text-sm disabled:opacity-50"
             >
-              {isGeneratingPDF ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />} 
+              {isGeneratingPDF ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
               {isGeneratingPDF ? 'Generando...' : 'PDF / Imprimir'}
             </button>
-            <button 
+            <button
               onClick={openEditPlanModal}
               className="bg-white hover:bg-gray-50 text-gray-800 font-bold py-2 px-4 rounded shadow-sm border border-gray-300 transition-all flex items-center gap-2 text-sm"
             >
@@ -506,7 +499,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                   <Th className="w-1/4">NUMERO DE PAGOS</Th>
                   <Th className="w-1/4">FECHA</Th>
                   <Th className="w-1/4">CANTIDAD</Th>
-                  <Th className="w-1/4">ESTATUS DEL PAGO<br/>(NO. DE RECIBO)</Th>
+                  <Th className="w-1/4">ESTATUS DEL PAGO<br />(NO. DE RECIBO)</Th>
                 </tr>
               </thead>
               <tbody>
@@ -542,9 +535,9 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                     <td className="border border-black p-2 text-sm text-center">{selectedPlan.grado_turno}</td>
                   </tr>
                   <tr>
-                    <td className="border border-black p-2 text-sm font-bold bg-gray-300 text-center">NOMBRE COMPLETO Y<br/>FIRMA:</td>
+                    <td className="border border-black p-2 text-sm font-bold bg-gray-300 text-center">NOMBRE COMPLETO Y<br />FIRMA:</td>
                     <td className="border border-black p-2 text-sm text-center">
-                      <select 
+                      <select
                         className="w-full bg-transparent outline-none text-center text-blue-600 font-semibold appearance-none cursor-pointer print:text-black"
                         value={selectedPlanId}
                         onChange={handleStudentChange}
@@ -580,8 +573,8 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Número de Recibo / Estatus
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Ej. RECIBO 12345"
                 value={paymentInput}
@@ -593,13 +586,13 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
               </p>
             </div>
             <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-              <button 
+              <button
                 onClick={() => setIsPaymentModalOpen(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={handleSavePayment}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
               >
@@ -622,15 +615,15 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-grow">
               <div className="grid grid-cols-4 gap-6 mb-8">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
-                  <select 
+                  <select
                     className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     value={editForm.tipo_plan || 'Cuatrimestral'}
-                    onChange={(e) => setEditForm({...editForm, tipo_plan: e.target.value as 'Cuatrimestral' | 'Semestral'})}
+                    onChange={(e) => setEditForm({ ...editForm, tipo_plan: e.target.value as 'Cuatrimestral' | 'Semestral' })}
                   >
                     <option value="Cuatrimestral">Cuatrimestral (Hasta 7 pagos)</option>
                     <option value="Semestral">Semestral (Hasta 9 pagos)</option>
@@ -638,35 +631,35 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fecha del Plan</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
                     value={toInputDate(editForm.fecha_plan)}
-                    onChange={(e) => setEditForm({...editForm, fecha_plan: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, fecha_plan: e.target.value })}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
                     value={editForm.beca_porcentaje || ''}
-                    onChange={(e) => setEditForm({...editForm, beca_porcentaje: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, beca_porcentaje: e.target.value })}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
                     value={editForm.beca_tipo || ''}
-                    onChange={(e) => setEditForm({...editForm, beca_tipo: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, beca_tipo: e.target.value })}
                   />
                 </div>
               </div>
 
               <h4 className="font-bold text-gray-800 mb-4 border-b pb-2">Pagos Programados</h4>
-              
+
               <div className="space-y-4">
                 {Array.from({ length: editForm.tipo_plan === 'Semestral' ? 9 : 7 }, (_, i) => i + 1).map(i => {
                   return (
@@ -674,10 +667,10 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                       <div className="w-12 text-center font-bold text-gray-400 pt-2">#{i}</div>
                       <div className="flex-grow">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Concepto</label>
-                        <select 
+                        <select
                           className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                           value={editForm[`concepto_${i}` as keyof PaymentPlan] as string || ''}
-                          onChange={(e) => setEditForm({...editForm, [`concepto_${i}`]: e.target.value})}
+                          onChange={(e) => setEditForm({ ...editForm, [`concepto_${i}`]: e.target.value })}
                         >
                           <option value="">-- Seleccionar Concepto --</option>
                           {CONCEPTOS_CATALOGO.map(c => (
@@ -687,20 +680,20 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                       </div>
                       <div className="w-1/4">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Fecha Límite</label>
-                        <input 
-                          type="date" 
+                        <input
+                          type="date"
                           className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                           value={toInputDate(editForm[`fecha_${i}` as keyof PaymentPlan] as string)}
-                          onChange={(e) => setEditForm({...editForm, [`fecha_${i}`]: e.target.value})}
+                          onChange={(e) => setEditForm({ ...editForm, [`fecha_${i}`]: e.target.value })}
                         />
                       </div>
                       <div className="w-1/4">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Cantidad ($)</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                           value={editForm[`cantidad_${i}` as keyof PaymentPlan] as number || ''}
-                          onChange={(e) => setEditForm({...editForm, [`cantidad_${i}`]: Number(e.target.value)})}
+                          onChange={(e) => setEditForm({ ...editForm, [`cantidad_${i}`]: Number(e.target.value) })}
                         />
                       </div>
                     </div>
@@ -710,13 +703,13 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
             </div>
 
             <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-              <button 
+              <button
                 onClick={() => setIsEditPlanModalOpen(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={handleSavePlanStructure}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
               >
@@ -739,47 +732,47 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-grow space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Alumno</label>
-                <select 
+                <select
                   className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   value={newPlanForm.alumno_id || ''}
                   onChange={(e) => {
                     const alumno = alumnos.find(a => a.id === e.target.value);
                     if (alumno) {
                       setNewPlanForm({
-                        ...newPlanForm, 
+                        ...newPlanForm,
                         alumno_id: alumno.id,
                         nombre_alumno: alumno.nombre_completo,
                         licenciatura: alumno.licenciatura,
                         grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
                       });
                     } else {
-                      setNewPlanForm({...newPlanForm, alumno_id: ''});
+                      setNewPlanForm({ ...newPlanForm, alumno_id: '' });
                     }
                   }}
                 >
                   <option value="">-- Seleccionar Alumno --</option>
                   {alumnos
-                    .filter(a => !plans.some(p => p.alumno_id === a.id))
+                    .filter(a => !plans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo))
                     .map(a => (
                       <option key={a.id} value={a.id}>{a.nombre_completo}</option>
                     ))
                   }
                 </select>
-                {alumnos.filter(a => !plans.some(p => p.alumno_id === a.id)).length === 0 && (
+                {alumnos.filter(a => !plans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo)).length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">Todos los alumnos registrados ya tienen un plan en este ciclo.</p>
                 )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
-                <select 
+                <select
                   className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   value={newPlanForm.tipo_plan || 'Cuatrimestral'}
-                  onChange={(e) => setNewPlanForm({...newPlanForm, tipo_plan: e.target.value as 'Cuatrimestral' | 'Semestral'})}
+                  onChange={(e) => setNewPlanForm({ ...newPlanForm, tipo_plan: e.target.value as 'Cuatrimestral' | 'Semestral' })}
                 >
                   <option value="Cuatrimestral">Cuatrimestral (Hasta 7 pagos)</option>
                   <option value="Semestral">Semestral (Hasta 9 pagos)</option>
@@ -789,21 +782,21 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
                     value={newPlanForm.beca_porcentaje || ''}
-                    onChange={(e) => setNewPlanForm({...newPlanForm, beca_porcentaje: e.target.value})}
+                    onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })}
                     placeholder="Ej. 0%"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
                     value={newPlanForm.beca_tipo || ''}
-                    onChange={(e) => setNewPlanForm({...newPlanForm, beca_tipo: e.target.value})}
+                    onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })}
                     placeholder="Ej. NINGUNA"
                   />
                 </div>
@@ -811,13 +804,13 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
             </div>
 
             <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-              <button 
+              <button
                 onClick={() => setIsNewPlanModalOpen(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={() => {
                   if (!newPlanForm.alumno_id) {
                     showAlert('Error', 'Por favor selecciona un alumno');
@@ -866,7 +859,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, onBack, on
               <p className="text-gray-600">{modalState.message}</p>
             </div>
             <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
-              <button 
+              <button
                 onClick={() => setModalState({ ...modalState, isOpen: false })}
                 className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
               >

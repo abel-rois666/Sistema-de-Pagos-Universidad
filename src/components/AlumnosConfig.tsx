@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle } from 'lucide-react';
-import { Alumno, CicloEscolar, PaymentPlan } from '../types';
+import { Alumno, CicloEscolar, PaymentPlan, Catalogos } from '../types';
 
 interface AlumnosConfigProps {
   alumnos: Alumno[];
   ciclos: CicloEscolar[];
   activeCicloId: string;
   activeCyclePlans: PaymentPlan[];
+  catalogos?: Catalogos;
   onBack: () => void;
   onSave: (alumnos: Alumno[]) => void;
   onCreatePlan: (plan: PaymentPlan) => void;
 }
 
-export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeCicloId, activeCyclePlans, onBack, onSave, onCreatePlan }: AlumnosConfigProps) {
+export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeCicloId, activeCyclePlans, catalogos, onBack, onSave, onCreatePlan }: AlumnosConfigProps) {
   const [alumnos, setAlumnos] = useState<Alumno[]>(initialAlumnos);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Alumno>>({});
@@ -45,7 +46,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
 
   const handleSave = () => {
     if (!editForm.nombre_completo || !editForm.licenciatura || !editForm.grado_actual) return;
-    
+
     let updatedAlumnos;
     if (editingId === 'new') {
       const newAlumno: Alumno = {
@@ -56,7 +57,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
         turno: editForm.turno || 'MIXTO'
       };
       updatedAlumnos = [...alumnos, newAlumno];
-      
+
       // Auto-generate default plan
       const activeCiclo = ciclos.find(c => c.id === activeCicloId);
       if (activeCiclo) {
@@ -79,7 +80,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
     } else {
       updatedAlumnos = alumnos.map(a => a.id === editingId ? { ...a, ...editForm } as Alumno : a);
     }
-    
+
     setAlumnos(updatedAlumnos);
     onSave(updatedAlumnos);
     setEditingId(null);
@@ -98,13 +99,13 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
   const handlePromote = (alumno: Alumno) => {
     // Simple logic to increment grade (e.g., "1ER" -> "2DO", "7MO" -> "8VO")
     const gradeMap: Record<string, string> = {
-      '1ER': '2DO', '2DO': '3ER', '3ER': '4TO', '4TO': '5TO', 
+      '1ER': '2DO', '2DO': '3ER', '3ER': '4TO', '4TO': '5TO',
       '5TO': '6TO', '6TO': '7MO', '7MO': '8VO', '8VO': '9NO', '9NO': 'EGRESADO'
     };
-    
+
     const currentGradeNum = alumno.grado_actual.replace(/[^0-9]/g, '');
     let nextGrade = gradeMap[alumno.grado_actual];
-    
+
     if (!nextGrade && currentGradeNum) {
       nextGrade = `${Number(currentGradeNum) + 1}VO`; // Fallback approximation
     }
@@ -117,7 +118,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
           const updated = alumnos.map(a => a.id === alumno.id ? { ...a, grado_actual: nextGrade! } : a);
           setAlumnos(updated);
           onSave(updated);
-          
+
           // Auto-generate default plan for the new cycle
           const activeCiclo = ciclos.find(c => c.id === activeCicloId);
           if (activeCiclo) {
@@ -137,7 +138,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
             };
             onCreatePlan(newPlan);
           }
-          
+
           showAlert("Éxito", `Alumno promovido a ${nextGrade} y plan de pagos generado para el ciclo activo.`);
         }
       );
@@ -146,7 +147,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
     }
   };
 
-  const filteredAlumnos = alumnos.filter(a => 
+  const filteredAlumnos = alumnos.filter(a =>
     a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
     a.licenciatura.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -155,14 +156,14 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
     <div className="min-h-screen bg-gray-50 p-8 font-sans">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <button 
+          <button
             onClick={onBack}
             className="flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors"
           >
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
-          
-          <button 
+
+          <button
             onClick={handleAddNew}
             disabled={editingId !== null}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
@@ -203,45 +204,58 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
                 {editingId === 'new' && (
                   <tr className="bg-indigo-50/50">
                     <td className="py-3 px-6">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                         placeholder="Nombre completo"
                         value={editForm.nombre_completo}
-                        onChange={e => setEditForm({...editForm, nombre_completo: e.target.value})}
+                        onChange={e => setEditForm({ ...editForm, nombre_completo: e.target.value })}
                       />
                     </td>
                     <td className="py-3 px-6">
-                      <input 
-                        type="text" 
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                        placeholder="Licenciatura"
-                        value={editForm.licenciatura}
-                        onChange={e => setEditForm({...editForm, licenciatura: e.target.value})}
-                      />
+                      {catalogos?.licenciaturas?.length ? (
+                        <select
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white"
+                          value={editForm.licenciatura || ''}
+                          onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })}
+                        >
+                          <option value="">-- Seleccionar --</option>
+                          {catalogos.licenciaturas.map(l => (
+                            <option key={l} value={l}>{l}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                          placeholder="Licenciatura"
+                          value={editForm.licenciatura}
+                          onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })}
+                        />
+                      )}
                     </td>
                     <td className="py-3 px-6">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         className="w-full border border-gray-300 rounded px-2 py-1 text-sm w-20"
                         placeholder="Ej. 1ER"
                         value={editForm.grado_actual}
-                        onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}
+                        onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })}
                       />
                     </td>
                     <td className="py-3 px-6">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         className="w-full border border-gray-300 rounded px-2 py-1 text-sm w-24"
                         placeholder="Ej. MIXTO"
                         value={editForm.turno}
-                        onChange={e => setEditForm({...editForm, turno: e.target.value})}
+                        onChange={e => setEditForm({ ...editForm, turno: e.target.value })}
                       />
                     </td>
                     <td className="py-3 px-6 text-right">
                       <div className="flex justify-end gap-2">
-                        <button onClick={handleSave} className="text-green-600 hover:bg-green-100 p-1 rounded"><Save size={18}/></button>
-                        <button onClick={() => setEditingId(null)} className="text-red-600 hover:bg-red-100 p-1 rounded"><X size={18}/></button>
+                        <button onClick={handleSave} className="text-green-600 hover:bg-green-100 p-1 rounded"><Save size={18} /></button>
+                        <button onClick={() => setEditingId(null)} className="text-red-600 hover:bg-red-100 p-1 rounded"><X size={18} /></button>
                       </div>
                     </td>
                   </tr>
@@ -251,41 +265,54 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
                     {editingId === alumno.id ? (
                       <>
                         <td className="py-3 px-6">
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                             value={editForm.nombre_completo}
-                            onChange={e => setEditForm({...editForm, nombre_completo: e.target.value})}
+                            onChange={e => setEditForm({ ...editForm, nombre_completo: e.target.value })}
                           />
                         </td>
                         <td className="py-3 px-6">
-                          <input 
-                            type="text" 
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                            value={editForm.licenciatura}
-                            onChange={e => setEditForm({...editForm, licenciatura: e.target.value})}
-                          />
+                          {catalogos?.licenciaturas?.length ? (
+                            <select
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white"
+                              value={editForm.licenciatura || ''}
+                              onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })}
+                            >
+                              <option value="">-- Seleccionar --</option>
+                              {catalogos.licenciaturas.map(l => (
+                                <option key={l} value={l}>{l}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                              value={editForm.licenciatura}
+                              onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })}
+                            />
+                          )}
                         </td>
                         <td className="py-3 px-6">
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full border border-gray-300 rounded px-2 py-1 text-sm w-20"
                             value={editForm.grado_actual}
-                            onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}
+                            onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })}
                           />
                         </td>
                         <td className="py-3 px-6">
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full border border-gray-300 rounded px-2 py-1 text-sm w-24"
                             value={editForm.turno}
-                            onChange={e => setEditForm({...editForm, turno: e.target.value})}
+                            onChange={e => setEditForm({ ...editForm, turno: e.target.value })}
                           />
                         </td>
                         <td className="py-3 px-6 text-right">
                           <div className="flex justify-end gap-2">
-                            <button onClick={handleSave} className="text-green-600 hover:bg-green-100 p-1 rounded"><Save size={18}/></button>
-                            <button onClick={() => setEditingId(null)} className="text-red-600 hover:bg-red-100 p-1 rounded"><X size={18}/></button>
+                            <button onClick={handleSave} className="text-green-600 hover:bg-green-100 p-1 rounded"><Save size={18} /></button>
+                            <button onClick={() => setEditingId(null)} className="text-red-600 hover:bg-red-100 p-1 rounded"><X size={18} /></button>
                           </div>
                         </td>
                       </>
@@ -303,7 +330,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
                               </span>
                             ) : (
                               <>
-                                <button 
+                                <button
                                   onClick={() => {
                                     const activeCiclo = ciclos.find(c => c.id === activeCicloId);
                                     if (activeCiclo) {
@@ -336,7 +363,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
                                 >
                                   <CheckCircle size={14} /> Inscribir
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => handlePromote(alumno)}
                                   className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 text-xs font-bold bg-indigo-50 px-2 py-1 rounded transition-colors border border-indigo-100"
                                   title="Promover de grado e inscribir a nuevo ciclo"
@@ -345,7 +372,7 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
                                 </button>
                               </>
                             )}
-                            <button 
+                            <button
                               onClick={() => handleEdit(alumno)}
                               className="text-gray-500 hover:text-blue-600 p-1 rounded transition-colors"
                             >
@@ -373,14 +400,14 @@ export default function AlumnosConfig({ alumnos: initialAlumnos, ciclos, activeC
             </div>
             <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
               {modalState.type === 'confirm' && (
-                <button 
+                <button
                   onClick={() => setModalState({ ...modalState, isOpen: false })}
                   className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
                 >
                   Cancelar
                 </button>
               )}
-              <button 
+              <button
                 onClick={() => {
                   if (modalState.type === 'confirm' && modalState.onConfirm) {
                     modalState.onConfirm();
