@@ -6,12 +6,21 @@ export interface CicloEscolar {
   activo: boolean;
 }
 
+export interface Usuario {
+  id: string;
+  username: string;
+  rol: 'ADMINISTRADOR' | 'COORDINADOR';
+}
+
 export interface Alumno {
   id: string;
   nombre_completo: string;
   licenciatura: string;
   grado_actual: string;
   turno: string;
+  estatus?: string;
+  beca_porcentaje?: string;
+  beca_tipo?: string;
 }
 
 export interface PaymentPlan {
@@ -71,11 +80,13 @@ export interface PaymentPlan {
   estatus_9?: string;
 
   licenciatura: string;
-  grado_turno: string;
+  grado_turno: string;  // campo combinado (para display y compat. con vista)
+  grado?: string;       // grado separado (columna planes_pago.grado)
+  turno?: string;       // turno separado (columna planes_pago.turno)
   tipo_plan?: 'Cuatrimestral' | 'Semestral';
 }
 
-export type CatalogoTipo = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje';
+export type CatalogoTipo = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno';
 
 export interface CatalogoItem {
   id: string;
@@ -90,4 +101,26 @@ export interface Catalogos {
   licenciaturas: string[];
   beca_tipos: string[];
   beca_porcentajes: string[];
+  grados: string[];
+  turnos: string[];
+  estatus_alumnos: string[];
+}
+
+export interface PlantillaPlan {
+  id: string;
+  nombre: string;
+  ciclo_id: string | null;
+  tipo_plan: 'Cuatrimestral' | 'Semestral';
+  descripcion?: string;
+  activo: boolean;
+
+  concepto_1?: string; fecha_1?: string; cantidad_1?: number;
+  concepto_2?: string; fecha_2?: string; cantidad_2?: number;
+  concepto_3?: string; fecha_3?: string; cantidad_3?: number;
+  concepto_4?: string; fecha_4?: string; cantidad_4?: number;
+  concepto_5?: string; fecha_5?: string; cantidad_5?: number;
+  concepto_6?: string; fecha_6?: string; cantidad_6?: number;
+  concepto_7?: string; fecha_7?: string; cantidad_7?: number;
+  concepto_8?: string; fecha_8?: string; cantidad_8?: number;
+  concepto_9?: string; fecha_9?: string; cantidad_9?: number;
 }

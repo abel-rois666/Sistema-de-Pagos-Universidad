@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
     ArrowLeft, Plus, Edit2, Save, X, Trash2,
-    Tag, GraduationCap, Award, Percent, CheckCircle, XCircle, Loader2
+    Tag, GraduationCap, Award, Percent, CheckCircle, XCircle, Loader2, Clock, Activity
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { CatalogoItem, CatalogoTipo, Catalogos } from '../types';
@@ -13,13 +14,16 @@ interface CatalogosConfigProps {
     onUpdate: (items: CatalogoItem[]) => void;
 }
 
-type TabKey = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje';
+type TabKey = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno';
 
 const TAB_CONFIG: { key: TabKey; label: string; icon: React.ReactNode; color: string; bgColor: string; borderColor: string }[] = [
-    { key: 'concepto', label: 'Conceptos de Pago', icon: <Tag size={16} />, color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
+    { key: 'concepto', label: 'Conceptos', icon: <Tag size={16} />, color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
     { key: 'licenciatura', label: 'Licenciaturas', icon: <GraduationCap size={16} />, color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200' },
-    { key: 'beca_tipo', label: 'Tipos de Beca', icon: <Award size={16} />, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
-    { key: 'beca_porcentaje', label: 'Porcentajes Beca', icon: <Percent size={16} />, color: 'text-violet-700', bgColor: 'bg-violet-50', borderColor: 'border-violet-200' },
+    { key: 'grado', label: 'Grados', icon: <GraduationCap size={16} />, color: 'text-cyan-700', bgColor: 'bg-cyan-50', borderColor: 'border-cyan-200' },
+    { key: 'turno', label: 'Turnos', icon: <Clock size={16} />, color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
+    { key: 'estatus_alumno', label: 'Estatus Alumno', icon: <Activity size={16} />, color: 'text-rose-700', bgColor: 'bg-rose-50', borderColor: 'border-rose-200' },
+    { key: 'beca_tipo', label: 'Tipos Beca', icon: <Award size={16} />, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
+    { key: 'beca_porcentaje', label: '% Beca', icon: <Percent size={16} />, color: 'text-violet-700', bgColor: 'bg-violet-50', borderColor: 'border-violet-200' },
 ];
 
 export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBack, onUpdate }: CatalogosConfigProps) {
@@ -243,7 +247,10 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                             </div>
                         )}
                         {filteredItems.map((item, idx) => (
-                            <div
+                            <motion.div
+                                initial={{ opacity: 0, x: -10 }} 
+                                animate={{ opacity: 1, x: 0 }} 
+                                transition={{ delay: idx * 0.05, duration: 0.2 }}
                                 key={item.id}
                                 className={`flex items-center gap-3 px-6 py-3 group transition-colors
                   ${item.activo ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-60'}`}
@@ -323,7 +330,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                                         </>
                                     )}
                                 </div>
-                            </div>
+                            </motion.div>
                         ))}
                     </div>
                 </div>

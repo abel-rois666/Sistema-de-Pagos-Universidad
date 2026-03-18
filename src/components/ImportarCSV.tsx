@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { motion } from 'motion/react';
 import {
     X, Upload, Download, CheckCircle, AlertTriangle, FileText,
     ChevronRight, ChevronLeft, Loader2, AlertCircle, Eye
@@ -11,7 +12,8 @@ interface ParsedRow {
     nombre_alumno: string;
     no_plan_pagos: string;
     licenciatura: string;
-    grado_turno: string;
+    grado: string;           // columna GRADO separada
+    turno: string;           // columna TURNO separada
     ciclo_escolar: string;
     fecha_plan: string;
     tipo_plan: 'Cuatrimestral' | 'Semestral';
@@ -32,7 +34,7 @@ interface ImportarCSVProps {
 
 // ─── Columnas del CSV ─────────────────────────────────────────────────────────
 const CSV_HEADERS = [
-    'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO_TURNO',
+    'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO',
     'CICLO_ESCOLAR', 'FECHA_PLAN', 'TIPO_PLAN', 'BECA_TIPO', 'BECA_PORCENTAJE',
     // 9 grupos de pago
     ...Array.from({ length: 9 }, (_, i) => [
@@ -41,11 +43,15 @@ const CSV_HEADERS = [
 ];
 
 // ─── Datos de muestra ─────────────────────────────────────────────────────────
+// GRADO y TURNO van en columnas separadas
+// Formato ciclo: AAAA-P (ej. 2026-1, 2026-2, 2026-3)
+// Tipos de plan: Cuatrimestral / Semestral
+// Estatus de pago: PAGADO / PENDIENTE / (vacío = sin registrar)
 const SAMPLE_ROWS = [
     [
-        'CHAVEZ CORDERO SAMARA YAMIL', '00207', 'DERECHO', '5TO MIXTO',
-        '26/1', '15/01/2026', 'Cuatrimestral', 'NINGUNA', '0%',
-        'INSCRIPCIÓN', '15/01/2026', '1200', 'PAGADO',
+        'CHAVEZ CORDERO SAMARA YAMIL', '00207', 'DERECHO', '5TO', 'MIXTO',
+        '2026-1', '15/01/2026', 'Cuatrimestral', 'NINGUNA', '0%',
+        'INSCRIPCION', '15/01/2026', '1200', 'PAGADO',
         '1ER PAGO', '15/02/2026', '1500', 'PAGADO',
         '2DO PAGO', '15/03/2026', '1500', 'PENDIENTE',
         '3ER PAGO', '15/04/2026', '1500', '',
@@ -53,9 +59,9 @@ const SAMPLE_ROWS = [
         '', '', '', '', '', '', '', '', '', '', '', ''
     ],
     [
-        'GARCIA MENDOZA PEDRO IVAN', '00208', 'ADMINISTRACIÓN', '3ER MATUTINO',
-        '26/1', '15/01/2026', 'Cuatrimestral', 'BECA INSTITUCIONAL', '25%',
-        'REINSCRIPCIÓN', '15/01/2026', '900', 'PAGADO',
+        'GARCIA MENDOZA PEDRO IVAN', '00208', 'ADMINISTRACION', '3ER', 'MATUTINO',
+        '2026-1', '15/01/2026', 'Cuatrimestral', 'BECA INSTITUCIONAL', '25%',
+        'INSCRIPCION', '15/01/2026', '900', 'PAGADO',
         '1ER PAGO', '15/02/2026', '1125', 'PENDIENTE',
         '', '', '', '', '', '', '', '', '', '', '', '', '',
         '', '', '', '', '', '', '', '', '', '', '', '', '',
@@ -113,25 +119,27 @@ function parseRows(csvText: string, activeCicloId: string): ParsedRow[] {
         const nombre_alumno = get(0).toUpperCase();
         const no_plan_pagos = get(1);
         const licenciatura = get(2).toUpperCase();
-        const grado_turno = get(3).toUpperCase();
-        const ciclo_escolar = get(4);
-        const fecha_plan = get(5);
-        const tipo_plan_raw = get(6);
-        const beca_tipo = get(7).toUpperCase() || 'NINGUNA';
-        const beca_porcentaje = get(8) || '0%';
+        const grado = get(3).toUpperCase();           // col 3 = GRADO
+        const turno = get(4).toUpperCase() || 'MIXTO'; // col 4 = TURNO
+        const ciclo_escolar = get(5);
+        const fecha_plan = get(6);
+        const tipo_plan_raw = get(7);
+        const beca_tipo = get(8).toUpperCase() || 'NINGUNA';
+        const beca_porcentaje = get(9) || '0%';
 
         if (!nombre_alumno) errors.push('Falta NOMBRE_ALUMNO');
         if (!no_plan_pagos) errors.push('Falta NO_PLAN_PAGOS');
         if (!ciclo_escolar) errors.push('Falta CICLO_ESCOLAR');
         if (!fecha_plan) errors.push('Falta FECHA_PLAN');
+        if (!grado) errors.push('Falta GRADO');
 
         const tipo_plan: 'Cuatrimestral' | 'Semestral' =
             tipo_plan_raw.toLowerCase().includes('semestral') ? 'Semestral' : 'Cuatrimestral';
 
-        // Parsear pagos (4 cols por grupo, desde índice 9)
+        // Parsear pagos (4 cols por grupo, desde índice 10)
         const pagos: { concepto: string; fecha: string; cantidad: number; estatus: string }[] = [];
         for (let g = 0; g < 9; g++) {
-            const base = 9 + g * 4;
+            const base = 10 + g * 4;   // ahora empieza en col 10 (antes era 9)
             const concepto = get(base).toUpperCase();
             if (!concepto) continue;
             const fecha = get(base + 1);
@@ -143,7 +151,7 @@ function parseRows(csvText: string, activeCicloId: string): ParsedRow[] {
 
         return {
             rowIndex: idx + 2,
-            nombre_alumno, no_plan_pagos, licenciatura, grado_turno,
+            nombre_alumno, no_plan_pagos, licenciatura, grado, turno,
             ciclo_escolar, fecha_plan, tipo_plan, beca_tipo, beca_porcentaje,
             pagos, errors
         };
@@ -156,8 +164,6 @@ function buildAlumnoAndPlan(
     existingAlumnos: Alumno[],
     existingPlans: PaymentPlan[]
 ): { alumno: Alumno | null; plan: PaymentPlan | null; warning?: string } {
-    const timestamp = Date.now() + row.rowIndex;
-
     // Alumno: reutilizar si ya existe por nombre
     let alumno: Alumno | null = existingAlumnos.find(
         a => a.nombre_completo === row.nombre_alumno
@@ -165,11 +171,11 @@ function buildAlumnoAndPlan(
 
     if (!alumno) {
         alumno = {
-            id: `imp_a_${timestamp}`,
+            id: crypto.randomUUID(),
             nombre_completo: row.nombre_alumno,
             licenciatura: row.licenciatura,
-            grado_actual: row.grado_turno.split(' ')[0] || row.grado_turno,
-            turno: row.grado_turno.split(' ').slice(1).join(' ') || 'MIXTO',
+            grado_actual: row.grado,
+            turno: row.turno,
         };
     }
 
@@ -183,8 +189,10 @@ function buildAlumnoAndPlan(
         return { alumno, plan: null, warning: `${row.nombre_alumno}: ya tiene plan en ciclo ${row.ciclo_escolar}` };
     }
 
+    const grado_turno = `${row.grado} ${row.turno}`.trim();
+
     const plan: PaymentPlan = {
-        id: `imp_p_${timestamp}`,
+        id: crypto.randomUUID(),
         alumno_id: alumno.id,
         ciclo_id: activeCicloId,
         nombre_alumno: row.nombre_alumno,
@@ -194,7 +202,9 @@ function buildAlumnoAndPlan(
         beca_tipo: row.beca_tipo,
         ciclo_escolar: row.ciclo_escolar,
         licenciatura: row.licenciatura,
-        grado_turno: row.grado_turno,
+        grado_turno,          // campo combinado para compat. con vista
+        grado: row.grado,     // campo separado
+        turno: row.turno,     // campo separado
         tipo_plan: row.tipo_plan,
     };
 
@@ -298,8 +308,8 @@ export default function ImportarCSV({
     const errorCount = parsedRows.filter(r => r.errors.length > 0).length;
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
 
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-100">
@@ -546,7 +556,7 @@ export default function ImportarCSV({
                         </button>
                     )}
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 }

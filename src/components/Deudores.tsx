@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Calendar, AlertTriangle, Search, CheckCircle, Inbox } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, AlertTriangle, Search, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { PaymentPlan } from '../types';
 import { isPaid } from '../utils';
 
 interface DeudoresProps {
   plans: PaymentPlan[];
+  alumnos: import('../types').Alumno[];
   onBack: () => void;
 }
 
@@ -12,26 +14,46 @@ interface DebtRecord {
   id: string;
   alumno: string;
   licenciatura: string;
+  grado: string;
+  turno: string;
   concepto: string;
   monto: number;
   fecha_limite: string;
 }
 
-export default function Deudores({ plans, onBack }: DeudoresProps) {
-  const [searchTerm, setSearchTerm] = useState('');
+type SortKey = keyof DebtRecord;
 
-  // Since plans are already filtered by the active cycle in App.tsx, we can just use them directly.
-  const filteredPlans = plans;
+export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
+
+  // Filter out plans for students that are 'BAJA'
+  const filteredPlans = useMemo(() => {
+    return plans.filter(p => {
+      const alumno = alumnos.find(a => a.id === p.alumno_id || a.nombre_completo === p.nombre_alumno);
+      return alumno?.estatus !== 'BAJA';
+    });
+  }, [plans, alumnos]);
 
   const debtors = useMemo(() => {
     const records: DebtRecord[] = [];
 
     const checkDebt = (plan: PaymentPlan, concepto: string, cantidad: number, estatus: string, fecha: string) => {
       if (cantidad > 0 && !isPaid(estatus)) {
+        let fallbackGrado = '';
+        let fallbackTurno = '';
+        if (plan.grado_turno && plan.grado_turno.includes('/')) {
+            const parts = plan.grado_turno.split('/');
+            fallbackGrado = parts[0].trim();
+            fallbackTurno = parts[1].trim();
+        }
+
         records.push({
           id: `${plan.id}-${concepto}`,
           alumno: plan.nombre_alumno,
-          licenciatura: plan.licenciatura,
+          licenciatura: plan.licenciatura || '',
+          grado: plan.grado || fallbackGrado,
+          turno: plan.turno || fallbackTurno,
           concepto: concepto,
           monto: Number(cantidad),
           fecha_limite: fecha
@@ -67,8 +89,53 @@ export default function Deudores({ plans, onBack }: DeudoresProps) {
 
   const filteredDebtors = debtors.filter(d => 
     d.alumno.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.concepto.toLowerCase().includes(searchTerm.toLowerCase())
+    d.concepto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.licenciatura.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.turno.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.grado.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const sortedDebtors = useMemo(() => {
+    let sortableItems = [...filteredDebtors];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        const aVal = a[sortConfig.key];
+        const bVal = b[sortConfig.key];
+        
+        if (sortConfig.key === 'fecha_limite') {
+          // Intentar parsear fecha dd/mm/yyyy o yyyy-mm-dd
+          const parseDate = (dStr: string) => {
+             if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
+                 const [d, m, y] = dStr.split('/');
+                 return new Date(Number(y), Number(m)-1, Number(d)).getTime();
+             }
+             return new Date(dStr).getTime() || 0;
+          };
+          const tA = parseDate(a.fecha_limite);
+          const tB = parseDate(b.fecha_limite);
+          return sortConfig.direction === 'asc' ? tA - tB : tB - tA;
+        }
+
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredDebtors, sortConfig]);
+
+  const requestSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key: SortKey) => {
+    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown size={14} className="text-gray-400 opacity-50 group-hover:opacity-100" />;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-blue-600" /> : <ArrowDown size={14} className="text-blue-600" />;
+  };
 
   const totalDebt = filteredDebtors.reduce((sum, d) => sum + d.monto, 0);
 
@@ -122,27 +189,49 @@ export default function Deudores({ plans, onBack }: DeudoresProps) {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider border-b border-gray-200">
-                  <th className="py-4 px-6 font-semibold">Alumno</th>
-                  <th className="py-4 px-6 font-semibold">Licenciatura</th>
-                  <th className="py-4 px-6 font-semibold">Concepto Adeudado</th>
-                  <th className="py-4 px-6 font-semibold">Fecha Límite</th>
-                  <th className="py-4 px-6 font-semibold text-right">Monto</th>
+                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 transition-colors" onClick={() => requestSort('alumno')}>
+                     <div className="flex items-center gap-2">Alumno {getSortIcon('alumno')}</div>
+                  </th>
+                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 transition-colors" onClick={() => requestSort('licenciatura')}>
+                     <div className="flex items-center gap-2">Licenciatura {getSortIcon('licenciatura')}</div>
+                  </th>
+                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 transition-colors w-24" onClick={() => requestSort('grado')}>
+                     <div className="flex items-center gap-2">Grado {getSortIcon('grado')}</div>
+                  </th>
+                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 transition-colors w-24" onClick={() => requestSort('turno')}>
+                     <div className="flex items-center gap-2">Turno {getSortIcon('turno')}</div>
+                  </th>
+                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 transition-colors" onClick={() => requestSort('concepto')}>
+                     <div className="flex items-center gap-2">Concepto Adeudado {getSortIcon('concepto')}</div>
+                  </th>
+                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 transition-colors" onClick={() => requestSort('fecha_limite')}>
+                     <div className="flex items-center gap-2">Fecha Límite {getSortIcon('fecha_limite')}</div>
+                  </th>
+                  <th className="py-4 px-4 font-semibold text-right cursor-pointer group hover:bg-gray-100 transition-colors" onClick={() => requestSort('monto')}>
+                     <div className="flex items-center justify-end gap-2">{getSortIcon('monto')} Monto</div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredDebtors.length > 0 ? (
-                  filteredDebtors.map((record) => (
-                    <tr key={record.id} className="hover:bg-red-50/30 transition-colors">
-                      <td className="py-4 px-6 font-bold text-gray-800">{record.alumno}</td>
-                      <td className="py-4 px-6 text-gray-600 text-sm">{record.licenciatura}</td>
-                      <td className="py-4 px-6 text-gray-800 font-medium">{record.concepto}</td>
-                      <td className="py-4 px-6 text-gray-500 text-sm">{formatDate(record.fecha_limite)}</td>
-                      <td className="py-4 px-6 text-right font-bold text-red-600">${record.monto.toLocaleString()}</td>
-                    </tr>
+                {sortedDebtors.length > 0 ? (
+                  sortedDebtors.map((record, idx) => (
+                    <motion.tr 
+                      initial={{ opacity: 0, x: -10 }} 
+                      animate={{ opacity: 1, x: 0 }} 
+                      transition={{ delay: idx * 0.05, duration: 0.2 }}
+                      key={record.id} className="hover:bg-red-50/30 transition-colors">
+                      <td className="py-3 px-4 font-bold text-gray-800">{record.alumno}</td>
+                      <td className="py-3 px-4 text-gray-600 text-sm max-w-[150px] truncate" title={record.licenciatura}>{record.licenciatura}</td>
+                      <td className="py-3 px-4 text-indigo-700 font-medium text-sm">{record.grado}</td>
+                      <td className="py-3 px-4 text-gray-600 text-sm">{record.turno}</td>
+                      <td className="py-3 px-4 text-gray-800 font-medium">{record.concepto}</td>
+                      <td className="py-3 px-4 text-gray-500 text-sm">{formatDate(record.fecha_limite)}</td>
+                      <td className="py-3 px-4 text-right font-bold text-red-600">${record.monto.toLocaleString()}</td>
+                    </motion.tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="py-16 text-center">
+                    <td colSpan={7} className="py-16 text-center">
                       <div className="flex flex-col items-center justify-center">
                         {searchTerm ? (
                           <>

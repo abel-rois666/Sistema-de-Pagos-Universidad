@@ -1,38 +1,65 @@
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, TrendingUp, AlertCircle, Calendar, Inbox } from 'lucide-react';
 import { PaymentPlan } from '../types';
 import { extractMonth, isPaid } from '../utils';
 
 interface EstadisticasProps {
   plans: PaymentPlan[];
+  alumnos: import('../types').Alumno[];
   onBack: () => void;
 }
 
-export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
-  // Since plans are already filtered by the active cycle in App.tsx, we can just use them directly.
-  const filteredPlans = plans;
+export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasProps) {
+  // Filter out plans for students that are 'BAJA'
+  const filteredPlans = useMemo(() => {
+    return plans.filter(p => {
+      const alumno = alumnos.find(a => a.id === p.alumno_id || a.nombre_completo === p.nombre_alumno);
+      return alumno?.estatus !== 'BAJA';
+    });
+  }, [plans, alumnos]);
 
   const stats = useMemo(() => {
     let totalPaid = 0;
     let totalOwed = 0;
     
-    // Initialize months map
+    // Initialize maps
     const monthsData: Record<string, { paid: number, owed: number }> = {};
+    const licenciaturaData: Record<string, { paid: number, owed: number }> = {};
+    const turnoData: Record<string, { paid: number, owed: number }> = {};
     
-    const processPayment = (cantidad: number, estatus: string, fecha: string) => {
+    const processPayment = (plan: PaymentPlan, cantidad: number, estatus: string, fecha: string) => {
       if (!cantidad) return;
       
       const month = extractMonth(fecha);
       if (!monthsData[month]) {
         monthsData[month] = { paid: 0, owed: 0 };
       }
+
+      const lic = plan.licenciatura?.trim() || 'Desconocida';
+      if (!licenciaturaData[lic]) {
+        licenciaturaData[lic] = { paid: 0, owed: 0 };
+      }
+
+      let fallbackTurno = '';
+      if (plan.grado_turno && plan.grado_turno.includes('/')) {
+         fallbackTurno = plan.grado_turno.split('/')[1].trim();
+      }
+      const tur = plan.turno?.trim() || fallbackTurno || 'Desconocido';
+      if (!turnoData[tur]) {
+        turnoData[tur] = { paid: 0, owed: 0 };
+      }
       
       if (isPaid(estatus)) {
         totalPaid += Number(cantidad);
         monthsData[month].paid += Number(cantidad);
+        licenciaturaData[lic].paid += Number(cantidad);
+        turnoData[tur].paid += Number(cantidad);
       } else {
         totalOwed += Number(cantidad);
         monthsData[month].owed += Number(cantidad);
+        licenciaturaData[lic].owed += Number(cantidad);
+        turnoData[tur].owed += Number(cantidad);
       }
     };
 
@@ -42,7 +69,7 @@ export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
         const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
         const fecha = plan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
         if (cantidad && fecha) {
-          processPayment(cantidad, estatus || '', fecha);
+          processPayment(plan, cantidad, estatus || '', fecha);
         }
       }
     });
@@ -58,7 +85,10 @@ export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
       return idxA - idxB;
     });
 
-    return { totalPaid, totalOwed, sortedMonths };
+    const sortedLicenciaturas = Object.entries(licenciaturaData).sort((a, b) => b[1].paid + b[1].owed - (a[1].paid + a[1].owed));
+    const sortedTurnos = Object.entries(turnoData).sort((a, b) => b[1].paid + b[1].owed - (a[1].paid + a[1].owed));
+
+    return { totalPaid, totalOwed, sortedMonths, sortedLicenciaturas, sortedTurnos };
   }, [filteredPlans]);
 
   return (
@@ -81,7 +111,7 @@ export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
 
         {/* Global Totals */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex items-center gap-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex items-center gap-6">
             <div className="bg-green-100 p-4 rounded-full text-green-600">
               <TrendingUp size={32} />
             </div>
@@ -89,9 +119,9 @@ export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
               <p className="text-sm font-medium text-gray-500 mb-1">Ingresos Totales (Pagado)</p>
               <p className="text-4xl font-bold text-gray-800">${stats.totalPaid.toLocaleString()}</p>
             </div>
-          </div>
+          </motion.div>
           
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex items-center gap-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex items-center gap-6">
             <div className="bg-red-100 p-4 rounded-full text-red-600">
               <AlertCircle size={32} />
             </div>
@@ -99,11 +129,11 @@ export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
               <p className="text-sm font-medium text-gray-500 mb-1">Deuda Total (Pendiente)</p>
               <p className="text-4xl font-bold text-gray-800">${stats.totalOwed.toLocaleString()}</p>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Monthly Breakdown */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-bold text-gray-800">Desglose Mensual</h2>
           </div>
@@ -122,7 +152,11 @@ export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
                   </thead>
                   <tbody>
                     {stats.sortedMonths.map(([month, data], idx) => (
-                      <tr key={month} className="border-b border-gray-100 hover:bg-gray-50">
+                      <motion.tr 
+                        initial={{ opacity: 0, x: -10 }} 
+                        animate={{ opacity: 1, x: 0 }} 
+                        transition={{ delay: 0.2 + idx * 0.05, duration: 0.2 }}
+                        key={month} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-4 px-4 font-medium text-gray-800">{month}</td>
                         <td className="py-4 px-4 text-right font-semibold text-green-600">
                           ${data.paid.toLocaleString()}
@@ -133,7 +167,7 @@ export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
                         <td className="py-4 px-4 text-right font-bold text-gray-800">
                           ${(data.paid + data.owed).toLocaleString()}
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))}
                   </tbody>
                   <tfoot>
@@ -162,7 +196,64 @@ export default function Estadisticas({ plans, onBack }: EstadisticasProps) {
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
+
+        {/* Breakdown by Licenciatura and Turno side by side */}
+        {stats.sortedLicenciaturas.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-800">Desglose por Licenciatura</h2>
+              </div>
+              <div className="p-0 overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-white text-gray-500 uppercase tracking-wider border-b border-gray-100 text-xs">
+                      <th className="py-3 px-4 font-semibold">Licenciatura</th>
+                      <th className="py-3 px-4 font-semibold text-right text-green-600">Pagado</th>
+                      <th className="py-3 px-4 font-semibold text-right text-red-500">Adeudo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.sortedLicenciaturas.map(([lic, data], idx) => (
+                      <tr key={lic} className="border-b border-gray-50 hover:bg-gray-50/50">
+                        <td className="py-3 px-4 font-medium text-gray-700 truncate max-w-[150px]" title={lic}>{lic}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-green-600">${data.paid.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-red-500">${data.owed.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-800">Desglose por Turno</h2>
+              </div>
+              <div className="p-0 overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-white text-gray-500 uppercase tracking-wider border-b border-gray-100 text-xs">
+                      <th className="py-3 px-4 font-semibold">Turno</th>
+                      <th className="py-3 px-4 font-semibold text-right text-green-600">Pagado</th>
+                      <th className="py-3 px-4 font-semibold text-right text-red-500">Adeudo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.sortedTurnos.map(([tur, data], idx) => (
+                      <tr key={tur} className="border-b border-gray-50 hover:bg-gray-50/50">
+                        <td className="py-3 px-4 font-medium text-gray-700">{tur}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-green-600">${data.paid.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-red-500">${data.owed.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

@@ -9,7 +9,7 @@ export const isPaid = (estatus: string | undefined | null) => {
 export const calculateStudentTotals = (plan: PaymentPlan) => {
   let paid = 0;
   let owed = 0;
-  
+
   const check = (cantidad: number | undefined, estatus: string | undefined) => {
     if (!cantidad) return;
     if (isPaid(estatus)) paid += Number(cantidad);
@@ -41,4 +41,26 @@ export const extractMonth = (dateStr: string) => {
   if (upper.includes('NOVIEMBRE') || upper.includes('/11/') || upper.includes('-11-')) return 'NOVIEMBRE';
   if (upper.includes('DICIEMBRE') || upper.includes('/12/') || upper.includes('-12-')) return 'DICIEMBRE';
   return 'OTROS';
+};
+
+/** Formatea una fecha a DD/MM/YYYY para mostrar en pantalla */
+export const formatDate = (dateString: string | undefined): string => {
+  if (!dateString) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) return dateString;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const [y, m, d] = dateString.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  return dateString;
+};
+
+/** Convierte una fecha a formato YYYY-MM-DD para inputs tipo date */
+export const toInputDate = (dateString: string | undefined): string => {
+  if (!dateString) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return dateString;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
+    const [d, m, y] = dateString.split('/');
+    return `${y}-${m}-${d}`;
+  }
+  return '';
 };

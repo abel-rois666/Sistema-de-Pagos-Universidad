@@ -1,22 +1,26 @@
 import React, { useState, useRef } from 'react';
 import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus } from 'lucide-react';
-import { PaymentPlan, Alumno, CicloEscolar, Catalogos } from '../types';
+import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario } from '../types';
 import { isPaid } from '../utils';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
 
 interface PlanPagosProps {
+  currentUser: Usuario;
   plans: PaymentPlan[];
   alumnos?: Alumno[];
   activeCiclo?: CicloEscolar;
   catalogos?: Catalogos;
+  plantillas?: PlantillaPlan[];
   onBack: () => void;
   onSavePlan: (plan: PaymentPlan) => void;
 }
 
-export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos, onBack, onSavePlan }: PlanPagosProps) {
+export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], onBack, onSavePlan }: PlanPagosProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string>(plans[0]?.id || '');
   const [searchTerm, setSearchTerm] = useState<string>(plans[0]?.nombre_alumno || '');
+  
+  const isCoordinador = currentUser.rol === 'COORDINADOR';
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Modal States
@@ -34,6 +38,28 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
     beca_tipo: 'NINGUNA',
     fecha_plan: new Date().toLocaleDateString('es-MX')
   });
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
+  const applyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+    const template = plantillas.find(p => p.id === templateId);
+    if (template) {
+      setNewPlanForm(prev => ({
+        ...prev,
+        tipo_plan: template.tipo_plan,
+        concepto_1: template.concepto_1, fecha_1: template.fecha_1, cantidad_1: template.cantidad_1,
+        concepto_2: template.concepto_2, fecha_2: template.fecha_2, cantidad_2: template.cantidad_2,
+        concepto_3: template.concepto_3, fecha_3: template.fecha_3, cantidad_3: template.cantidad_3,
+        concepto_4: template.concepto_4, fecha_4: template.fecha_4, cantidad_4: template.cantidad_4,
+        concepto_5: template.concepto_5, fecha_5: template.fecha_5, cantidad_5: template.cantidad_5,
+        concepto_6: template.concepto_6, fecha_6: template.fecha_6, cantidad_6: template.cantidad_6,
+        concepto_7: template.concepto_7, fecha_7: template.fecha_7, cantidad_7: template.cantidad_7,
+        concepto_8: template.concepto_8, fecha_8: template.fecha_8, cantidad_8: template.cantidad_8,
+        concepto_9: template.concepto_9, fecha_9: template.fecha_9, cantidad_9: template.cantidad_9,
+      }));
+    }
+  };
 
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
@@ -121,12 +147,14 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
           <h2 className="text-2xl font-bold text-gray-800 mb-3">Sin Planes de Pago</h2>
           <p className="text-gray-500 mb-8">No hay planes de pago registrados para este ciclo escolar. Por favor, selecciona otro ciclo o inscribe alumnos.</p>
           <div className="flex flex-col gap-3">
-            <button
-              onClick={() => setIsNewPlanModalOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
-            >
-              <Plus size={20} /> Crear Nuevo Plan
-            </button>
+            {!isCoordinador && (
+              <button
+                onClick={() => setIsNewPlanModalOpen(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
+              >
+                <Plus size={20} /> Crear Nuevo Plan
+              </button>
+            )}
             <button
               onClick={onBack}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
@@ -183,6 +211,22 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                   )}
                 </div>
 
+                {plantillas.filter(p => p.activo).length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Usar Plantilla de Plan</label>
+                    <select
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={selectedTemplateId}
+                      onChange={(e) => applyTemplate(e.target.value)}
+                    >
+                      <option value="">-- Sin Plantilla (Manual) --</option>
+                      {plantillas.filter(p => p.activo && (!p.ciclo_id || p.ciclo_id === activeCiclo?.id)).map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
                   <select
@@ -198,23 +242,35 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newPlanForm.beca_porcentaje || ''}
-                      onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })}
-                      placeholder="Ej. 0%"
-                    />
+                    {catalogos?.beca_porcentajes?.length ? (
+                      <select
+                        className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        value={newPlanForm.beca_porcentaje || '0%'}
+                        onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })}
+                      >
+                        {catalogos.beca_porcentajes.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        value={newPlanForm.beca_porcentaje || ''} placeholder="Ej. 0%"
+                        onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })} />
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newPlanForm.beca_tipo || ''}
-                      onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })}
-                      placeholder="Ej. NINGUNA"
-                    />
+                    {catalogos?.beca_tipos?.length ? (
+                      <select
+                        className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        value={newPlanForm.beca_tipo || 'NINGUNA'}
+                        onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })}
+                      >
+                        {catalogos.beca_tipos.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        value={newPlanForm.beca_tipo || ''} placeholder="Ej. NINGUNA"
+                        onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })} />
+                    )}
                   </div>
                 </div>
               </div>
@@ -233,7 +289,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                       return;
                     }
                     const newPlan: PaymentPlan = {
-                      id: `p_${Date.now()}`,
+                      id: crypto.randomUUID(),
                       alumno_id: newPlanForm.alumno_id,
                       ciclo_id: activeCiclo?.id,
                       nombre_alumno: newPlanForm.nombre_alumno || '',
@@ -244,7 +300,16 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                       ciclo_escolar: activeCiclo?.nombre || '',
                       tipo_plan: newPlanForm.tipo_plan || 'Cuatrimestral',
                       licenciatura: newPlanForm.licenciatura || '',
-                      grado_turno: newPlanForm.grado_turno || ''
+                      grado_turno: newPlanForm.grado_turno || '',
+                      concepto_1: newPlanForm.concepto_1, fecha_1: newPlanForm.fecha_1, cantidad_1: newPlanForm.cantidad_1,
+                      concepto_2: newPlanForm.concepto_2, fecha_2: newPlanForm.fecha_2, cantidad_2: newPlanForm.cantidad_2,
+                      concepto_3: newPlanForm.concepto_3, fecha_3: newPlanForm.fecha_3, cantidad_3: newPlanForm.cantidad_3,
+                      concepto_4: newPlanForm.concepto_4, fecha_4: newPlanForm.fecha_4, cantidad_4: newPlanForm.cantidad_4,
+                      concepto_5: newPlanForm.concepto_5, fecha_5: newPlanForm.fecha_5, cantidad_5: newPlanForm.cantidad_5,
+                      concepto_6: newPlanForm.concepto_6, fecha_6: newPlanForm.fecha_6, cantidad_6: newPlanForm.cantidad_6,
+                      concepto_7: newPlanForm.concepto_7, fecha_7: newPlanForm.fecha_7, cantidad_7: newPlanForm.cantidad_7,
+                      concepto_8: newPlanForm.concepto_8, fecha_8: newPlanForm.fecha_8, cantidad_8: newPlanForm.cantidad_8,
+                      concepto_9: newPlanForm.concepto_9, fecha_9: newPlanForm.fecha_9, cantidad_9: newPlanForm.cantidad_9,
                     };
                     onSavePlan(newPlan);
                     setSelectedPlanId(newPlan.id);
@@ -255,6 +320,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                       beca_tipo: 'NINGUNA',
                       fecha_plan: new Date().toLocaleDateString('es-MX')
                     });
+                    setSelectedTemplateId('');
                   }}
                   disabled={!newPlanForm.alumno_id}
                   className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
@@ -271,8 +337,22 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId) || plans[0];
 
+  const getAlumnoName = (p: PaymentPlan) => {
+    if (p.nombre_alumno) return p.nombre_alumno;
+    const a = alumnos.find(al => al.id === p.alumno_id);
+    return a ? a.nombre_completo : '';
+  };
+
+  const getAlumnoData = (p: PaymentPlan) => {
+    const a = alumnos.find(al => al.id === p.alumno_id);
+    return {
+      licenciatura: p.licenciatura || (a ? a.licenciatura : ''),
+      grado_turno: p.grado_turno || (a ? `${a.grado_actual} / ${a.turno}` : '')
+    };
+  };
+
   const filteredPlans = plans.filter(p =>
-    p.nombre_alumno.toLowerCase().includes(searchTerm.toLowerCase())
+    getAlumnoName(p).toLowerCase().includes((searchTerm || '').toLowerCase())
   );
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -282,7 +362,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
 
   const handleSuggestionClick = (plan: PaymentPlan) => {
     setSelectedPlanId(plan.id);
-    setSearchTerm(plan.nombre_alumno);
+    setSearchTerm(getAlumnoName(plan));
     setShowSuggestions(false);
   };
 
@@ -290,7 +370,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
     const newId = e.target.value;
     setSelectedPlanId(newId);
     const plan = plans.find(p => p.id === newId);
-    if (plan) setSearchTerm(plan.nombre_alumno);
+    if (plan) setSearchTerm(getAlumnoName(plan));
   };
 
   const openPaymentModal = (index: number) => {
@@ -371,6 +451,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
     );
   };
 
+  const studentData = getAlumnoData(selectedPlan);
   const planType = selectedPlan.tipo_plan || 'Cuatrimestral';
   const maxPayments = planType === 'Semestral' ? 9 : 7;
   const paymentIndices = Array.from({ length: maxPayments }, (_, i) => i + 1);
@@ -422,16 +503,13 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
               {showSuggestions && (
                 <div className="absolute z-50 w-full bg-white border border-gray-400 mt-1 max-h-60 overflow-y-auto shadow-xl rounded-b-lg">
                   {filteredPlans.length > 0 ? (
-                    filteredPlans.map(p => (
+                    filteredPlans.slice(0, 10).map(p => (
                       <div
                         key={p.id}
-                        className="p-3 text-sm hover:bg-blue-500 hover:text-white cursor-pointer border-b border-gray-100 last:border-0"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          handleSuggestionClick(p);
-                        }}
+                        className="p-3 hover:bg-indigo-50 cursor-pointer text-sm border-b border-gray-100 last:border-none font-medium text-gray-700 transition-colors"
+                        onClick={() => handleSuggestionClick(p)}
                       >
-                        {p.nombre_alumno}
+                        {getAlumnoName(p)}
                       </div>
                     ))
                   ) : (
@@ -441,13 +519,15 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
               )}
             </div>
 
-            <button
-              onClick={() => setIsNewPlanModalOpen(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap shadow-sm"
-              title="Crear plan para un alumno sin plan"
-            >
-              <Plus size={18} /> Nuevo Plan
-            </button>
+            {!isCoordinador && (
+              <button
+                onClick={() => setIsNewPlanModalOpen(true)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap shadow-sm"
+                title="Crear plan para un alumno sin plan"
+              >
+                <Plus size={18} /> Nuevo Plan
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -459,12 +539,14 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
               {isGeneratingPDF ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
               {isGeneratingPDF ? 'Generando...' : 'PDF / Imprimir'}
             </button>
-            <button
-              onClick={openEditPlanModal}
-              className="bg-white hover:bg-gray-50 text-gray-800 font-bold py-2 px-4 rounded shadow-sm border border-gray-300 transition-all flex items-center gap-2 text-sm"
-            >
-              <Edit size={16} /> Editar Plan
-            </button>
+            {!isCoordinador && (
+              <button
+                onClick={openEditPlanModal}
+                className="bg-white hover:bg-gray-50 text-gray-800 font-bold py-2 px-4 rounded shadow-sm border border-gray-300 transition-all flex items-center gap-2 text-sm"
+              >
+                <Edit size={16} /> Editar Plan
+              </button>
+            )}
           </div>
         </div>
 
@@ -528,11 +610,11 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                   </tr>
                   <tr>
                     <td className="border border-black p-2 text-sm font-bold bg-gray-300 text-center">LICENCIATURA:</td>
-                    <td className="border border-black p-2 text-sm text-center">{selectedPlan.licenciatura}</td>
+                    <td className="border border-black p-2 text-sm text-center">{studentData.licenciatura}</td>
                   </tr>
                   <tr>
                     <td className="border border-black p-2 text-sm font-bold bg-gray-300 text-center">GRADO Y TURNO:</td>
-                    <td className="border border-black p-2 text-sm text-center">{selectedPlan.grado_turno}</td>
+                    <td className="border border-black p-2 text-sm text-center">{studentData.grado_turno}</td>
                   </tr>
                   <tr>
                     <td className="border border-black p-2 text-sm font-bold bg-gray-300 text-center">NOMBRE COMPLETO Y<br />FIRMA:</td>
@@ -543,7 +625,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                         onChange={handleStudentChange}
                       >
                         {plans.map(p => (
-                          <option key={p.id} value={p.id}>{p.nombre_alumno}</option>
+                          <option key={p.id} value={p.id}>{getAlumnoName(p)}</option>
                         ))}
                       </select>
                     </td>
@@ -640,21 +722,35 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    value={editForm.beca_porcentaje || ''}
-                    onChange={(e) => setEditForm({ ...editForm, beca_porcentaje: e.target.value })}
-                  />
+                  {catalogos?.beca_porcentajes?.length ? (
+                    <select
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={editForm.beca_porcentaje || ''}
+                      onChange={(e) => setEditForm({ ...editForm, beca_porcentaje: e.target.value })}
+                    >
+                      {catalogos.beca_porcentajes.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                      value={editForm.beca_porcentaje || ''}
+                      onChange={(e) => setEditForm({ ...editForm, beca_porcentaje: e.target.value })} />
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    value={editForm.beca_tipo || ''}
-                    onChange={(e) => setEditForm({ ...editForm, beca_tipo: e.target.value })}
-                  />
+                  {catalogos?.beca_tipos?.length ? (
+                    <select
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={editForm.beca_tipo || ''}
+                      onChange={(e) => setEditForm({ ...editForm, beca_tipo: e.target.value })}
+                    >
+                      {catalogos.beca_tipos.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                      value={editForm.beca_tipo || ''}
+                      onChange={(e) => setEditForm({ ...editForm, beca_tipo: e.target.value })} />
+                  )}
                 </div>
               </div>
 
@@ -767,6 +863,22 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                 )}
               </div>
 
+              {plantillas.filter(p => p.activo).length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Usar Plantilla de Plan</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    value={selectedTemplateId}
+                    onChange={(e) => applyTemplate(e.target.value)}
+                  >
+                    <option value="">-- Sin Plantilla (Manual) --</option>
+                    {plantillas.filter(p => p.activo && (!p.ciclo_id || p.ciclo_id === activeCiclo?.id)).map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
                 <select
@@ -782,23 +894,35 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    value={newPlanForm.beca_porcentaje || ''}
-                    onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })}
-                    placeholder="Ej. 0%"
-                  />
+                  {catalogos?.beca_porcentajes?.length ? (
+                    <select
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={newPlanForm.beca_porcentaje || '0%'}
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })}
+                    >
+                      {catalogos.beca_porcentajes.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                      value={newPlanForm.beca_porcentaje || ''} placeholder="Ej. 0%"
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })} />
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    value={newPlanForm.beca_tipo || ''}
-                    onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })}
-                    placeholder="Ej. NINGUNA"
-                  />
+                  {catalogos?.beca_tipos?.length ? (
+                    <select
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={newPlanForm.beca_tipo || 'NINGUNA'}
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })}
+                    >
+                      {catalogos.beca_tipos.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                      value={newPlanForm.beca_tipo || ''} placeholder="Ej. NINGUNA"
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })} />
+                  )}
                 </div>
               </div>
             </div>
@@ -817,7 +941,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                     return;
                   }
                   const newPlan: PaymentPlan = {
-                    id: `p_${Date.now()}`,
+                    id: crypto.randomUUID(),
                     alumno_id: newPlanForm.alumno_id,
                     ciclo_id: activeCiclo?.id,
                     nombre_alumno: newPlanForm.nombre_alumno || '',
@@ -828,7 +952,16 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                     ciclo_escolar: activeCiclo?.nombre || '',
                     tipo_plan: newPlanForm.tipo_plan || 'Cuatrimestral',
                     licenciatura: newPlanForm.licenciatura || '',
-                    grado_turno: newPlanForm.grado_turno || ''
+                    grado_turno: newPlanForm.grado_turno || '',
+                    concepto_1: newPlanForm.concepto_1, fecha_1: newPlanForm.fecha_1, cantidad_1: newPlanForm.cantidad_1,
+                    concepto_2: newPlanForm.concepto_2, fecha_2: newPlanForm.fecha_2, cantidad_2: newPlanForm.cantidad_2,
+                    concepto_3: newPlanForm.concepto_3, fecha_3: newPlanForm.fecha_3, cantidad_3: newPlanForm.cantidad_3,
+                    concepto_4: newPlanForm.concepto_4, fecha_4: newPlanForm.fecha_4, cantidad_4: newPlanForm.cantidad_4,
+                    concepto_5: newPlanForm.concepto_5, fecha_5: newPlanForm.fecha_5, cantidad_5: newPlanForm.cantidad_5,
+                    concepto_6: newPlanForm.concepto_6, fecha_6: newPlanForm.fecha_6, cantidad_6: newPlanForm.cantidad_6,
+                    concepto_7: newPlanForm.concepto_7, fecha_7: newPlanForm.fecha_7, cantidad_7: newPlanForm.cantidad_7,
+                    concepto_8: newPlanForm.concepto_8, fecha_8: newPlanForm.fecha_8, cantidad_8: newPlanForm.cantidad_8,
+                    concepto_9: newPlanForm.concepto_9, fecha_9: newPlanForm.fecha_9, cantidad_9: newPlanForm.cantidad_9,
                   };
                   onSavePlan(newPlan);
                   setSelectedPlanId(newPlan.id);
@@ -839,6 +972,7 @@ export default function PlanPagos({ plans, alumnos = [], activeCiclo, catalogos,
                     beca_tipo: 'NINGUNA',
                     fecha_plan: new Date().toLocaleDateString('es-MX')
                   });
+                  setSelectedTemplateId('');
                 }}
                 disabled={!newPlanForm.alumno_id}
                 className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
