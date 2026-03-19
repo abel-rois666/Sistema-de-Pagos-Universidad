@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Plus, Edit2, Save, X, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Save, X, CheckCircle, XCircle, Loader2, Trash2 } from 'lucide-react';
 import { CicloEscolar } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -8,6 +8,8 @@ interface CiclosConfigProps {
   onBack: () => void;
   onSave: (ciclos: CicloEscolar[]) => void;
 }
+
+const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: CiclosConfigProps) {
   const [ciclos, setCiclos] = useState<CicloEscolar[]>(initialCiclos);
@@ -30,6 +32,28 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
     setEditForm(ciclo);
   };
 
+  const handleDelete = async (ciclo: CicloEscolar) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el ciclo ${ciclo.nombre}? Esta acción no se puede deshacer.`)) return;
+    setSaving(true);
+    
+    try {
+      if (isValidUUID(ciclo.id)) {
+        const { error } = await supabase.from('ciclos_escolares').delete().eq('id', ciclo.id);
+        if (error) throw error;
+      }
+      
+      const updated = ciclos.filter(c => c.id !== ciclo.id);
+      setCiclos(updated);
+      onSave(updated);
+      showNotification('success', 'Ciclo eliminado correctamente.');
+    } catch (error: any) {
+      console.warn('[CiclosConfig] delete error:', error.message);
+      showNotification('error', `Error al eliminar: ${error.message}`);
+    }
+    
+    setSaving(false);
+  };
+
   const handleSave = async () => {
     if (!editForm.nombre || !editForm.meses_abarca || !editForm.anio) return;
     setSaving(true);
@@ -48,7 +72,6 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
       updatedCiclos = [...ciclos, cicloToSave];
     } else {
       const existing = ciclos.find(c => c.id === editingId)!;
-      // Si el ID existente no es UUID válido (datos mock), asignar uno nuevo
       const safeId = isValidUUID(existing.id) ? existing.id : crypto.randomUUID();
       cicloToSave = { ...existing, ...editForm, id: safeId } as CicloEscolar;
       updatedCiclos = ciclos.map(c => c.id === editingId ? cicloToSave : c);
@@ -81,14 +104,13 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
   const handleAddNew = () => {
     const now = new Date();
     setEditingId('new');
-    setEditForm({ nombre: '', meses_abarca: '', anio: now.getFullYear(), activo: false });
+    setEditForm({ nombre: '', meses_abarca: 'Enero - Abril', anio: now.getFullYear(), activo: false });
   };
 
   const handleSetActivo = async (id: string) => {
     const updated = ciclos.map(c => ({ ...c, activo: c.id === id }));
     setSaving(true);
     try {
-      // Solo enviar a Supabase los ciclos con UUID válido (filtrar IDs de mock)
       const validForDB = updated
         .filter(c => isValidUUID(c.id))
         .map(c => ({ id: c.id, nombre: c.nombre, meses_abarca: c.meses_abarca, anio: c.anio, activo: c.activo }));
@@ -109,6 +131,27 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
     setCiclos(updated);
     onSave(updated);
     setSaving(false);
+  };
+
+  const renderMonthSelectors = () => {
+    const parts = (editForm.meses_abarca || 'Enero - Abril').split(' - ');
+    const start = parts[0] || 'Enero';
+    const end = parts[1] || 'Abril';
+    return (
+      <div className="flex items-center gap-2">
+        <select className="flex-1 w-full border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-blue-500" 
+          value={start} 
+          onChange={e => setEditForm({ ...editForm, meses_abarca: `${e.target.value} - ${end}` })}>
+          {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <span className="text-gray-400 font-bold">-</span>
+        <select className="flex-1 w-full border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-blue-500" 
+          value={end} 
+          onChange={e => setEditForm({ ...editForm, meses_abarca: `${start} - ${e.target.value}` })}>
+          {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+    );
   };
 
   return (
@@ -143,8 +186,8 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
               <thead>
                 <tr className="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
                   <th className="py-3 px-6 font-semibold">Nombre del Ciclo</th>
-                  <th className="py-3 px-6 font-semibold">Meses que Abarca</th>
-                  <th className="py-3 px-6 font-semibold">Año</th>
+                  <th className="py-3 px-6 font-semibold min-w-[220px]">Meses que Abarca</th>
+                  <th className="py-3 px-6 font-semibold w-24">Año</th>
                   <th className="py-3 px-6 font-semibold text-center">Estado</th>
                   <th className="py-3 px-6 font-semibold text-right">Acciones</th>
                 </tr>
@@ -153,23 +196,22 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                 {editingId === 'new' && (
                   <tr className="bg-blue-50/50">
                     <td className="py-3 px-6">
-                      <input type="text" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" placeholder="Ej. 2026-1"
-                        title="Formato: AÑO-PERIODO (ej. 2026-1, 2026-2, 2026-3)"
-                        value={editForm.nombre || ''} onChange={e => setEditForm({ ...editForm, nombre: e.target.value })} />
+                      <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="Ej. 26/1"
+                        title="Formato Libre"
+                        value={editForm.nombre || ''} onChange={e => setEditForm({ ...editForm, nombre: e.target.value.toUpperCase() })} />
                     </td>
                     <td className="py-3 px-6">
-                      <input type="text" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" placeholder="Ej. Enero - Abril"
-                        value={editForm.meses_abarca || ''} onChange={e => setEditForm({ ...editForm, meses_abarca: e.target.value })} />
+                      {renderMonthSelectors()}
                     </td>
                     <td className="py-3 px-6">
-                      <input type="number" className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                      <input type="number" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                         value={editForm.anio || ''} onChange={e => setEditForm({ ...editForm, anio: Number(e.target.value) })} />
                     </td>
-                    <td className="py-3 px-6 text-center text-sm text-gray-500">Nuevo</td>
+                    <td className="py-3 px-6 text-center text-sm text-gray-500 font-medium">Nuevo</td>
                     <td className="py-3 px-6 text-right">
                       <div className="flex justify-end gap-2">
-                        <button onClick={handleSave} disabled={saving} className="text-green-600 hover:bg-green-100 p-1 rounded"><Save size={18} /></button>
-                        <button onClick={() => setEditingId(null)} className="text-red-600 hover:bg-red-100 p-1 rounded"><X size={18} /></button>
+                        <button onClick={handleSave} disabled={saving} className="text-green-600 hover:bg-green-100 p-1 rounded" title="Guardar"><Save size={18} /></button>
+                        <button onClick={() => setEditingId(null)} className="text-red-600 hover:bg-red-100 p-1 rounded" title="Cancelar"><X size={18} /></button>
                       </div>
                     </td>
                   </tr>
@@ -179,47 +221,55 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                     {editingId === ciclo.id ? (
                       <>
                         <td className="py-3 px-6">
-                          <input type="text" className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                            placeholder="Ej. 2026-1" title="Formato: AÑO-PERIODO (ej. 2026-1, 2026-2)"
-                            value={editForm.nombre || ''} onChange={e => setEditForm({ ...editForm, nombre: e.target.value })} />
+                          <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                            placeholder="Ej. 26/1"
+                            value={editForm.nombre || ''} onChange={e => setEditForm({ ...editForm, nombre: e.target.value.toUpperCase() })} />
                         </td>
                         <td className="py-3 px-6">
-                          <input type="text" className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                            value={editForm.meses_abarca || ''} onChange={e => setEditForm({ ...editForm, meses_abarca: e.target.value })} />
+                          {renderMonthSelectors()}
                         </td>
                         <td className="py-3 px-6">
-                          <input type="number" className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                          <input type="number" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                             value={editForm.anio || ''} onChange={e => setEditForm({ ...editForm, anio: Number(e.target.value) })} />
                         </td>
                         <td className="py-3 px-6 text-center">
-                          {ciclo.activo ? <span className="text-green-600 font-bold text-xs">ACTIVO</span> : '-'}
+                          {ciclo.activo ? <span className="text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded">ACTIVO</span> : '-'}
                         </td>
                         <td className="py-3 px-6 text-right">
                           <div className="flex justify-end gap-2">
-                            <button onClick={handleSave} disabled={saving} className="text-green-600 hover:bg-green-100 p-1 rounded"><Save size={18} /></button>
-                            <button onClick={() => setEditingId(null)} className="text-red-600 hover:bg-red-100 p-1 rounded"><X size={18} /></button>
+                            <button onClick={handleSave} disabled={saving} className="text-green-600 hover:bg-green-100 p-1.5 rounded" title="Guardar"><Save size={18} /></button>
+                            <button onClick={() => setEditingId(null)} className="text-red-600 hover:bg-red-100 p-1.5 rounded" title="Cancelar"><X size={18} /></button>
                           </div>
                         </td>
                       </>
                     ) : (
                       <>
                         <td className="py-4 px-6 font-bold text-gray-800">{ciclo.nombre}</td>
-                        <td className="py-4 px-6 text-gray-600">{ciclo.meses_abarca}</td>
-                        <td className="py-4 px-6 text-gray-600">{ciclo.anio}</td>
+                        <td className="py-4 px-6 text-gray-600 font-medium">
+                          <span className="bg-gray-100 px-3 py-1 rounded-full text-xs text-gray-700 inline-block shadow-sm">
+                            {ciclo.meses_abarca}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-gray-600 font-semibold">{ciclo.anio}</td>
                         <td className="py-4 px-6 text-center">
                           {ciclo.activo ? (
-                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">ACTIVO</span>
+                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm">ACTIVO</span>
                           ) : (
                             <button onClick={() => handleSetActivo(ciclo.id)} disabled={saving}
-                              className="text-xs text-blue-600 hover:underline disabled:opacity-40">
+                              className="text-xs text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-full font-bold transition-colors disabled:opacity-40 border border-transparent hover:border-blue-200">
                               Hacer Activo
                             </button>
                           )}
                         </td>
                         <td className="py-4 px-6 text-right">
-                          <button onClick={() => handleEdit(ciclo)} className="text-gray-500 hover:text-blue-600 p-1 rounded transition-colors">
-                            <Edit2 size={18} />
-                          </button>
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleEdit(ciclo)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-100" title="Editar">
+                              <Edit2 size={16} />
+                            </button>
+                            <button onClick={() => handleDelete(ciclo)} disabled={saving} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors border border-transparent hover:border-red-100 disabled:opacity-40" title="Eliminar">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </td>
                       </>
                     )}

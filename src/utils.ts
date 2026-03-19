@@ -6,14 +6,20 @@ export const isPaid = (estatus: string | undefined | null) => {
   return true;
 };
 
-export const calculateStudentTotals = (plan: PaymentPlan) => {
+export const calculateStudentTotals = (plan: PaymentPlan, studentEstatus?: string) => {
   let paid = 0;
   let owed = 0;
+  const isBaja = studentEstatus === 'BAJA';
 
   const check = (cantidad: number | undefined, estatus: string | undefined) => {
     if (!cantidad) return;
-    if (isPaid(estatus)) paid += Number(cantidad);
-    else owed += Number(cantidad);
+    if (isPaid(estatus)) {
+      paid += Number(cantidad);
+    } else {
+      if (!isBaja) {
+        owed += Number(cantidad);
+      }
+    }
   };
 
   for (let i = 1; i <= 9; i++) {

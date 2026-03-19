@@ -14,6 +14,7 @@ interface ParsedRow {
     licenciatura: string;
     grado: string;           // columna GRADO separada
     turno: string;           // columna TURNO separada
+    estatus: string;         // columna ESTATUS agregada
     ciclo_escolar: string;
     fecha_plan: string;
     tipo_plan: 'Cuatrimestral' | 'Semestral';
@@ -34,7 +35,7 @@ interface ImportarCSVProps {
 
 // ─── Columnas del CSV ─────────────────────────────────────────────────────────
 const CSV_HEADERS = [
-    'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO',
+    'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO', 'ESTATUS_ALUMNO',
     'CICLO_ESCOLAR', 'FECHA_PLAN', 'TIPO_PLAN', 'BECA_TIPO', 'BECA_PORCENTAJE',
     // 9 grupos de pago
     ...Array.from({ length: 9 }, (_, i) => [
@@ -49,7 +50,7 @@ const CSV_HEADERS = [
 // Estatus de pago: PAGADO / PENDIENTE / (vacío = sin registrar)
 const SAMPLE_ROWS = [
     [
-        'CHAVEZ CORDERO SAMARA YAMIL', '00207', 'DERECHO', '5TO', 'MIXTO',
+        'CHAVEZ CORDERO SAMARA YAMIL', '00207', 'DERECHO', '5TO', 'MIXTO', 'ACTIVO',
         '2026-1', '15/01/2026', 'Cuatrimestral', 'NINGUNA', '0%',
         'INSCRIPCION', '15/01/2026', '1200', 'PAGADO',
         '1ER PAGO', '15/02/2026', '1500', 'PAGADO',
@@ -59,7 +60,7 @@ const SAMPLE_ROWS = [
         '', '', '', '', '', '', '', '', '', '', '', ''
     ],
     [
-        'GARCIA MENDOZA PEDRO IVAN', '00208', 'ADMINISTRACION', '3ER', 'MATUTINO',
+        'GARCIA MENDOZA PEDRO IVAN', '00208', 'ADMINISTRACION', '3ER', 'MATUTINO', 'ACTIVO',
         '2026-1', '15/01/2026', 'Cuatrimestral', 'BECA INSTITUCIONAL', '25%',
         'INSCRIPCION', '15/01/2026', '900', 'PAGADO',
         '1ER PAGO', '15/02/2026', '1125', 'PENDIENTE',
@@ -119,13 +120,14 @@ function parseRows(csvText: string, activeCicloId: string): ParsedRow[] {
         const nombre_alumno = get(0).toUpperCase();
         const no_plan_pagos = get(1);
         const licenciatura = get(2).toUpperCase();
-        const grado = get(3).toUpperCase();           // col 3 = GRADO
-        const turno = get(4).toUpperCase() || 'MIXTO'; // col 4 = TURNO
-        const ciclo_escolar = get(5);
-        const fecha_plan = get(6);
-        const tipo_plan_raw = get(7);
-        const beca_tipo = get(8).toUpperCase() || 'NINGUNA';
-        const beca_porcentaje = get(9) || '0%';
+        const grado = get(3).toUpperCase();
+        const turno = get(4).toUpperCase() || 'MIXTO';
+        const estatus = get(5).toUpperCase() || 'ACTIVO';
+        const ciclo_escolar = get(6);
+        const fecha_plan = get(7);
+        const tipo_plan_raw = get(8);
+        const beca_tipo = get(9).toUpperCase() || 'NINGUNA';
+        const beca_porcentaje = get(10) || '0%';
 
         if (!nombre_alumno) errors.push('Falta NOMBRE_ALUMNO');
         if (!no_plan_pagos) errors.push('Falta NO_PLAN_PAGOS');
@@ -136,22 +138,23 @@ function parseRows(csvText: string, activeCicloId: string): ParsedRow[] {
         const tipo_plan: 'Cuatrimestral' | 'Semestral' =
             tipo_plan_raw.toLowerCase().includes('semestral') ? 'Semestral' : 'Cuatrimestral';
 
-        // Parsear pagos (4 cols por grupo, desde índice 10)
+        // Parsear pagos (4 cols por grupo, desde índice 11)
         const pagos: { concepto: string; fecha: string; cantidad: number; estatus: string }[] = [];
         for (let g = 0; g < 9; g++) {
-            const base = 10 + g * 4;   // ahora empieza en col 10 (antes era 9)
+            const base = 11 + g * 4;
             const concepto = get(base).toUpperCase();
             if (!concepto) continue;
             const fecha = get(base + 1);
             const cantidadRaw = get(base + 2).replace(/[^0-9.]/g, '');
             const cantidad = parseFloat(cantidadRaw) || 0;
-            const estatus = get(base + 3).toUpperCase() || 'PENDIENTE';
-            pagos.push({ concepto, fecha, cantidad, estatus });
+            const pagoEstatus = get(base + 3).toUpperCase() || 'PENDIENTE';
+            pagos.push({ concepto, fecha, cantidad, estatus: pagoEstatus });
         }
 
         return {
             rowIndex: idx + 2,
             nombre_alumno, no_plan_pagos, licenciatura, grado, turno,
+            estatus,
             ciclo_escolar, fecha_plan, tipo_plan, beca_tipo, beca_porcentaje,
             pagos, errors
         };
@@ -163,11 +166,12 @@ function buildAlumnoAndPlan(
     activeCicloId: string,
     existingAlumnos: Alumno[],
     existingPlans: PaymentPlan[]
-): { alumno: Alumno | null; plan: PaymentPlan | null; warning?: string } {
+): { alumno: Alumno | null; plan: PaymentPlan | null; warning?: string; alumnoUpdated?: boolean } {
     // Alumno: reutilizar si ya existe por nombre
     let alumno: Alumno | null = existingAlumnos.find(
         a => a.nombre_completo === row.nombre_alumno
     ) || null;
+    let alumnoUpdated = false;
 
     if (!alumno) {
         alumno = {
@@ -176,7 +180,24 @@ function buildAlumnoAndPlan(
             licenciatura: row.licenciatura,
             grado_actual: row.grado,
             turno: row.turno,
+            estatus: row.estatus,
+            beca_porcentaje: row.beca_porcentaje,
+            beca_tipo: row.beca_tipo
         };
+    } else {
+        // If it exists, update it with CSV data
+        if (alumno.estatus !== row.estatus || alumno.licenciatura !== row.licenciatura || alumno.grado_actual !== row.grado || alumno.turno !== row.turno || alumno.beca_porcentaje !== row.beca_porcentaje || alumno.beca_tipo !== row.beca_tipo) {
+            alumno = {
+                ...alumno,
+                licenciatura: row.licenciatura,
+                grado_actual: row.grado,
+                turno: row.turno,
+                estatus: row.estatus,
+                beca_porcentaje: row.beca_porcentaje,
+                beca_tipo: row.beca_tipo
+            };
+            alumnoUpdated = true;
+        }
     }
 
     // Plan: omitir si ya existe para el mismo ciclo
@@ -282,11 +303,17 @@ export default function ImportarCSV({
         const allPlans = [...existingPlans];
 
         for (const row of validRows) {
-            const { alumno, plan, warning } = buildAlumnoAndPlan(row, activeCicloId, allAlumnos, allPlans);
+            const { alumno, plan, warning, alumnoUpdated } = buildAlumnoAndPlan(row, activeCicloId, allAlumnos, allPlans);
             if (warning) { skipped++; continue; }
-            if (alumno && !allAlumnos.find(a => a.id === alumno.id)) {
+            if (alumno && (!allAlumnos.find(a => a.id === alumno.id) || alumnoUpdated)) {
                 newAlumnos.push(alumno);
-                allAlumnos.push(alumno);
+                if (!allAlumnos.find(a => a.id === alumno.id)) {
+                    allAlumnos.push(alumno);
+                } else {
+                    // Update the local instance in allAlumnos
+                    const index = allAlumnos.findIndex(a => a.id === alumno.id);
+                    if (index >= 0) allAlumnos[index] = alumno;
+                }
             }
             if (plan) {
                 newPlans.push(plan);

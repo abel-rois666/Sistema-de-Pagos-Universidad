@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } from '../types';
 import { supabase, toDBPlan } from '../lib/supabase';
 
@@ -157,15 +157,14 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
   };
 
   const handlePromote = (alumno: Alumno) => {
-    const gradeMap: Record<string, string> = {
-      '1ER': '2DO', '2DO': '3ER', '3ER': '4TO', '4TO': '5TO',
-      '5TO': '6TO', '6TO': '7MO', '7MO': '8VO', '8VO': '9NO', '9NO': 'EGRESADO'
-    };
-    const currentGradeNum = alumno.grado_actual.replace(/[^0-9]/g, '');
-    let nextGrade = gradeMap[alumno.grado_actual];
-    if (!nextGrade && currentGradeNum) nextGrade = `${Number(currentGradeNum) + 1}VO`;
+    if (alumno.estatus === 'EGRESADO' || alumno.grado_actual === 'EGRESADO') {
+      showAlert("Error", "Los alumnos egresados no pueden ser promovidos.");
+      return;
+    }
 
-    if (nextGrade) {
+    const nextGrade = getNextGrade(alumno.grado_actual, alumno.licenciatura);
+
+    if (nextGrade && nextGrade !== alumno.grado_actual) {
       showConfirm(
         "Confirmar Promoción",
         `¿Promover a ${alumno.nombre_completo} de ${alumno.grado_actual} a ${nextGrade}? Esto simulará su inscripción al nuevo ciclo.`,
@@ -230,13 +229,96 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     );
   };
 
-  const filteredAlumnos = alumnos.filter(a =>
-    a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.licenciatura.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ── Selección Múltiple Principal y Ordenamiento ──
+  const [mainTableSelected, setMainTableSelected] = useState<Set<string>>(new Set());
+  const [showBulkStatusModal, setShowBulkStatusModal] = useState(false);
+  const [bulkStatusTarget, setBulkStatusTarget] = useState('ACTIVO');
+  
+  const [sortField, setSortField] = useState<'nombre_completo' | 'licenciatura' | 'grado_actual' | 'turno' | 'estatus'>('nombre_completo');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: 'nombre_completo' | 'licenciatura' | 'grado_actual' | 'turno' | 'estatus') => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const filteredAlumnos = alumnos
+    .filter(a =>
+      a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.licenciatura.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aVal = (a[sortField] || '').toString().toLowerCase();
+      const bVal = (b[sortField] || '').toString().toLowerCase();
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+  const toggleMainTableSelect = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const next = new Set(mainTableSelected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setMainTableSelected(next);
+  };
+
+  const toggleAllMainTable = () => {
+    if (mainTableSelected.size === filteredAlumnos.length && filteredAlumnos.length > 0) {
+      setMainTableSelected(new Set());
+    } else {
+      setMainTableSelected(new Set(filteredAlumnos.map(a => a.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    showConfirm(
+      "Eliminar Alumnos Seleccionados",
+      `¿Estás seguro de que deseas eliminar permanentemente a ${mainTableSelected.size} alumno(s)? Esta acción no se puede deshacer y **eliminará todos sus planes de pago**.`,
+      async () => {
+        setSaving(true);
+        const idsToDelete = Array.from(mainTableSelected);
+        const { error } = await supabase.from('alumnos').delete().in('id', idsToDelete);
+        
+        if (error) {
+          showNotification('error', `Error al eliminar: ${error.message}`);
+        } else {
+          const updated = alumnos.filter(a => !mainTableSelected.has(a.id));
+          setAlumnos(updated);
+          onSave(updated);
+          setMainTableSelected(new Set());
+          showNotification('success', `${idsToDelete.length} alumno(s) eliminado(s) exitosamente.`);
+        }
+        setSaving(false);
+      }
+    );
+  };
+
+  const executeBulkStatusChange = async () => {
+    setSaving(true);
+    const idsToUpdate = Array.from(mainTableSelected);
+    const { error } = await supabase.from('alumnos').update({ estatus: bulkStatusTarget }).in('id', idsToUpdate);
+    
+    if (error) {
+      showNotification('error', `Error al actualizar: ${error.message}`);
+    } else {
+      const updated = alumnos.map(a => mainTableSelected.has(a.id) ? { ...a, estatus: bulkStatusTarget } : a);
+      setAlumnos(updated);
+      onSave(updated);
+      setMainTableSelected(new Set());
+      showNotification('success', `Estatus actualizado a ${bulkStatusTarget} para ${idsToUpdate.length} alumno(s).`);
+    }
+    setShowBulkStatusModal(false);
+    setSaving(false);
+  };
 
   const promotableAlumnos = filteredAlumnos.filter(a => 
-    !activeCyclePlans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo)
+    !activeCyclePlans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo) &&
+    a.estatus !== 'EGRESADO' &&
+    a.grado_actual?.toUpperCase() !== 'EGRESADO'
   );
 
   // ── Lógica de Promoción Masiva ──
@@ -250,15 +332,35 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     else setBulkSelected(new Set(promotableAlumnos.map(a => a.id)));
   };
 
-  const getNextGrade = (currentGrade: string) => {
+  const is8voMaxLic = (licenciatura: string) => {
+    if (!licenciatura) return false;
+    const lic = licenciatura.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return lic.includes('PSICOLOGIA') || lic.includes('PEDAGOGIA') || lic.includes('MERCADOTECNIA');
+  };
+
+  const getNextGrade = (currentGrade: string, licenciatura: string) => {
+    if (currentGrade === 'EGRESADO') return 'EGRESADO';
+    const is8vo = is8voMaxLic(licenciatura);
+
     const gradeMap: Record<string, string> = {
       '1ER': '2DO', '2DO': '3ER', '3ER': '4TO', '4TO': '5TO',
-      '5TO': '6TO', '6TO': '7MO', '7MO': '8VO', '8VO': '9NO', '9NO': 'EGRESADO'
+      '5TO': '6TO', '6TO': '7MO', '7MO': '8VO', 
+      '8VO': is8vo ? 'EGRESADO' : '9NO',
+      '9NO': '10MO', 
+      '10MO': 'EGRESADO'
     };
-    const currentGradeNum = currentGrade.replace(/[^0-9]/g, '');
-    let nextGrade = gradeMap[currentGrade];
-    if (!nextGrade && currentGradeNum) nextGrade = `${Number(currentGradeNum) + 1}VO`;
-    return nextGrade || currentGrade;
+    
+    // Fallback if not standard
+    if (!gradeMap[currentGrade]) {
+      const currentGradeNum = currentGrade.replace(/[^0-9]/g, '');
+      if (currentGradeNum) {
+        if (is8vo && Number(currentGradeNum) >= 8) return 'EGRESADO';
+        if (!is8vo && Number(currentGradeNum) >= 10) return 'EGRESADO';
+        return `${Number(currentGradeNum) + 1}VO`;
+      }
+    }
+    
+    return gradeMap[currentGrade] || currentGrade;
   };
 
   const executeBulkPromotion = async () => {
@@ -273,7 +375,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     }
 
     const selectedAlumnos = alumnos.filter(a => bulkSelected.has(a.id));
-    const nextGrades = selectedAlumnos.map(a => ({ ...a, nextGrade: getNextGrade(a.grado_actual) }));
+    const nextGrades = selectedAlumnos.map(a => ({ ...a, nextGrade: getNextGrade(a.grado_actual, a.licenciatura) }));
 
     // Actualizar alumnos en DB
     const updatePromises = nextGrades.map(a => 
@@ -283,7 +385,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
 
     // Actualizar estado local
     const updatedAlumnos = alumnos.map(a => {
-      if (bulkSelected.has(a.id)) return { ...a, grado_actual: getNextGrade(a.grado_actual) };
+      if (bulkSelected.has(a.id)) return { ...a, grado_actual: getNextGrade(a.grado_actual, a.licenciatura) };
       return a;
     });
 
@@ -386,28 +488,67 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
               <h1 className="text-2xl font-bold text-gray-800">Gestión de Alumnos</h1>
               <p className="text-gray-500 text-sm mt-1">Administra el padrón de alumnos y promuévelos de grado.</p>
             </div>
-            <div className="w-full md:w-72">
-              <input type="text" className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                placeholder="Buscar alumno..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-            </div>
+            {mainTableSelected.size > 0 ? (
+              <div className="flex flex-wrap items-center gap-3 bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-xl">
+                 <span className="text-sm font-bold text-indigo-800">{mainTableSelected.size} seleccionados</span>
+                 <button onClick={() => setShowBulkStatusModal(true)} className="text-sm font-semibold bg-white border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg shadow-sm hover:bg-indigo-100 transition-colors">Cambiar Estatus</button>
+                 {!isCoordinador && (
+                   <button onClick={handleBulkDelete} className="text-sm font-semibold bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg shadow-sm hover:bg-red-50 transition-colors">Eliminar</button>
+                 )}
+                 <button onClick={() => setMainTableSelected(new Set())} className="text-sm text-gray-500 hover:text-gray-700 font-medium px-2" title="Cancelar selección"><X size={16}/></button>
+              </div>
+            ) : (
+              <div className="w-full md:w-72">
+                <input type="text" className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  placeholder="Buscar alumno..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
-                  <th className="py-3 px-6 font-semibold">Nombre Completo</th>
-                  <th className="py-3 px-6 font-semibold">Licenciatura</th>
-                  <th className="py-3 px-6 font-semibold">Grado</th>
-                  <th className="py-3 px-6 font-semibold">Turno</th>
-                  <th className="py-3 px-6 font-semibold">Estatus</th>
+                  <th className="py-3 px-4 w-12 text-center">
+                    <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filteredAlumnos.length > 0 && mainTableSelected.size === filteredAlumnos.length} onChange={toggleAllMainTable} />
+                  </th>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('nombre_completo')}>
+                    <div className="flex items-center gap-1">
+                      Nombre Completo
+                      {sortField === 'nombre_completo' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('licenciatura')}>
+                    <div className="flex items-center gap-1">
+                      Licenciatura
+                      {sortField === 'licenciatura' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('grado_actual')}>
+                    <div className="flex items-center gap-1">
+                      Grado
+                      {sortField === 'grado_actual' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('turno')}>
+                    <div className="flex items-center gap-1">
+                      Turno
+                      {sortField === 'turno' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
+                    </div>
+                  </th>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('estatus')}>
+                    <div className="flex items-center gap-1">
+                      Estatus
+                      {sortField === 'estatus' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
+                    </div>
+                  </th>
                   <th className="py-3 px-6 font-semibold text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {editingId === 'new' && (
                   <tr className="bg-indigo-50/50">
-                    <td colSpan={6} className="p-4 border-b border-indigo-100">
+                    <td colSpan={7} className="p-4 border-b border-indigo-100">
                       <div className="bg-white rounded-xl shadow-sm border border-indigo-100 p-5">
                          <h4 className="font-bold text-indigo-800 border-b border-indigo-50 pb-2 mb-4">Datos del Alumno</h4>
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -431,7 +572,12 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                              {catalogos?.grados?.length ? (
                                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
                                  <option value="">-- Seleccionar --</option>
-                                 {catalogos.grados.map(c => <option key={c} value={c}>{c}</option>)}
+                                 {catalogos.grados.filter(g => {
+                                    if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
+                                       return g !== '9NO' && g !== '10MO';
+                                    }
+                                    return true;
+                                 }).map(c => <option key={c} value={c}>{c}</option>)}
                                </select>
                              ) : (
                                <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
@@ -521,7 +667,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                   <React.Fragment key={alumno.id}>
                     {editingId === alumno.id ? (
                       <tr className="bg-blue-50/40">
-                        <td colSpan={6} className="p-4 border-b border-blue-100">
+                        <td colSpan={7} className="p-4 border-b border-blue-100">
                           <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-5">
                              <h4 className="font-bold text-blue-800 border-b border-blue-50 pb-2 mb-4">Editar Alumno</h4>
                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -545,7 +691,12 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                  {catalogos?.grados?.length ? (
                                    <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
                                      <option value="">-- Seleccionar --</option>
-                                     {catalogos.grados.map(c => <option key={c} value={c}>{c}</option>)}
+                                     {catalogos.grados.filter(g => {
+                                        if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
+                                           return g !== '9NO' && g !== '10MO';
+                                        }
+                                        return true;
+                                     }).map(c => <option key={c} value={c}>{c}</option>)}
                                    </select>
                                  ) : (
                                    <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
@@ -607,7 +758,10 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                         </td>
                       </tr>
                     ) : (
-                      <tr className="hover:bg-gray-50 transition-colors">
+                      <tr className={`hover:bg-gray-50 transition-colors ${mainTableSelected.has(alumno.id) ? 'bg-indigo-50/20' : ''}`}>
+                        <td className="py-4 px-4 text-center">
+                          <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={mainTableSelected.has(alumno.id)} onChange={(e) => toggleMainTableSelect(alumno.id, e)} />
+                        </td>
                         <td className="py-4 px-6 font-bold text-gray-800">
                           {alumno.nombre_completo}
                           <div className="text-xs text-gray-400 font-normal mt-0.5 whitespace-nowrap">
@@ -741,7 +895,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                        </td>
                        <td className="py-3 px-4 text-center">
                           <span className="text-gray-500 line-through mr-2">{a.grado_actual}</span>
-                          <span className="font-bold text-indigo-600 text-base">{getNextGrade(a.grado_actual)}</span>
+                          <span className="font-bold text-indigo-600 text-base">{getNextGrade(a.grado_actual, a.licenciatura)}</span>
                        </td>
                      </tr>
                    ))}
@@ -767,6 +921,39 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
           </motion.div>
         </div>
       )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showBulkStatusModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-600 to-blue-600 p-4 text-white">
+                <h3 className="font-bold text-lg">Cambiar Estatus Masivo</h3>
+                <p className="text-indigo-100 text-sm">{mainTableSelected.size} alumnos seleccionados</p>
+              </div>
+              <div className="p-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nuevo Estatus</label>
+                <select className="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 mb-6" value={bulkStatusTarget} onChange={e => setBulkStatusTarget(e.target.value)}>
+                  {catalogos?.estatus_alumnos?.length ? catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>) : (
+                    <>
+                      <option value="ACTIVO">ACTIVO</option>
+                      <option value="BAJA">BAJA</option>
+                      <option value="EGRESADO">EGRESADO</option>
+                      <option value="TITULADO">TITULADO</option>
+                    </>
+                  )}
+                </select>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setShowBulkStatusModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors font-medium">Cancelar</button>
+                  <button onClick={executeBulkStatusChange} disabled={saving} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-colors flex items-center gap-2 font-bold disabled:opacity-50">
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
+                    Aplicar Cambios
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* Modal Genérico */}

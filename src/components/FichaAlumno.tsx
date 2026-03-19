@@ -177,11 +177,11 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
                  <div className="flex gap-6">
                     <div className="text-center">
                        <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Pagado</p>
-                       <p className="text-xl font-bold text-emerald-300 drop-shadow-sm">${calculateStudentTotals(activePlan).paid.toLocaleString()}</p>
+                       <p className="text-xl font-bold text-emerald-300 drop-shadow-sm">${calculateStudentTotals(activePlan, selectedAlumno.estatus).paid.toLocaleString()}</p>
                     </div>
                     <div className="text-center">
                        <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Adeudo</p>
-                       <p className="text-xl font-bold text-red-300 drop-shadow-sm">${calculateStudentTotals(activePlan).owed.toLocaleString()}</p>
+                       <p className="text-xl font-bold text-red-300 drop-shadow-sm">${calculateStudentTotals(activePlan, selectedAlumno.estatus).owed.toLocaleString()}</p>
                     </div>
                  </div>
               </div>

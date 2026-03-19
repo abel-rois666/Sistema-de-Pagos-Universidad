@@ -11,13 +11,8 @@ interface EstadisticasProps {
 }
 
 export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasProps) {
-  // Filter out plans for students that are 'BAJA'
-  const filteredPlans = useMemo(() => {
-    return plans.filter(p => {
-      const alumno = alumnos.find(a => a.id === p.alumno_id || a.nombre_completo === p.nombre_alumno);
-      return alumno?.estatus !== 'BAJA';
-    });
-  }, [plans, alumnos]);
+  // No longer filter out 'BAJA' entirely, we will handle them in the stats loop.
+  const filteredPlans = useMemo(() => plans, [plans]);
 
   const stats = useMemo(() => {
     let totalPaid = 0;
@@ -28,7 +23,7 @@ export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasPro
     const licenciaturaData: Record<string, { paid: number, owed: number }> = {};
     const turnoData: Record<string, { paid: number, owed: number }> = {};
     
-    const processPayment = (plan: PaymentPlan, cantidad: number, estatus: string, fecha: string) => {
+    const processPayment = (plan: PaymentPlan, cantidad: number, estatus: string, fecha: string, isBaja: boolean) => {
       if (!cantidad) return;
       
       const month = extractMonth(fecha);
@@ -56,20 +51,25 @@ export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasPro
         licenciaturaData[lic].paid += Number(cantidad);
         turnoData[tur].paid += Number(cantidad);
       } else {
-        totalOwed += Number(cantidad);
-        monthsData[month].owed += Number(cantidad);
-        licenciaturaData[lic].owed += Number(cantidad);
-        turnoData[tur].owed += Number(cantidad);
+        if (!isBaja) {
+          totalOwed += Number(cantidad);
+          monthsData[month].owed += Number(cantidad);
+          licenciaturaData[lic].owed += Number(cantidad);
+          turnoData[tur].owed += Number(cantidad);
+        }
       }
     };
 
     filteredPlans.forEach(plan => {
+      const alumno = alumnos.find(a => a.id === plan.alumno_id || a.nombre_completo === plan.nombre_alumno);
+      const isBaja = alumno?.estatus === 'BAJA';
+
       for (let i = 1; i <= 9; i++) {
         const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
         const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
         const fecha = plan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
         if (cantidad && fecha) {
-          processPayment(plan, cantidad, estatus || '', fecha);
+          processPayment(plan, cantidad, estatus || '', fecha, isBaja);
         }
       }
     });

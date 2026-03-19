@@ -34,8 +34,12 @@ export const toDBPlan = (plan: PaymentPlan) => ({
 
 // ── CRUD Helpers ─────────────────────────────────────────────────────────────
 
+// Verifica si un string es un UUID válido de Postgres
+const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 /** Upsert de un plan de pagos individual */
 export const savePlan = async (plan: PaymentPlan): Promise<string | null> => {
+  if (plan.id && !isUUID(plan.id)) return null;
   const { error } = await supabase.from('planes_pago').upsert(toDBPlan(plan));
   if (error) { console.error('[savePlan]', error.message); return error.message; }
   return null;
@@ -43,6 +47,7 @@ export const savePlan = async (plan: PaymentPlan): Promise<string | null> => {
 
 /** Upsert de un alumno */
 export const saveAlumno = async (alumno: Alumno): Promise<string | null> => {
+  if (alumno.id && !isUUID(alumno.id)) return null;
   const { error } = await supabase.from('alumnos').upsert({
     id: alumno.id,
     nombre_completo: alumno.nombre_completo,
@@ -58,8 +63,10 @@ export const saveAlumno = async (alumno: Alumno): Promise<string | null> => {
 
 /** Upsert completo del array de ciclos (usado al activar/desactivar) */
 export const saveCiclos = async (ciclos: CicloEscolar[]): Promise<string | null> => {
+  const validCiclos = ciclos.filter(c => isUUID(c.id));
+  if (validCiclos.length === 0) return null;
   const { error } = await supabase.from('ciclos_escolares').upsert(
-    ciclos.map(c => ({ id: c.id, nombre: c.nombre, meses_abarca: c.meses_abarca, anio: c.anio, activo: c.activo }))
+    validCiclos.map(c => ({ id: c.id, nombre: c.nombre, meses_abarca: c.meses_abarca, anio: c.anio, activo: c.activo }))
   );
   if (error) { console.error('[saveCiclos]', error.message); return error.message; }
   return null;
@@ -67,9 +74,19 @@ export const saveCiclos = async (ciclos: CicloEscolar[]): Promise<string | null>
 
 /** Insert masivo de alumnos (importación CSV) */
 export const bulkSaveAlumnos = async (alumnos: Alumno[]): Promise<string | null> => {
-  if (!alumnos.length) return null;
-  const { error } = await supabase.from('alumnos').insert(
-    alumnos.map(a => ({ id: a.id, nombre_completo: a.nombre_completo, licenciatura: a.licenciatura, grado_actual: a.grado_actual, turno: a.turno }))
+  const validAlumnos = alumnos.filter(a => isUUID(a.id));
+  if (!validAlumnos.length) return null;
+  const { error } = await supabase.from('alumnos').upsert(
+    validAlumnos.map(a => ({
+      id: a.id,
+      nombre_completo: a.nombre_completo,
+      licenciatura: a.licenciatura,
+      grado_actual: a.grado_actual,
+      turno: a.turno,
+      estatus: a.estatus || 'ACTIVO',
+      beca_porcentaje: a.beca_porcentaje || '0%',
+      beca_tipo: a.beca_tipo || 'NINGUNA'
+    }))
   );
   if (error) { console.error('[bulkSaveAlumnos]', error.message); return error.message; }
   return null;
@@ -77,14 +94,16 @@ export const bulkSaveAlumnos = async (alumnos: Alumno[]): Promise<string | null>
 
 /** Insert masivo de planes (importación CSV) */
 export const bulkSavePlanes = async (planes: PaymentPlan[]): Promise<string | null> => {
-  if (!planes.length) return null;
-  const { error } = await supabase.from('planes_pago').insert(planes.map(toDBPlan));
+  const validPlanes = planes.filter(p => isUUID(p.id));
+  if (!validPlanes.length) return null;
+  const { error } = await supabase.from('planes_pago').insert(validPlanes.map(toDBPlan));
   if (error) { console.error('[bulkSavePlanes]', error.message); return error.message; }
   return null;
 };
 
 /** Upsert de una plantilla de plan */
 export const savePlantilla = async (plantilla: any): Promise<string | null> => {
+  if (plantilla.id && !isUUID(plantilla.id)) return null;
   const { error } = await supabase.from('plantillas_plan').upsert(plantilla);
   if (error) { console.error('[savePlantilla]', error.message); return error.message; }
   return null;
@@ -92,6 +111,7 @@ export const savePlantilla = async (plantilla: any): Promise<string | null> => {
 
 /** Eliminar una plantilla de plan */
 export const deletePlantilla = async (id: string): Promise<string | null> => {
+  if (!isUUID(id)) return null;
   const { error } = await supabase.from('plantillas_plan').delete().eq('id', id);
   if (error) { console.error('[deletePlantilla]', error.message); return error.message; }
   return null;
@@ -99,6 +119,7 @@ export const deletePlantilla = async (id: string): Promise<string | null> => {
 
 /** Eliminar un alumno */
 export const deleteAlumno = async (id: string): Promise<string | null> => {
+  if (!isUUID(id)) return null;
   const { error } = await supabase.from('alumnos').delete().eq('id', id);
   if (error) { console.error('[deleteAlumno]', error.message); return error.message; }
   return null;
@@ -106,6 +127,7 @@ export const deleteAlumno = async (id: string): Promise<string | null> => {
 
 /** Upsert individual de ciclo escolar */
 export const saveCiclo = async (ciclo: CicloEscolar): Promise<string | null> => {
+  if (ciclo.id && !isUUID(ciclo.id)) return null;
   const { error } = await supabase.from('ciclos_escolares').upsert(
     { id: ciclo.id, nombre: ciclo.nombre, meses_abarca: ciclo.meses_abarca, anio: ciclo.anio, activo: ciclo.activo }
   );
@@ -115,6 +137,7 @@ export const saveCiclo = async (ciclo: CicloEscolar): Promise<string | null> => 
 
 /** Eliminar un ciclo escolar */
 export const deleteCiclo = async (id: string): Promise<string | null> => {
+  if (!isUUID(id)) return null;
   const { error } = await supabase.from('ciclos_escolares').delete().eq('id', id);
   if (error) { console.error('[deleteCiclo]', error.message); return error.message; }
   return null;
@@ -122,6 +145,7 @@ export const deleteCiclo = async (id: string): Promise<string | null> => {
 
 /** Upsert de un item de catalogo */
 export const saveCatalogoItem = async (item: any): Promise<string | null> => {
+  if (item.id && !isUUID(item.id)) return null;
   const { error } = await supabase.from('catalogos').upsert(item);
   if (error) { console.error('[saveCatalogoItem]', error.message); return error.message; }
   return null;
@@ -129,6 +153,7 @@ export const saveCatalogoItem = async (item: any): Promise<string | null> => {
 
 /** Eliminar un item de catalogo */
 export const deleteCatalogoItem = async (id: string): Promise<string | null> => {
+  if (!isUUID(id)) return null;
   const { error } = await supabase.from('catalogos').delete().eq('id', id);
   if (error) { console.error('[deleteCatalogoItem]', error.message); return error.message; }
   return null;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, User, LogIn, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import bcrypt from 'bcryptjs';
 import type { Usuario } from '../types';
 
 interface LoginProps {
@@ -24,19 +25,28 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
 
     try {
-      // Query the custom usuarios table
+      // 1. Buscar solo por username (nunca enviamos password al servidor)
       const { data, error: dbError } = await supabase
         .from('usuarios')
         .select('*')
-        .eq('username', username)
-        .eq('password', password) // In a real app we would use hashed passwords, for now plaintext as requested.
-        .single();
+        .eq('username', username.trim())
+        .maybeSingle();
 
-      if (dbError || !data) {
-        // Log details in console but show generic error to user
-        console.warn('Login attempt failed', dbError?.message);
+      if (dbError) {
+        console.warn('Login - Error de BD:', dbError.message);
+        setError('Error al conectar con el servidor.');
+        return;
+      }
+
+      if (!data) {
         setError('Credenciales incorrectas o el usuario no existe.');
-        setLoading(false);
+        return;
+      }
+
+      // 2. Verificar password localmente con bcrypt (hash nunca revela la contraseña original)
+      const passwordValid = await bcrypt.compare(password, data.password);
+      if (!passwordValid) {
+        setError('Credenciales incorrectas o el usuario no existe.');
         return;
       }
 
@@ -49,11 +59,12 @@ export default function Login({ onLogin }: LoginProps) {
     }
   };
 
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 tracking-tight">
-          Bienvenido al CRM Universitario
+          Bienvenido al Sistema de Pagos CUOM
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Inicia sesión para gestionar alumnos y pagos

@@ -1,6 +1,6 @@
 import { useState, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { FileText, User, BarChart3, Users, Settings, GraduationCap, Calendar, BookOpen, Upload, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, User, BarChart3, Users, Settings, GraduationCap, Calendar, BookOpen, Upload, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { supabase, savePlan, bulkSaveAlumnos, bulkSavePlanes, saveAlumno, deleteAlumno, saveCiclo, deleteCiclo, saveCatalogoItem, deleteCatalogoItem, savePlantilla, deletePlantilla } from './lib/supabase';
 import { PaymentPlan, CicloEscolar, Alumno, CatalogoItem, Catalogos, PlantillaPlan } from './types';
 import { MOCK_DATA, MOCK_CICLOS, MOCK_ALUMNOS } from './data';
@@ -15,6 +15,7 @@ import CatalogosConfig from './components/CatalogosConfig';
 import ImportarCSV from './components/ImportarCSV';
 import PlantillasConfig from './components/PlantillasConfig';
 import Login from './components/Login';
+import UsuariosConfig from './components/UsuariosConfig';
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -47,7 +48,21 @@ const buildCatalogos = (items: CatalogoItem[]): Catalogos => ({
   estatus_alumnos: items.filter(i => i.tipo === 'estatus_alumno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor),
 });
 
-type View = 'home' | 'plan_pagos' | 'ficha_alumno' | 'estadisticas' | 'deudores' | 'ciclos' | 'alumnos' | 'catalogos' | 'plantillas';
+type View = 'home' | 'plan_pagos' | 'ficha_alumno' | 'estadisticas' | 'deudores' | 'ciclos' | 'alumnos' | 'catalogos' | 'plantillas' | 'usuarios';
+
+// ── Page Wrapper Animado ─────────────────────────────────────────────────
+const pageVariants = {
+  initial: { opacity: 0, y: 15 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -15 },
+  transition: { duration: 0.25, ease: "easeOut" }
+};
+
+const PageWrapper = ({ children, keyStr, className }: { children: ReactNode, keyStr: string, className?: string }) => (
+  <motion.div key={keyStr} initial="initial" animate="animate" exit="exit" variants={pageVariants} transition={pageVariants.transition as any} className={className || "min-h-screen bg-gray-50"}>
+    {children}
+  </motion.div>
+);
 
 export default function App() {
   const [plans, setPlans] = useState<PaymentPlan[]>(MOCK_DATA);
@@ -60,7 +75,22 @@ export default function App() {
   const [currentView, setCurrentView] = useState<View>('home');
   const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
-  const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
+
+  // 1. Inicialización síncrona de sesión: evita flasheos de vista de "Login" al refrescar la página
+  const [currentUser, setCurrentUser] = useState<Usuario | null>(() => {
+    try {
+      const savedUser = localStorage.getItem('crm_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && typeof parsed === 'object' && parsed.id) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Error al cargar sesión:', e);
+    }
+    return null;
+  });
 
   // ── Toast global ─────────────────────────────────────────────────────────
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -69,21 +99,7 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // ── Persistencia de Sesión ───────────────────────────────────────────────
-  useEffect(() => {
-    const savedUser = localStorage.getItem('crm_user');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && typeof parsed === 'object' && parsed.id) {
-          setCurrentUser(parsed);
-        }
-      } catch (e) {
-        console.error('Error al cargar sesión:', e);
-      }
-    }
-  }, []);
-
+  // ── Persistencia de Sesión (Escrito) ───────────────────────────────────────────────
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('crm_user', JSON.stringify(currentUser));
@@ -99,19 +115,27 @@ export default function App() {
     try {
       const { data: planesData, error: planesError } = await supabase
         .from('vista_planes_pago').select('*');
-      if (!planesError && planesData && planesData.length > 0) setPlans(planesData as PaymentPlan[]);
+      if (!planesError && planesData) {
+        setPlans(planesData.length > 0 ? planesData as PaymentPlan[] : []);
+      }
 
       const { data: ciclosData, error: ciclosError } = await supabase
         .from('ciclos_escolares').select('*');
-      if (!ciclosError && ciclosData && ciclosData.length > 0) {
-        setCiclos(ciclosData as CicloEscolar[]);
-        const active = ciclosData.find(c => c.activo);
-        if (active) setActiveCicloId(active.id);
+      if (!ciclosError && ciclosData) {
+        if (ciclosData.length > 0) {
+          setCiclos(ciclosData as CicloEscolar[]);
+          const active = ciclosData.find(c => c.activo);
+          if (active) setActiveCicloId(active.id);
+        } else {
+          setCiclos([]);
+        }
       }
 
       const { data: alumnosData, error: alumnosError } = await supabase
         .from('alumnos').select('*');
-      if (!alumnosError && alumnosData && alumnosData.length > 0) setAlumnos(alumnosData as Alumno[]);
+      if (!alumnosError && alumnosData) {
+        setAlumnos(alumnosData.length > 0 ? alumnosData as Alumno[] : []);
+      }
 
       const { data: catalogosData, error: catalogosError } = await supabase
         .from('catalogos').select('*').order('orden', { ascending: true });
@@ -170,20 +194,6 @@ export default function App() {
 
   const isCoordinador = currentUser.rol === 'COORDINADOR';
 
-  // ── Page Wrapper Animado ─────────────────────────────────────────────────
-  const pageVariants = {
-    initial: { opacity: 0, y: 15 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -15 },
-    transition: { duration: 0.25, ease: "easeOut" }
-  };
-
-  const PageWrapper = ({ children, keyStr, className }: { children: ReactNode, keyStr: string, className?: string }) => (
-    <motion.div key={keyStr} initial="initial" animate="animate" exit="exit" variants={pageVariants} transition={pageVariants.transition} className={className || "min-h-screen bg-gray-50"}>
-      {children}
-    </motion.div>
-  );
-
   // ── Renderizado Dinámico de Vistas ───────────────────────────────────────
   const renderView = () => {
     switch (currentView) {
@@ -195,6 +205,7 @@ export default function App() {
       case 'alumnos': return <PageWrapper keyStr="alumnos"><AlumnosConfig currentUser={currentUser} alumnos={alumnos} ciclos={ciclos} activeCicloId={activeCicloId} activeCyclePlans={filteredPlans} catalogos={catalogos} plantillas={plantillas} onSave={setAlumnos} onCreatePlan={handleSavePlan} onViewFicha={(id) => { setSelectedAlumnoId(id); setCurrentView('ficha_alumno'); }} onBack={() => setCurrentView('home')} /></PageWrapper>;
       case 'catalogos': return <PageWrapper keyStr="catalogos"><CatalogosConfig catalogos={catalogos} rawItems={catalogoItems} onBack={() => setCurrentView('home')} onUpdate={setCatalogoItems} /></PageWrapper>;
       case 'plantillas': return <PageWrapper keyStr="plantillas"><PlantillasConfig plantillas={plantillas} ciclos={ciclos} catalogos={catalogos} onSave={setPlantillas} onBack={() => setCurrentView('home')} /></PageWrapper>;
+      case 'usuarios': return <PageWrapper keyStr="usuarios"><UsuariosConfig currentUser={currentUser} onBack={() => setCurrentView('home')} /></PageWrapper>;
       case 'home':
       default:
         return (
@@ -250,6 +261,9 @@ export default function App() {
                       </button>
                       <button onClick={() => setCurrentView('ciclos')} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold transition-colors text-sm border border-gray-200">
                         <Settings size={18} /> Ciclos
+                      </button>
+                      <button onClick={() => setCurrentView('usuarios')} className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg font-semibold transition-colors text-sm border border-amber-100">
+                        <Shield size={18} /> Usuarios
                       </button>
                     </>
                   )}
