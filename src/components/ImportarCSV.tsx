@@ -1,10 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
-import {
-    X, Upload, Download, CheckCircle, AlertTriangle, FileText,
-    ChevronRight, ChevronLeft, Loader2, AlertCircle, Eye
-} from 'lucide-react';
+import { X, Upload, Download, CheckCircle, AlertTriangle, FileText, ChevronRight, ChevronLeft, Loader2, AlertCircle, Eye } from 'lucide-react';
 import { PaymentPlan, Alumno } from '../types';
+import { CSV_HEADERS, generateCSV, downloadCSV } from '../utils';
 
 // ─── Tipos internos ──────────────────────────────────────────────────────────
 interface ParsedRow {
@@ -12,9 +10,9 @@ interface ParsedRow {
     nombre_alumno: string;
     no_plan_pagos: string;
     licenciatura: string;
-    grado: string;           // columna GRADO separada
-    turno: string;           // columna TURNO separada
-    estatus: string;         // columna ESTATUS agregada
+    grado: string;           
+    turno: string;           
+    estatus: string;         
     ciclo_escolar: string;
     fecha_plan: string;
     tipo_plan: 'Cuatrimestral' | 'Semestral';
@@ -32,16 +30,6 @@ interface ImportarCSVProps {
     onImport: (newAlumnos: Alumno[], newPlans: PaymentPlan[]) => void;
     onClose: () => void;
 }
-
-// ─── Columnas del CSV ─────────────────────────────────────────────────────────
-const CSV_HEADERS = [
-    'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO', 'ESTATUS_ALUMNO',
-    'CICLO_ESCOLAR', 'FECHA_PLAN', 'TIPO_PLAN', 'BECA_TIPO', 'BECA_PORCENTAJE',
-    // 9 grupos de pago
-    ...Array.from({ length: 9 }, (_, i) => [
-        `CONCEPTO_${i + 1}`, `FECHA_${i + 1}`, `CANTIDAD_${i + 1}`, `ESTATUS_${i + 1}`
-    ]).flat()
-];
 
 // ─── Datos de muestra ─────────────────────────────────────────────────────────
 // GRADO y TURNO van en columnas separadas
@@ -71,22 +59,6 @@ const SAMPLE_ROWS = [
 ];
 
 // ─── Utilidades ───────────────────────────────────────────────────────────────
-function generateCSV(headers: string[], rows: string[][]): string {
-    const escape = (v: string) => v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v;
-    return [headers, ...rows].map(r => r.map(escape).join(',')).join('\r\n');
-}
-
-function downloadCSV(content: string, filename: string) {
-    const BOM = '\uFEFF'; // BOM para apertura correcta en Excel con acentos
-    const blob = new Blob([BOM + content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
 function parseCSVLine(line: string): string[] {
     const result: string[] = [];
     let current = '';
@@ -110,24 +82,32 @@ function parseCSVLine(line: string): string[] {
 function parseRows(csvText: string, activeCicloId: string): ParsedRow[] {
     const lines = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
     if (lines.length < 2) return [];
-    // Saltar encabezado
+    
+    const headers = parseCSVLine(lines[0]).map(h => h.toUpperCase().trim());
+    const headerMap: Record<string, number> = {};
+    headers.forEach((h, i) => headerMap[h] = i);
+
     const dataLines = lines.slice(1);
     return dataLines.map((line, idx) => {
         const cols = parseCSVLine(line);
-        const get = (i: number) => (cols[i] || '').trim();
+        const getCol = (name: string) => {
+            const index = headerMap[name];
+            return index !== undefined && cols[index] ? cols[index].trim() : '';
+        };
+
         const errors: string[] = [];
 
-        const nombre_alumno = get(0).toUpperCase();
-        const no_plan_pagos = get(1);
-        const licenciatura = get(2).toUpperCase();
-        const grado = get(3).toUpperCase();
-        const turno = get(4).toUpperCase() || 'MIXTO';
-        const estatus = get(5).toUpperCase() || 'ACTIVO';
-        const ciclo_escolar = get(6);
-        const fecha_plan = get(7);
-        const tipo_plan_raw = get(8);
-        const beca_tipo = get(9).toUpperCase() || 'NINGUNA';
-        const beca_porcentaje = get(10) || '0%';
+        const nombre_alumno = getCol('NOMBRE_ALUMNO').toUpperCase();
+        const no_plan_pagos = getCol('NO_PLAN_PAGOS');
+        const licenciatura = getCol('LICENCIATURA').toUpperCase();
+        const grado = getCol('GRADO').toUpperCase();
+        const turno = getCol('TURNO').toUpperCase() || 'MIXTO';
+        const estatus = getCol('ESTATUS_ALUMNO').toUpperCase() || 'ACTIVO';
+        const ciclo_escolar = getCol('CICLO_ESCOLAR');
+        const fecha_plan = getCol('FECHA_PLAN');
+        const tipo_plan_raw = getCol('TIPO_PLAN');
+        const beca_tipo = getCol('BECA_TIPO').toUpperCase() || 'NINGUNA';
+        const beca_porcentaje = getCol('BECA_PORCENTAJE') || '0%';
 
         if (!nombre_alumno) errors.push('Falta NOMBRE_ALUMNO');
         if (!no_plan_pagos) errors.push('Falta NO_PLAN_PAGOS');
@@ -138,16 +118,15 @@ function parseRows(csvText: string, activeCicloId: string): ParsedRow[] {
         const tipo_plan: 'Cuatrimestral' | 'Semestral' =
             tipo_plan_raw.toLowerCase().includes('semestral') ? 'Semestral' : 'Cuatrimestral';
 
-        // Parsear pagos (4 cols por grupo, desde índice 11)
+        // Parsear pagos buscando por nombre de header
         const pagos: { concepto: string; fecha: string; cantidad: number; estatus: string }[] = [];
-        for (let g = 0; g < 9; g++) {
-            const base = 11 + g * 4;
-            const concepto = get(base).toUpperCase();
+        for (let g = 1; g <= 9; g++) {
+            const concepto = getCol(`CONCEPTO_${g}`).toUpperCase();
             if (!concepto) continue;
-            const fecha = get(base + 1);
-            const cantidadRaw = get(base + 2).replace(/[^0-9.]/g, '');
+            const fecha = getCol(`FECHA_${g}`);
+            const cantidadRaw = getCol(`CANTIDAD_${g}`).replace(/[^0-9.]/g, '');
             const cantidad = parseFloat(cantidadRaw) || 0;
-            const pagoEstatus = get(base + 3).toUpperCase() || 'PENDIENTE';
+            const pagoEstatus = getCol(`ESTATUS_${g}`).toUpperCase() || 'PENDIENTE';
             pagos.push({ concepto, fecha, cantidad, estatus: pagoEstatus });
         }
 
@@ -158,7 +137,7 @@ function parseRows(csvText: string, activeCicloId: string): ParsedRow[] {
             ciclo_escolar, fecha_plan, tipo_plan, beca_tipo, beca_porcentaje,
             pagos, errors
         };
-    }).filter(r => r.nombre_alumno); // Ignorar filas completamente vacías
+    }).filter(r => r.nombre_alumno);
 }
 
 function buildAlumnoAndPlan(
@@ -200,20 +179,16 @@ function buildAlumnoAndPlan(
         }
     }
 
-    // Plan: omitir si ya existe para el mismo ciclo
+    // Plan: Actualizar si ya existe para el mismo ciclo
     const planDuplicate = existingPlans.find(
         p => (p.nombre_alumno === row.nombre_alumno) &&
             (p.ciclo_escolar === row.ciclo_escolar || p.ciclo_id === activeCicloId)
     );
 
-    if (planDuplicate) {
-        return { alumno, plan: null, warning: `${row.nombre_alumno}: ya tiene plan en ciclo ${row.ciclo_escolar}` };
-    }
-
     const grado_turno = `${row.grado} ${row.turno}`.trim();
 
     const plan: PaymentPlan = {
-        id: crypto.randomUUID(),
+        id: planDuplicate ? planDuplicate.id : crypto.randomUUID(),
         alumno_id: alumno.id,
         ciclo_id: activeCicloId,
         nombre_alumno: row.nombre_alumno,
@@ -317,7 +292,12 @@ export default function ImportarCSV({
             }
             if (plan) {
                 newPlans.push(plan);
-                allPlans.push(plan);
+                const existingPlanIndex = allPlans.findIndex(p => p.id === plan.id);
+                if (existingPlanIndex >= 0) {
+                    allPlans[existingPlanIndex] = plan;
+                } else {
+                    allPlans.push(plan);
+                }
             }
         }
 
@@ -533,7 +513,7 @@ export default function ImportarCSV({
                             <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
                                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
                                     <p className="text-3xl font-extrabold text-emerald-700">{importResult.added}</p>
-                                    <p className="text-xs text-emerald-600 font-medium">Planes creados</p>
+                                    <p className="text-xs text-emerald-600 font-medium">Planes creados / actualizados</p>
                                 </div>
                                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                                     <p className="text-3xl font-extrabold text-amber-700">{importResult.skipped}</p>

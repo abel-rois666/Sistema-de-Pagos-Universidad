@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Search, User } from 'lucide-react';
+import { ArrowLeft, Search, User, FileText } from 'lucide-react';
 import { PaymentPlan, Alumno } from '../types';
 import { calculateStudentTotals, isPaid, formatDate } from '../utils';
 
@@ -8,9 +8,10 @@ interface FichaAlumnoProps {
   alumnos?: Alumno[];
   initialAlumnoId?: string | null;
   onBack: () => void;
+  onGoToPlan?: (id: string) => void;
 }
 
-export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBack }: FichaAlumnoProps) {
+export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBack, onGoToPlan }: FichaAlumnoProps) {
   const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(initialAlumnoId || null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -148,8 +149,8 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
               <h1 className="text-3xl font-bold mb-3">{selectedAlumno.nombre_completo}</h1>
               <div className="flex flex-wrap gap-2 text-blue-100 text-sm">
                 <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Licenciatura: {selectedAlumno.licenciatura}</span>
-                <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Grado: {selectedAlumno.grado_actual}</span>
-                <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Turno: {selectedAlumno.turno}</span>
+                <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Grado: {activePlan?.grado || (activePlan?.grado_turno?.split('/')[0]?.trim()) || selectedAlumno.grado_actual}</span>
+                <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Turno: {activePlan?.turno || (activePlan?.grado_turno?.split('/')[1]?.trim()) || selectedAlumno.turno}</span>
                 <span className={`px-3 py-1 rounded-full border shadow-sm backdrop-blur-sm font-semibold
                   ${selectedAlumno.estatus === 'BAJA' ? 'bg-red-900/60 border-red-700 text-red-100' : 
                     selectedAlumno.estatus === 'EGRESADO' ? 'bg-amber-900/60 border-amber-700 text-amber-100' : 
@@ -168,22 +169,32 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
             </div>
             
             {activePlan ? (
-              <div className="bg-white/10 p-5 rounded-2xl border border-white/20 backdrop-blur-md shrink-0 flex items-center justify-between md:flex-col gap-4 shadow-xl">
-                 <div className="text-center">
-                    <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Ciclo Escolar</p>
-                    <p className="text-xl font-bold tracking-tight">{activePlan.ciclo_escolar}</p>
+              <div className="bg-white/10 p-5 rounded-2xl border border-white/20 backdrop-blur-md shrink-0 flex flex-col md:items-center gap-4 shadow-xl">
+                 <div className="flex items-center justify-between md:flex-col gap-4 w-full">
+                   <div className="text-center">
+                      <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Ciclo Escolar</p>
+                      <p className="text-xl font-bold tracking-tight">{activePlan.ciclo_escolar}</p>
+                   </div>
+                   <div className="w-px h-10 bg-white/20 md:w-full md:h-px"></div>
+                   <div className="flex gap-6">
+                      <div className="text-center">
+                         <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Pagado</p>
+                         <p className="text-xl font-bold text-emerald-300 drop-shadow-sm">${calculateStudentTotals(activePlan, selectedAlumno.estatus).paid.toLocaleString()}</p>
+                      </div>
+                      <div className="text-center">
+                         <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Adeudo</p>
+                         <p className="text-xl font-bold text-red-300 drop-shadow-sm">${calculateStudentTotals(activePlan, selectedAlumno.estatus).owed.toLocaleString()}</p>
+                      </div>
+                   </div>
                  </div>
-                 <div className="w-px h-10 bg-white/20 md:w-full md:h-px"></div>
-                 <div className="flex gap-6">
-                    <div className="text-center">
-                       <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Pagado</p>
-                       <p className="text-xl font-bold text-emerald-300 drop-shadow-sm">${calculateStudentTotals(activePlan, selectedAlumno.estatus).paid.toLocaleString()}</p>
-                    </div>
-                    <div className="text-center">
-                       <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Adeudo</p>
-                       <p className="text-xl font-bold text-red-300 drop-shadow-sm">${calculateStudentTotals(activePlan, selectedAlumno.estatus).owed.toLocaleString()}</p>
-                    </div>
-                 </div>
+                 {onGoToPlan && (
+                   <button 
+                     onClick={() => onGoToPlan(selectedAlumno.id)}
+                     className="mt-1 w-full py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 border border-white/30 text-sm shadow-sm"
+                   >
+                     <FileText size={16} /> Ver Plan de Pagos
+                   </button>
+                 )}
               </div>
             ) : (
               <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-sm shrink-0 flex items-center gap-3">

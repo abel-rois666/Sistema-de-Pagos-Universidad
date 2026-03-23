@@ -64,7 +64,8 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         turno: editForm.turno || 'MIXTO',
         estatus: editForm.estatus || 'ACTIVO',
         beca_porcentaje: editForm.beca_porcentaje || '0%',
-        beca_tipo: editForm.beca_tipo || 'NINGUNA'
+        beca_tipo: editForm.beca_tipo || 'NINGUNA',
+        ciclo_ultima_asignacion_grado: activeCicloId
       };
       updatedAlumnos = [...alumnos, alumnoToSave];
 
@@ -77,7 +78,8 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         turno: alumnoToSave.turno,
         estatus: alumnoToSave.estatus,
         beca_porcentaje: alumnoToSave.beca_porcentaje,
-        beca_tipo: alumnoToSave.beca_tipo
+        beca_tipo: alumnoToSave.beca_tipo,
+        ciclo_ultima_asignacion_grado: alumnoToSave.ciclo_ultima_asignacion_grado
       });
       if (alumnoErr) console.warn('[AlumnosConfig] insert alumno:', alumnoErr.message);
 
@@ -125,7 +127,15 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
       }
       showNotification('success', `Alumno "${alumnoToSave.nombre_completo}" creado.`);
     } else {
-      alumnoToSave = { ...alumnos.find(a => a.id === editingId)!, ...editForm } as Alumno;
+      const originalAlumno = alumnos.find(a => a.id === editingId);
+      const isGradeChanged = originalAlumno && originalAlumno.grado_actual !== editForm.grado_actual;
+      
+      alumnoToSave = { 
+         ...originalAlumno!, 
+         ...editForm,
+         ...(isGradeChanged ? { ciclo_ultima_asignacion_grado: activeCicloId } : {})
+      } as Alumno;
+      
       updatedAlumnos = alumnos.map(a => a.id === editingId ? alumnoToSave : a);
 
       const { error: updateErr } = await supabase.from('alumnos').update({
@@ -135,7 +145,8 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         turno: alumnoToSave.turno,
         estatus: alumnoToSave.estatus,
         beca_porcentaje: alumnoToSave.beca_porcentaje,
-        beca_tipo: alumnoToSave.beca_tipo
+        beca_tipo: alumnoToSave.beca_tipo,
+        ciclo_ultima_asignacion_grado: alumnoToSave.ciclo_ultima_asignacion_grado
       }).eq('id', alumnoToSave.id);
       if (updateErr) console.warn('[AlumnosConfig] update alumno:', updateErr.message);
       showNotification('success', 'Alumno actualizado.');
@@ -162,6 +173,16 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
       return;
     }
 
+    if (alumno.estatus === 'BAJA') {
+      showAlert("Error", "Los alumnos dados de baja no pueden ser promovidos. Cambia su estatus a ACTIVO primero.");
+      return;
+    }
+
+    if (alumno.ciclo_ultima_asignacion_grado === activeCicloId) {
+      showAlert("Error", "El grado de este alumno ya fue promovido o editado en el ciclo actual. Si es un error, edita su grado manualmente.");
+      return;
+    }
+
     const nextGrade = getNextGrade(alumno.grado_actual, alumno.licenciatura);
 
     if (nextGrade && nextGrade !== alumno.grado_actual) {
@@ -170,9 +191,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         `¿Promover a ${alumno.nombre_completo} de ${alumno.grado_actual} a ${nextGrade}? Esto simulará su inscripción al nuevo ciclo.`,
         async () => {
           setSaving(true);
-          const updated = alumnos.map(a => a.id === alumno.id ? { ...a, grado_actual: nextGrade! } : a);
+          const updated = alumnos.map(a => a.id === alumno.id ? { ...a, grado_actual: nextGrade!, ciclo_ultima_asignacion_grado: activeCicloId } : a);
 
-          const { error } = await supabase.from('alumnos').update({ grado_actual: nextGrade }).eq('id', alumno.id);
+          const { error } = await supabase.from('alumnos').update({ grado_actual: nextGrade, ciclo_ultima_asignacion_grado: activeCicloId }).eq('id', alumno.id);
           if (error) console.warn('[AlumnosConfig] promote:', error.message);
 
           const activeCiclo = ciclos.find(c => c.id === activeCicloId);
@@ -317,8 +338,10 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
 
   const promotableAlumnos = filteredAlumnos.filter(a => 
     !activeCyclePlans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo) &&
+    a.estatus !== 'BAJA' &&
     a.estatus !== 'EGRESADO' &&
-    a.grado_actual?.toUpperCase() !== 'EGRESADO'
+    a.grado_actual?.toUpperCase() !== 'EGRESADO' &&
+    a.ciclo_ultima_asignacion_grado !== activeCicloId
   );
 
   // ── Lógica de Promoción Masiva ──
@@ -375,17 +398,17 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     }
 
     const selectedAlumnos = alumnos.filter(a => bulkSelected.has(a.id));
-    const nextGrades = selectedAlumnos.map(a => ({ ...a, nextGrade: getNextGrade(a.grado_actual, a.licenciatura) }));
+    const nextGrades = selectedAlumnos.map(a => ({ ...a, nextGrade: getNextGrade(a.grado_actual, a.licenciatura), ciclo_ultima_asignacion_grado: activeCicloId }));
 
     // Actualizar alumnos en DB
     const updatePromises = nextGrades.map(a => 
-      supabase.from('alumnos').update({ grado_actual: a.nextGrade }).eq('id', a.id)
+      supabase.from('alumnos').update({ grado_actual: a.nextGrade, ciclo_ultima_asignacion_grado: a.ciclo_ultima_asignacion_grado }).eq('id', a.id)
     );
     await Promise.all(updatePromises);
 
     // Actualizar estado local
     const updatedAlumnos = alumnos.map(a => {
-      if (bulkSelected.has(a.id)) return { ...a, grado_actual: getNextGrade(a.grado_actual, a.licenciatura) };
+      if (bulkSelected.has(a.id)) return { ...a, grado_actual: getNextGrade(a.grado_actual, a.licenciatura), ciclo_ultima_asignacion_grado: activeCicloId };
       return a;
     });
 
@@ -570,7 +593,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                            <div>
                              <label className="block text-xs text-gray-500 mb-1">Grado</label>
                              {catalogos?.grados?.length ? (
-                               <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
+                               <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
                                  <option value="">-- Seleccionar --</option>
                                  {catalogos.grados.filter(g => {
                                     if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
@@ -580,8 +603,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                  }).map(c => <option key={c} value={c}>{c}</option>)}
                                </select>
                              ) : (
-                               <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
+                               <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
                              )}
+                             {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-1 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
                            </div>
                            <div>
                              <label className="block text-xs text-gray-500 mb-1">Turno</label>
@@ -689,7 +713,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                <div>
                                  <label className="block text-xs text-gray-500 mb-1">Grado</label>
                                  {catalogos?.grados?.length ? (
-                                   <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
+                                   <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
                                      <option value="">-- Seleccionar --</option>
                                      {catalogos.grados.filter(g => {
                                         if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
@@ -699,8 +723,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                      }).map(c => <option key={c} value={c}>{c}</option>)}
                                    </select>
                                  ) : (
-                                   <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
+                                   <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:opacity-50 disabled:bg-gray-100" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
                                  )}
+                                 {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-1 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
                                </div>
                                <div>
                                  <label className="block text-xs text-gray-500 mb-1">Turno</label>

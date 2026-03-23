@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js';
-import type { PaymentPlan, Alumno, CicloEscolar } from '../types';
+import type { PaymentPlan, Alumno, CicloEscolar, Recibo, ReciboDetalle } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder-url.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
@@ -56,6 +56,7 @@ export const saveAlumno = async (alumno: Alumno): Promise<string | null> => {
     turno: alumno.turno,
     estatus: alumno.estatus,
     beca_porcentaje: alumno.beca_porcentaje,
+    ciclo_ultima_asignacion_grado: alumno.ciclo_ultima_asignacion_grado,
   });
   if (error) { console.error('[saveAlumno]', error.message); return error.message; }
   return null;
@@ -85,7 +86,8 @@ export const bulkSaveAlumnos = async (alumnos: Alumno[]): Promise<string | null>
       turno: a.turno,
       estatus: a.estatus || 'ACTIVO',
       beca_porcentaje: a.beca_porcentaje || '0%',
-      beca_tipo: a.beca_tipo || 'NINGUNA'
+      beca_tipo: a.beca_tipo || 'NINGUNA',
+      ciclo_ultima_asignacion_grado: a.ciclo_ultima_asignacion_grado || null
     }))
   );
   if (error) { console.error('[bulkSaveAlumnos]', error.message); return error.message; }
@@ -96,7 +98,7 @@ export const bulkSaveAlumnos = async (alumnos: Alumno[]): Promise<string | null>
 export const bulkSavePlanes = async (planes: PaymentPlan[]): Promise<string | null> => {
   const validPlanes = planes.filter(p => isUUID(p.id));
   if (!validPlanes.length) return null;
-  const { error } = await supabase.from('planes_pago').insert(validPlanes.map(toDBPlan));
+  const { error } = await supabase.from('planes_pago').upsert(validPlanes.map(toDBPlan));
   if (error) { console.error('[bulkSavePlanes]', error.message); return error.message; }
   return null;
 };
@@ -158,4 +160,124 @@ export const deleteCatalogoItem = async (id: string): Promise<string | null> => 
   if (error) { console.error('[deleteCatalogoItem]', error.message); return error.message; }
   return null;
 };
+
+/** Registrar un nuevo pago (recibo + detalles) y actualizar estatus del plan si aplica */
+export const saveReciboCompleto = async (
+  recibo: Omit<Recibo, 'id' | 'folio' | 'created_at' | 'estatus'>,
+  detalles: Omit<ReciboDetalle, 'id' | 'recibo_id'>[],
+  planUpdates?: { planId: string, updates: Partial<PaymentPlan> }
+): Promise<{ error: string | null; folio?: number }> => {
+  try {
+    // 1. Insertar el recibo (Omitirmos el ID para que Postgres genere el UUID y el folio serial)
+    const { data: reciboData, error: reciboError } = await supabase
+      .from('recibos')
+      .insert({
+        fecha_recibo: recibo.fecha_recibo,
+        fecha_pago: recibo.fecha_pago,
+        alumno_id: recibo.alumno_id,
+        ciclo_id: recibo.ciclo_id,
+        total: recibo.total,
+        forma_pago: recibo.forma_pago,
+        banco: recibo.banco,
+        estatus: 'ACTIVO'
+      })
+      .select('id, folio')
+      .single();
+
+    if (reciboError) throw new Error(`Error insertando recibo: ${reciboError.message}`);
+
+    const newReciboId = reciboData.id;
+    const newFolio = reciboData.folio;
+
+    // 2. Insertar detalles
+    const detallesToInsert = detalles.map(d => ({
+      ...d,
+      recibo_id: newReciboId
+    }));
+
+    const { error: detallesError } = await supabase
+      .from('recibos_detalles')
+      .insert(detallesToInsert);
+
+    if (detallesError) throw new Error(`Error insertando detalles: ${detallesError.message}`);
+
+    // 3. Actualizar Plan de Pagos (si hubo afectación a conceptos)
+    if (planUpdates) {
+      const finalUpdates: any = {};
+      for (const [k, v] of Object.entries(planUpdates.updates)) {
+        if (typeof v === 'string') {
+          finalUpdates[k] = v.replace('{{FOLIO}}', String(newFolio));
+        } else {
+          finalUpdates[k] = v;
+        }
+      }
+
+      const { error: planError } = await supabase
+        .from('planes_pago')
+        .update(finalUpdates)
+        .eq('id', planUpdates.planId);
+      
+      if (planError) throw new Error(`Error actualizando el plan de pagos: ${planError.message}`);
+    }
+
+    return { error: null, folio: newFolio };
+  } catch (err: any) {
+    console.error('[saveReciboCompleto]', err.message);
+    return { error: err.message || 'Error desconocido' };
+  }
+};
+
+/** Cancelar un recibo y revertir el estatus del plan si aplica */
+export const cancelarRecibo = async (reciboId: string): Promise<string | null> => {
+   if (!isUUID(reciboId)) return null;
+   try {
+     // 1. Obtener el recibo y sus detalles
+     const { data: recibo, error: rErr } = await supabase
+       .from('recibos')
+       .select('*, recibos_detalles(*)')
+       .eq('id', reciboId)
+       .single();
+     if (rErr || !recibo) throw new Error(rErr?.message || 'Recibo no encontrado');
+
+     // 2. Marcar como CANCELADO
+     const { error: cancelErr } = await supabase
+       .from('recibos')
+       .update({ estatus: 'CANCELADO' })
+       .eq('id', reciboId);
+     if (cancelErr) throw new Error(cancelErr.message);
+
+     // 3. Revertir conceptos del plan que fueron afectados
+     const detallesConPlan = (recibo.recibos_detalles || []).filter(
+       (d: any) => d.indice_concepto_plan != null
+     );
+
+     if (detallesConPlan.length > 0 && recibo.alumno_id && recibo.ciclo_id) {
+       // Buscar el plan del alumno para ese ciclo
+       const { data: planes } = await supabase
+         .from('planes_pago')
+         .select('id')
+         .eq('alumno_id', recibo.alumno_id)
+         .eq('ciclo_id', recibo.ciclo_id);
+
+       if (planes && planes.length > 0) {
+         const planId = planes[0].id;
+         const updates: Record<string, string> = {};
+         for (const det of detallesConPlan) {
+           updates[`estatus_${det.indice_concepto_plan}`] = 'PENDIENTE';
+         }
+         const { error: planErr } = await supabase
+           .from('planes_pago')
+           .update(updates)
+           .eq('id', planId);
+         if (planErr) console.error('[cancelarRecibo] Error revirtiendo plan:', planErr.message);
+       }
+     }
+
+     return null;
+   } catch (err: any) {
+     console.error('[cancelarRecibo]', err.message);
+     return err.message || 'Error desconocido';
+   }
+};
+
 

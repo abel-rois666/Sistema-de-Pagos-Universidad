@@ -21,6 +21,7 @@ export interface Alumno {
   estatus?: string;
   beca_porcentaje?: string;
   beca_tipo?: string;
+  ciclo_ultima_asignacion_grado?: string | null;
 }
 
 export interface PaymentPlan {
@@ -124,3 +125,34 @@ export interface PlantillaPlan {
   concepto_8?: string; fecha_8?: string; cantidad_8?: number;
   concepto_9?: string; fecha_9?: string; cantidad_9?: number;
 }
+
+export interface Recibo {
+  id: string;
+  folio?: number;
+  fecha_recibo: string;
+  fecha_pago: string;
+  alumno_id: string;
+  ciclo_id: string;
+  total: number;
+  forma_pago: string;
+  banco: string;
+  estatus: 'ACTIVO' | 'CANCELADO';
+  created_at?: string;
+
+  // Campos unidos (opcionales para vistas/historial)
+  nombre_alumno?: string;
+  licenciatura?: string;
+  grado_turno?: string;
+  ciclo_escolar?: string;
+}
+
+export interface ReciboDetalle {
+  id: string;
+  recibo_id: string;
+  cantidad: number;
+  concepto: string;
+  costo_unitario: number;
+  subtotal: number;
+  indice_concepto_plan?: number | null;
+}
+

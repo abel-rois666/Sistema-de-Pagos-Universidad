@@ -2,7 +2,8 @@ import { PaymentPlan } from './types';
 
 export const isPaid = (estatus: string | undefined | null) => {
   if (!estatus || estatus.trim() === '') return false;
-  if (estatus.toLowerCase().includes('baja')) return false;
+  const lower = estatus.toLowerCase();
+  if (lower.includes('baja') || lower.includes('pendiente')) return false;
   return true;
 };
 
@@ -70,3 +71,31 @@ export const toInputDate = (dateString: string | undefined): string => {
   }
   return '';
 };
+
+export const CSV_HEADERS = [
+  'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO', 'ESTATUS_ALUMNO',
+  'CICLO_ESCOLAR', 'FECHA_PLAN', 'TIPO_PLAN', 'BECA_TIPO', 'BECA_PORCENTAJE',
+  ...Array.from({ length: 9 }, (_, i) => [
+      `CONCEPTO_${i + 1}`, `FECHA_${i + 1}`, `CANTIDAD_${i + 1}`, `ESTATUS_${i + 1}`
+  ]).flat()
+];
+
+export function generateCSV(headers: string[], rows: string[][]): string {
+  const escape = (v: string | number | undefined | null) => {
+      if (v == null) return '';
+      const str = String(v);
+      return str.includes(',') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+  return [headers, ...rows].map(r => r.map(escape).join(',')).join('\r\n');
+}
+
+export function downloadCSV(content: string, filename: string) {
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

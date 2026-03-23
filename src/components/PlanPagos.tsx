@@ -12,13 +12,20 @@ interface PlanPagosProps {
   activeCiclo?: CicloEscolar;
   catalogos?: Catalogos;
   plantillas?: PlantillaPlan[];
+  initialAlumnoId?: string | null;
   onBack: () => void;
   onSavePlan: (plan: PaymentPlan) => void;
+  onGoToPagos?: (alumnoId: string, conceptoIdx: number) => void;
+  onViewReceipt?: (folio: string) => void;
 }
 
-export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], onBack, onSavePlan }: PlanPagosProps) {
-  const [selectedPlanId, setSelectedPlanId] = useState<string>(plans[0]?.id || '');
-  const [searchTerm, setSearchTerm] = useState<string>(plans[0]?.nombre_alumno || '');
+export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], initialAlumnoId, onBack, onSavePlan, onGoToPagos, onViewReceipt }: PlanPagosProps) {
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(
+    (initialAlumnoId && plans.find(p => p.alumno_id === initialAlumnoId)?.id) || plans[0]?.id || ''
+  );
+  const [searchTerm, setSearchTerm] = useState<string>(
+    (initialAlumnoId && plans.find(p => p.alumno_id === initialAlumnoId)?.nombre_alumno) || plans[0]?.nombre_alumno || ''
+  );
   
   const isCoordinador = currentUser.rol === 'COORDINADOR';
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -116,6 +123,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         quality: 1.0,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
+        width: 816,
+        height: printRef.current.scrollHeight,
+        style: { transform: 'scale(1)', margin: '0' },
         filter: (node) => {
           if (node instanceof HTMLElement) {
             return node.getAttribute('data-html2canvas-ignore') !== 'true';
@@ -124,11 +134,13 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         }
       });
 
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdf = new jsPDF('p', 'mm', 'letter');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (printRef.current.offsetHeight * pdfWidth) / printRef.current.offsetWidth;
+      const margin = 10; // 10mm de margen para que no quede al borde
+      const printWidth = pdfWidth - (margin * 2);
+      const pdfHeight = (printRef.current.scrollHeight * printWidth) / 816;
 
-      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(dataUrl, 'PNG', margin, margin, printWidth, pdfHeight);
       pdf.save(`Plan_Pagos_${selectedPlan.nombre_alumno.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error('Error generating PDF', error);
@@ -427,7 +439,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         <Td>
           {paid ? (
             <div className="flex items-center justify-center gap-2 group">
-              <span className="text-green-700 font-bold print:text-black">{estatus}</span>
+              <span className="text-green-700 font-bold print:text-black">
+                {estatus?.split(/(R-\d+)/).map((part, i) => {
+                  if (part.match(/^R-\d+$/)) {
+                    const folioStr = part.replace('R-', '');
+                    return (
+                      <button 
+                        key={i} 
+                        onClick={() => onViewReceipt?.(folioStr)}
+                        className="text-blue-700 underline hover:text-blue-900 mx-1 print:no-underline print:text-black"
+                        title="Ver Recibo"
+                      >
+                        {part}
+                      </button>
+                    );
+                  }
+                  return <span key={i}>{part}</span>;
+                })}
+              </span>
               <button
                 onClick={() => openPaymentModal(index)}
                 className="text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
@@ -438,13 +467,22 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => openPaymentModal(index)}
-              className="bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1 rounded text-xs font-bold flex items-center gap-1 mx-auto transition-colors print:hidden"
-              data-html2canvas-ignore="true"
-            >
-              <DollarSign size={14} /> Registrar Pago
-            </button>
+            <div className="flex items-center justify-center gap-2 print:hidden" data-html2canvas-ignore="true">
+              <button
+                onClick={() => onGoToPagos?.(selectedPlan.alumno_id!, index)}
+                className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 transition-colors"
+                title="Generar recibo de ingresos"
+              >
+                <DollarSign size={14} /> Cobrar
+              </button>
+              <button
+                onClick={() => openPaymentModal(index)}
+                className="bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200 px-2 py-1 rounded transition-colors"
+                title="Edición manual de estatus"
+              >
+                <Edit size={14} />
+              </button>
+            </div>
           )}
         </Td>
       </tr>
@@ -457,10 +495,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   const paymentIndices = Array.from({ length: maxPayments }, (_, i) => i + 1);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8 flex justify-center items-start font-sans print:p-0 print:bg-white">
+    <div className="min-h-screen bg-gray-100 p-4 md:p-8 flex justify-center items-start overflow-x-auto font-sans print:p-0 print:bg-white">
       <div
         ref={printRef}
-        className="bg-[#d4d4d4] border-2 border-gray-400 shadow-2xl w-full max-w-5xl p-6 relative print:shadow-none print:border-none print:bg-white print:p-0"
+        className="bg-white text-black shadow-2xl w-[816px] min-w-[816px] shrink-0 mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0"
       >
 
         {/* Top Action Bar - Hidden in Print */}

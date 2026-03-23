@@ -161,3 +161,43 @@ CREATE POLICY "Acceso total - catalogos" ON public.catalogos FOR ALL USING (true
 CREATE POLICY "Acceso total - alumnos" ON public.alumnos FOR ALL USING (true);
 CREATE POLICY "Acceso total - plantillas" ON public.plantillas_plan FOR ALL USING (true);
 CREATE POLICY "Acceso total - planes" ON public.planes_pago FOR ALL USING (true);
+
+-- ==========================================
+-- 9. TABLA: RECIBOS (CONTROL DE INGRESOS)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.recibos (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    folio SERIAL UNIQUE NOT NULL,
+    fecha_recibo DATE NOT NULL,
+    fecha_pago DATE NOT NULL,
+    alumno_id UUID REFERENCES public.alumnos(id) ON DELETE RESTRICT,
+    ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE RESTRICT,
+    total NUMERIC(15,2) NOT NULL,
+    forma_pago TEXT NOT NULL,
+    banco TEXT NOT NULL,
+    estatus TEXT DEFAULT 'ACTIVO' CHECK (estatus IN ('ACTIVO', 'CANCELADO')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- ==========================================
+-- 10. TABLA: RECIBOS_DETALLES
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.recibos_detalles (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    recibo_id UUID REFERENCES public.recibos(id) ON DELETE CASCADE,
+    cantidad INTEGER NOT NULL,
+    concepto TEXT NOT NULL,
+    costo_unitario NUMERIC(15,2) NOT NULL,
+    subtotal NUMERIC(15,2) NOT NULL,
+    indice_concepto_plan INTEGER, -- 1 a 9, sirve para saber a qué concepto del plan le abonó
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- ==========================================
+-- 11. POLÍTICAS RLS RECIBOS
+-- ==========================================
+ALTER TABLE public.recibos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recibos_detalles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Acceso total - recibos" ON public.recibos FOR ALL USING (true);
+CREATE POLICY "Acceso total - recibos_detalles" ON public.recibos_detalles FOR ALL USING (true);
