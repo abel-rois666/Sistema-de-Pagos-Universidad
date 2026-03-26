@@ -69,12 +69,43 @@ export const toInputDate = (dateString: string | undefined): string => {
     const [d, m, y] = dateString.split('/');
     return `${y}-${m}-${d}`;
   }
-  return '';
+};
+
+/** Genera un prefijo corto basado en el nombre del ciclo, ej "2026-1" -> "261" */
+export const getCyclePrefix = (cicloNombre: string): string => {
+  if (!cicloNombre) return 'PP';
+  const nums = cicloNombre.replace(/[^0-9]/g, '');
+  if (nums.length >= 5) {
+     return nums.substring(2, 4) + nums.substring(4, 5);
+  } else if (nums.length === 4) {
+     return nums.substring(2, 4);
+  } else {
+     return cicloNombre.replace(/[^0-9A-Za-z]/g, '').substring(0, 3).toUpperCase() || 'PP';
+  }
+};
+
+/** Encuentra el contador máximo global de todos los planes evitando los folios autogenerados con UUID previos */
+export const getMaxFolioCounter = (allPlans: import('./types').PaymentPlan[]): number => {
+  let max = 0;
+  for (const p of allPlans) {
+    if (!p.no_plan_pagos) continue;
+    const parts = p.no_plan_pagos.split('-');
+    if (parts.length > 1) {
+      if (parts[0] === 'PP') continue; // Ignorar legado de UUID auto-generados (PP-a1b2 o PP-1234)
+      const lastPart = parts[parts.length - 1];
+      if (/^\d+$/.test(lastPart)) { 
+        const num = parseInt(lastPart, 10);
+        if (!isNaN(num) && num > max) { max = num; }
+      }
+    }
+  }
+  return max;
 };
 
 export const CSV_HEADERS = [
   'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO', 'ESTATUS_ALUMNO',
   'CICLO_ESCOLAR', 'FECHA_PLAN', 'TIPO_PLAN', 'BECA_TIPO', 'BECA_PORCENTAJE',
+  'OBSERVACIONES_PAGO_TITULACION',
   ...Array.from({ length: 9 }, (_, i) => [
       `CONCEPTO_${i + 1}`, `FECHA_${i + 1}`, `CANTIDAD_${i + 1}`, `ESTATUS_${i + 1}`
   ]).flat()
@@ -99,3 +130,13 @@ export function downloadCSV(content: string, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export const CSV_HEADERS_RECIBOS = [
+  'NOMBRE DEL ALUMNO', 'Nº RECIBO', 'FECHA EMISIÓN DE RECIBO', 'TOTAL FINAL', 'FECHA DE PAGO', 'ESTATUS',
+  'CANTIDAD 1', 'CONCEPTO 1', 'COSTO UNITARIO1', 'COSTO TOTAL1', 'FORMA DE PAGO1', 'BANCO1',
+  'CANTIDAD 2', 'CONCEPTO 2', 'COSTO UNITARIO 2', 'COSTO TOTAL 2', 'FORMA DE PAGO 2', 'BANCO2',
+  'CANTIDAD 3', 'CONCEPTO 3', 'COSTO UNITARIO 3', 'COSTO TOTAL 3', 'FORMA DE PAGO 3', 'BANCO3',
+  'CANTIDAD 4', 'CONCEPTO 4', 'COSTO UNITARIO 4', 'COSTO TOTAL 4', 'FORMA DE PAGO 4', 'BANCO4',
+  'CANTIDAD 5', 'CONCEPTO 5', 'COSTO UNITARIO 5', 'COSTO TOTAL 5', 'FORMA DE PAGO 5', 'BANCO5'
+];
+

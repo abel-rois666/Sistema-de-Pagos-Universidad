@@ -27,9 +27,26 @@ const FORMAS_PAGO = ['Depósito Bancario', 'Transferencia bancaria', 'Tarjeta de
 
 export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, initialAlumnoId, initialConceptIndex, onPaymentSaved }: Props) {
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<string>(initialAlumnoId || '');
+  const [searchAlumnoTerm, setSearchAlumnoTerm] = useState('');
+  const [showAlumnoSuggestions, setShowAlumnoSuggestions] = useState(false);
   const [fechaPago, setFechaPago] = useState<string>(new Date().toISOString().split('T')[0]);
   const [formaPago, setFormaPago] = useState<string>('Efectivo');
   const [banco, setBanco] = useState<string>('NO APLICA');
+  
+  useEffect(() => {
+    const alumno = alumnos.find(a => a.id === alumnoSeleccionado);
+    if (alumno) setSearchAlumnoTerm(alumno.nombre_completo);
+    else setSearchAlumnoTerm('');
+  }, [alumnoSeleccionado, alumnos]);
+
+  const filteredAlumnos = useMemo(() => {
+    const lower = searchAlumnoTerm.toLowerCase();
+    if (!searchAlumnoTerm) return alumnos.slice(0, 50);
+    // If the search term exactly matches the selected student, don't filter them out, just show defaults
+    const perfectMatch = alumnos.find(a => a.nombre_completo.toLowerCase() === lower);
+    if (perfectMatch && alumnoSeleccionado === perfectMatch.id) return alumnos.slice(0, 50);
+    return alumnos.filter(a => a.nombre_completo.toLowerCase().includes(lower)).slice(0, 50);
+  }, [alumnos, searchAlumnoTerm, alumnoSeleccionado]);
   
   const [filas, setFilas] = useState<ConceptoRow[]>([{
     localId: Date.now().toString(),
@@ -207,19 +224,45 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
         const updates: Partial<PaymentPlan> = {};
         for (const idxStr of Object.keys(abonosPorIndice)) {
           const idx = parseInt(idxStr, 10);
-          const abono = abonosPorIndice[idx];
-          const cantidadAdeudada = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
+          const abonoActual = abonosPorIndice[idx];
+          const cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
           const estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
           
-          let nuevoEstatus = '';
-          // Si el total que abona cubre la cantidad adeudada, es Pagado
-          // En caso contrario es parcial, añadimos un placeholder de recibo
-          if (abono >= cantidadAdeudada) {
-            nuevoEstatus = `R-{{FOLIO}} (Pagado $${abono})`;
-          } else {
-             const resta = cantidadAdeudada - abono;
-             nuevoEstatus = `R-{{FOLIO}} (Abono $${abono}, Resta $${resta})`;
+          // --- PARSEAR ABONOS PREVIOS DEL ESTATUS EXISTENTE ---
+          // El texto puede ser algo como "R-101 (Abono $850, Resta $725)"
+          // Extrae la suma total ya pagada sumando todos los "Abono $X" o "Pagado $X"
+          let totalPagadoAnterior = 0;
+          let folioTextoPrevio = '';
+
+          if (estatusPrevio) {
+            // Extraer todos los montos de abono/pagado previos
+            const regexAbono = /\((?:Abono|Pagado)\s*\$([0-9,]+(?:\.\d{2})?)\)/g;
+            let match;
+            while ((match = regexAbono.exec(estatusPrevio)) !== null) {
+              totalPagadoAnterior += parseFloat(match[1].replace(',', ''));
+            }
+
+            // Extraer todos los folios anteriores para concatenarlos (e.g. "R-101 (Abono $850, Resta $725)")
+            // Limpiamos el estatus previo de los paréntesis de detalle para quedar solo con "R-XXX"
+            const folios = (estatusPrevio.match(/R-\d+/g) || []);
+            if (folios.length > 0) {
+              // Construir el prefix con folios anteriores (sin el detalle en paréntesis)
+              folioTextoPrevio = folios.join('; ') + '; ';
+            }
           }
+
+          const totalPagadoNuevo = totalPagadoAnterior + abonoActual;
+          const resta = cantidadOriginal - totalPagadoNuevo;
+
+          let nuevoEstatus = '';
+          if (resta <= 0) {
+            // Liquidado
+            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${abonoActual.toFixed(2)})`;
+          } else {
+            // Abono parcial, quedando saldo
+            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${abonoActual.toFixed(2)}, Resta $${resta.toFixed(2)})`;
+          }
+
           (updates as any)[`estatus_${idx}`] = nuevoEstatus;
         }
         planUpdates = { planId: planActual.id, updates };
@@ -277,17 +320,44 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
         {/* Fila 2: Alumno Seleccionado */}
         <div className="flex flex-col md:flex-row border-b border-gray-900">
           <div className="md:w-1/6 p-2 bg-gray-200 font-bold flex items-center justify-center text-sm border-b md:border-b-0 border-r border-gray-900">RECIBIMOS DE</div>
-          <div className="md:w-1/2 p-2 border-r border-gray-900">
-            <select 
-              value={alumnoSeleccionado} 
-              onChange={e => setAlumnoSeleccionado(e.target.value)}
-              className="w-full bg-transparent outline-none font-semibold text-gray-800 cursor-pointer p-1"
-            >
-              <option value="">-- Seleccionar Alumno --</option>
-              {alumnos.map(a => (
-                <option key={a.id} value={a.id}>{a.nombre_completo}</option>
-              ))}
-            </select>
+          <div className="md:w-1/2 p-2 border-r border-gray-900 relative">
+            <input
+              type="text"
+              className="w-full bg-transparent outline-none font-semibold text-gray-800 p-1"
+              placeholder="🔍 Buscar alumno por nombre..."
+              value={searchAlumnoTerm}
+              onChange={(e) => {
+                setSearchAlumnoTerm(e.target.value);
+                setShowAlumnoSuggestions(true);
+                if (!e.target.value) setAlumnoSeleccionado('');
+              }}
+              onFocus={() => setShowAlumnoSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowAlumnoSuggestions(false), 200)}
+            />
+            {showAlumnoSuggestions && (
+              <div className="absolute top-full left-0 w-full z-10 bg-white border border-gray-900 shadow-2xl max-h-60 overflow-y-auto">
+                {filteredAlumnos.map(a => (
+                  <div
+                    key={a.id}
+                    className="p-3 border-b border-gray-200 text-sm cursor-pointer hover:bg-blue-50 text-gray-800 font-medium transition-colors"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setAlumnoSeleccionado(a.id);
+                      setSearchAlumnoTerm(a.nombre_completo);
+                      setShowAlumnoSuggestions(false);
+                    }}
+                  >
+                    {a.nombre_completo}
+                  </div>
+                ))}
+                {filteredAlumnos.length === 0 && (
+                  <div className="p-3 text-sm text-gray-500 text-center italic">No se encontraron coincidencias</div>
+                )}
+                {filteredAlumnos.length >= 50 && (
+                  <div className="p-2 text-xs text-center text-gray-500 bg-gray-50 font-semibold border-t">Sigue escribiendo para ver más...</div>
+                )}
+              </div>
+            )}
           </div>
           <div className="md:w-1/6 p-2 bg-gray-200 font-bold flex items-center justify-center text-sm text-center border-r border-gray-900">FECHA DE PAGO</div>
           <div className="md:w-1/6 p-2 flex items-center justify-center">

@@ -55,9 +55,22 @@ CREATE TABLE IF NOT EXISTS public.alumnos (
     beca_porcentaje TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_alumnos_matricula ON public.alumnos(matricula);
+CREATE INDEX IF NOT EXISTS idx_alumnos_nombre ON public.alumnos(nombre_completo);
 
 -- ==========================================
--- 5. TABLA: PLANTILLAS DE PLAN (OPCIONAL/MEJORA)
+-- 5. TABLA: CONFIGURACIÓN APP (NUEVA)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.configuracion_app (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    clave TEXT UNIQUE NOT NULL,
+    valor TEXT,
+    descripcion TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- ==========================================
+-- 6. TABLA: PLANTILLAS DE PLAN 
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.plantillas_plan (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -79,7 +92,7 @@ CREATE TABLE IF NOT EXISTS public.plantillas_plan (
 );
 
 -- ==========================================
--- 6. TABLA: PLANES_PAGO (TABLA BASE)
+-- 7. TABLA: PLANES_PAGO (TABLA BASE)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.planes_pago (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -106,9 +119,11 @@ CREATE TABLE IF NOT EXISTS public.planes_pago (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     UNIQUE(alumno_id, ciclo_id)
 );
+CREATE INDEX IF NOT EXISTS idx_planes_pago_alumno ON public.planes_pago(alumno_id);
+CREATE INDEX IF NOT EXISTS idx_planes_pago_ciclo ON public.planes_pago(ciclo_id);
 
 -- ==========================================
--- 7. VISTA: VISTA_PLANES_PAGO
+-- 8. VISTA: VISTA_PLANES_PAGO
 -- Integra Tablas para la aplicación
 -- ==========================================
 CREATE OR REPLACE VIEW public.vista_planes_pago AS 
@@ -143,26 +158,6 @@ LEFT JOIN public.alumnos a ON p.alumno_id = a.id
 LEFT JOIN public.ciclos_escolares c ON p.ciclo_id = c.id;
 
 -- ==========================================
--- 8. POLÍTICAS DE SEGURIDAD (RLS)
--- ==========================================
-ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ciclos_escolares ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.catalogos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.alumnos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.plantillas_plan ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.planes_pago ENABLE ROW LEVEL SECURITY;
-
--- Nota: Como estás gestionando la sesión del usuario manualmente usando bcrypt y una consulta de login 
--- del lado del cliente, todas las políticas están abiertas para lectura/escritura pública con Anon Key. 
--- *Recomendación Futura*: Autenticación directa a través de Supabase Auth.
-CREATE POLICY "Acceso total - usuarios" ON public.usuarios FOR ALL USING (true);
-CREATE POLICY "Acceso total - ciclos" ON public.ciclos_escolares FOR ALL USING (true);
-CREATE POLICY "Acceso total - catalogos" ON public.catalogos FOR ALL USING (true);
-CREATE POLICY "Acceso total - alumnos" ON public.alumnos FOR ALL USING (true);
-CREATE POLICY "Acceso total - plantillas" ON public.plantillas_plan FOR ALL USING (true);
-CREATE POLICY "Acceso total - planes" ON public.planes_pago FOR ALL USING (true);
-
--- ==========================================
 -- 9. TABLA: RECIBOS (CONTROL DE INGRESOS)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.recibos (
@@ -178,6 +173,7 @@ CREATE TABLE IF NOT EXISTS public.recibos (
     estatus TEXT DEFAULT 'ACTIVO' CHECK (estatus IN ('ACTIVO', 'CANCELADO')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_recibos_alumno ON public.recibos(alumno_id);
 
 -- ==========================================
 -- 10. TABLA: RECIBOS_DETALLES
@@ -192,12 +188,30 @@ CREATE TABLE IF NOT EXISTS public.recibos_detalles (
     indice_concepto_plan INTEGER, -- 1 a 9, sirve para saber a qué concepto del plan le abonó
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_recibos_detalles_recibo ON public.recibos_detalles(recibo_id);
 
 -- ==========================================
--- 11. POLÍTICAS RLS RECIBOS
+-- 11. POLÍTICAS DE SEGURIDAD (RLS)
 -- ==========================================
+ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ciclos_escolares ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.catalogos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alumnos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.configuracion_app ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plantillas_plan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.planes_pago ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recibos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recibos_detalles ENABLE ROW LEVEL SECURITY;
 
+-- Nota: Como estás gestionando la sesión del usuario manualmente usando bcrypt y una consulta de login 
+-- del lado del cliente, todas las políticas están abiertas para lectura/escritura pública con Anon Key. 
+-- *Recomendación Futura*: Autenticación directa a través de Supabase Auth usando roles de Supabase para mayor seguridad.
+CREATE POLICY "Acceso total - usuarios" ON public.usuarios FOR ALL USING (true);
+CREATE POLICY "Acceso total - ciclos" ON public.ciclos_escolares FOR ALL USING (true);
+CREATE POLICY "Acceso total - catalogos" ON public.catalogos FOR ALL USING (true);
+CREATE POLICY "Acceso total - alumnos" ON public.alumnos FOR ALL USING (true);
+CREATE POLICY "Acceso total - configuracion" ON public.configuracion_app FOR ALL USING (true);
+CREATE POLICY "Acceso total - plantillas" ON public.plantillas_plan FOR ALL USING (true);
+CREATE POLICY "Acceso total - planes" ON public.planes_pago FOR ALL USING (true);
 CREATE POLICY "Acceso total - recibos" ON public.recibos FOR ALL USING (true);
 CREATE POLICY "Acceso total - recibos_detalles" ON public.recibos_detalles FOR ALL USING (true);

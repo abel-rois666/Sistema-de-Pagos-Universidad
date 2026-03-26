@@ -33,9 +33,11 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
     const [editValue, setEditValue] = useState('');
     const [newValue, setNewValue] = useState('');
     const [saving, setSaving] = useState(false);
-    const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+    const [importingInfo, setImportingInfo] = useState<{ total: number; skipped: number } | null>(null);
+    const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-    const showNotification = (type: 'success' | 'error', msg: string) => {
+    const showNotification = (type: 'success' | 'error' | 'info', msg: string) => {
         setNotification({ type, msg });
         setTimeout(() => setNotification(null), 3000);
     };
@@ -90,6 +92,77 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setSaving(true);
+        setImportingInfo(null);
+        
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                // Parse lines, strip quotes and whitespace
+                let lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+                lines = lines.map(l => l.replace(/^["']|["']$/g, '').trim().toUpperCase()).filter(l => l);
+                
+                // Ignorar posible cabecera si coincide con el nombre del tab
+                if (lines.length > 0 && (lines[0] === 'CONCEPTO' || lines[0] === 'VALOR' || lines[0] === activeTab.toUpperCase())) {
+                    lines.shift();
+                }
+
+                // Deduplicate within the file itself
+                const uniqueNewValues = Array.from(new Set(lines));
+                
+                // Compare with existing
+                const existingValues = new Set(filteredItems.map(i => i.valor));
+                const valuesToInsert = uniqueNewValues.filter(val => !existingValues.has(val));
+                const skipped = uniqueNewValues.length - valuesToInsert.length;
+
+                if (valuesToInsert.length === 0) {
+                    showNotification('info', `No hubo elementos nuevos por importar. Se saltaron ${skipped} duplicados.`);
+                    setSaving(false);
+                    return;
+                }
+
+                const maxOrden = filteredItems.reduce((m, i) => Math.max(m, i.orden), 0);
+                const toInsert = valuesToInsert.map((val, idx) => ({
+                    tipo: activeTab as CatalogoTipo,
+                    valor: val,
+                    orden: maxOrden + 1 + idx,
+                    activo: true
+                }));
+
+                const { data, error } = await supabase
+                    .from('catalogos')
+                    .insert(toInsert)
+                    .select();
+
+                if (error) {
+                    throw new Error(error.message);
+                }
+
+                // Add to local state
+                if (data && data.length > 0) {
+                    const updated = [...items, ...data];
+                    setItems(updated);
+                    onUpdate(updated);
+                    setImportingInfo({ total: data.length, skipped });
+                    showNotification('success', `Se importaron ${data.length} elementos exitosamente.`);
+                }
+
+            } catch (err: any) {
+                console.error("Error CSV:", err);
+                showNotification('error', `Error al importar: ${err.message || 'Error desconocido'}`);
+            } finally {
+                setSaving(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
     };
 
     const handleEdit = (item: CatalogoItem) => {
@@ -176,9 +249,9 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                     <div className={`mb-4 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold shadow-sm
             ${notification.type === 'success'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'}`}
+                            : notification.type === 'info' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-red-50 text-red-700 border border-red-200'}`}
                     >
-                        {notification.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
+                        {notification.type === 'success' ? <CheckCircle size={16} /> : notification.type === 'info' ? <Loader2 size={16} /> : <XCircle size={16} />}
                         {notification.msg}
                     </div>
                 )}
@@ -219,14 +292,14 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                     </div>
 
                     {/* Add new row */}
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex gap-3 items-center">
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex gap-3 items-center flex-wrap">
                         <input
                             type="text"
                             value={newValue}
                             onChange={e => setNewValue(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleAdd()}
                             placeholder={`Nuevo valor para ${activeConfig.label.toLowerCase()}...`}
-                            className="flex-grow border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase placeholder:normal-case"
+                            className="flex-grow min-w-[200px] border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase placeholder:normal-case"
                         />
                         <button
                             onClick={handleAdd}
@@ -237,7 +310,32 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                             {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                             Agregar
                         </button>
+                        
+                        <div className="w-px h-8 bg-gray-300 mx-2 hidden sm:block"></div>
+                        
+                        <input 
+                            type="file" 
+                            accept=".csv" 
+                            className="hidden" 
+                            ref={fileInputRef}
+                            onChange={handleImportCSV} 
+                        />
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={saving}
+                            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg font-semibold text-sm transition-all shadow-sm hover:shadow"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                            Importar CSV
+                        </button>
                     </div>
+
+                    {importingInfo && (
+                        <div className="px-6 py-2 bg-blue-50 text-blue-700 text-xs font-semibold border-b border-blue-100 flex items-center justify-between">
+                            <span>✅ Importación exitosa.</span>
+                            <span>{importingInfo.total} insertados · {importingInfo.skipped} ignorados por duplicidad.</span>
+                        </div>
+                    )}
 
                     {/* Items list */}
                     <div className="divide-y divide-gray-100">

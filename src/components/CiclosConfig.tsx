@@ -67,6 +67,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
         nombre: editForm.nombre,
         meses_abarca: editForm.meses_abarca,
         anio: Number(editForm.anio),
+        anio_fin: editForm.anio_fin ? Number(editForm.anio_fin) : null,
         activo: editForm.activo || false
       };
       updatedCiclos = [...ciclos, cicloToSave];
@@ -83,6 +84,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
         nombre: cicloToSave.nombre,
         meses_abarca: cicloToSave.meses_abarca,
         anio: cicloToSave.anio,
+        anio_fin: cicloToSave.anio_fin ?? null,
         activo: cicloToSave.activo,
       });
       if (error) {
@@ -104,7 +106,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
   const handleAddNew = () => {
     const now = new Date();
     setEditingId('new');
-    setEditForm({ nombre: '', meses_abarca: 'Enero - Abril', anio: now.getFullYear(), activo: false });
+    setEditForm({ nombre: '', meses_abarca: 'Enero - Abril', anio: now.getFullYear(), anio_fin: null, activo: false });
   };
 
   const handleSetActivo = async (id: string) => {
@@ -113,7 +115,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
     try {
       const validForDB = updated
         .filter(c => isValidUUID(c.id))
-        .map(c => ({ id: c.id, nombre: c.nombre, meses_abarca: c.meses_abarca, anio: c.anio, activo: c.activo }));
+        .map(c => ({ id: c.id, nombre: c.nombre, meses_abarca: c.meses_abarca, anio: c.anio, anio_fin: c.anio_fin ?? null, activo: c.activo }));
 
       if (validForDB.length > 0) {
         const { error } = await supabase.from('ciclos_escolares').upsert(validForDB);
@@ -153,6 +155,27 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
       </div>
     );
   };
+  const renderYearFields = () => (
+    <div className="flex items-center gap-1">
+      <input
+        type="number"
+        className="w-20 border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Inicio"
+        value={editForm.anio || ''}
+        onChange={e => setEditForm({ ...editForm, anio: Number(e.target.value) })}
+        title="Año de inicio"
+      />
+      <span className="text-gray-400 text-xs font-bold">–</span>
+      <input
+        type="number"
+        className="w-20 border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Fin"
+        value={editForm.anio_fin || ''}
+        onChange={e => setEditForm({ ...editForm, anio_fin: e.target.value ? Number(e.target.value) : null })}
+        title="Año de fin (opcional si el ciclo cruza de año)"
+      />
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-sans">
@@ -187,7 +210,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                 <tr className="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
                   <th className="py-3 px-6 font-semibold">Nombre del Ciclo</th>
                   <th className="py-3 px-6 font-semibold min-w-[220px]">Meses que Abarca</th>
-                  <th className="py-3 px-6 font-semibold w-24">Año</th>
+                  <th className="py-3 px-6 font-semibold min-w-[140px]">Año(s)</th>
                   <th className="py-3 px-6 font-semibold text-center">Estado</th>
                   <th className="py-3 px-6 font-semibold text-right">Acciones</th>
                 </tr>
@@ -204,8 +227,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                       {renderMonthSelectors()}
                     </td>
                     <td className="py-3 px-6">
-                      <input type="number" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        value={editForm.anio || ''} onChange={e => setEditForm({ ...editForm, anio: Number(e.target.value) })} />
+                      {renderYearFields()}
                     </td>
                     <td className="py-3 px-6 text-center text-sm text-gray-500 font-medium">Nuevo</td>
                     <td className="py-3 px-6 text-right">
@@ -229,8 +251,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                           {renderMonthSelectors()}
                         </td>
                         <td className="py-3 px-6">
-                          <input type="number" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                            value={editForm.anio || ''} onChange={e => setEditForm({ ...editForm, anio: Number(e.target.value) })} />
+                          {renderYearFields()}
                         </td>
                         <td className="py-3 px-6 text-center">
                           {ciclo.activo ? <span className="text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded">ACTIVO</span> : '-'}
@@ -250,7 +271,12 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                             {ciclo.meses_abarca}
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-gray-600 font-semibold">{ciclo.anio}</td>
+                        <td className="py-4 px-6 text-gray-600 font-semibold">
+                          {ciclo.anio_fin && ciclo.anio_fin !== ciclo.anio
+                            ? <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{ciclo.anio} – {ciclo.anio_fin}</span>
+                            : ciclo.anio
+                          }
+                        </td>
                         <td className="py-4 px-6 text-center">
                           {ciclo.activo ? (
                             <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm">ACTIVO</span>

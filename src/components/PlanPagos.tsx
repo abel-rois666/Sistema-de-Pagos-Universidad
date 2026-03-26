@@ -118,7 +118,25 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   const handleGeneratePDF = async () => {
     if (!printRef.current) return;
     setIsGeneratingPDF(true);
+    
+    // Guardar estilos originales
+    const originalWidth = printRef.current.style.width;
+    const originalMinWidth = printRef.current.style.minWidth;
+    const originalMaxWidth = printRef.current.style.maxWidth;
+    const originalPadding = printRef.current.style.padding;
+    const originalOverflow = printRef.current.style.overflow;
+
     try {
+      // Forzar dimensiones de escritorio (Letter/A4) para el PDF
+      printRef.current.style.width = '816px';
+      printRef.current.style.minWidth = '816px';
+      printRef.current.style.maxWidth = '816px';
+      printRef.current.style.padding = '32px';
+      printRef.current.style.overflow = 'visible';
+      
+      // Dar un pequeño respiro para que el navagador re-renderice el DOM con los nuevos tamaños
+      await new Promise(r => setTimeout(r, 150));
+
       const dataUrl = await toPng(printRef.current, {
         quality: 1.0,
         pixelRatio: 2,
@@ -136,7 +154,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
       const pdf = new jsPDF('p', 'mm', 'letter');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const margin = 10; // 10mm de margen para que no quede al borde
+      const margin = 10;
       const printWidth = pdfWidth - (margin * 2);
       const pdfHeight = (printRef.current.scrollHeight * printWidth) / 816;
 
@@ -145,19 +163,27 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
     } catch (error) {
       console.error('Error generating PDF', error);
     } finally {
+      // Restaurar estilos responsivos
+      if (printRef.current) {
+        printRef.current.style.width = originalWidth;
+        printRef.current.style.minWidth = originalMinWidth;
+        printRef.current.style.maxWidth = originalMaxWidth;
+        printRef.current.style.padding = originalPadding;
+        printRef.current.style.overflow = originalOverflow;
+      }
       setIsGeneratingPDF(false);
     }
   };
 
   if (plans.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8 font-sans flex flex-col items-center justify-center">
-        <div className="bg-white p-10 rounded-2xl shadow-sm border border-gray-200 text-center max-w-md w-full">
-          <div className="bg-blue-50 text-blue-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+      <div className="w-full p-8 font-sans flex flex-col items-center justify-center">
+        <div className="bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 text-center max-w-md w-full">
+          <div className="bg-blue-50 dark:bg-blue-900/40 text-blue-500 dark:text-blue-400 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Inbox size={40} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">Sin Planes de Pago</h2>
-          <p className="text-gray-500 mb-8">No hay planes de pago registrados para este ciclo escolar. Por favor, selecciona otro ciclo o inscribe alumnos.</p>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">Sin Planes de Pago</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-8">No hay planes de pago registrados para este ciclo escolar. Por favor, selecciona otro ciclo o inscribe alumnos.</p>
           <div className="flex flex-col gap-3">
             {!isCoordinador && (
               <button
@@ -179,9 +205,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         {/* New Plan Modal (Empty State) */}
         {isNewPlanModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col text-left">
-              <div className="flex justify-between items-center p-6 border-b border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col text-left">
+              <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-700">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
                   Crear Nuevo Plan de Pagos
                 </h3>
                 <button onClick={() => setIsNewPlanModalOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -495,98 +521,110 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   const paymentIndices = Array.from({ length: maxPayments }, (_, i) => i + 1);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-8 flex justify-center items-start overflow-x-auto font-sans print:p-0 print:bg-white">
-      <div
-        ref={printRef}
-        className="bg-white text-black shadow-2xl w-[816px] min-w-[816px] shrink-0 mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0"
-      >
-
-        {/* Top Action Bar - Hidden in Print */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 print:hidden" data-html2canvas-ignore="true">
+    <div className="w-full p-2 md:p-6 flex flex-col items-center justify-start font-sans print:p-0">
+      
+      {/* Top Action Bar - Hidden in Print (Movido afuera para responsividad) */}
+      <div className="flex flex-col xl:flex-row justify-between items-stretch xl:items-center gap-4 mb-6 w-full max-w-[816px] mx-auto print:hidden z-10">
+        <div className="flex items-center justify-between w-full xl:w-auto">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-700 hover:text-black font-bold transition-colors"
+            className="flex items-center gap-2 text-gray-700 hover:text-black font-bold transition-colors shrink-0"
           >
-            <ArrowLeft size={20} /> Volver
+            <ArrowLeft size={20} /> <span className="hidden sm:inline">Volver</span>
           </button>
-
-          {/* Search Bar & Actions */}
-          <div className="flex items-center gap-4 w-full max-w-xl z-20">
-            <div className="relative flex-grow">
-              <div className="bg-white border border-gray-400 p-2 rounded-lg flex items-center shadow-sm">
-                <Search size={18} className="text-gray-400 mr-2" />
-                <input
-                  type="text"
-                  className="w-full bg-transparent outline-none text-sm font-bold"
-                  value={searchTerm}
-                  onChange={handleSearchChange}
-                  onFocus={() => setShowSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  placeholder="Buscar alumno por nombre..."
-                />
-                {searchTerm && (
-                  <button
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setSearchTerm('');
-                      setShowSuggestions(true);
-                    }}
-                    className="text-gray-500 hover:text-gray-800 ml-2"
-                    title="Limpiar búsqueda"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-              {showSuggestions && (
-                <div className="absolute z-50 w-full bg-white border border-gray-400 mt-1 max-h-60 overflow-y-auto shadow-xl rounded-b-lg">
-                  {filteredPlans.length > 0 ? (
-                    filteredPlans.slice(0, 10).map(p => (
-                      <div
-                        key={p.id}
-                        className="p-3 hover:bg-indigo-50 cursor-pointer text-sm border-b border-gray-100 last:border-none font-medium text-gray-700 transition-colors"
-                        onClick={() => handleSuggestionClick(p)}
-                      >
-                        {getAlumnoName(p)}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-3 text-sm text-gray-500 text-center">No hay coincidencias</div>
-                  )}
-                </div>
-              )}
-            </div>
-
+          
+          <div className="flex xl:hidden items-center gap-2">
             {!isCoordinador && (
-              <button
-                onClick={() => setIsNewPlanModalOpen(true)}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap shadow-sm"
-                title="Crear plan para un alumno sin plan"
-              >
-                <Plus size={18} /> Nuevo Plan
+              <button onClick={() => setIsNewPlanModalOpen(true)} className="flex items-center justify-center p-2 bg-indigo-600 text-white rounded-lg shadow-sm">
+                <Plus size={20} />
               </button>
             )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleGeneratePDF}
-              disabled={isGeneratingPDF}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2 text-sm disabled:opacity-50"
-            >
-              {isGeneratingPDF ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-              {isGeneratingPDF ? 'Generando...' : 'PDF / Imprimir'}
+            <button onClick={openEditPlanModal} className="flex items-center justify-center p-2 bg-white text-gray-800 border border-gray-300 rounded-lg shadow-sm">
+              <Edit size={20} />
             </button>
-            {!isCoordinador && (
-              <button
-                onClick={openEditPlanModal}
-                className="bg-white hover:bg-gray-50 text-gray-800 font-bold py-2 px-4 rounded shadow-sm border border-gray-300 transition-all flex items-center gap-2 text-sm"
-              >
-                <Edit size={16} /> Editar Plan
-              </button>
-            )}
+            <button onClick={handleGeneratePDF} disabled={isGeneratingPDF} className="flex items-center justify-center p-2 bg-red-600 text-white rounded-lg shadow-sm disabled:opacity-50">
+              {isGeneratingPDF ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+            </button>
           </div>
         </div>
+
+        {/* Search Bar */}
+        <div className="flex items-center gap-2 w-full xl:max-w-md relative z-20">
+          <div className="bg-white border border-gray-400 p-2.5 rounded-lg flex items-center shadow-sm w-full">
+            <Search size={18} className="text-gray-400 mr-2 shrink-0" />
+            <input
+              type="text"
+              className="w-full bg-transparent outline-none text-sm font-bold min-w-0"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              placeholder="Buscar alumno..."
+            />
+            {searchTerm && (
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setSearchTerm('');
+                  setShowSuggestions(true);
+                }}
+                className="text-gray-500 hover:text-gray-800 ml-2"
+                title="Limpiar búsqueda"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          {showSuggestions && (
+            <div className="absolute top-[105%] left-0 w-full bg-white border border-gray-400 rounded-lg max-h-60 overflow-y-auto shadow-2xl z-50">
+              {filteredPlans.length > 0 ? (
+                filteredPlans.slice(0, 10).map(p => (
+                  <div
+                    key={p.id}
+                    className="p-3 hover:bg-indigo-50 cursor-pointer text-sm border-b border-gray-100 last:border-none font-medium text-gray-700 transition-colors"
+                    onClick={() => handleSuggestionClick(p)}
+                  >
+                    {getAlumnoName(p)}
+                  </div>
+                ))
+              ) : (
+                <div className="p-3 text-sm text-gray-500 text-center">No hay coincidencias</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="hidden xl:flex items-center gap-3 shrink-0">
+          {!isCoordinador && (
+            <button
+              onClick={() => setIsNewPlanModalOpen(true)}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+            >
+              <Plus size={18} /> Nuevo Plan
+            </button>
+          )}
+          <button
+            onClick={openEditPlanModal}
+            className="bg-white hover:bg-gray-50 text-gray-800 font-bold py-2 px-4 rounded shadow-sm border border-gray-300 transition-all flex items-center gap-2 text-sm"
+          >
+            <Edit size={16} /> Editar
+          </button>
+          <button
+            onClick={handleGeneratePDF}
+            disabled={isGeneratingPDF}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2 text-sm disabled:opacity-50"
+          >
+            {isGeneratingPDF ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+            {isGeneratingPDF ? 'Generando...' : 'PDF / Imprimir'}
+          </button>
+        </div>
+      </div>
+
+      <div className="w-full max-w-[816px] overflow-x-auto mx-auto pb-4 custom-scrollbar">
+        <div
+          ref={printRef}
+          className="bg-white text-black shadow-none sm:shadow-xl sm:rounded-lg w-full min-w-[650px] mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0 print:min-w-0"
+        >
 
         <h1 className="text-2xl font-bold text-center mb-6 tracking-wide">
           CALENDARIOS DE PAGOS CICLO {selectedPlan.ciclo_escolar}
@@ -675,6 +713,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
           </div>
         </div>
 
+      </div>
       </div>
 
       {/* Payment Modal */}

@@ -38,11 +38,11 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
   // ── Barra de búsqueda (JSX inline, NO sub-componente para no perder foco) ──
   const searchBarJSX = (
     <div className="relative w-full max-w-lg">
-      <div className="bg-white border-2 border-gray-300 rounded-xl p-3 flex items-center gap-3 shadow-sm focus-within:border-blue-400 transition-colors">
-        <Search size={20} className="text-gray-400 flex-shrink-0" />
+      <div className="bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-700 rounded-xl p-3 flex items-center gap-3 shadow-sm focus-within:border-blue-400 dark:focus-within:border-blue-500 transition-colors">
+        <Search size={20} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
         <input
           type="text"
-          className="w-full bg-transparent outline-none text-base"
+          className="w-full bg-transparent outline-none text-base dark:text-gray-100"
           value={searchTerm}
           onChange={(e) => { setSearchTerm(e.target.value); setShowSuggestions(true); }}
           onFocus={() => setShowSuggestions(true)}
@@ -52,16 +52,16 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
         {searchTerm && (
           <button
             onMouseDown={(e) => { e.preventDefault(); handleClear(); }}
-            className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+            className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 text-lg leading-none"
           >✕</button>
         )}
       </div>
       {showSuggestions && searchTerm && (
-        <div className="absolute z-10 w-full bg-white border border-gray-200 mt-1 max-h-64 overflow-y-auto shadow-xl rounded-xl">
+        <div className="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mt-1 max-h-64 overflow-y-auto shadow-xl rounded-xl">
           {filteredAlumnos.length > 0 ? filteredAlumnos.map(a => (
             <div
               key={a.id}
-              className="p-3 text-sm hover:bg-blue-50 hover:text-blue-700 cursor-pointer border-b border-gray-100 last:border-0"
+              className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-0"
               onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(a); }}
             >
               <span className="font-semibold block">{a.nombre_completo}</span>
@@ -78,18 +78,18 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
   // ── Estado vacío (sin alumno seleccionado) ───────────────────────────────
   if (!selectedAlumno) {
     return (
-      <div className="min-h-screen bg-gray-50 font-sans">
+      <div className="w-full font-sans">
         <div className="max-w-5xl mx-auto px-8 pt-8">
           <button onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors mb-12">
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors mb-12">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
 
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="bg-blue-50 p-5 rounded-full text-blue-400 mb-6">
+            <div className="bg-blue-50 dark:bg-blue-900/30 p-5 rounded-full text-blue-400 mb-6">
               <User size={48} />
             </div>
-            <h1 className="text-3xl font-extrabold text-gray-800 mb-2">Ficha del Alumno</h1>
+            <h1 className="text-3xl font-extrabold text-gray-800 dark:text-gray-100 mb-2">Ficha del Alumno</h1>
             <p className="text-gray-500 mb-8 text-center max-w-sm">
               Busca un alumno para ver su ficha financiera con el desglose completo de pagos.
             </p>
@@ -109,20 +109,20 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
     if (!concepto) return null;
     const paidStatus = isPaid(estatus);
     return (
-      <tr className="border-b border-gray-200 hover:bg-gray-50">
-        <td className="py-3 px-4 font-medium text-gray-800">{concepto}</td>
-        <td className="py-3 px-4 text-gray-600">{formatDate(fecha)}</td>
-        <td className="py-3 px-4 text-gray-800 font-semibold">${cantidad.toLocaleString()}</td>
+      <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+        <td className="py-3 px-4 font-medium text-gray-800 dark:text-gray-100">{concepto}</td>
+        <td className="py-3 px-4 text-gray-600 dark:text-gray-300">{formatDate(fecha)}</td>
+        <td className="py-3 px-4 text-gray-800 dark:text-gray-100 font-semibold">${cantidad.toLocaleString()}</td>
         <td className="py-3 px-4">
           {estatus
-            ? <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-mono">{estatus}</span>
-            : <span className="text-gray-400 text-xs italic">Sin registro</span>
+            ? <span className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded text-xs font-mono">{estatus}</span>
+            : <span className="text-gray-400 dark:text-gray-500 text-xs italic">Sin registro</span>
           }
         </td>
         <td className="py-3 px-4 text-center">
           {paidStatus
-            ? <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-bold">✓ Pagado</span>
-            : <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-bold">✕ Adeudo</span>
+            ? <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/40 border border-green-200 dark:border-green-800 px-2 py-1 rounded-full text-xs font-bold">✓ Pagado</span>
+            : <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-800 px-2 py-1 rounded-full text-xs font-bold">✕ Adeudo</span>
           }
         </td>
       </tr>
@@ -130,33 +130,33 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+    <div className="w-full font-sans">
       <div className="max-w-5xl mx-auto">
 
         {/* Header con buscador */}
         <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
           <button onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors">
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
           {searchBarJSX}
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           {/* Header del alumno */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-8 text-white relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
-              <h1 className="text-3xl font-bold mb-3">{selectedAlumno.nombre_completo}</h1>
-              <div className="flex flex-wrap gap-2 text-blue-100 text-sm">
+              <h2 className="text-xl md:text-2xl font-black text-white">{selectedAlumno.nombre_completo}</h2>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                  selectedAlumno.estatus === 'BAJA' ? 'bg-red-900/60 border-red-700 text-red-100' : 
+                  selectedAlumno.estatus?.includes('EGRESADO') ? 'bg-amber-900/60 border-amber-700 text-amber-100' : 
+                  'bg-emerald-900/60 border-emerald-700 text-emerald-100'
+                }`}>Estatus: {selectedAlumno.estatus || 'ACTIVO'}
+              </span>
+              <div className="flex flex-wrap gap-2 text-blue-100 text-sm mt-2">
                 <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Licenciatura: {selectedAlumno.licenciatura}</span>
                 <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Grado: {activePlan?.grado || (activePlan?.grado_turno?.split('/')[0]?.trim()) || selectedAlumno.grado_actual}</span>
                 <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Turno: {activePlan?.turno || (activePlan?.grado_turno?.split('/')[1]?.trim()) || selectedAlumno.turno}</span>
-                <span className={`px-3 py-1 rounded-full border shadow-sm backdrop-blur-sm font-semibold
-                  ${selectedAlumno.estatus === 'BAJA' ? 'bg-red-900/60 border-red-700 text-red-100' : 
-                    selectedAlumno.estatus === 'EGRESADO' ? 'bg-amber-900/60 border-amber-700 text-amber-100' : 
-                    'bg-emerald-900/60 border-emerald-700 text-emerald-100'}`}>
-                  Estatus: {selectedAlumno.estatus || 'ACTIVO'}
-                </span>
                 {selectedAlumno.beca_porcentaje && selectedAlumno.beca_porcentaje !== '0%' && (
                   <span className="bg-purple-900/60 px-3 py-1 rounded-full border border-purple-700/50 shadow-sm backdrop-blur-sm text-purple-100">
                     Beca: {selectedAlumno.beca_porcentaje} ({selectedAlumno.beca_tipo})
@@ -209,19 +209,34 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
             )}
           </div>
 
+          {/* Observaciones de Pago / Titulación */}
+          {selectedAlumno.observaciones_pago_titulacion && (
+            <div className="mx-8 mt-4 mb-0 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-amber-500 mt-0.5 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </span>
+              <div>
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-1">Observaciones de Pago / Titulación</p>
+                <p className="text-sm text-amber-800 dark:text-amber-200">{selectedAlumno.observaciones_pago_titulacion}</p>
+              </div>
+            </div>
+          )}
+
           {/* Tabla de pagos (si hay plan) */}
           <div className="p-8">
             {activePlan ? (
               <>
-                <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2">
-                   <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg"><User size={18} /></span>
+                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-5 flex items-center gap-2">
+                   <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 p-1.5 rounded-lg"><User size={18} /></span>
                    Desglose de Pagos
                 </h3>
-                <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-gray-50/80 text-gray-500 text-xs uppercase tracking-wider border-b border-gray-200">
+                        <tr className="bg-gray-50/80 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
                           <th className="py-4 px-5 font-bold">Concepto</th>
                           <th className="py-4 px-5 font-bold">Fecha Límite</th>
                           <th className="py-4 px-5 font-bold">Monto</th>
@@ -229,7 +244,7 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
                           <th className="py-4 px-5 font-bold text-center">Condición</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100 bg-white">
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => {
                           const concepto = activePlan[`concepto_${i}` as keyof PaymentPlan] as string | undefined;
                           const fecha = activePlan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
@@ -244,11 +259,11 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
-                <div className="bg-gray-200 p-4 rounded-full text-gray-400 mb-4 shadow-inner">
+              <div className="flex flex-col items-center justify-center py-16 bg-gray-50 dark:bg-gray-900/30 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
+                <div className="bg-gray-200 dark:bg-gray-800 p-4 rounded-full text-gray-400 mb-4 shadow-inner">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 </div>
-                <h3 className="text-xl font-bold text-gray-700 mb-1">Sin Registros Financieros</h3>
+                <h3 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-1">Sin Registros Financieros</h3>
                 <p className="text-gray-500 max-w-sm text-center text-sm">Este alumno no cuenta con un plan de pagos para el ciclo actualmente seleccionado. Ve a la sección de Alumnos para asignarle un plan.</p>
               </div>
             )}

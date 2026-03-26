@@ -3,6 +3,7 @@ export interface CicloEscolar {
   nombre: string;
   meses_abarca: string;
   anio: number;
+  anio_fin?: number | null;  // Año de fin (para ciclos que abarcan 2 años)
   activo: boolean;
 }
 
@@ -10,6 +11,8 @@ export interface Usuario {
   id: string;
   username: string;
   rol: 'ADMINISTRADOR' | 'COORDINADOR';
+  preferencia_tema?: string;
+  ultimo_ciclo_id?: string;
 }
 
 export interface Alumno {
@@ -21,6 +24,7 @@ export interface Alumno {
   estatus?: string;
   beca_porcentaje?: string;
   beca_tipo?: string;
+  observaciones_pago_titulacion?: string | null;
   ciclo_ultima_asignacion_grado?: string | null;
 }
 
@@ -85,6 +89,11 @@ export interface PaymentPlan {
   grado?: string;       // grado separado (columna planes_pago.grado)
   turno?: string;       // turno separado (columna planes_pago.turno)
   tipo_plan?: 'Cuatrimestral' | 'Semestral';
+}
+
+export interface AppConfig {
+  title: string;
+  logoUrl: string;
 }
 
 export type CatalogoTipo = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno';

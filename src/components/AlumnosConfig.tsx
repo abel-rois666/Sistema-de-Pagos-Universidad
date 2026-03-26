@@ -1,8 +1,21 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search } from 'lucide-react';
 import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } from '../types';
 import { supabase, toDBPlan } from '../lib/supabase';
+// Helper para generar folios con base en el ciclo y un consecutivo, ej: 261-1002
+const generateFolio = (cicloNombre: string, counter: number) => {
+  const nums = cicloNombre.replace(/[^0-9]/g, '');
+  let prefix = 'PP';
+  if (nums.length >= 5) {
+     prefix = nums.substring(2, 4) + nums.substring(4, 5);
+  } else if (nums.length === 4) {
+     prefix = nums.substring(2, 4);
+  } else if (cicloNombre.length > 0) {
+     prefix = cicloNombre.replace(/[^0-9A-Za-z]/g, '').substring(0, 3).toUpperCase();
+  }
+  return `${prefix}-${counter.toString().padStart(3, '0')}`;
+};
 
 interface AlumnosConfigProps {
   currentUser: Usuario;
@@ -10,6 +23,7 @@ interface AlumnosConfigProps {
   ciclos: CicloEscolar[];
   activeCicloId: string;
   activeCyclePlans: PaymentPlan[];
+  globalMaxCounter: number;
   catalogos?: Catalogos;
   plantillas?: PlantillaPlan[];
   onBack: () => void;
@@ -18,13 +32,21 @@ interface AlumnosConfigProps {
   onViewFicha?: (id: string) => void;
 }
 
-export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ciclos, activeCicloId, activeCyclePlans, catalogos, plantillas, onBack, onSave, onCreatePlan, onViewFicha }: AlumnosConfigProps) {
+export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ciclos, activeCicloId, activeCyclePlans, globalMaxCounter, catalogos, plantillas, onBack, onSave, onCreatePlan, onViewFicha }: AlumnosConfigProps) {
   const [alumnos, setAlumnos] = useState<Alumno[]>(initialAlumnos);
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Guardamos el contador mutable en un ref o variable local para iteraciones
+  const localCounter = React.useRef(globalMaxCounter);
   
   const isCoordinador = currentUser.rol === 'COORDINADOR';
   const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterLicenciatura, setFilterLicenciatura] = useState('');
+  const [filterGrado, setFilterGrado] = useState('');
+  const [filterTurno, setFilterTurno] = useState('');
+  const [filterEstatus, setFilterEstatus] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [modalState, setModalState] = useState<{
@@ -65,6 +87,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         estatus: editForm.estatus || 'ACTIVO',
         beca_porcentaje: editForm.beca_porcentaje || '0%',
         beca_tipo: editForm.beca_tipo || 'NINGUNA',
+        observaciones_pago_titulacion: editForm.observaciones_pago_titulacion || null,
         ciclo_ultima_asignacion_grado: activeCicloId
       };
       updatedAlumnos = [...alumnos, alumnoToSave];
@@ -79,6 +102,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         estatus: alumnoToSave.estatus,
         beca_porcentaje: alumnoToSave.beca_porcentaje,
         beca_tipo: alumnoToSave.beca_tipo,
+        observaciones_pago_titulacion: alumnoToSave.observaciones_pago_titulacion || null,
         ciclo_ultima_asignacion_grado: alumnoToSave.ciclo_ultima_asignacion_grado
       });
       if (alumnoErr) console.warn('[AlumnosConfig] insert alumno:', alumnoErr.message);
@@ -90,12 +114,13 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
           const isTemplate = editForm.assignPlanType === 'template' && editForm.templateId;
           const template = isTemplate && plantillas ? plantillas.find(p => p.id === editForm.templateId) : null;
           
+          localCounter.current++;
           const newPlan: PaymentPlan = {
             id: crypto.randomUUID(),
             alumno_id: alumnoToSave.id,
             ciclo_id: activeCiclo.id,
             nombre_alumno: alumnoToSave.nombre_completo,
-            no_plan_pagos: `PP-${alumnoToSave.id.slice(-4)}`,
+            no_plan_pagos: generateFolio(activeCiclo.nombre, localCounter.current),
             fecha_plan: new Date().toLocaleDateString('es-MX'),
             beca_porcentaje: alumnoToSave.beca_porcentaje || '0%',
             beca_tipo: alumnoToSave.beca_tipo || 'NINGUNA',
@@ -146,6 +171,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         estatus: alumnoToSave.estatus,
         beca_porcentaje: alumnoToSave.beca_porcentaje,
         beca_tipo: alumnoToSave.beca_tipo,
+        observaciones_pago_titulacion: alumnoToSave.observaciones_pago_titulacion || null,
         ciclo_ultima_asignacion_grado: alumnoToSave.ciclo_ultima_asignacion_grado
       }).eq('id', alumnoToSave.id);
       if (updateErr) console.warn('[AlumnosConfig] update alumno:', updateErr.message);
@@ -168,7 +194,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
   };
 
   const handlePromote = (alumno: Alumno) => {
-    if (alumno.estatus === 'EGRESADO' || alumno.grado_actual === 'EGRESADO') {
+    if (alumno.estatus?.includes('EGRESADO') || alumno.grado_actual?.includes('EGRESADO')) {
       showAlert("Error", "Los alumnos egresados no pueden ser promovidos.");
       return;
     }
@@ -198,12 +224,13 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
 
           const activeCiclo = ciclos.find(c => c.id === activeCicloId);
           if (activeCiclo) {
+            localCounter.current++;
             const newPlan: PaymentPlan = {
               id: crypto.randomUUID(),
               alumno_id: alumno.id,
               ciclo_id: activeCiclo.id,
               nombre_alumno: alumno.nombre_completo,
-              no_plan_pagos: `PP-${alumno.id.slice(-4)}`,
+              no_plan_pagos: generateFolio(activeCiclo.nombre, localCounter.current),
               fecha_plan: new Date().toLocaleDateString('es-MX'),
               beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
               ciclo_escolar: activeCiclo.nombre,
@@ -267,11 +294,28 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     }
   };
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortField, sortDirection, itemsPerPage, filterLicenciatura, filterGrado, filterTurno, filterEstatus]);
+
+  const licenciaturas = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.licenciatura).filter(Boolean))).sort(), [alumnos]);
+  const grados = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.grado_actual).filter(Boolean))).sort(), [alumnos]);
+  const turnos = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.turno).filter(Boolean))).sort(), [alumnos]);
+  const estatusList = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.estatus).filter(Boolean))).sort(), [alumnos]);
+
   const filteredAlumnos = alumnos
-    .filter(a =>
-      a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.licenciatura.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    .filter(a => {
+      const matchSearch = a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          a.licenciatura.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchLic = filterLicenciatura ? a.licenciatura === filterLicenciatura : true;
+      const matchGrado = filterGrado ? a.grado_actual === filterGrado : true;
+      const matchTurno = filterTurno ? a.turno === filterTurno : true;
+      const matchEstatus = filterEstatus ? a.estatus === filterEstatus : true;
+      return matchSearch && matchLic && matchGrado && matchTurno && matchEstatus;
+    })
     .sort((a, b) => {
       const aVal = (a[sortField] || '').toString().toLowerCase();
       const bVal = (b[sortField] || '').toString().toLowerCase();
@@ -279,6 +323,11 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
+
+  const totalPages = Math.ceil(filteredAlumnos.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, filteredAlumnos.length);
+  const paginatedAlumnos = filteredAlumnos.slice(startIndex, endIndex);
 
   const toggleMainTableSelect = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -339,8 +388,8 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
   const promotableAlumnos = filteredAlumnos.filter(a => 
     !activeCyclePlans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo) &&
     a.estatus !== 'BAJA' &&
-    a.estatus !== 'EGRESADO' &&
-    a.grado_actual?.toUpperCase() !== 'EGRESADO' &&
+    !a.estatus?.includes('EGRESADO') &&
+    !(a.grado_actual?.toUpperCase() || '').includes('EGRESADO') &&
     a.ciclo_ultima_asignacion_grado !== activeCicloId
   );
 
@@ -362,7 +411,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
   };
 
   const getNextGrade = (currentGrade: string, licenciatura: string) => {
-    if (currentGrade === 'EGRESADO') return 'EGRESADO';
+    if (currentGrade?.includes('EGRESADO')) return currentGrade;
     const is8vo = is8voMaxLic(licenciatura);
 
     const gradeMap: Record<string, string> = {
@@ -428,14 +477,16 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     }
 
     // Crear nuevos planes
+    let currentBatchCounter = localCounter.current;
     const newPlans: PaymentPlan[] = nextGrades.map(a => {
+      currentBatchCounter++;
       const prevPlan = previousPlansMap.get(a.id);
       return {
         id: crypto.randomUUID(),
         alumno_id: a.id,
         ciclo_id: activeCiclo.id,
         nombre_alumno: a.nombre_completo,
-        no_plan_pagos: `PP-${a.id.slice(-4)}`,
+        no_plan_pagos: generateFolio(activeCiclo.nombre, currentBatchCounter),
         fecha_plan: new Date().toLocaleDateString('es-MX'),
         beca_porcentaje: prevPlan?.beca_porcentaje || '0%',
         beca_tipo: prevPlan?.beca_tipo || 'NINGUNA',
@@ -521,19 +572,81 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                  <button onClick={() => setMainTableSelected(new Set())} className="text-sm text-gray-500 hover:text-gray-700 font-medium px-2" title="Cancelar selección"><X size={16}/></button>
               </div>
             ) : (
-              <div className="w-full md:w-72">
-                <input type="text" className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  placeholder="Buscar alumno..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                <div className="relative w-full sm:w-72">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search size={18} className="text-gray-400" />
+                    </div>
+                    <input type="text" className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                      placeholder="Buscar alumno o licenciatura..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                </div>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors w-full sm:w-auto ${showFilters || filterLicenciatura || filterGrado || filterTurno || filterEstatus ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                >
+                  <Filter size={16} />
+                  Filtros {(filterLicenciatura || filterGrado || filterTurno || filterEstatus) && <span className="bg-indigo-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">!</span>}
+                </button>
               </div>
             )}
           </div>
+
+          <AnimatePresence>
+            {showFilters && !mainTableSelected.size && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden border-b border-gray-100 bg-gray-50/50"
+              >
+                <div className="p-4 px-6 flex flex-wrap gap-4 items-end">
+                  <div className="flex-1 min-w-[180px]">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Licenciatura</label>
+                    <select value={filterLicenciatura} onChange={e => setFilterLicenciatura(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Todas</option>
+                      {licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="w-full sm:w-40">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Grado</label>
+                    <select value={filterGrado} onChange={e => setFilterGrado(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Todos</option>
+                      {grados.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div className="w-full sm:w-40">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Turno</label>
+                    <select value={filterTurno} onChange={e => setFilterTurno(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Todos</option>
+                      {turnos.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className="w-full sm:w-40">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Estatus</label>
+                    <select value={filterEstatus} onChange={e => setFilterEstatus(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Todos</option>
+                      {estatusList.map(e => <option key={e} value={e}>{e}</option>)}
+                    </select>
+                  </div>
+                  {(filterLicenciatura || filterGrado || filterTurno || filterEstatus) && (
+                    <button
+                      onClick={() => { setFilterLicenciatura(''); setFilterGrado(''); setFilterTurno(''); setFilterEstatus(''); }}
+                      className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1"
+                    >
+                      <X size={16} /> Limpiar
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
                   <th className="py-3 px-4 w-12 text-center">
-                    <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filteredAlumnos.length > 0 && mainTableSelected.size === filteredAlumnos.length} onChange={toggleAllMainTable} />
+                    <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filteredAlumnos.length > 0 && mainTableSelected.size === filteredAlumnos.length} onChange={toggleAllMainTable} title="Seleccionar todos los filtrados" />
                   </th>
                   <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('nombre_completo')}>
                     <div className="flex items-center gap-1">
@@ -653,6 +766,17 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                            </div>
                          </div>
                          
+                         <div className="mb-6">
+                            <label className="block text-xs text-gray-500 mb-1">Observaciones de Pago / Titulación</label>
+                            <textarea
+                              rows={2}
+                              placeholder="Ej: Descuento de titulación acordado el 15/01/2026, reducción del 30% en cuotas restantes..."
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-indigo-500"
+                              value={editForm.observaciones_pago_titulacion || ''}
+                              onChange={e => setEditForm({...editForm, observaciones_pago_titulacion: e.target.value})}
+                            />
+                         </div>
+                         
                          <h4 className="font-bold text-indigo-800 border-b border-indigo-50 pb-2 mb-4 mt-6">Plan de Pagos a Asignar (Ciclo Activo)</h4>
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
                            <div className="col-span-2 md:col-span-1">
@@ -687,7 +811,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                     </td>
                   </tr>
                 )}
-                {filteredAlumnos.map(alumno => (
+                {paginatedAlumnos.map(alumno => (
                   <React.Fragment key={alumno.id}>
                     {editingId === alumno.id ? (
                       <tr className="bg-blue-50/40">
@@ -772,6 +896,16 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                  )}
                                </div>
                              </div>
+                             <div className="mt-3">
+                                <label className="block text-xs text-gray-500 mb-1">Observaciones de Pago / Titulación</label>
+                                <textarea
+                                  rows={2}
+                                  placeholder="Ej: Descuento de titulación acordado el 15/01/2026, reducción del 30% en cuotas restantes..."
+                                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  value={editForm.observaciones_pago_titulacion || ''}
+                                  onChange={e => setEditForm({...editForm, observaciones_pago_titulacion: e.target.value})}
+                                />
+                              </div>
                              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-50">
                                <button onClick={() => setEditingId(null)} className="px-5 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200 font-medium">Cancelar</button>
                                <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-colors flex items-center gap-2 font-bold">
@@ -799,7 +933,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                         <td className="py-4 px-6 font-semibold text-indigo-600">{alumno.grado_actual}</td>
                         <td className="py-4 px-6 text-gray-600">{alumno.turno}</td>
                         <td className="py-4 px-6">
-                           <span className={`px-2.5 py-1 rounded-md text-xs font-bold shadow-sm border ${alumno.estatus === 'BAJA' ? 'bg-red-50 text-red-600 border-red-100' : alumno.estatus === 'EGRESADO' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>{alumno.estatus || 'ACTIVO'}</span>
+                           <span className={`px-2.5 py-1 rounded-md text-xs font-bold shadow-sm border ${alumno.estatus === 'BAJA' ? 'bg-red-50 text-red-600 border-red-100' : alumno.estatus?.includes('EGRESADO') ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>{alumno.estatus || 'ACTIVO'}</span>
                         </td>
                         <td className="py-4 px-6 text-right">
                           <div className="flex justify-end gap-2 items-center">
@@ -821,11 +955,12 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                       showConfirm("Confirmar Inscripción",
                                         `¿Inscribir a ${alumno.nombre_completo} en el ciclo ${activeCiclo.nombre}?`,
                                         () => {
+                                          localCounter.current++;
                                           const newPlan: PaymentPlan = {
                                             id: crypto.randomUUID(),
                                             alumno_id: alumno.id, ciclo_id: activeCiclo.id,
                                             nombre_alumno: alumno.nombre_completo,
-                                            no_plan_pagos: `PP-${alumno.id.slice(-4)}`,
+                                            no_plan_pagos: generateFolio(activeCiclo.nombre, localCounter.current),
                                             fecha_plan: new Date().toLocaleDateString('es-MX'),
                                             beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
                                             ciclo_escolar: activeCiclo.nombre,
@@ -869,6 +1004,71 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
               </tbody>
             </table>
           </div>
+
+          {filteredAlumnos.length > 0 && (
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500 font-medium">Mostrar</span>
+                <select 
+                  className="border border-gray-300 rounded-md text-sm p-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer"
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="text-sm text-gray-500 font-medium">alumnos</span>
+              </div>
+              <div className="text-sm text-gray-500 font-medium bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                Mostrando <span className="text-gray-900 font-bold">{startIndex + 1}</span> a <span className="text-gray-900 font-bold">{endIndex}</span> de <span className="text-gray-900 font-bold">{filteredAlumnos.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-white text-gray-700 font-bold transition-all shadow-sm hover:shadow active:scale-95"
+                >
+                  Anterior
+                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">Página</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages || 1}
+                    value={currentPage || ''}
+                    title="Ir a página"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setCurrentPage(val as any);
+                        return;
+                      }
+                      let p = parseInt(val, 10);
+                      if (isNaN(p)) return;
+                      if (p > totalPages) p = totalPages;
+                      if (p < 1) p = 1;
+                      setCurrentPage(p);
+                    }}
+                    onBlur={() => {
+                        if (!currentPage || currentPage < 1) setCurrentPage(1);
+                    }}
+                    className="w-16 border border-gray-300 rounded-md p-1.5 text-center text-sm font-bold bg-white text-gray-900 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                  <span className="text-sm text-gray-700 font-medium">de {totalPages || 1}</span>
+                </div>
+                <button 
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-white text-gray-700 font-bold transition-all shadow-sm hover:shadow active:scale-95"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

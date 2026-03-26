@@ -34,6 +34,35 @@ export const toDBPlan = (plan: PaymentPlan) => ({
 
 // ── CRUD Helpers ─────────────────────────────────────────────────────────────
 
+/** Helper para hacer fetch iterativo y obtener todos los registros, evadiendo el límite de 1000 de PostgREST */
+export const fetchAllSupabase = async (
+  queryFn: () => any,
+  limitPerQuery: number = 1000
+) => {
+  let allData: any[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const to = from + limitPerQuery - 1;
+    const { data, error } = await queryFn().range(from, to);
+    if (error) return { data: null, error };
+    
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      if (data.length < limitPerQuery) {
+        hasMore = false;
+      } else {
+        from += limitPerQuery;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return { data: allData, error: null };
+};
+
 // Verifica si un string es un UUID válido de Postgres
 const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
@@ -77,20 +106,37 @@ export const saveCiclos = async (ciclos: CicloEscolar[]): Promise<string | null>
 export const bulkSaveAlumnos = async (alumnos: Alumno[]): Promise<string | null> => {
   const validAlumnos = alumnos.filter(a => isUUID(a.id));
   if (!validAlumnos.length) return null;
-  const { error } = await supabase.from('alumnos').upsert(
-    validAlumnos.map(a => ({
-      id: a.id,
-      nombre_completo: a.nombre_completo,
-      licenciatura: a.licenciatura,
-      grado_actual: a.grado_actual,
-      turno: a.turno,
-      estatus: a.estatus || 'ACTIVO',
-      beca_porcentaje: a.beca_porcentaje || '0%',
-      beca_tipo: a.beca_tipo || 'NINGUNA',
-      ciclo_ultima_asignacion_grado: a.ciclo_ultima_asignacion_grado || null
-    }))
-  );
-  if (error) { console.error('[bulkSaveAlumnos]', error.message); return error.message; }
+  
+  // Deduplicate array by ID to prevent Postgres "cannot affect row a second time" error
+  const uniqueMap = new Map<string, Alumno>();
+  validAlumnos.forEach(a => uniqueMap.set(a.id, a));
+  const uniqueAlumnos = Array.from(uniqueMap.values());
+
+  const CHUNK_SIZE = 500;
+  for (let i = 0; i < uniqueAlumnos.length; i += CHUNK_SIZE) {
+    const chunk = uniqueAlumnos.slice(i, i + CHUNK_SIZE);
+    const dbPayload = chunk.map(a => ({
+        id: a.id,
+        nombre_completo: a.nombre_completo,
+        licenciatura: a.licenciatura,
+        grado_actual: a.grado_actual,
+        turno: a.turno,
+        estatus: a.estatus || 'ACTIVO',
+        beca_porcentaje: a.beca_porcentaje || '0%',
+        beca_tipo: a.beca_tipo || 'NINGUNA',
+        observaciones_pago_titulacion: a.observaciones_pago_titulacion || null,
+        ciclo_ultima_asignacion_grado: a.ciclo_ultima_asignacion_grado || null
+      }));
+
+    const { error } = await supabase.from('alumnos').upsert(
+      dbPayload,
+      { onConflict: 'id' }
+    );
+    if (error) { 
+       console.error('[bulkSaveAlumnos chunk]', error.message); 
+       return error.message; 
+    }
+  }
   return null;
 };
 
@@ -98,8 +144,24 @@ export const bulkSaveAlumnos = async (alumnos: Alumno[]): Promise<string | null>
 export const bulkSavePlanes = async (planes: PaymentPlan[]): Promise<string | null> => {
   const validPlanes = planes.filter(p => isUUID(p.id));
   if (!validPlanes.length) return null;
-  const { error } = await supabase.from('planes_pago').upsert(validPlanes.map(toDBPlan));
-  if (error) { console.error('[bulkSavePlanes]', error.message); return error.message; }
+  
+  // Deduplicate array by ID to prevent Postgres "cannot affect row a second time" error
+  const uniqueMap = new Map<string, PaymentPlan>();
+  validPlanes.forEach(p => uniqueMap.set(p.id, p));
+  const uniquePlanes = Array.from(uniqueMap.values());
+
+  const CHUNK_SIZE = 500;
+  for (let i = 0; i < uniquePlanes.length; i += CHUNK_SIZE) {
+    const chunk = uniquePlanes.slice(i, i + CHUNK_SIZE);
+    const { error } = await supabase.from('planes_pago').upsert(
+        chunk.map(toDBPlan),
+        { onConflict: 'id' }
+    );
+    if (error) { 
+        console.error('[bulkSavePlanes chunk]', error.message); 
+        return error.message; 
+    }
+  }
   return null;
 };
 
@@ -163,24 +225,29 @@ export const deleteCatalogoItem = async (id: string): Promise<string | null> => 
 
 /** Registrar un nuevo pago (recibo + detalles) y actualizar estatus del plan si aplica */
 export const saveReciboCompleto = async (
-  recibo: Omit<Recibo, 'id' | 'folio' | 'created_at' | 'estatus'>,
+  recibo: Omit<Recibo, 'id' | 'folio' | 'created_at' | 'estatus'> & { estatus?: string; folio?: number },
   detalles: Omit<ReciboDetalle, 'id' | 'recibo_id'>[],
   planUpdates?: { planId: string, updates: Partial<PaymentPlan> }
 ): Promise<{ error: string | null; folio?: number }> => {
   try {
-    // 1. Insertar el recibo (Omitirmos el ID para que Postgres genere el UUID y el folio serial)
+    const payload: any = {
+      fecha_recibo: recibo.fecha_recibo,
+      fecha_pago: recibo.fecha_pago,
+      alumno_id: recibo.alumno_id,
+      ciclo_id: recibo.ciclo_id,
+      total: recibo.total,
+      forma_pago: recibo.forma_pago,
+      banco: recibo.banco,
+      estatus: recibo.estatus || 'ACTIVO'
+    };
+    if (recibo.folio !== undefined) {
+      payload.folio = recibo.folio;
+    }
+
+    // 1. Insertar el recibo (Omitirmos el ID para que Postgres genere el UUID y el folio serial, a menos que se haya forzado)
     const { data: reciboData, error: reciboError } = await supabase
       .from('recibos')
-      .insert({
-        fecha_recibo: recibo.fecha_recibo,
-        fecha_pago: recibo.fecha_pago,
-        alumno_id: recibo.alumno_id,
-        ciclo_id: recibo.ciclo_id,
-        total: recibo.total,
-        forma_pago: recibo.forma_pago,
-        banco: recibo.banco,
-        estatus: 'ACTIVO'
-      })
+      .insert(payload)
       .select('id, folio')
       .single();
 
@@ -280,4 +347,132 @@ export const cancelarRecibo = async (reciboId: string): Promise<string | null> =
    }
 };
 
+/** Obtener configuración de la App */
+export const getAppConfig = async (): Promise<{ title: string; logoUrl: string }> => {
+  const { data, error } = await supabase.from('configuracion_app').select('*');
+  if (error || !data) return { title: 'Sistema de Control de Pagos', logoUrl: '' };
+  
+  const config = { title: 'Sistema de Control de Pagos', logoUrl: '' };
+  data.forEach(item => {
+    if (item.id === 'app_title') config.title = item.valor;
+    if (item.id === 'app_logo') config.logoUrl = item.valor;
+  });
+  return config;
+};
 
+/** Actualizar configuración de la App */
+export const updateAppConfig = async (title: string, logoUrl: string): Promise<string | null> => {
+  const { error: err1 } = await supabase.from('configuracion_app').upsert({ id: 'app_title', valor: title });
+  if (err1) return err1.message;
+  
+  const { error: err2 } = await supabase.from('configuracion_app').upsert({ id: 'app_logo', valor: logoUrl });
+  if (err2) return err2.message;
+  
+  return null;
+};
+
+/** Vincular manualmente un detalle de recibo a un concepto del plan */
+export const vincularReciboDetalleAPlan = async (
+  detalleId: string,
+  planId: string,
+  indiceConcepto: number
+): Promise<string | null> => {
+  try {
+    // 1. Actualizar el detalle del recibo
+    const { error: errDetalle } = await supabase
+      .from('recibos_detalles')
+      .update({ indice_concepto_plan: indiceConcepto })
+      .eq('id', detalleId);
+    
+    if (errDetalle) throw new Error(`Error vinculando detalle: ${errDetalle.message}`);
+
+    // 2. Actualizar el estatus del plan a PAGADO
+    const updatePayload: Record<string, string> = {};
+    updatePayload[`estatus_${indiceConcepto}`] = 'PAGADO';
+    
+    const { error: errPlan } = await supabase
+      .from('planes_pago')
+      .update(updatePayload)
+      .eq('id', planId);
+
+    if (errPlan) throw new Error(`Error actualizando el plan: ${errPlan.message}`);
+
+    return null;
+  } catch (err: any) {
+    console.error('[vincularReciboDetalleAPlan]', err.message);
+    return err.message || 'Error desconocido al vincular';
+  }
+};
+
+/** Vincular un detalle de recibo a MÚLTIPLES conceptos del plan (folio R-XXX concatenado) */
+export const vincularReciboDetalleAMultiplesPlan = async (
+  detalleId: string,
+  reciboFolio: number,
+  seleccion: { planId: string; idx: number }[]
+): Promise<string | null> => {
+  if (seleccion.length === 0) return 'No se seleccionó ningún concepto';
+  try {
+    // 1. Marcar el detalle con el primer índice seleccionado (retrocompatibilidad con columna única)
+    const { error: errDetalle } = await supabase
+      .from('recibos_detalles')
+      .update({ indice_concepto_plan: seleccion[0].idx })
+      .eq('id', detalleId);
+    if (errDetalle) throw new Error(`Error vinculando detalle: ${errDetalle.message}`);
+
+    // 2. Agrupar los índices por planId (puede haber selecciones de distintos planes)
+    const porPlan: Record<string, number[]> = {};
+    for (const s of seleccion) {
+      if (!porPlan[s.planId]) porPlan[s.planId] = [];
+      porPlan[s.planId].push(s.idx);
+    }
+
+    // 3. Para cada plan, leer el estado actual y construir el nuevo estatus con folio concatenado
+    for (const [planId, indices] of Object.entries(porPlan)) {
+      const { data: planData, error: fetchErr } = await supabase
+        .from('planes_pago')
+        .select('*')
+        .eq('id', planId)
+        .single();
+      if (fetchErr || !planData) throw new Error('No se pudo leer el plan: ' + fetchErr?.message);
+
+      const updatePayload: Record<string, string> = {};
+      for (const idx of indices) {
+        const estatusPrevio = (planData[`estatus_${idx}`] || 'PENDIENTE') as string;
+
+        // Recoger folios anteriores del texto (ej. "R-101; ")
+        let foliosPrevios = '';
+        const foliosMatch = estatusPrevio.match(/R-\d+/g);
+        if (foliosMatch && foliosMatch.length > 0) {
+          foliosPrevios = foliosMatch.join('; ') + '; ';
+        }
+
+        updatePayload[`estatus_${idx}`] = `${foliosPrevios}R-${reciboFolio} (Pagado)`;
+      }
+
+      const { error: errPlan } = await supabase
+        .from('planes_pago')
+        .update(updatePayload)
+        .eq('id', planId);
+      if (errPlan) throw new Error(`Error actualizando plan ${planId}: ${errPlan.message}`);
+    }
+
+    return null;
+  } catch (err: any) {
+    console.error('[vincularReciboDetalleAMultiplesPlan]', err.message);
+    return err.message || 'Error desconocido al vincular múltiple';
+  }
+};
+
+
+/** Actualizar preferencias de sesión del usuario (tema y ciclo) **/
+export const updateUserPreferences = async (userId: string, updates: { preferencia_tema?: string, ultimo_ciclo_id?: string }): Promise<string | null> => {
+  if (!isUUID(userId)) return null;
+  try {
+    const { error } = await supabase.from('usuarios').update(updates).eq('id', userId);
+    if (error) { console.error('[updateUserPreferences]', error.message); return error.message; }
+    return null;
+  } catch(err: any) {
+    console.error("Local error updating prefs", err);
+    return err.message;
+  }
+};

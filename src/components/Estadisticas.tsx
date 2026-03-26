@@ -92,50 +92,50 @@ export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasPro
   }, [filteredPlans]);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+    <div className="w-full font-sans">
       <div className="max-w-5xl mx-auto">
         
         <div className="flex items-center justify-between mb-8">
           <button 
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors"
+            className="flex items-center gap-2 text-gray-600 hover:text-black dark:text-gray-300 dark:hover:text-white font-bold transition-colors"
           >
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
         </div>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Estadísticas Generales</h1>
-          <p className="text-gray-500">Resumen financiero del ciclo activo</p>
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Estadísticas Generales</h1>
+          <p className="text-gray-500 dark:text-gray-400">Resumen financiero del ciclo activo</p>
         </div>
 
         {/* Global Totals */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex items-center gap-6">
-            <div className="bg-green-100 p-4 rounded-full text-green-600">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-6">
+            <div className="bg-green-100 dark:bg-green-900/40 p-4 rounded-full text-green-600 dark:text-green-400">
               <TrendingUp size={32} />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Ingresos Totales (Pagado)</p>
-              <p className="text-4xl font-bold text-gray-800">${stats.totalPaid.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Ingresos Totales (Pagado)</p>
+              <p className="text-4xl font-bold text-gray-800 dark:text-gray-100">${stats.totalPaid.toLocaleString()}</p>
             </div>
           </motion.div>
           
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex items-center gap-6">
-            <div className="bg-red-100 p-4 rounded-full text-red-600">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-6">
+            <div className="bg-red-100 dark:bg-red-900/40 p-4 rounded-full text-red-600 dark:text-red-400">
               <AlertCircle size={32} />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">Deuda Total (Pendiente)</p>
-              <p className="text-4xl font-bold text-gray-800">${stats.totalOwed.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Deuda Total (Pendiente)</p>
+              <p className="text-4xl font-bold text-gray-800 dark:text-gray-100">${stats.totalOwed.toLocaleString()}</p>
             </div>
           </motion.div>
         </div>
 
         {/* Monthly Breakdown */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="text-xl font-bold text-gray-800">Desglose Mensual</h2>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Desglose Mensual</h2>
           </div>
           
           <div className="p-6">
@@ -143,7 +143,7 @@ export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasPro
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider">
+                    <tr className="bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 text-sm uppercase tracking-wider">
                       <th className="py-3 px-4 font-semibold rounded-tl-lg">Mes / Periodo</th>
                       <th className="py-3 px-4 font-semibold text-right">Ingresos (Pagado)</th>
                       <th className="py-3 px-4 font-semibold text-right">Deuda (Pendiente)</th>
@@ -156,26 +156,26 @@ export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasPro
                         initial={{ opacity: 0, x: -10 }} 
                         animate={{ opacity: 1, x: 0 }} 
                         transition={{ delay: 0.2 + idx * 0.05, duration: 0.2 }}
-                        key={month} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-4 px-4 font-medium text-gray-800">{month}</td>
-                        <td className="py-4 px-4 text-right font-semibold text-green-600">
+                        key={month} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="py-4 px-4 font-medium text-gray-800 dark:text-gray-200">{month}</td>
+                        <td className="py-4 px-4 text-right font-semibold text-green-600 dark:text-green-400">
                           ${data.paid.toLocaleString()}
                         </td>
-                        <td className="py-4 px-4 text-right font-semibold text-red-600">
+                        <td className="py-4 px-4 text-right font-semibold text-red-600 dark:text-red-400">
                           ${data.owed.toLocaleString()}
                         </td>
-                        <td className="py-4 px-4 text-right font-bold text-gray-800">
+                        <td className="py-4 px-4 text-right font-bold text-gray-800 dark:text-gray-100">
                           ${(data.paid + data.owed).toLocaleString()}
                         </td>
                       </motion.tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-50 font-bold text-gray-800">
+                    <tr className="bg-gray-50 dark:bg-gray-900/50 font-bold text-gray-800 dark:text-gray-100">
                       <td className="py-4 px-4 rounded-bl-lg">TOTAL</td>
-                      <td className="py-4 px-4 text-right text-green-700">${stats.totalPaid.toLocaleString()}</td>
-                      <td className="py-4 px-4 text-right text-red-700">${stats.totalOwed.toLocaleString()}</td>
-                      <td className="py-4 px-4 text-right text-gray-900 rounded-br-lg">${(stats.totalPaid + stats.totalOwed).toLocaleString()}</td>
+                      <td className="py-4 px-4 text-right text-green-700 dark:text-green-400">${stats.totalPaid.toLocaleString()}</td>
+                      <td className="py-4 px-4 text-right text-red-700 dark:text-red-400">${stats.totalOwed.toLocaleString()}</td>
+                      <td className="py-4 px-4 text-right text-gray-900 dark:text-white rounded-br-lg">${(stats.totalPaid + stats.totalOwed).toLocaleString()}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -201,25 +201,25 @@ export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasPro
         {/* Breakdown by Licenciatura and Turno side by side */}
         {stats.sortedLicenciaturas.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-                <h2 className="text-lg font-bold text-gray-800">Desglose por Licenciatura</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Desglose por Licenciatura</h2>
               </div>
               <div className="p-0 overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-white text-gray-500 uppercase tracking-wider border-b border-gray-100 text-xs">
+                    <tr className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 text-xs">
                       <th className="py-3 px-4 font-semibold">Licenciatura</th>
-                      <th className="py-3 px-4 font-semibold text-right text-green-600">Pagado</th>
-                      <th className="py-3 px-4 font-semibold text-right text-red-500">Adeudo</th>
+                      <th className="py-3 px-4 font-semibold text-right text-green-600 dark:text-green-400">Pagado</th>
+                      <th className="py-3 px-4 font-semibold text-right text-red-500 dark:text-red-400">Adeudo</th>
                     </tr>
                   </thead>
                   <tbody>
                     {stats.sortedLicenciaturas.map(([lic, data], idx) => (
-                      <tr key={lic} className="border-b border-gray-50 hover:bg-gray-50/50">
-                        <td className="py-3 px-4 font-medium text-gray-700 truncate max-w-[150px]" title={lic}>{lic}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-green-600">${data.paid.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-red-500">${data.owed.toLocaleString()}</td>
+                      <tr key={lic} className="border-b border-gray-50 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/50">
+                        <td className="py-3 px-4 font-medium text-gray-700 dark:text-gray-300 truncate max-w-[150px]" title={lic}>{lic}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-green-600 dark:text-green-400">${data.paid.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-red-500 dark:text-red-400">${data.owed.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -227,25 +227,25 @@ export default function Estadisticas({ plans, alumnos, onBack }: EstadisticasPro
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-                <h2 className="text-lg font-bold text-gray-800">Desglose por Turno</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Desglose por Turno</h2>
               </div>
               <div className="p-0 overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-white text-gray-500 uppercase tracking-wider border-b border-gray-100 text-xs">
+                    <tr className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 text-xs">
                       <th className="py-3 px-4 font-semibold">Turno</th>
-                      <th className="py-3 px-4 font-semibold text-right text-green-600">Pagado</th>
-                      <th className="py-3 px-4 font-semibold text-right text-red-500">Adeudo</th>
+                      <th className="py-3 px-4 font-semibold text-right text-green-600 dark:text-green-400">Pagado</th>
+                      <th className="py-3 px-4 font-semibold text-right text-red-500 dark:text-red-400">Adeudo</th>
                     </tr>
                   </thead>
                   <tbody>
                     {stats.sortedTurnos.map(([tur, data], idx) => (
-                      <tr key={tur} className="border-b border-gray-50 hover:bg-gray-50/50">
-                        <td className="py-3 px-4 font-medium text-gray-700">{tur}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-green-600">${data.paid.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-red-500">${data.owed.toLocaleString()}</td>
+                      <tr key={tur} className="border-b border-gray-50 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/50">
+                        <td className="py-3 px-4 font-medium text-gray-700 dark:text-gray-300">{tur}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-green-600 dark:text-green-400">${data.paid.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-red-500 dark:text-red-400">${data.owed.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
