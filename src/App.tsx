@@ -51,7 +51,13 @@ const buildCatalogos = (items: CatalogoItem[]): Catalogos => ({
   grados: Array.from(new Set(items.filter(i => i.tipo === 'grado' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   turnos: Array.from(new Set(items.filter(i => i.tipo === 'turno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   estatus_alumnos: Array.from(new Set(items.filter(i => i.tipo === 'estatus_alumno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
+  licenciaturasMetadata: Object.fromEntries(
+    items
+      .filter(i => i.tipo === 'licenciatura' && i.activo && i.metadata)
+      .map(i => [i.valor, i.metadata!])
+  ),
 });
+
 
 
 
@@ -555,7 +561,7 @@ export default function App() {
             <PlanPagos currentUser={currentUser} plans={filteredPlans} alumnos={alumnos} activeCiclo={activeCiclo} catalogos={catalogos} plantillas={plantillas} initialAlumnoId={selectedAlumnoId || navState.alumnoId}
               onSavePlan={handleSavePlan}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
-              onGoToPagos={(aId, cIdx) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, view: 'registrar' } })}
+              onGoToPagos={(aId, cIdx) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, view: 'registrar', fromPlan: true } })}
               onViewReceipt={(folio) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio } })}
             />
           </PageWrapper>
@@ -568,7 +574,7 @@ export default function App() {
             />
           </PageWrapper>
         } />
-        <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas plans={filteredPlans} alumnos={alumnos} onBack={() => navigate('/')} /></PageWrapper>} />
+        <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas plans={filteredPlans} alumnos={alumnos} activeCiclo={activeCiclo} onBack={() => navigate('/')} /></PageWrapper>} />
         <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores plans={filteredPlans} alumnos={alumnos} onBack={() => navigate('/')} /></PageWrapper>} />
         <Route path="/ciclos" element={<PageWrapper keyStr="ciclos"><CiclosConfig ciclos={ciclos} onSave={setCiclos} onBack={() => navigate('/')} /></PageWrapper>} />
         <Route path="/alumnos" element={
@@ -597,12 +603,18 @@ export default function App() {
           <PageWrapper keyStr={`control_ingresos_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}>
             <ControlIngresos key={`ci_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}
               alumnos={alumnos} activeCiclo={activeCiclo} ciclos={ciclos} plans={filteredPlans} catalogos={catalogos}
+              appConfig={appConfig || undefined}
               onBack={() => navigate('/')}
+              onBackToPlan={navState.fromPlan && navState.alumnoId
+                ? () => navigate('/plan-pagos', { state: { alumnoId: navState.alumnoId } })
+                : undefined}
               initialAlumnoId={navState.alumnoId}
               initialConceptIndex={navState.conceptoIdx}
               initialView={navState.view}
               initialSearchTerm={navState.searchTerm}
+              currentUser={currentUser}
               onPaymentSaved={refreshPlans}
+              onCatalogoAdded={(item) => setCatalogoItems(prev => [...prev, item])}
             />
           </PageWrapper>
         } />

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import { toPng } from 'html-to-image';
+import { downloadElementAsPDF } from '../lib/printUtils';
 import ReciboPlantillaPDF from './ReciboPlantillaPDF';
-import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan } from '../types';
+import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig } from '../types';
 import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAllSupabase } from '../lib/supabase';
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV } from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
@@ -13,10 +12,11 @@ interface Props {
   activeCiclo?: CicloEscolar;
   ciclos: CicloEscolar[];
   catalogos: Catalogos;
+  appConfig?: AppConfig;
   initialSearchTerm?: string;
 }
 
-export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, initialSearchTerm }: Props) {
+export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catalogos, appConfig, initialSearchTerm }: Props) {
   const [recibos, setRecibos] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
@@ -110,17 +110,8 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, initi
     if (!printRef.current || !reciboSeleccionado) return;
     setIsGeneratingPDF(true);
     try {
-      const dataUrl = await toPng(printRef.current, {
-        quality: 1.0,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-        width: 816,
-        height: 1056,
-        style: { transform: 'scale(1)', margin: '0' }
-      });
-      const pdf = new jsPDF('p', 'mm', 'letter');
-      pdf.addImage(dataUrl, 'PNG', 0, 0, 215.9, 279.4);
-      pdf.save(`Recibo_${reciboSeleccionado.folio}_${reciboSeleccionado.nombre_alumno.replace(/\s+/g, '_')}.pdf`);
+      const fileName = `Recibo_${reciboSeleccionado.folio}_${reciboSeleccionado.nombre_alumno.replace(/\s+/g, '_')}.pdf`;
+      await downloadElementAsPDF(printRef.current, fileName);
     } catch (err) {
       console.error('Error generando PDF', err);
       alert('Error generando PDF');
@@ -553,11 +544,18 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, initi
                      <tr key={d.id} className="hover:bg-gray-50">
                        <td className="p-3 font-semibold">{d.cantidad}</td>
                        <td className="p-3 text-gray-800">
-                         {d.concepto} 
+                         <div>{d.concepto}</div>
+                         {d.observaciones && (
+                           <div className="flex items-center gap-1 mt-0.5">
+                             <span className="text-[10px] italic font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">
+                               ⚠ {d.observaciones}
+                             </span>
+                           </div>
+                         )}
                          {d.indice_concepto_plan ? (
-                            <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200">Plan #{d.indice_concepto_plan}</span>
+                            <span className="ml-0 mt-1 inline-block text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200">Plan #{d.indice_concepto_plan}</span>
                          ) : reciboSeleccionado.estatus === 'ACTIVO' ? (
-                            <button onClick={() => setVincularDetalle(d)} className="ml-2 text-xs text-amber-600 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 border border-amber-200 rounded-full font-bold transition-colors shadow-sm">
+                            <button onClick={() => setVincularDetalle(d)} className="mt-1 text-xs text-amber-600 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 border border-amber-200 rounded-full font-bold transition-colors shadow-sm">
                               + Vincular
                             </button>
                          ) : null}
@@ -593,6 +591,8 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, initi
              recibo={reciboSeleccionado}
              detalles={reciboSeleccionado.recibos_detalles || []}
              alumno={alumnos.find(a => a.id === reciboSeleccionado.alumno_id)}
+             logoUrl={appConfig?.logoUrl}
+             licenciaturasMetadata={catalogos?.licenciaturasMetadata}
            />
          )}
       </div>

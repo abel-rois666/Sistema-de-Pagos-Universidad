@@ -31,7 +31,11 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
     const [items, setItems] = useState<CatalogoItem[]>(rawItems);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
+    const [editMetaTipoAcademico, setEditMetaTipoAcademico] = useState<'LICENCIATURA' | 'ESPECIALIDAD'>('LICENCIATURA');
+    const [editMetaTipoPeriodo, setEditMetaTipoPeriodo] = useState<'CUATRIMESTRAL' | 'SEMESTRAL'>('CUATRIMESTRAL');
     const [newValue, setNewValue] = useState('');
+    const [newMetaTipoAcademico, setNewMetaTipoAcademico] = useState<'LICENCIATURA' | 'ESPECIALIDAD'>('LICENCIATURA');
+    const [newMetaTipoPeriodo, setNewMetaTipoPeriodo] = useState<'CUATRIMESTRAL' | 'SEMESTRAL'>('CUATRIMESTRAL');
     const [saving, setSaving] = useState(false);
     const [importingInfo, setImportingInfo] = useState<{ total: number; skipped: number } | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
@@ -60,18 +64,25 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
         setSaving(true);
         const maxOrden = filteredItems.reduce((m, i) => Math.max(m, i.orden), 0);
         const tempId = `temp_${Date.now()}`;
+
+        // Construir metadata solo para licenciaturas
+        const metadata = activeTab === 'licenciatura'
+            ? { tipo_academico: newMetaTipoAcademico, tipo_periodo: newMetaTipoPeriodo }
+            : null;
+
         const newItem: CatalogoItem = {
             id: tempId,
             tipo: activeTab as CatalogoTipo,
             valor: val,
             orden: maxOrden + 1,
             activo: true,
+            metadata,
         };
 
         try {
             const { data, error } = await supabase
                 .from('catalogos')
-                .insert({ tipo: activeTab, valor: val, orden: maxOrden + 1, activo: true })
+                .insert({ tipo: activeTab, valor: val, orden: maxOrden + 1, activo: true, metadata })
                 .select()
                 .single();
 
@@ -168,6 +179,13 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
     const handleEdit = (item: CatalogoItem) => {
         setEditingId(item.id);
         setEditValue(item.valor);
+        if (item.tipo === 'licenciatura' && item.metadata) {
+            setEditMetaTipoAcademico(item.metadata.tipo_academico || 'LICENCIATURA');
+            setEditMetaTipoPeriodo(item.metadata.tipo_periodo || 'CUATRIMESTRAL');
+        } else {
+            setEditMetaTipoAcademico('LICENCIATURA');
+            setEditMetaTipoPeriodo('CUATRIMESTRAL');
+        }
     };
 
     const handleSaveEdit = async (item: CatalogoItem) => {
@@ -175,15 +193,19 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
         if (!val) return;
         setSaving(true);
 
+        const metadata = item.tipo === 'licenciatura'
+            ? { tipo_academico: editMetaTipoAcademico, tipo_periodo: editMetaTipoPeriodo }
+            : item.metadata;
+
         try {
             const { error } = await supabase
                 .from('catalogos')
-                .update({ valor: val })
+                .update({ valor: val, metadata })
                 .eq('id', item.id);
             if (error) console.warn('Supabase update error:', error.message);
         } catch { /* local fallback */ }
 
-        const updated = items.map(i => i.id === item.id ? { ...i, valor: val } : i);
+        const updated = items.map(i => i.id === item.id ? { ...i, valor: val, metadata } : i);
         setItems(updated);
         onUpdate(updated);
         setEditingId(null);
@@ -292,42 +314,72 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                     </div>
 
                     {/* Add new row */}
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex gap-3 items-center flex-wrap">
-                        <input
-                            type="text"
-                            value={newValue}
-                            onChange={e => setNewValue(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-                            placeholder={`Nuevo valor para ${activeConfig.label.toLowerCase()}...`}
-                            className="flex-grow min-w-[200px] border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase placeholder:normal-case"
-                        />
-                        <button
-                            onClick={handleAdd}
-                            disabled={!newValue.trim() || saving}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all disabled:opacity-50
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
+                        <div className="flex gap-3 items-center flex-wrap">
+                            <input
+                                type="text"
+                                value={newValue}
+                                onChange={e => setNewValue(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleAdd()}
+                                placeholder={`Nuevo valor para ${activeConfig.label.toLowerCase()}...`}
+                                className="flex-grow min-w-[200px] border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase placeholder:normal-case"
+                            />
+                            <button
+                                onClick={handleAdd}
+                                disabled={!newValue.trim() || saving}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all disabled:opacity-50
                 ${activeConfig.bgColor} ${activeConfig.color} border ${activeConfig.borderColor} hover:shadow-sm`}
-                        >
-                            {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                            Agregar
-                        </button>
-                        
-                        <div className="w-px h-8 bg-gray-300 mx-2 hidden sm:block"></div>
-                        
-                        <input 
-                            type="file" 
-                            accept=".csv" 
-                            className="hidden" 
-                            ref={fileInputRef}
-                            onChange={handleImportCSV} 
-                        />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={saving}
-                            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg font-semibold text-sm transition-all shadow-sm hover:shadow"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                            Importar CSV
-                        </button>
+                            >
+                                {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                                Agregar
+                            </button>
+                            
+                            <div className="w-px h-8 bg-gray-300 mx-2 hidden sm:block"></div>
+                            
+                            <input 
+                                type="file" 
+                                accept=".csv" 
+                                className="hidden" 
+                                ref={fileInputRef}
+                                onChange={handleImportCSV} 
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={saving}
+                                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg font-semibold text-sm transition-all shadow-sm hover:shadow"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                Importar CSV
+                            </button>
+                        </div>
+                        {/* Selectores extra SOLO para Licenciaturas */}
+                        {activeTab === 'licenciatura' && (
+                            <div className="flex flex-wrap gap-3 items-center pt-1 border-t border-gray-200">
+                                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Atributos:</span>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-600 font-medium">Tipo académico:</label>
+                                    <select
+                                        value={newMetaTipoAcademico}
+                                        onChange={e => setNewMetaTipoAcademico(e.target.value as 'LICENCIATURA' | 'ESPECIALIDAD')}
+                                        className="border border-indigo-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-400 bg-indigo-50 text-indigo-700 font-semibold"
+                                    >
+                                        <option value="LICENCIATURA">Licenciatura</option>
+                                        <option value="ESPECIALIDAD">Especialidad</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-600 font-medium">Tipo de periodo:</label>
+                                    <select
+                                        value={newMetaTipoPeriodo}
+                                        onChange={e => setNewMetaTipoPeriodo(e.target.value as 'CUATRIMESTRAL' | 'SEMESTRAL')}
+                                        className="border border-cyan-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-400 bg-cyan-50 text-cyan-700 font-semibold"
+                                    >
+                                        <option value="CUATRIMESTRAL">Cuatrimestral</option>
+                                        <option value="SEMESTRAL">Semestral</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {importingInfo && (
@@ -358,18 +410,52 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
 
                                 {/* Value */}
                                 {editingId === item.id ? (
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        value={editValue}
-                                        onChange={e => setEditValue(e.target.value)}
-                                        onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(item); if (e.key === 'Escape') setEditingId(null); }}
-                                        className="flex-grow border border-blue-300 rounded-lg px-3 py-1.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 uppercase"
-                                    />
+                                    <div className="flex-grow flex flex-col gap-2">
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            value={editValue}
+                                            onChange={e => setEditValue(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(item); if (e.key === 'Escape') setEditingId(null); }}
+                                            className="w-full border border-blue-300 rounded-lg px-3 py-1.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                                        />
+                                        {item.tipo === 'licenciatura' && (
+                                            <div className="flex flex-wrap gap-2 items-center">
+                                                <select
+                                                    value={editMetaTipoAcademico}
+                                                    onChange={e => setEditMetaTipoAcademico(e.target.value as 'LICENCIATURA' | 'ESPECIALIDAD')}
+                                                    className="border border-indigo-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-400 bg-indigo-50 text-indigo-700 font-semibold"
+                                                >
+                                                    <option value="LICENCIATURA">Licenciatura</option>
+                                                    <option value="ESPECIALIDAD">Especialidad</option>
+                                                </select>
+                                                <select
+                                                    value={editMetaTipoPeriodo}
+                                                    onChange={e => setEditMetaTipoPeriodo(e.target.value as 'CUATRIMESTRAL' | 'SEMESTRAL')}
+                                                    className="border border-cyan-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-400 bg-cyan-50 text-cyan-700 font-semibold"
+                                                >
+                                                    <option value="CUATRIMESTRAL">Cuatrimestral</option>
+                                                    <option value="SEMESTRAL">Semestral</option>
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
                                 ) : (
-                                    <span className={`flex-grow text-sm font-semibold ${item.activo ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
-                                        {item.valor}
-                                    </span>
+                                    <div className="flex-grow flex flex-col gap-0.5">
+                                        <span className={`text-sm font-semibold ${item.activo ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                                            {item.valor}
+                                        </span>
+                                        {item.tipo === 'licenciatura' && item.metadata && (
+                                            <div className="flex gap-1.5">
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 font-semibold">
+                                                    {item.metadata.tipo_academico === 'ESPECIALIDAD' ? 'Especialidad' : 'Licenciatura'}
+                                                </span>
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-100 font-semibold">
+                                                    {item.metadata.tipo_periodo === 'SEMESTRAL' ? 'Semestral' : 'Cuatrimestral'}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
 
                                 {/* Status badge */}

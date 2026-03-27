@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus } from 'lucide-react';
-import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario } from '../types';
+import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText } from 'lucide-react';
+import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid } from '../utils';
+import { supabase } from '../lib/supabase';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
 
@@ -36,8 +37,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   const [isNewPlanModalOpen, setIsNewPlanModalOpen] = useState(false);
   const [selectedPaymentIndex, setSelectedPaymentIndex] = useState<number>(1);
   const [paymentInput, setPaymentInput] = useState('');
+  // Vincular recibo state
+  const [paymentModalTab, setPaymentModalTab] = useState<'manual' | 'vincular'>('manual');
+  const [candidateRecibos, setCandidateRecibos] = useState<Recibo[]>([]);
+  const [loadingRecibos, setLoadingRecibos] = useState(false);
+  const [selectedReciboId, setSelectedReciboId] = useState<string>('');
 
-  // Edit Plan State
   const [editForm, setEditForm] = useState<Partial<PaymentPlan>>({});
   const [newPlanForm, setNewPlanForm] = useState<Partial<PaymentPlan>>({
     tipo_plan: 'Cuatrimestral',
@@ -414,14 +419,59 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   const openPaymentModal = (index: number) => {
     setSelectedPaymentIndex(index);
     setPaymentInput(selectedPlan[`estatus_${index}` as keyof PaymentPlan] as string || '');
+    setPaymentModalTab('manual');
+    setCandidateRecibos([]);
+    setSelectedReciboId('');
     setIsPaymentModalOpen(true);
   };
 
-  const handleSavePayment = () => {
-    const updatedPlan = {
-      ...selectedPlan,
-      [`estatus_${selectedPaymentIndex}`]: paymentInput
-    };
+  const loadCandidateRecibos = async () => {
+    setLoadingRecibos(true);
+    try {
+      const alumnoId = selectedPlan.alumno_id || alumnos.find(a => a.nombre_completo === selectedPlan.nombre_alumno)?.id;
+      if (!alumnoId) { setLoadingRecibos(false); return; }
+      const { data } = await supabase
+        .from('recibos')
+        .select('*')
+        .eq('alumno_id', alumnoId)
+        .neq('estatus', 'CANCELADO')
+        .order('folio', { ascending: false });
+      setCandidateRecibos((data || []) as Recibo[]);
+    } catch { /* silenciar */ }
+    setLoadingRecibos(false);
+  };
+
+  const handleSavePayment = async () => {
+    let statusToWrite = paymentInput;
+
+    if (paymentModalTab === 'vincular' && selectedReciboId) {
+      const recibo = candidateRecibos.find(r => r.id === selectedReciboId);
+      if (recibo) {
+        // Build a status string like the rest of the system: R-XXX (Pagado)
+        const existing = (selectedPlan[`estatus_${selectedPaymentIndex}` as keyof PaymentPlan] as string) || '';
+        const prevFolios = (existing.match(/R-\d+/g) || []);
+        const folioPart = prevFolios.length > 0 ? prevFolios.join('; ') + '; ' : '';
+        statusToWrite = `${folioPart}R-${recibo.folio} (Pagado $${recibo.total.toFixed(2)})`;
+
+        // Also try to link in recibos_detalles for bidirectional traceability
+        try {
+          const { data: detalles } = await supabase
+            .from('recibos_detalles')
+            .select('id, indice_concepto_plan')
+            .eq('recibo_id', recibo.id)
+            .is('indice_concepto_plan', null)
+            .limit(1);
+          if (detalles && detalles.length > 0) {
+            await supabase
+              .from('recibos_detalles')
+              .update({ indice_concepto_plan: selectedPaymentIndex })
+              .eq('id', detalles[0].id);
+          }
+        } catch { /* si falla la vinculación de detalle, el estatus ya quedó escrito */ }
+      }
+    }
+
+    const updatedPlan = { ...selectedPlan, [`estatus_${selectedPaymentIndex}`]: statusToWrite };
     onSavePlan(updatedPlan);
     setIsPaymentModalOpen(false);
   };
@@ -493,21 +543,45 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-center gap-2 print:hidden" data-html2canvas-ignore="true">
-              <button
-                onClick={() => onGoToPagos?.(selectedPlan.alumno_id!, index)}
-                className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 transition-colors"
-                title="Generar recibo de ingresos"
-              >
-                <DollarSign size={14} /> Cobrar
-              </button>
-              <button
-                onClick={() => openPaymentModal(index)}
-                className="bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200 px-2 py-1 rounded transition-colors"
-                title="Edición manual de estatus"
-              >
-                <Edit size={14} />
-              </button>
+            <div className="flex flex-col items-center gap-1">
+              {/* Mostrar estatus parcial si existe (abono con resta pendiente) */}
+              {estatus && (
+                <span className="text-amber-700 font-semibold text-xs text-center">
+                  {estatus.split(/(R-\d+)/).map((part, i) => {
+                    if (part.match(/^R-\d+$/)) {
+                      const folioStr = part.replace('R-', '');
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => onViewReceipt?.(folioStr)}
+                          className="text-blue-700 underline hover:text-blue-900 mx-0.5 print:no-underline print:text-black"
+                          title="Ver Recibo"
+                        >
+                          {part}
+                        </button>
+                      );
+                    }
+                    return <span key={i}>{part}</span>;
+                  })}
+                </span>
+              )}
+              {/* Botones de acción */}
+              <div className="flex items-center justify-center gap-2 print:hidden" data-html2canvas-ignore="true">
+                <button
+                  onClick={() => onGoToPagos?.(selectedPlan.alumno_id!, index)}
+                  className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 transition-colors"
+                  title="Generar recibo de ingresos"
+                >
+                  <DollarSign size={14} /> Cobrar
+                </button>
+                <button
+                  onClick={() => openPaymentModal(index)}
+                  className="bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200 px-2 py-1 rounded transition-colors"
+                  title="Edición manual de estatus"
+                >
+                  <Edit size={14} />
+                </button>
+              </div>
             </div>
           )}
         </Td>
@@ -719,44 +793,135 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       {/* Payment Modal */}
       {isPaymentModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800">
-                Registrar Pago - {selectedPlan[`concepto_${selectedPaymentIndex}` as keyof PaymentPlan] as string}
-              </h3>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-gray-800">
+                  Estatus de Pago
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {selectedPlan[`concepto_${selectedPaymentIndex}` as keyof PaymentPlan] as string} · {selectedPlan.nombre_alumno}
+                </p>
+              </div>
               <button onClick={() => setIsPaymentModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
-            <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Número de Recibo / Estatus
-              </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ej. RECIBO 12345"
-                value={paymentInput}
-                onChange={(e) => setPaymentInput(e.target.value)}
-                autoFocus
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                Deja este campo en blanco para marcar el pago como pendiente.
-              </p>
+
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+              <button
+                onClick={() => setPaymentModalTab('manual')}
+                className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                  paymentModalTab === 'manual'
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Edit size={15} /> Manual
+              </button>
+              <button
+                onClick={() => { setPaymentModalTab('vincular'); if (candidateRecibos.length === 0) loadCandidateRecibos(); }}
+                className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                  paymentModalTab === 'vincular'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Link2 size={15} /> Vincular Recibo
+              </button>
             </div>
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+
+            {/* Tab: Manual */}
+            {paymentModalTab === 'manual' && (
+              <div className="p-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Número de Recibo / Estatus
+                </label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Ej. R-123 (Pagado)"
+                  value={paymentInput}
+                  onChange={(e) => setPaymentInput(e.target.value)}
+                  autoFocus
+                />
+                <p className="text-xs text-gray-400 mt-2">
+                  Deja en blanco para marcar como pendiente. Puedes escribir cualquier texto libre.
+                </p>
+              </div>
+            )}
+
+            {/* Tab: Vincular */}
+            {paymentModalTab === 'vincular' && (
+              <div className="p-4">
+                {loadingRecibos ? (
+                  <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
+                    <Loader2 size={20} className="animate-spin" /> Buscando recibos...
+                  </div>
+                ) : candidateRecibos.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <FileText size={32} className="mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No hay recibos registrados para este alumno.</p>
+                    <p className="text-xs mt-1 text-gray-400">Genera un cobro primero desde el botón <strong>Cobrar</strong>.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {candidateRecibos.map(r => (
+                      <label
+                        key={r.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                          selectedReciboId === r.id
+                            ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="recibo-vincular"
+                          className="accent-emerald-600 w-4 h-4"
+                          checked={selectedReciboId === r.id}
+                          onChange={() => setSelectedReciboId(r.id)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-emerald-700">R-{r.folio ?? '—'}</span>
+                            <span className="text-xs text-gray-500">{r.fecha_pago}</span>
+                            <span className="text-xs font-semibold text-gray-700 ml-auto">${r.total.toFixed(2)}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 truncate">{r.forma_pago} · {r.banco}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {selectedReciboId && (
+                  <p className="text-xs text-emerald-600 mt-3 font-semibold">
+                    ✓ Se vinculará R-{candidateRecibos.find(r => r.id === selectedReciboId)?.folio} a este concepto.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-between items-center gap-3">
               <button
                 onClick={() => setIsPaymentModalOpen(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
               >
                 Cancelar
               </button>
-              <button
-                onClick={handleSavePayment}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-              >
-                <Save size={18} /> Guardar Pago
-              </button>
+              <div className="flex items-center gap-2">
+                {!paymentInput && paymentModalTab === 'manual' && (
+                  <span className="text-xs text-amber-600">Se guardará como PENDIENTE</span>
+                )}
+                <button
+                  onClick={handleSavePayment}
+                  disabled={paymentModalTab === 'vincular' && !selectedReciboId}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Save size={16} /> Guardar
+                </button>
+              </div>
             </div>
           </div>
         </div>

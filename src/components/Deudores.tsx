@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, AlertTriangle, Search, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, Printer } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Search, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, Printer, ChevronDown } from 'lucide-react';
 import { PaymentPlan } from '../types';
-import { isPaid } from '../utils';
+import { isPaid, getRestanteFromEstatus } from '../utils';
+import { printElement } from '../lib/printUtils';
 
 interface DeudoresProps {
   plans: PaymentPlan[];
@@ -23,21 +24,128 @@ interface DebtRecord {
 
 type SortKey = keyof DebtRecord;
 
+// ── MultiSelect Dropdown ────────────────────────────────────────────────────
+interface MultiSelectProps {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  formatLabel?: (v: string) => string;
+}
+
+function MultiSelectFilter({ label, options, selected, onChange, formatLabel }: MultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Cerrar al hacer clic fuera
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggle = (val: string) => {
+    if (selected.includes(val)) onChange(selected.filter(v => v !== val));
+    else onChange([...selected, val]);
+  };
+
+  const toggleAll = () => {
+    if (selected.length === options.length) onChange([]);
+    else onChange([...options]);
+  };
+
+  const isActive = selected.length > 0 && selected.length < options.length;
+  const isAll = selected.length === 0 || selected.length === options.length;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all whitespace-nowrap
+          ${isActive
+            ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-600 dark:text-indigo-300'
+            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200'}`}
+      >
+        <span>{label}</span>
+        {isActive && (
+          <span className="bg-indigo-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+            {selected.length}
+          </span>
+        )}
+        <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.12 }}
+            className="absolute z-50 top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl min-w-[180px] max-h-64 overflow-y-auto"
+          >
+            {/* Opción "Todos" */}
+            <button
+              type="button"
+              onClick={toggleAll}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-gray-100 dark:border-gray-700 transition-colors
+                ${isAll ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all
+                ${isAll ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 dark:border-gray-500'}`}>
+                {isAll && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </span>
+              Todos
+            </button>
+            {options.map(opt => {
+              const isSel = selected.includes(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => toggle(opt)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors
+                    ${isSel
+                      ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                >
+                  <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all
+                    ${isSel ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 dark:border-gray-500'}`}>
+                    {isSel && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </span>
+                  <span className="truncate text-left">{formatLabel ? formatLabel(opt) : opt}</span>
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Main Component ──────────────────────────────────────────────────────────
 export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterLicenciatura, setFilterLicenciatura] = useState('');
-  const [filterGrado, setFilterGrado] = useState('');
-  const [filterTurno, setFilterTurno] = useState('');
-  const [filterConcepto, setFilterConcepto] = useState('');
-  const [filterFecha, setFilterFecha] = useState('');
+  const [filterLicenciaturas, setFilterLicenciaturas] = useState<string[]>([]);
+  const [filterGrados, setFilterGrados] = useState<string[]>([]);
+  const [filterTurnos, setFilterTurnos] = useState<string[]>([]);
+  const [filterConceptos, setFilterConceptos] = useState<string[]>([]);
+  const [filterFechas, setFilterFechas] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const printDeudoresRef = useRef<HTMLDivElement>(null);
+
+  const hasActiveFilters = filterLicenciaturas.length > 0 || filterGrados.length > 0 || filterTurnos.length > 0 || filterConceptos.length > 0 || filterFechas.length > 0;
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, sortConfig, itemsPerPage, filterLicenciatura, filterGrado, filterTurno, filterConcepto, filterFecha]);
+  }, [searchTerm, sortConfig, itemsPerPage, filterLicenciaturas, filterGrados, filterTurnos, filterConceptos, filterFechas]);
 
   // Filter out plans for students that are 'BAJA'
   const filteredPlans = useMemo(() => {
@@ -60,6 +168,9 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
             fallbackTurno = parts[1].trim();
         }
 
+        // Usar el saldo real pendiente (no el monto original del concepto)
+        const montoReal = getRestanteFromEstatus(estatus, Number(cantidad));
+
         records.push({
           id: `${plan.id}-${concepto}`,
           alumno: plan.nombre_alumno,
@@ -67,7 +178,7 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
           grado: plan.grado || fallbackGrado,
           turno: plan.turno || fallbackTurno,
           concepto: concepto,
-          monto: Number(cantidad),
+          monto: montoReal,
           fecha_limite: fecha
         });
       }
@@ -99,6 +210,7 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
     return dateString;
   };
 
+  // Opciones únicas para cada filtro
   const licenciaturas = useMemo(() => Array.from(new Set(debtors.map(d => d.licenciatura).filter(Boolean))).sort(), [debtors]);
   const grados = useMemo(() => Array.from(new Set(debtors.map(d => d.grado).filter(Boolean))).sort(), [debtors]);
   const turnos = useMemo(() => Array.from(new Set(debtors.map(d => d.turno).filter(Boolean))).sort(), [debtors]);
@@ -114,14 +226,15 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
       return parseDate(a) - parseDate(b);
   }), [debtors]);
 
+  // Filtrado multiselección
   const filteredDebtors = debtors.filter(d => {
     const matchSearch = d.alumno.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         d.concepto.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchLic = filterLicenciatura ? d.licenciatura === filterLicenciatura : true;
-    const matchGrado = filterGrado ? d.grado === filterGrado : true;
-    const matchTurno = filterTurno ? d.turno === filterTurno : true;
-    const matchConcepto = filterConcepto ? d.concepto === filterConcepto : true;
-    const matchFecha = filterFecha ? formatDate(d.fecha_limite) === filterFecha : true;
+    const matchLic = filterLicenciaturas.length === 0 || filterLicenciaturas.includes(d.licenciatura);
+    const matchGrado = filterGrados.length === 0 || filterGrados.includes(d.grado);
+    const matchTurno = filterTurnos.length === 0 || filterTurnos.includes(d.turno);
+    const matchConcepto = filterConceptos.length === 0 || filterConceptos.includes(d.concepto);
+    const matchFecha = filterFechas.length === 0 || filterFechas.includes(formatDate(d.fecha_limite));
     return matchSearch && matchLic && matchGrado && matchTurno && matchConcepto && matchFecha;
   });
 
@@ -133,7 +246,6 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
         const bVal = b[sortConfig.key];
         
         if (sortConfig.key === 'fecha_limite') {
-          // Intentar parsear fecha dd/mm/yyyy o yyyy-mm-dd
           const parseDate = (dStr: string) => {
              if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
                  const [d, m, y] = dStr.split('/');
@@ -167,6 +279,14 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
     return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-blue-600" /> : <ArrowDown size={14} className="text-blue-600" />;
   };
 
+  const clearAllFilters = () => {
+    setFilterLicenciaturas([]);
+    setFilterGrados([]);
+    setFilterTurnos([]);
+    setFilterConceptos([]);
+    setFilterFechas([]);
+  };
+
   const totalDebt = filteredDebtors.reduce((sum, d) => sum + d.monto, 0);
 
   const totalPages = Math.ceil(sortedDebtors.length / itemsPerPage);
@@ -174,11 +294,20 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
   const endIndex = Math.min(startIndex + itemsPerPage, sortedDebtors.length);
   const paginatedDebtors = sortedDebtors.slice(startIndex, endIndex);
 
+  // Resumen de filtros activos para mostrar en la barra
+  const activeFilterSummary = [
+    filterLicenciaturas.length > 0 && `Lic.: ${filterLicenciaturas.length}`,
+    filterGrados.length > 0 && `Grado: ${filterGrados.length}`,
+    filterTurnos.length > 0 && `Turno: ${filterTurnos.length}`,
+    filterConceptos.length > 0 && `Concepto: ${filterConceptos.length}`,
+    filterFechas.length > 0 && `Fecha: ${filterFechas.length}`,
+  ].filter(Boolean) as string[];
+
   return (
     <div className="w-full font-sans">
       <div className="max-w-6xl mx-auto">
         
-        <div className="flex items-center justify-between mb-8 print:hidden">
+        <div className="flex items-center justify-between mb-8">
           <button 
             onClick={onBack}
             className="flex items-center gap-2 text-gray-600 hover:text-black dark:text-gray-300 dark:hover:text-white font-bold transition-colors"
@@ -186,14 +315,14 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={() => { if (printDeudoresRef.current) printElement(printDeudoresRef.current, { landscape: true }); }}
             className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 border border-gray-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors"
           >
             <Printer size={18} /> Imprimir PDF
           </button>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4 print:hidden">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-3">
               Lista de Deudores <AlertTriangle className="text-red-500" size={28} />
@@ -216,13 +345,56 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
             </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium border transition-colors ${showFilters || filterLicenciatura || filterGrado || filterTurno || filterConcepto || filterFecha ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'}`}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium border transition-colors ${showFilters || hasActiveFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'}`}
             >
               <Filter size={18} />
-              Filtros {(filterLicenciatura || filterGrado || filterTurno || filterConcepto || filterFecha) && <span className="bg-indigo-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">!</span>}
+              Filtros
+              {hasActiveFilters && (
+                <span className="bg-indigo-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                  {activeFilterSummary.length}
+                </span>
+              )}
             </button>
           </div>
         </div>
+
+        {/* Filtros activos — chips resumen siempre visibles */}
+        {hasActiveFilters && !showFilters && (
+          <div className="flex flex-wrap gap-2 mb-4 items-center">
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Filtros:</span>
+            {filterLicenciaturas.map(v => (
+              <span key={v} className="flex items-center gap-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                {v} <button onClick={() => setFilterLicenciaturas(p => p.filter(x => x !== v))}><X size={11} /></button>
+              </span>
+            ))}
+            {filterGrados.map(v => (
+              <span key={v} className="flex items-center gap-1 bg-cyan-50 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                {v} <button onClick={() => setFilterGrados(p => p.filter(x => x !== v))}><X size={11} /></button>
+              </span>
+            ))}
+            {filterTurnos.map(v => (
+              <span key={v} className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                {v} <button onClick={() => setFilterTurnos(p => p.filter(x => x !== v))}><X size={11} /></button>
+              </span>
+            ))}
+            {filterConceptos.map(v => (
+              <span key={v} className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                {v} <button onClick={() => setFilterConceptos(p => p.filter(x => x !== v))}><X size={11} /></button>
+              </span>
+            ))}
+            {filterFechas.map(v => (
+              <span key={v} className="flex items-center gap-1 bg-rose-50 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                {v} <button onClick={() => setFilterFechas(p => p.filter(x => x !== v))}><X size={11} /></button>
+              </span>
+            ))}
+            <button
+              onClick={clearAllFilters}
+              className="flex items-center gap-1 text-xs text-red-500 dark:text-red-400 hover:text-red-700 font-semibold ml-1"
+            >
+              <X size={13} /> Limpiar todo
+            </button>
+          </div>
+        )}
 
         <AnimatePresence>
           {showFilters && (
@@ -230,62 +402,94 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden mb-6"
+              className="overflow-visible mb-6"
             >
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-wrap gap-4 items-end">
-                <div className="flex-1 min-w-[180px]">
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Licenciatura</label>
-                  <select value={filterLicenciatura} onChange={e => setFilterLicenciatura(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Todas</option>
-                    {licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                <div className="flex flex-wrap gap-3 items-center">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-1">Filtrar por:</span>
+
+                  <MultiSelectFilter
+                    label="Licenciatura"
+                    options={licenciaturas}
+                    selected={filterLicenciaturas}
+                    onChange={setFilterLicenciaturas}
+                  />
+                  <MultiSelectFilter
+                    label="Grado"
+                    options={grados}
+                    selected={filterGrados}
+                    onChange={setFilterGrados}
+                  />
+                  <MultiSelectFilter
+                    label="Turno"
+                    options={turnos}
+                    selected={filterTurnos}
+                    onChange={setFilterTurnos}
+                  />
+                  <MultiSelectFilter
+                    label="Concepto"
+                    options={conceptos}
+                    selected={filterConceptos}
+                    onChange={setFilterConceptos}
+                  />
+                  <MultiSelectFilter
+                    label="Fecha"
+                    options={fechas}
+                    selected={filterFechas}
+                    onChange={setFilterFechas}
+                  />
+
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearAllFilters}
+                      className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-2"
+                    >
+                      <X size={15} /> Limpiar
+                    </button>
+                  )}
                 </div>
-                <div className="w-full sm:w-32">
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Grado</label>
-                  <select value={filterGrado} onChange={e => setFilterGrado(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Todos</option>
-                    {grados.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div className="w-full sm:w-32">
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Turno</label>
-                  <select value={filterTurno} onChange={e => setFilterTurno(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Todos</option>
-                    {turnos.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Concepto</label>
-                  <select value={filterConcepto} onChange={e => setFilterConcepto(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Todos</option>
-                    {conceptos.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="w-full sm:w-40">
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Fecha</label>
-                  <select value={filterFecha} onChange={e => setFilterFecha(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Todas</option>
-                    {fechas.map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </div>
-                {(filterLicenciatura || filterGrado || filterTurno || filterConcepto || filterFecha) && (
-                  <button
-                    onClick={() => { setFilterLicenciatura(''); setFilterGrado(''); setFilterTurno(''); setFilterConcepto(''); setFilterFecha(''); }}
-                    className="px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1"
-                  >
-                    <X size={16} /> Limpiar
-                  </button>
+
+                {/* Chips de selección activa */}
+                {hasActiveFilters && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2">
+                    {filterLicenciaturas.map(v => (
+                      <span key={v} className="flex items-center gap-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                        {v} <button onClick={() => setFilterLicenciaturas(p => p.filter(x => x !== v))}><X size={11} /></button>
+                      </span>
+                    ))}
+                    {filterGrados.map(v => (
+                      <span key={v} className="flex items-center gap-1 bg-cyan-50 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                        {v} <button onClick={() => setFilterGrados(p => p.filter(x => x !== v))}><X size={11} /></button>
+                      </span>
+                    ))}
+                    {filterTurnos.map(v => (
+                      <span key={v} className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                        {v} <button onClick={() => setFilterTurnos(p => p.filter(x => x !== v))}><X size={11} /></button>
+                      </span>
+                    ))}
+                    {filterConceptos.map(v => (
+                      <span key={v} className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                        {v} <button onClick={() => setFilterConceptos(p => p.filter(x => x !== v))}><X size={11} /></button>
+                      </span>
+                    ))}
+                    {filterFechas.map(v => (
+                      <span key={v} className="flex items-center gap-1 bg-rose-50 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                        {v} <button onClick={() => setFilterFechas(p => p.filter(x => x !== v))}><X size={11} /></button>
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col print:hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col">
           
           <div className="bg-red-50 dark:bg-red-900/40 p-4 border-b border-red-100 dark:border-red-900/50 flex justify-between items-center">
             <span className="text-red-800 dark:text-red-300 font-medium">
               Mostrando {filteredDebtors.length} registro(s) pendiente(s)
+              {hasActiveFilters && <span className="ml-1 text-red-600 dark:text-red-400 text-xs">(filtrado)</span>}
             </span>
             <span className="text-red-800 dark:text-red-300 font-bold text-xl">
               Total Adeudado: ${totalDebt.toLocaleString()}
@@ -340,13 +544,18 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
                   <tr>
                     <td colSpan={7} className="py-16 text-center">
                       <div className="flex flex-col items-center justify-center">
-                        {searchTerm ? (
+                        {searchTerm || hasActiveFilters ? (
                           <>
                             <div className="bg-gray-100 dark:bg-gray-700 text-gray-400 w-16 h-16 rounded-full flex items-center justify-center mb-4">
                               <Search size={32} />
                             </div>
                             <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Sin resultados</h3>
-                            <p className="text-gray-500 dark:text-gray-400">No se encontraron deudores que coincidan con "{searchTerm}".</p>
+                            <p className="text-gray-500 dark:text-gray-400">No se encontraron deudores con los filtros actuales.</p>
+                            {hasActiveFilters && (
+                              <button onClick={clearAllFilters} className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                                <X size={14} /> Limpiar filtros
+                              </button>
+                            )}
                           </>
                         ) : (
                           <>
@@ -408,19 +617,14 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
                     title="Ir a página"
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === '') {
-                        setCurrentPage(val as any);
-                        return;
-                      }
+                      if (val === '') { setCurrentPage(val as any); return; }
                       let p = parseInt(val, 10);
                       if (isNaN(p)) return;
                       if (p > totalPages) p = totalPages;
                       if (p < 1) p = 1;
                       setCurrentPage(p);
                     }}
-                    onBlur={() => {
-                        if (!currentPage || currentPage < 1) setCurrentPage(1);
-                    }}
+                    onBlur={() => { if (!currentPage || currentPage < 1) setCurrentPage(1); }}
                     className="w-16 border border-gray-300 dark:border-gray-600 rounded-md p-1.5 text-center text-sm font-bold bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">de {totalPages || 1}</span>
@@ -437,65 +641,65 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
           )}
         </div>
 
-        {/* --- VERSIÓN IMPRESIÓN (visible sólo al imprimir) --- */}
-        <div className="hidden print:block font-sans text-black">
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold uppercase mb-1">Reporte de Deudores</h1>
-            <p className="text-gray-600 font-medium">Documento generado el {new Date().toLocaleDateString('es-MX')}</p>
+        {/* --- VERSIÓN IMPRESIÓN --- */}
+        <div ref={printDeudoresRef} style={{ position: 'fixed', top: '-10000px', left: '-10000px', width: '1020px', background: 'white', color: 'black', fontFamily: 'sans-serif', padding: '10px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <h1 style={{ fontSize: '20px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>Reporte de Deudores</h1>
+            <p style={{ color: '#4b5563', fontWeight: 500 }}>Documento generado el {new Date().toLocaleDateString('es-MX')}</p>
           </div>
           
-          <div className="flex justify-between items-end mb-4 border-b-2 border-gray-800 pb-2">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px', borderBottom: '2px solid #1f2937', paddingBottom: '8px' }}>
             <div>
-               <p className="font-semibold text-sm">Filtros aplicados:</p>
-               <p className="text-xs text-gray-600 mt-1 max-w-sm">
-                  {(!filterLicenciatura && !filterGrado && !filterTurno && !filterConcepto && !filterFecha && !searchTerm) ? 
-                    'Ninguno (Todos los resultados)' : 
+               <p style={{ fontWeight: 600, fontSize: '11px' }}>Filtros aplicados:</p>
+               <p style={{ fontSize: '10px', color: '#4b5563', marginTop: '4px', maxWidth: '350px' }}>
+                  {!hasActiveFilters && !searchTerm ?
+                    'Ninguno (Todos los resultados)' :
                     [
                        searchTerm && `Búsqueda: "${searchTerm}"`,
-                       filterLicenciatura && `Lic: ${filterLicenciatura}`,
-                       filterGrado && `Grado: ${filterGrado}`,
-                       filterTurno && `Turno: ${filterTurno}`,
-                       filterConcepto && `Concepto: ${filterConcepto}`,
-                       filterFecha && `Fecha Lím.: ${filterFecha}`
+                       filterLicenciaturas.length > 0 && `Lic: ${filterLicenciaturas.join(', ')}`,
+                       filterGrados.length > 0 && `Grado: ${filterGrados.join(', ')}`,
+                       filterTurnos.length > 0 && `Turno: ${filterTurnos.join(', ')}`,
+                       filterConceptos.length > 0 && `Concepto: ${filterConceptos.join(', ')}`,
+                       filterFechas.length > 0 && `Fecha Lím.: ${filterFechas.join(', ')}`
                     ].filter(Boolean).join(' • ')
                   }
                </p>
             </div>
-            <div className="text-right">
-               <div className="font-semibold text-sm mb-1">Total de Alumnos: {sortedDebtors.length}</div>
-               <div className="font-bold text-lg">Monto Total: ${totalDebt.toLocaleString()}</div>
+            <div style={{ textAlign: 'right' }}>
+               <div style={{ fontWeight: 600, fontSize: '11px', marginBottom: '4px' }}>Total de Alumnos: {sortedDebtors.length}</div>
+               <div style={{ fontWeight: 'bold', fontSize: '15px' }}>Monto Total: ${totalDebt.toLocaleString()}</div>
             </div>
           </div>
 
           {sortedDebtors.length > 0 ? (
-            <table className="w-full text-left text-[11px] border-collapse">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', tableLayout: 'fixed' }}>
                <thead>
-                  <tr className="border-b-2 border-gray-800 uppercase tracking-wide">
-                     <th className="py-2 px-1 font-bold">Alumno</th>
-                     <th className="py-2 px-1 font-bold max-w-[120px]">Licenciatura</th>
-                     <th className="py-2 px-1 font-bold">Grado</th>
-                     <th className="py-2 px-1 font-bold">Trn</th>
-                     <th className="py-2 px-1 font-bold">Concepto</th>
-                     <th className="py-2 px-1 font-bold text-center">Fecha Lím.</th>
-                     <th className="py-2 px-1 font-bold text-right w-20">Monto</th>
+                  <tr style={{ borderBottom: '2px solid #1f2937', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '26%', textAlign: 'left' }}>Alumno</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '16%', textAlign: 'left' }}>Licenciatura</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '7%', textAlign: 'center' }}>Grado</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '6%', textAlign: 'center' }}>Trn</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '20%', textAlign: 'left' }}>Concepto</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '12%', textAlign: 'center' }}>Fecha Lím.</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '13%', textAlign: 'right' }}>Monto</th>
                   </tr>
                </thead>
-               <tbody className="divide-y divide-gray-300">
+               <tbody>
                   {sortedDebtors.map(record => (
-                     <tr key={record.id} className="break-inside-avoid">
-                        <td className="py-1.5 px-1 truncate font-semibold">{record.alumno}</td>
-                        <td className="py-1.5 px-1 truncate max-w-[120px]">{record.licenciatura}</td>
-                        <td className="py-1.5 px-1">{record.grado}</td>
-                        <td className="py-1.5 px-1">{record.turno.substring(0,3)}</td>
-                        <td className="py-1.5 px-1 truncate max-w-[150px]">{record.concepto}</td>
-                        <td className="py-1.5 px-1 text-center">{formatDate(record.fecha_limite)}</td>
-                        <td className="py-1.5 px-1 text-right font-bold text-gray-900">${record.monto.toLocaleString()}</td>
+                     <tr key={record.id} style={{ borderBottom: '1px solid #d1d5db' }}>
+                        <td style={{ padding: '3px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.alumno}</td>
+                        <td style={{ padding: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.licenciatura}</td>
+                        <td style={{ padding: '3px', textAlign: 'center' }}>{record.grado}</td>
+                        <td style={{ padding: '3px', textAlign: 'center' }}>{record.turno.substring(0,3)}</td>
+                        <td style={{ padding: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.concepto}</td>
+                        <td style={{ padding: '3px', textAlign: 'center' }}>{formatDate(record.fecha_limite)}</td>
+                        <td style={{ padding: '3px', textAlign: 'right', fontWeight: 'bold', color: '#111827' }}>${record.monto.toLocaleString()}</td>
                      </tr>
                   ))}
                </tbody>
             </table>
           ) : (
-            <div className="text-center text-gray-500 py-10 font-bold border border-dashed border-gray-300 mt-8 rounded-lg">
+            <div style={{ textAlign: 'center', color: '#6b7280', padding: '40px 0', fontWeight: 'bold', border: '1px dashed #d1d5db', marginTop: '32px', borderRadius: '8px' }}>
                No se encontraron registros para generar el reporte con los criterios actuales.
             </div>
           )}

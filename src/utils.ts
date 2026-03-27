@@ -4,7 +4,28 @@ export const isPaid = (estatus: string | undefined | null) => {
   if (!estatus || estatus.trim() === '') return false;
   const lower = estatus.toLowerCase();
   if (lower.includes('baja') || lower.includes('pendiente')) return false;
+  // Si tiene "Resta $X" significa que hay un abono parcial aún pendiente → no se considera pagado
+  if (lower.includes('resta $') || lower.includes('resta$')) return false;
   return true;
+};
+
+/**
+ * Extrae el saldo pendiente real desde el campo estatus de un concepto del plan.
+ * Soporta formatos como: "R-101; R-102 (Abono $500.00, Resta $499.00)"
+ * - Si contiene "Resta $X" → devuelve X (el saldo pendiente real)
+ * - Si contiene "Pagado"   → devuelve 0 (liquidado)
+ * - Si no tiene ninguno    → devuelve cantidadOriginal (primer pago o sin abono)
+ */
+export const getRestanteFromEstatus = (
+  estatus: string | undefined | null,
+  cantidadOriginal: number
+): number => {
+  if (!estatus) return cantidadOriginal;
+  const lower = estatus.toLowerCase();
+  if (lower.includes('pagado')) return 0;
+  const m = estatus.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
+  if (m) return parseFloat(m[1].replace(',', ''));
+  return cantidadOriginal; // sin abono previo → debe el total
 };
 
 export const calculateStudentTotals = (plan: PaymentPlan, studentEstatus?: string) => {
@@ -18,7 +39,11 @@ export const calculateStudentTotals = (plan: PaymentPlan, studentEstatus?: strin
       paid += Number(cantidad);
     } else {
       if (!isBaja) {
-        owed += Number(cantidad);
+        // Para abonos parciales: contar lo ya pagado en "paid" y solo el restante en "owed"
+        const restante = getRestanteFromEstatus(estatus, Number(cantidad));
+        const abonado = Number(cantidad) - restante;
+        if (abonado > 0) paid += abonado;
+        owed += restante;
       }
     }
   };

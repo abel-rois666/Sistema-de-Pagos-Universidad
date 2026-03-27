@@ -1,7 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Save, Plus, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
-import type { Alumno, CicloEscolar, PaymentPlan, Catalogos, ReciboDetalle } from '../types';
-import { saveReciboCompleto } from '../lib/supabase';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Save, Plus, Trash2, AlertCircle, Info, Printer, X, FileDown, Loader2 } from 'lucide-react';
+import type { Alumno, CicloEscolar, PaymentPlan, Catalogos, CatalogoItem, Usuario, Recibo, ReciboDetalle, AppConfig } from '../types';
+import { saveReciboCompleto, saveCatalogoItem } from '../lib/supabase';
+import { ReciboPlantillaPDF } from './ReciboPlantillaPDF';
+import { printElement, downloadElementAsPDF } from '../lib/printUtils';
 
 interface ConceptoRow {
   localId: string;
@@ -9,6 +11,8 @@ interface ConceptoRow {
   concepto: string;
   costo_unitario: number | '';
   indice_concepto_plan: number | null;
+  searchConceptoTerm: string;
+  showConceptoSuggestions: boolean;
 }
 
 interface Props {
@@ -16,16 +20,19 @@ interface Props {
   activeCiclo?: CicloEscolar;
   plans: PaymentPlan[];
   catalogos: Catalogos;
+  appConfig?: AppConfig;
   initialAlumnoId?: string;
   initialConceptIndex?: number;
+  currentUser?: Usuario;
   onPaymentSaved?: () => void;
+  onCatalogoAdded?: (item: CatalogoItem) => void;
 }
 
 // Bancos disponibles
 const BANCOS = ['BBVA 1', 'BBVA 2', 'MIFEL', 'BANORTE', 'NO APLICA'];
 const FORMAS_PAGO = ['Depósito Bancario', 'Transferencia bancaria', 'Tarjeta de Débito', 'Tarjeta de Crédito', 'Efectivo'];
 
-export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, initialAlumnoId, initialConceptIndex, onPaymentSaved }: Props) {
+export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, appConfig, initialAlumnoId, initialConceptIndex, currentUser, onPaymentSaved, onCatalogoAdded }: Props) {
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<string>(initialAlumnoId || '');
   const [searchAlumnoTerm, setSearchAlumnoTerm] = useState('');
   const [showAlumnoSuggestions, setShowAlumnoSuggestions] = useState(false);
@@ -42,22 +49,40 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
   const filteredAlumnos = useMemo(() => {
     const lower = searchAlumnoTerm.toLowerCase();
     if (!searchAlumnoTerm) return alumnos.slice(0, 50);
-    // If the search term exactly matches the selected student, don't filter them out, just show defaults
     const perfectMatch = alumnos.find(a => a.nombre_completo.toLowerCase() === lower);
     if (perfectMatch && alumnoSeleccionado === perfectMatch.id) return alumnos.slice(0, 50);
     return alumnos.filter(a => a.nombre_completo.toLowerCase().includes(lower)).slice(0, 50);
   }, [alumnos, searchAlumnoTerm, alumnoSeleccionado]);
-  
+
+  const isAdmin = currentUser?.rol === 'ADMINISTRADOR';
+
   const [filas, setFilas] = useState<ConceptoRow[]>([{
     localId: Date.now().toString(),
     cantidad: 1,
     concepto: '',
     costo_unitario: '',
-    indice_concepto_plan: null
+    indice_concepto_plan: null,
+    searchConceptoTerm: '',
+    showConceptoSuggestions: false,
   }]);
 
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null);
+  const [generandoPDF, setGenerandoPDF] = useState(false);
+
+  // Print modal state — holds the just-saved recibo for preview
+  const [reciboGuardado, setReciboGuardado] = useState<{
+    recibo: Recibo;
+    detalles: ReciboDetalle[];
+    alumno: Alumno | undefined;
+  } | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Quick-add concepto state (admin only)
+  const [showAddConceptoModal, setShowAddConceptoModal] = useState(false);
+  const [newConceptoName, setNewConceptoName] = useState('');
+  const [savingConcepto, setSavingConcepto] = useState(false);
+  const [addConceptoRowId, setAddConceptoRowId] = useState<string>('');
 
   // Fecha del recibo (hoy)
   const fechaRecibo = useMemo(() => {
@@ -88,11 +113,24 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
         const estatus = planActual[`estatus_${i}` as keyof PaymentPlan] as string;
         
         if (conceptoName && cantidad > 0 && !(estatus || '').toUpperCase().includes('PAGADO')) {
+          // Si hay un abono previo, extraer el monto Restante del texto del estatus
+          // El estatus puede ser "R-101 (Abono $850.00, Resta $350.00)"
+          let montoSugerido = cantidad;
+          let etiquetaResta = `$${cantidad.toFixed(2)}`;
+
+          if (estatus) {
+            const restaMatch = estatus.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
+            if (restaMatch) {
+              montoSugerido = parseFloat(restaMatch[1].replace(',', ''));
+              etiquetaResta = `$${montoSugerido.toFixed(2)} (abono parcial)`;
+            }
+          }
+
           opciones.push({
             value: `PLAN_${i}_${conceptoName}`,
-            label: `[Plan] ${conceptoName} (Resta $${cantidad}) - Estatus: ${estatus || 'PENDIENTE'}`,
+            label: `[Plan] ${conceptoName} — Resta: ${etiquetaResta}`,
             index: i,
-            sugerido: cantidad
+            sugerido: montoSugerido
           });
         }
       }
@@ -105,6 +143,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
 
     return opciones;
   }, [planActual, catalogos.conceptos]);
+
   const hasInitialized = React.useRef(false);
   useEffect(() => {
     if (initialConceptIndex && planActual && opcionesConceptos.length > 0 && !hasInitialized.current) {
@@ -119,14 +158,24 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
           cantidad: 1,
           concepto: conceptoRef,
           costo_unitario: op.sugerido || '',
-          indice_concepto_plan: idx
+          indice_concepto_plan: idx,
+          searchConceptoTerm: conceptoRef,
+          showConceptoSuggestions: false,
         }]);
       }
     }
   }, [initialConceptIndex, planActual, opcionesConceptos]);
 
   const agregarFila = () => {
-    setFilas([...filas, { localId: Date.now().toString(), cantidad: 1, concepto: '', costo_unitario: '', indice_concepto_plan: null }]);
+    setFilas([...filas, {
+      localId: Date.now().toString(),
+      cantidad: 1,
+      concepto: '',
+      costo_unitario: '',
+      indice_concepto_plan: null,
+      searchConceptoTerm: '',
+      showConceptoSuggestions: false,
+    }]);
   };
 
   const eliminarFila = (id: string) => {
@@ -134,21 +183,27 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
     setFilas(filas.filter(f => f.localId !== id));
   };
 
+  /** Selecciona un concepto de la lista y cierra el dropdown */
+  const selectConcepto = (filaId: string, opValue: string) => {
+    setFilas(filas.map(f => {
+      if (f.localId !== filaId) return f;
+      if (opValue.startsWith('PLAN_')) {
+        const parts = opValue.split('_');
+        const idx = parseInt(parts[1], 10);
+        const refName = parts.slice(2).join('_');
+        const op = opcionesConceptos.find(o => o.value === opValue);
+        return { ...f, concepto: refName, indice_concepto_plan: idx, costo_unitario: op?.sugerido || '', searchConceptoTerm: refName, showConceptoSuggestions: false };
+      } else if (opValue.startsWith('CAT_')) {
+        const name = opValue.replace('CAT_', '');
+        return { ...f, concepto: name, indice_concepto_plan: null, costo_unitario: '', searchConceptoTerm: name, showConceptoSuggestions: false };
+      }
+      return { ...f, showConceptoSuggestions: false };
+    }));
+  };
+
   const updateFila = (id: string, campo: keyof ConceptoRow, valor: any) => {
     setFilas(filas.map(f => {
       if (f.localId === id) {
-        if (campo === 'concepto') {
-          // Extra logic to handle predefined concepts from plan
-          if (valor.startsWith('PLAN_')) {
-            const parts = valor.split('_');
-            const idx = parseInt(parts[1], 10);
-            const refName = parts.slice(2).join('_');
-            const op = opcionesConceptos.find(o => o.value === valor);
-            return { ...f, concepto: refName, indice_concepto_plan: idx, costo_unitario: op?.sugerido || '' };
-          } else if (valor.startsWith('CAT_')) {
-            return { ...f, concepto: valor.replace('CAT_', ''), indice_concepto_plan: null };
-          }
-        }
         return { ...f, [campo]: valor };
       }
       return f;
@@ -200,13 +255,60 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       banco: banco
     };
 
-    // Preparar Detalles
+    // Helper: extrae el monto restante del campo estatus
+    // Soporta formatos: "R-101 (Abono $500.00, Resta $1000.00)" → 1000
+    // Si no hay "Resta", devuelve la cantidad original (primer pago o pago completo previo)
+    const getRestanteDe = (estatusPrevio: string, cantidadOriginal: number): number => {
+      if (!estatusPrevio) return cantidadOriginal;
+      const m = estatusPrevio.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
+      if (m) return parseFloat(m[1].replace(',', ''));
+      // Si ya está pagado (no hay Resta) devolvemos 0
+      if (estatusPrevio.toUpperCase().includes('PAGADO')) return 0;
+      return cantidadOriginal;
+    };
+
+    // Pre-calcular observaciones de abono parcial por índice de concepto
+    const observacionesPorIndice: Record<number, string> = {};
+    if (planActual) {
+      const abonosPorIndice: Record<number, number> = {};
+      validas.forEach(f => {
+        if (f.indice_concepto_plan) {
+          abonosPorIndice[f.indice_concepto_plan] = (abonosPorIndice[f.indice_concepto_plan] || 0) + (Number(f.cantidad) * Number(f.costo_unitario));
+        }
+      });
+
+      for (const idxStr of Object.keys(abonosPorIndice)) {
+        const idx = parseInt(idxStr, 10);
+        const abonoActual = abonosPorIndice[idx];
+        const cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
+        const estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
+
+        const restanteAnterior = getRestanteDe(estatusPrevio, cantidadOriginal);
+        const resta = restanteAnterior - abonoActual;
+        // Total acumulado = lo que ya se había pagado antes + este abono
+        const totalAcumulado = (cantidadOriginal - restanteAnterior) + abonoActual;
+
+        if (resta > 0.005) {
+          // Pago parcial: mostrar abono y restante
+          observacionesPorIndice[idx] = `Abono $${abonoActual.toFixed(2)} — Restante: $${resta.toFixed(2)}`;
+        } else if (totalAcumulado < cantidadOriginal - 0.005 || estatusPrevio.includes('Abono')) {
+          // Último abono de una serie: indicar que se liquidó y mostrar total acumulado
+          observacionesPorIndice[idx] = `Abono final — Concepto liquidado ✓ (Total pagado: $${totalAcumulado.toFixed(2)})`;
+        }
+        // Si fue pago completo de una sola vez, sin abonos previos: sin observación
+      }
+    }
+
+    // Preparar Detalles (con observaciones calculadas)
     const detalles = validas.map(f => ({
       cantidad: Number(f.cantidad),
       concepto: f.concepto,
       costo_unitario: Number(f.costo_unitario),
       subtotal: Number(f.cantidad) * Number(f.costo_unitario),
-      indice_concepto_plan: f.indice_concepto_plan
+      indice_concepto_plan: f.indice_concepto_plan,
+      observaciones: f.indice_concepto_plan && observacionesPorIndice[f.indice_concepto_plan]
+        ? observacionesPorIndice[f.indice_concepto_plan]
+        : null
     }));
 
     // Determinar actualizaciones al plan
@@ -227,40 +329,23 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
           const abonoActual = abonosPorIndice[idx];
           const cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
           const estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
-          
-          // --- PARSEAR ABONOS PREVIOS DEL ESTATUS EXISTENTE ---
-          // El texto puede ser algo como "R-101 (Abono $850, Resta $725)"
-          // Extrae la suma total ya pagada sumando todos los "Abono $X" o "Pagado $X"
-          let totalPagadoAnterior = 0;
-          let folioTextoPrevio = '';
 
-          if (estatusPrevio) {
-            // Extraer todos los montos de abono/pagado previos
-            const regexAbono = /\((?:Abono|Pagado)\s*\$([0-9,]+(?:\.\d{2})?)\)/g;
-            let match;
-            while ((match = regexAbono.exec(estatusPrevio)) !== null) {
-              totalPagadoAnterior += parseFloat(match[1].replace(',', ''));
-            }
+          // Extraer folios anteriores para concatenar al nuevo estatus
+          const folios = (estatusPrevio.match(/R-\d+/g) || []);
+          const folioTextoPrevio = folios.length > 0 ? folios.join('; ') + '; ' : '';
 
-            // Extraer todos los folios anteriores para concatenarlos (e.g. "R-101 (Abono $850, Resta $725)")
-            // Limpiamos el estatus previo de los paréntesis de detalle para quedar solo con "R-XXX"
-            const folios = (estatusPrevio.match(/R-\d+/g) || []);
-            if (folios.length > 0) {
-              // Construir el prefix con folios anteriores (sin el detalle en paréntesis)
-              folioTextoPrevio = folios.join('; ') + '; ';
-            }
-          }
-
-          const totalPagadoNuevo = totalPagadoAnterior + abonoActual;
-          const resta = cantidadOriginal - totalPagadoNuevo;
+          // Calcular resta y total acumulado
+          const restanteAnterior = getRestanteDe(estatusPrevio, cantidadOriginal);
+          const resta = restanteAnterior - abonoActual;
+          // Total acumulado = pagado previamente + este abono
+          const totalAcumulado = (cantidadOriginal - restanteAnterior) + abonoActual;
 
           let nuevoEstatus = '';
-          if (resta <= 0) {
-            // Liquidado
-            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${abonoActual.toFixed(2)})`;
+          if (resta <= 0.005) {
+            // Pagado: mostrar el TOTAL acumulado de todos los abonos, no solo el último
+            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${totalAcumulado.toFixed(2)})`;
           } else {
-            // Abono parcial, quedando saldo
-            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${abonoActual.toFixed(2)}, Resta $${resta.toFixed(2)})`;
+            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${totalAcumulado.toFixed(2)}, Resta $${resta.toFixed(2)})`;
           }
 
           (updates as any)[`estatus_${idx}`] = nuevoEstatus;
@@ -269,29 +354,87 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       }
     }
 
+
+
     const { error, folio } = await saveReciboCompleto(recibo, detalles, planUpdates);
 
     setGuardando(false);
     if (error) {
       setMensaje({ tipo: 'error', texto: `Hubo un error al guardar: ${error}` });
     } else {
-      setMensaje({ tipo: 'success', texto: `Pago registrado con éxito. Folio: ${folio}` });
-      // Refrescar datos del plan en la app
+      // Build the preview object for the print modal
+      const reciboCompleto: Recibo = {
+        id: '',
+        folio: folio!,
+        fecha_recibo: recibo.fecha_recibo,
+        fecha_pago: recibo.fecha_pago,
+        alumno_id: recibo.alumno_id,
+        ciclo_id: recibo.ciclo_id,
+        total: recibo.total,
+        forma_pago: recibo.forma_pago,
+        banco: recibo.banco,
+        estatus: 'ACTIVO',
+      };
+      const detallesCompletos: ReciboDetalle[] = detalles.map((d, i) => ({
+        id: `tmp_${i}`,
+        recibo_id: '',
+        cantidad: d.cantidad,
+        concepto: d.concepto,
+        costo_unitario: d.costo_unitario,
+        subtotal: d.subtotal,
+        indice_concepto_plan: d.indice_concepto_plan ?? null,
+        observaciones: d.observaciones ?? null,
+      }));
       onPaymentSaved?.();
-      // Resetear forma
-      setFilas([{ localId: Date.now().toString(), cantidad: 1, concepto: '', costo_unitario: '', indice_concepto_plan: null }]);
-      setAlumnoSeleccionado('');
-      setFormaPago('Efectivo');
-      setBanco('NO APLICA');
+      setReciboGuardado({ recibo: reciboCompleto, detalles: detallesCompletos, alumno: alumnoData });
+    }
+  };
+
+
+  const handleCerrarModal = () => {
+    setReciboGuardado(null);
+    setMensaje(null);
+    setFilas([{ localId: Date.now().toString(), cantidad: 1, concepto: '', costo_unitario: '', indice_concepto_plan: null, searchConceptoTerm: '', showConceptoSuggestions: false }]);
+    setAlumnoSeleccionado('');
+    setFormaPago('Efectivo');
+    setBanco('NO APLICA');
+  };
+
+  const handleImprimir = () => {
+    if (!printRef.current) return;
+    printElement(printRef.current);
+  };
+
+  const handleDescargarPDF = async () => {
+    if (!printRef.current) return;
+    setGenerandoPDF(true);
+    try {
+      const folio = reciboGuardado?.recibo.folio ?? 'recibo';
+      const alumnoNombre = reciboGuardado?.alumno?.nombre_completo?.replace(/\s+/g, '_') ?? 'alumno';
+      await downloadElementAsPDF(printRef.current, `Recibo_R-${folio}_${alumnoNombre}.pdf`);
+    } catch (err) {
+      console.error('Error generando PDF:', err);
+    } finally {
+      setGenerandoPDF(false);
     }
   };
 
   return (
     <div className="p-8">
-      {mensaje && (
-        <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 font-semibold ${mensaje.tipo === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-          {mensaje.tipo === 'success' ? <CheckCircle /> : <AlertCircle />}
+      {mensaje && mensaje.tipo === 'error' && (
+        <div className="mb-6 p-4 rounded-xl flex items-center gap-3 font-semibold bg-red-100 text-red-800">
+          <AlertCircle />
           {mensaje.texto}
+        </div>
+      )}
+
+      {/* Banner: sin plan activo */}
+      {alumnoSeleccionado && !planActual && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 text-blue-800 text-sm">
+          <Info size={18} className="shrink-0 mt-0.5 text-blue-500" />
+          <span>
+            <strong>Sin plan en el ciclo activo.</strong> Este alumno no tiene plan de pagos registrado para <em>{activeCiclo?.nombre || 'este ciclo'}</em>. El recibo se guardará suelto (no afectará ningún plan).
+          </span>
         </div>
       )}
 
@@ -347,7 +490,14 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                       setShowAlumnoSuggestions(false);
                     }}
                   >
-                    {a.nombre_completo}
+                    <span>{a.nombre_completo}</span>
+                    {a.estatus && a.estatus !== 'ACTIVO' && (
+                      <span className={`ml-2 text-xs font-bold px-1.5 py-0.5 rounded ${
+                        a.estatus === 'EGRESADO' || a.estatus === 'EGRESADO TITULADO'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>{a.estatus}</span>
+                    )}
                   </div>
                 ))}
                 {filteredAlumnos.length === 0 && (
@@ -417,17 +567,57 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                 className="w-full text-center bg-transparent outline-none" 
               />
             </div>
-            <div className="w-4/12 p-1 border-r border-gray-900 flex items-center">
-              <select
-                value={fila.indice_concepto_plan ? `PLAN_${fila.indice_concepto_plan}_${fila.concepto}` : fila.concepto ? `CAT_${fila.concepto}` : ''}
-                onChange={(e) => updateFila(fila.localId, 'concepto', e.target.value)}
-                className="w-full bg-transparent outline-none cursor-pointer truncate"
-              >
-                <option value="">-- Concepto --</option>
-                {opcionesConceptos.map(op => (
-                  <option key={op.value} value={op.value}>{op.label}</option>
-                ))}
-              </select>
+            <div className="w-4/12 p-1 border-r border-gray-900 flex items-center gap-1">
+              {/* Searchable concept autocomplete */}
+              <div className="relative flex-1 min-w-0">
+                <input
+                  type="text"
+                  className="w-full bg-transparent outline-none text-sm truncate"
+                  placeholder="Buscar concepto..."
+                  value={fila.searchConceptoTerm}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFilas(prev => prev.map(f => f.localId === fila.localId
+                      ? { ...f, searchConceptoTerm: val, showConceptoSuggestions: true, concepto: val ? f.concepto : '', indice_concepto_plan: val ? f.indice_concepto_plan : null }
+                      : f));
+                  }}
+                  onFocus={() => setFilas(prev => prev.map(f => f.localId === fila.localId ? { ...f, showConceptoSuggestions: true } : f))}
+                  onBlur={() => setTimeout(() => setFilas(prev => prev.map(f => f.localId === fila.localId ? { ...f, showConceptoSuggestions: false } : f)), 200)}
+                />
+                {fila.showConceptoSuggestions && (
+                  <div className="absolute top-full left-0 w-72 z-20 bg-white border border-gray-300 shadow-xl rounded-lg max-h-56 overflow-y-auto">
+                    {opcionesConceptos
+                      .filter(op => !fila.searchConceptoTerm || op.label.toLowerCase().includes(fila.searchConceptoTerm.toLowerCase()))
+                      .slice(0, 30)
+                      .map(op => (
+                        <div
+                          key={op.value}
+                          className={`px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 border-b border-gray-100 ${
+                            op.value.startsWith('PLAN_') ? 'text-indigo-700 font-semibold' : 'text-gray-800'
+                          }`}
+                          onMouseDown={(e) => { e.preventDefault(); selectConcepto(fila.localId, op.value); }}
+                        >
+                          {op.label}
+                        </div>
+                      ))
+                    }
+                    {opcionesConceptos.filter(op => !fila.searchConceptoTerm || op.label.toLowerCase().includes(fila.searchConceptoTerm.toLowerCase())).length === 0 && (
+                      <div className="px-3 py-2 text-xs text-gray-400 italic">Sin resultados</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Admin-only: quick add concept */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  title="Agregar nuevo concepto al catálogo"
+                  onClick={() => { setAddConceptoRowId(fila.localId); setNewConceptoName(''); setShowAddConceptoModal(true); }}
+                  className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded p-1 transition-colors shrink-0 border border-blue-200"
+                >
+                  <Plus size={13} />
+                </button>
+              )}
             </div>
             <div className="w-2/12 p-1 border-r border-gray-900 flex items-center justify-center relative">
               <span className="absolute left-2 text-gray-500">$</span>
@@ -513,6 +703,129 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
           </div>
         </div>
       </div>
+
+      {/* ---- Print Receipt Modal ---- */}
+      {reciboGuardado && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-emerald-50">
+              <div className="flex items-center gap-3">
+                <div className="bg-emerald-100 p-2 rounded-full">
+                  <Printer className="text-emerald-600" size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-800">Recibo R-{reciboGuardado.recibo.folio} guardado</h2>
+                  <p className="text-xs text-emerald-700 font-medium">El pago fue registrado correctamente. Puedes imprimir el comprobante o cerrar.</p>
+                </div>
+              </div>
+              <button onClick={handleCerrarModal} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            {/* Receipt preview — wrapped for modal scroll; print-receipt class used by @media print */}
+            <div className="flex-1 overflow-auto bg-gray-100 p-4 flex justify-center">
+              <div style={{ transform: 'scale(0.82)', transformOrigin: 'top center', marginBottom: '-160px' }}>
+                <div ref={printRef} className="print-receipt">
+                  <ReciboPlantillaPDF
+                    recibo={reciboGuardado.recibo}
+                    detalles={reciboGuardado.detalles}
+                    alumno={reciboGuardado.alumno}
+                    logoUrl={appConfig?.logoUrl}
+                    licenciaturasMetadata={catalogos.licenciaturasMetadata}
+                  />
+                </div>
+              </div>
+            </div>
+            {/* Modal footer */}
+            <div className="p-4 border-t border-gray-100 flex justify-between items-center bg-white gap-3">
+              <button
+                onClick={handleCerrarModal}
+                className="px-5 py-2.5 border border-gray-300 rounded-xl font-semibold text-gray-600 hover:bg-gray-50 transition-colors text-sm"
+              >
+                Nuevo Pago
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDescargarPDF}
+                  disabled={generandoPDF}
+                  title="Descarga el recibo directamente como archivo PDF"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl font-bold transition-colors shadow-sm text-sm"
+                >
+                  {generandoPDF ? <><Loader2 size={17} className="animate-spin" /> Generando...</> : <><FileDown size={17} /> Descargar PDF</>}
+                </button>
+                <button
+                  onClick={handleImprimir}
+                  disabled={generandoPDF}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl font-bold transition-colors shadow-sm text-sm"
+                >
+                  <Printer size={17} /> Imprimir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddConceptoModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-gray-800">Nuevo Concepto</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Se guardará en el catálogo global de conceptos</p>
+              </div>
+              <button onClick={() => setShowAddConceptoModal(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+            <div className="p-5">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Nombre del concepto</label>
+              <input
+                type="text"
+                autoFocus
+                className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                placeholder="Ej. TITULACIÓN"
+                value={newConceptoName}
+                onChange={(e) => setNewConceptoName(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+              />
+            </div>
+            <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => setShowAddConceptoModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+              >Cancelar</button>
+              <button
+                disabled={!newConceptoName.trim() || savingConcepto}
+                onClick={async () => {
+                  const name = newConceptoName.trim();
+                  if (!name) return;
+                  setSavingConcepto(true);
+                  const newItem: CatalogoItem = {
+                    id: crypto.randomUUID(),
+                    tipo: 'concepto',
+                    valor: name,
+                    orden: 999,
+                    activo: true,
+                  };
+                  await saveCatalogoItem(newItem);
+                  onCatalogoAdded?.(newItem);
+                  // auto-select in the current row
+                  if (addConceptoRowId) {
+                    updateFila(addConceptoRowId, 'concepto', `CAT_${name}`);
+                  }
+                  setSavingConcepto(false);
+                  setShowAddConceptoModal(false);
+                }}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2 disabled:opacity-40"
+              >
+                {savingConcepto ? 'Guardando...' : <><Plus size={15} /> Guardar Concepto</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-end mt-4">
         <button 

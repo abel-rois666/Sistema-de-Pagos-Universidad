@@ -37,8 +37,14 @@ CREATE TABLE IF NOT EXISTS public.catalogos (
     valor TEXT NOT NULL,
     orden INTEGER NOT NULL,
     activo BOOLEAN DEFAULT true,
+    -- Metadatos opcionales (solo para tipo='licenciatura'):
+    -- { "tipo_academico": "LICENCIATURA"|"ESPECIALIDAD", "tipo_periodo": "CUATRIMESTRAL"|"SEMESTRAL" }
+    metadata JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+-- Para bases de datos existentes, ejecutar:
+-- ALTER TABLE public.catalogos ADD COLUMN IF NOT EXISTS metadata JSONB;
+
 
 -- ==========================================
 -- 4. TABLA: ALUMNOS
@@ -186,6 +192,7 @@ CREATE TABLE IF NOT EXISTS public.recibos_detalles (
     costo_unitario NUMERIC(15,2) NOT NULL,
     subtotal NUMERIC(15,2) NOT NULL,
     indice_concepto_plan INTEGER, -- 1 a 9, sirve para saber a qué concepto del plan le abonó
+    observaciones TEXT,           -- Nota de abono parcial: "Abono $X — Restante: $Y"
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_recibos_detalles_recibo ON public.recibos_detalles(recibo_id);

@@ -104,6 +104,11 @@ export interface CatalogoItem {
   valor: string;
   orden: number;
   activo: boolean;
+  /** Solo para tipo='licenciatura': metadatos adicionales */
+  metadata?: {
+    tipo_academico?: 'LICENCIATURA' | 'ESPECIALIDAD';
+    tipo_periodo?: 'CUATRIMESTRAL' | 'SEMESTRAL';
+  } | null;
 }
 
 export interface Catalogos {
@@ -114,6 +119,8 @@ export interface Catalogos {
   grados: string[];
   turnos: string[];
   estatus_alumnos: string[];
+  /** Mapa nombre-licenciatura -> metadata (tipo académico y periodo) */
+  licenciaturasMetadata: Record<string, { tipo_academico?: string; tipo_periodo?: string }>;
 }
 
 export interface PlantillaPlan {
@@ -163,5 +170,7 @@ export interface ReciboDetalle {
   costo_unitario: number;
   subtotal: number;
   indice_concepto_plan?: number | null;
+  observaciones?: string | null; // Nota de abono/restante para pagos parciales
 }
+
 

@@ -15,3 +15,6 @@
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: #334155;
 }
+
+/* Print is handled via JavaScript (printUtils.ts) — no @media print rules needed */
+
