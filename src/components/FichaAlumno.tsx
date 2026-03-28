@@ -79,18 +79,24 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
   if (!selectedAlumno) {
     return (
       <div className="w-full font-sans">
-        <div className="max-w-5xl mx-auto px-8 pt-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-8">
           <button onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors mb-12">
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors mb-10">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
 
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="bg-blue-50 dark:bg-blue-900/30 p-5 rounded-full text-blue-400 mb-6">
-              <User size={48} />
+          <div className="flex flex-col items-center justify-center py-16">
+            {/* Icono */}
+            <div className="relative mb-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30">
+                <User size={40} className="text-white" />
+              </div>
+              <div className="absolute -bottom-2 -right-2 w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
+                <Search size={14} className="text-white" />
+              </div>
             </div>
             <h1 className="text-3xl font-extrabold text-gray-800 dark:text-gray-100 mb-2">Ficha del Alumno</h1>
-            <p className="text-gray-500 mb-8 text-center max-w-sm">
+            <p className="text-gray-500 dark:text-gray-400 mb-8 text-center max-w-sm">
               Busca un alumno para ver su ficha financiera con el desglose completo de pagos.
             </p>
             {searchBarJSX}
@@ -131,10 +137,10 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
 
   return (
     <div className="w-full font-sans">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-6 pb-8">
 
         {/* Header con buscador */}
-        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
           <button onClick={onBack}
             className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors">
             <ArrowLeft size={20} /> Volver al Inicio
@@ -142,71 +148,103 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
           {searchBarJSX}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          {/* Header del alumno */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-8 text-white relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div>
-              <h2 className="text-xl md:text-2xl font-black text-white">{selectedAlumno.nombre_completo}</h2>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                  selectedAlumno.estatus === 'BAJA' ? 'bg-red-900/60 border-red-700 text-red-100' : 
-                  selectedAlumno.estatus?.includes('EGRESADO') ? 'bg-amber-900/60 border-amber-700 text-amber-100' : 
-                  'bg-emerald-900/60 border-emerald-700 text-emerald-100'
-                }`}>Estatus: {selectedAlumno.estatus || 'ACTIVO'}
-              </span>
-              <div className="flex flex-wrap gap-2 text-blue-100 text-sm mt-2">
-                <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Licenciatura: {selectedAlumno.licenciatura}</span>
-                <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Grado: {activePlan?.grado || (activePlan?.grado_turno?.split('/')[0]?.trim()) || selectedAlumno.grado_actual}</span>
-                <span className="bg-blue-900/60 px-3 py-1 rounded-full border border-blue-700/50 shadow-sm backdrop-blur-sm">Turno: {activePlan?.turno || (activePlan?.grado_turno?.split('/')[1]?.trim()) || selectedAlumno.turno}</span>
-                {selectedAlumno.beca_porcentaje && selectedAlumno.beca_porcentaje !== '0%' && (
-                  <span className="bg-purple-900/60 px-3 py-1 rounded-full border border-purple-700/50 shadow-sm backdrop-blur-sm text-purple-100">
-                    Beca: {selectedAlumno.beca_porcentaje} ({selectedAlumno.beca_tipo})
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+          {/* Header del alumno — modernizado */}
+          <div className="relative bg-gradient-to-br from-[#1a2f66] via-[#1e3a7a] to-[#2a4d9e] p-6 sm:p-8 text-white overflow-hidden">
+            {/* Decoración de fondo */}
+            <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/5 rounded-full blur-3xl" />
+            <div className="absolute right-8 bottom-0 w-32 h-32 bg-blue-400/10 rounded-full blur-2xl" />
+
+            <div className="relative flex flex-col md:flex-row md:items-center gap-6">
+              {/* Avatar + datos principales */}
+              <div className="flex items-start gap-5">
+                {/* Avatar circular con iniciales */}
+                <div className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/20 border border-white/30 backdrop-blur-sm flex items-center justify-center shadow-xl">
+                  <span className="text-xl sm:text-2xl font-black text-white">
+                    {selectedAlumno.nombre_completo.split(' ').slice(0, 2).map(n => n[0]).join('')}
                   </span>
-                )}
-                {activePlan && (
-                   <span className="bg-indigo-900/60 text-indigo-100 px-3 py-1 rounded-full border border-indigo-700/50 shadow-sm backdrop-blur-sm">No. Plan: {activePlan.no_plan_pagos}</span>
-                )}
+                </div>
+
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-2xl font-black text-white leading-tight">{selectedAlumno.nombre_completo}</h2>
+                  {/* Status badge */}
+                  <span className={`inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                    selectedAlumno.estatus === 'BAJA' ? 'bg-red-900/60 border-red-600 text-red-200' :
+                    selectedAlumno.estatus?.includes('EGRESADO') ? 'bg-amber-900/60 border-amber-600 text-amber-200' :
+                    'bg-emerald-900/60 border-emerald-600 text-emerald-200'
+                  }`}>
+                    {selectedAlumno.estatus || 'ACTIVO'}
+                  </span>
+                  {/* Pills de información académica */}
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    <span className="bg-white/10 border border-white/20 backdrop-blur-sm text-white/90 text-xs px-2.5 py-1 rounded-lg font-medium">
+                      {selectedAlumno.licenciatura}
+                    </span>
+                    <span className="bg-white/10 border border-white/20 backdrop-blur-sm text-white/90 text-xs px-2.5 py-1 rounded-lg font-medium">
+                      {activePlan?.grado || selectedAlumno.grado_actual}
+                    </span>
+                    <span className="bg-white/10 border border-white/20 backdrop-blur-sm text-white/90 text-xs px-2.5 py-1 rounded-lg font-medium">
+                      {activePlan?.turno || selectedAlumno.turno}
+                    </span>
+                    {selectedAlumno.beca_porcentaje && selectedAlumno.beca_porcentaje !== '0%' && (
+                      <span className="bg-purple-900/60 border border-purple-600/50 text-purple-200 text-xs px-2.5 py-1 rounded-lg font-medium">
+                        Beca {selectedAlumno.beca_porcentaje}
+                      </span>
+                    )}
+                    {activePlan && (
+                      <span className="bg-indigo-900/60 border border-indigo-600/50 text-indigo-200 text-xs px-2.5 py-1 rounded-lg font-medium">
+                        Plan #{activePlan.no_plan_pagos}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
+
+              {/* Tarjeta resumen financiero */}
+              {activePlan ? (
+                <div className="md:ml-auto shrink-0 bg-white/10 border border-white/20 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-xl min-w-[200px]">
+                  <p className="text-xs font-bold text-blue-200 uppercase tracking-wider mb-3">{activePlan.ciclo_escolar}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[11px] text-blue-200 font-medium mb-0.5">Pagado</p>
+                      <p className="text-xl font-extrabold text-emerald-300">${calculateStudentTotals(activePlan, selectedAlumno.estatus).paid.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-blue-200 font-medium mb-0.5">Adeudo</p>
+                      <p className="text-xl font-extrabold text-rose-300">${calculateStudentTotals(activePlan, selectedAlumno.estatus).owed.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  {/* Barra de progreso pago */}
+                  {(() => {
+                    const t = calculateStudentTotals(activePlan, selectedAlumno.estatus);
+                    const total = t.paid + t.owed;
+                    return total > 0 ? (
+                      <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full transition-all duration-700" style={{ width: `${(t.paid / total) * 100}%` }} />
+                      </div>
+                    ) : null;
+                  })()}
+                  {onGoToPlan && (
+                    <button
+                      onClick={() => onGoToPlan(selectedAlumno.id)}
+                      className="mt-3 w-full py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 border border-white/30 text-xs shadow-sm"
+                    >
+                      <FileText size={13} /> Ver Plan de Pagos
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="md:ml-auto shrink-0 bg-white/10 border border-white/20 backdrop-blur-md rounded-2xl p-4 shadow-xl flex items-center gap-3">
+                  <div className="bg-amber-400/20 text-amber-200 p-2 rounded-lg">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  </div>
+                  <div>
+                    <p className="font-bold text-base leading-tight">Sin Plan Activo</p>
+                    <p className="text-xs text-blue-200 mt-0.5">No inscrito en el ciclo.</p>
+                  </div>
+                </div>
+              )}
             </div>
-            
-            {activePlan ? (
-              <div className="bg-white/10 p-5 rounded-2xl border border-white/20 backdrop-blur-md shrink-0 flex flex-col md:items-center gap-4 shadow-xl">
-                 <div className="flex items-center justify-between md:flex-col gap-4 w-full">
-                   <div className="text-center">
-                      <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Ciclo Escolar</p>
-                      <p className="text-xl font-bold tracking-tight">{activePlan.ciclo_escolar}</p>
-                   </div>
-                   <div className="w-px h-10 bg-white/20 md:w-full md:h-px"></div>
-                   <div className="flex gap-6">
-                      <div className="text-center">
-                         <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Pagado</p>
-                         <p className="text-xl font-bold text-emerald-300 drop-shadow-sm">${calculateStudentTotals(activePlan, selectedAlumno.estatus).paid.toLocaleString()}</p>
-                      </div>
-                      <div className="text-center">
-                         <p className="text-blue-100 text-sm font-medium mb-1 drop-shadow">Adeudo</p>
-                         <p className="text-xl font-bold text-red-300 drop-shadow-sm">${calculateStudentTotals(activePlan, selectedAlumno.estatus).owed.toLocaleString()}</p>
-                      </div>
-                   </div>
-                 </div>
-                 {onGoToPlan && (
-                   <button 
-                     onClick={() => onGoToPlan(selectedAlumno.id)}
-                     className="mt-1 w-full py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 border border-white/30 text-sm shadow-sm"
-                   >
-                     <FileText size={16} /> Ver Plan de Pagos
-                   </button>
-                 )}
-              </div>
-            ) : (
-              <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-sm shrink-0 flex items-center gap-3">
-                 <div className="bg-amber-400/20 text-amber-200 p-2 rounded-lg">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                 </div>
-                 <div>
-                    <p className="font-bold text-lg leading-tight">Sin Plan Activo</p>
-                    <p className="text-sm text-blue-100 opacity-90">El alumno no está inscrito en el ciclo.</p>
-                 </div>
-              </div>
-            )}
           </div>
 
           {/* Observaciones de Pago / Titulación */}

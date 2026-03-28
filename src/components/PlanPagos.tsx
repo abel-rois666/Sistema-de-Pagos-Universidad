@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid } from '../utils';
@@ -51,6 +51,31 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
     fecha_plan: new Date().toLocaleDateString('es-MX')
   });
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  
+  // Search state for New Plan Modal
+  const [newPlanSearchTerm, setNewPlanSearchTerm] = useState('');
+  const [showNewAlumnoSuggestions, setShowNewAlumnoSuggestions] = useState(false);
+  const newPlanAlumnoRef = useRef<HTMLDivElement>(null);
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (newPlanAlumnoRef.current && !newPlanAlumnoRef.current.contains(event.target as Node)) {
+        setShowNewAlumnoSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const availableAlumnos = alumnos.filter(a => 
+    !plans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo)
+  );
+
+  const filteredNewAlumnoSuggestions = availableAlumnos.filter(a =>
+    a.nombre_completo.toLowerCase().includes(newPlanSearchTerm.toLowerCase())
+  );
+
 
   const applyTemplate = (templateId: string) => {
     setSelectedTemplateId(templateId);
@@ -221,35 +246,63 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               </div>
 
               <div className="p-6 overflow-y-auto flex-grow space-y-4">
-                <div>
+                <div className="relative" ref={newPlanAlumnoRef}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Alumno</label>
-                  <select
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    value={newPlanForm.alumno_id || ''}
-                    onChange={(e) => {
-                      const alumno = alumnos.find(a => a.id === e.target.value);
-                      if (alumno) {
-                        setNewPlanForm({
-                          ...newPlanForm,
-                          alumno_id: alumno.id,
-                          nombre_alumno: alumno.nombre_completo,
-                          licenciatura: alumno.licenciatura,
-                          grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
-                        });
-                      } else {
-                        setNewPlanForm({ ...newPlanForm, alumno_id: '' });
-                      }
-                    }}
-                  >
-                    <option value="">-- Seleccionar Alumno --</option>
-                    {alumnos
-                      .filter(a => !plans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo))
-                      .map(a => (
-                        <option key={a.id} value={a.id}>{a.nombre_completo}</option>
-                      ))
-                    }
-                  </select>
-                  {alumnos.filter(a => !plans.some(p => p.alumno_id === a.id)).length === 0 && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                      type="text"
+                      className="w-full border border-gray-300 rounded-lg pl-10 pr-10 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-semibold"
+                      placeholder="Buscar alumno para nuevo plan..."
+                      value={newPlanSearchTerm}
+                      onChange={(e) => {
+                        setNewPlanSearchTerm(e.target.value);
+                        setShowNewAlumnoSuggestions(true);
+                        setNewPlanForm(prev => ({ ...prev, alumno_id: '' }));
+                      }}
+                      onFocus={() => setShowNewAlumnoSuggestions(true)}
+                    />
+                    {newPlanSearchTerm && (
+                      <button
+                        onClick={() => { setNewPlanSearchTerm(''); setShowNewAlumnoSuggestions(true); }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {showNewAlumnoSuggestions && newPlanSearchTerm && (
+                    <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
+                      {filteredNewAlumnoSuggestions.length > 0 ? (
+                        filteredNewAlumnoSuggestions.map(alumno => (
+                          <button
+                            key={alumno.id}
+                            className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-none transition-colors"
+                            onClick={() => {
+                              setNewPlanForm({
+                                ...newPlanForm,
+                                alumno_id: alumno.id,
+                                nombre_alumno: alumno.nombre_completo,
+                                licenciatura: alumno.licenciatura,
+                                grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
+                              });
+                              setNewPlanSearchTerm(alumno.nombre_completo);
+                              setShowNewAlumnoSuggestions(false);
+                            }}
+                          >
+                            <p className="font-bold text-gray-800 text-sm">{alumno.nombre_completo}</p>
+                            <p className="text-xs text-gray-500">{alumno.licenciatura} · {alumno.grado_actual}º {alumno.turno}</p>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-sm text-gray-500">
+                          No se encontraron alumnos disponibles
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {availableAlumnos.length === 0 && (
                     <p className="text-xs text-amber-600 mt-1">Todos los alumnos registrados ya tienen un plan en este ciclo.</p>
                   )}
                 </div>
@@ -320,7 +373,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
               <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
                 <button
-                  onClick={() => setIsNewPlanModalOpen(false)}
+                  onClick={() => { setIsNewPlanModalOpen(false); setNewPlanSearchTerm(''); }}
                   className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
                 >
                   Cancelar
@@ -357,6 +410,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     onSavePlan(newPlan);
                     setSelectedPlanId(newPlan.id);
                     setIsNewPlanModalOpen(false);
+                    setNewPlanSearchTerm('');
                     setNewPlanForm({
                       tipo_plan: 'Cuatrimestral',
                       beca_porcentaje: '0%',
@@ -1072,35 +1126,63 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             </div>
 
             <div className="p-6 overflow-y-auto flex-grow space-y-4">
-              <div>
+              <div className="relative" ref={newPlanAlumnoRef}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Alumno</label>
-                <select
-                  className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  value={newPlanForm.alumno_id || ''}
-                  onChange={(e) => {
-                    const alumno = alumnos.find(a => a.id === e.target.value);
-                    if (alumno) {
-                      setNewPlanForm({
-                        ...newPlanForm,
-                        alumno_id: alumno.id,
-                        nombre_alumno: alumno.nombre_completo,
-                        licenciatura: alumno.licenciatura,
-                        grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
-                      });
-                    } else {
-                      setNewPlanForm({ ...newPlanForm, alumno_id: '' });
-                    }
-                  }}
-                >
-                  <option value="">-- Seleccionar Alumno --</option>
-                  {alumnos
-                    .filter(a => !plans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo))
-                    .map(a => (
-                      <option key={a.id} value={a.id}>{a.nombre_completo}</option>
-                    ))
-                  }
-                </select>
-                {alumnos.filter(a => !plans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo)).length === 0 && (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg pl-10 pr-10 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-semibold"
+                    placeholder="Buscar alumno para nuevo plan..."
+                    value={newPlanSearchTerm}
+                    onChange={(e) => {
+                      setNewPlanSearchTerm(e.target.value);
+                      setShowNewAlumnoSuggestions(true);
+                      setNewPlanForm(prev => ({ ...prev, alumno_id: '' }));
+                    }}
+                    onFocus={() => setShowNewAlumnoSuggestions(true)}
+                  />
+                  {newPlanSearchTerm && (
+                    <button
+                      onClick={() => { setNewPlanSearchTerm(''); setShowNewAlumnoSuggestions(true); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {showNewAlumnoSuggestions && newPlanSearchTerm && (
+                  <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
+                    {filteredNewAlumnoSuggestions.length > 0 ? (
+                      filteredNewAlumnoSuggestions.map(alumno => (
+                        <button
+                          key={alumno.id}
+                          className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-none transition-colors"
+                          onClick={() => {
+                            setNewPlanForm({
+                              ...newPlanForm,
+                              alumno_id: alumno.id,
+                              nombre_alumno: alumno.nombre_completo,
+                              licenciatura: alumno.licenciatura,
+                              grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
+                            });
+                            setNewPlanSearchTerm(alumno.nombre_completo);
+                            setShowNewAlumnoSuggestions(false);
+                          }}
+                        >
+                          <p className="font-bold text-gray-800 text-sm">{alumno.nombre_completo}</p>
+                          <p className="text-xs text-gray-500">{alumno.licenciatura} · {alumno.grado_actual}º {alumno.turno}</p>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        No se encontraron alumnos disponibles
+                      </div>
+                    )}
+                  </div>
+                )}
+                {availableAlumnos.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">Todos los alumnos registrados ya tienen un plan en este ciclo.</p>
                 )}
               </div>
@@ -1208,6 +1290,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   onSavePlan(newPlan);
                   setSelectedPlanId(newPlan.id);
                   setIsNewPlanModalOpen(false);
+                  setNewPlanSearchTerm('');
                   setNewPlanForm({
                     tipo_plan: 'Cuatrimestral',
                     beca_porcentaje: '0%',

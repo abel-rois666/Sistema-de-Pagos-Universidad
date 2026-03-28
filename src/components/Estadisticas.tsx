@@ -148,63 +148,85 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
 
   return (
     <div className="w-full font-sans">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-8">
         {/* Back button */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <button onClick={onBack} className="flex items-center gap-2 text-gray-600 hover:text-black dark:text-gray-300 dark:hover:text-white font-bold transition-colors">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
         </div>
 
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-1">Estadísticas Generales</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-1">Estadísticas Generales</h1>
           <p className="text-gray-500 dark:text-gray-400">Resumen financiero · {activeCiclo?.nombre || 'Ciclo activo'}</p>
         </div>
 
-        {/* ── ZONA FIJA: 3 tarjetas siempre visibles ─────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-4">
-            <div className="bg-green-100 dark:bg-green-900/40 p-3 rounded-xl text-green-600 dark:text-green-400">
-              <ListChecks size={24} />
+        {/* ── KPI CARDS ─────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {/* Ingresos Plan */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+            className="card-interactive group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl p-4 border border-emerald-100 dark:border-emerald-900/50 shadow-sm hover:shadow-xl hover:shadow-emerald-500/15 hover:-translate-y-1 transition-all duration-300"
+            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
+          >
+            <div className="absolute -right-3 -top-3 w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 opacity-10 rounded-full blur-2xl group-hover:opacity-25 transition-opacity duration-500 pointer-events-none" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+              <ListChecks size={18} />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-0.5">Ingresos Plan</p>
-              <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">${stats.totalPaid.toLocaleString()}</p>
-            </div>
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Ingresos Plan</p>
+            <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-400 leading-tight mt-0.5">${stats.totalPaid.toLocaleString()}</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">cobrado en el ciclo</p>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-4">
-            <div className="bg-red-100 dark:bg-red-900/40 p-3 rounded-xl text-red-600 dark:text-red-400">
-              <AlertCircle size={24} />
+          {/* Adeudo Plan */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.06 }}
+            className="card-interactive group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl p-4 border border-rose-100 dark:border-rose-900/50 shadow-sm hover:shadow-xl hover:shadow-rose-500/15 hover:-translate-y-1 transition-all duration-300"
+            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
+          >
+            <div className="absolute -right-3 -top-3 w-16 h-16 bg-gradient-to-br from-rose-400 to-red-500 opacity-10 rounded-full blur-2xl group-hover:opacity-25 transition-opacity duration-500 pointer-events-none" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-400 to-red-500 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+              <AlertCircle size={18} />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-0.5">Adeudo Plan</p>
-              <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">${stats.totalOwed.toLocaleString()}</p>
-            </div>
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Adeudo Plan</p>
+            <p className="text-xl font-extrabold text-rose-700 dark:text-rose-400 leading-tight mt-0.5">${stats.totalOwed.toLocaleString()}</p>
+            {(stats.totalPaid + stats.totalOwed) > 0 && (
+              <div className="mt-2 h-1 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full transition-all duration-700"
+                  style={{ width: `${(stats.totalPaid / (stats.totalPaid + stats.totalOwed)) * 100}%` }} />
+              </div>
+            )}
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">pendiente de cobro</p>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-4">
-            <div className="bg-blue-100 dark:bg-blue-900/40 p-3 rounded-xl text-blue-600 dark:text-blue-400">
-              <CreditCard size={24} />
+          {/* Pagos Libres */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.12 }}
+            className="card-interactive group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl p-4 border border-sky-100 dark:border-sky-900/50 shadow-sm hover:shadow-xl hover:shadow-sky-500/15 hover:-translate-y-1 transition-all duration-300"
+            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
+          >
+            <div className="absolute -right-3 -top-3 w-16 h-16 bg-gradient-to-br from-sky-400 to-blue-500 opacity-10 rounded-full blur-2xl group-hover:opacity-25 transition-opacity duration-500 pointer-events-none" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+              <CreditCard size={18} />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-0.5">Pagos Libres</p>
-              <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">${libresStats.totalLibres.toLocaleString()}</p>
-            </div>
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Pagos Libres</p>
+            <p className="text-xl font-extrabold text-sky-700 dark:text-sky-400 leading-tight mt-0.5">${libresStats.totalLibres.toLocaleString()}</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">cobros sin plan</p>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}
-            className="bg-gradient-to-br from-indigo-600 to-blue-500 rounded-2xl p-5 shadow-md flex items-center gap-4">
-            <div className="bg-white/20 p-3 rounded-xl text-white">
-              <Banknote size={24} />
+          {/* Total Caja */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}
+            className="card-interactive group relative flex flex-col rounded-2xl p-4 shadow-md bg-gradient-to-br from-indigo-600 to-blue-500 hover:shadow-2xl hover:shadow-indigo-500/30 hover:-translate-y-1 transition-all duration-300"
+            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
+          >
+            <div className="absolute -right-3 -top-3 w-16 h-16 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-500 pointer-events-none" />
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+              <Banknote size={18} />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-indigo-100 mb-0.5">Total Caja</p>
-              <p className="text-2xl font-bold text-white">${totalGeneral.toLocaleString()}</p>
-            </div>
+            <p className="text-[11px] font-semibold text-indigo-100 uppercase tracking-wider">Total Caja</p>
+            <p className="text-xl font-extrabold text-white leading-tight mt-0.5">${totalGeneral.toLocaleString()}</p>
+            <p className="text-[10px] text-indigo-200 mt-1">ingresos totales</p>
           </motion.div>
         </div>
 

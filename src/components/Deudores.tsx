@@ -305,9 +305,9 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
 
   return (
     <div className="w-full font-sans">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-8">
         
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <button 
             onClick={onBack}
             className="flex items-center gap-2 text-gray-600 hover:text-black dark:text-gray-300 dark:hover:text-white font-bold transition-colors"
@@ -324,8 +324,8 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
 
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-3">
-              Lista de Deudores <AlertTriangle className="text-red-500" size={28} />
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-1 flex items-center gap-3">
+              Lista de Deudores <AlertTriangle className="text-red-500" size={24} />
             </h1>
             <p className="text-gray-500 dark:text-gray-400">Alumnos con pagos pendientes en el ciclo activo</p>
           </div>
@@ -486,14 +486,27 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col">
           
-          <div className="bg-red-50 dark:bg-red-900/40 p-4 border-b border-red-100 dark:border-red-900/50 flex justify-between items-center">
-            <span className="text-red-800 dark:text-red-300 font-medium">
-              Mostrando {filteredDebtors.length} registro(s) pendiente(s)
-              {hasActiveFilters && <span className="ml-1 text-red-600 dark:text-red-400 text-xs">(filtrado)</span>}
-            </span>
-            <span className="text-red-800 dark:text-red-300 font-bold text-xl">
-              Total Adeudado: ${totalDebt.toLocaleString()}
-            </span>
+          {/* Resumen compacto */}
+          <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-red-100 dark:border-red-900/30 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950/20 dark:to-rose-950/20">
+            <div className="flex-1 bg-white dark:bg-gray-900 rounded-xl px-4 py-3 border border-red-100 dark:border-red-900/40 shadow-sm flex items-center gap-3">
+              <div className="w-8 h-8 bg-red-100 dark:bg-red-900/40 rounded-lg flex items-center justify-center">
+                <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-red-500 dark:text-red-400 uppercase tracking-wider">Registros Pendientes</p>
+                <p className="text-lg font-extrabold text-red-800 dark:text-red-200 leading-none">{filteredDebtors.length.toLocaleString()}
+                  {hasActiveFilters && <span className="ml-1.5 text-xs font-semibold text-red-500">(filtrado)</span>}</p>
+              </div>
+            </div>
+            <div className="flex-1 bg-white dark:bg-gray-900 rounded-xl px-4 py-3 border border-rose-100 dark:border-rose-900/40 shadow-sm flex items-center gap-3">
+              <div className="w-8 h-8 bg-rose-100 dark:bg-rose-900/40 rounded-lg flex items-center justify-center">
+                <span className="text-rose-600 dark:text-rose-400 font-black text-sm">$</span>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider">Total Adeudado</p>
+                <p className="text-lg font-extrabold text-rose-800 dark:text-rose-200 leading-none">${totalDebt.toLocaleString()}</p>
+              </div>
+            </div>
           </div>
 
           <div className="overflow-x-auto">

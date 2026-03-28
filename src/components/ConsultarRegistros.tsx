@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2 } from 'lucide-react';
+import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download } from 'lucide-react';
 import { downloadElementAsPDF } from '../lib/printUtils';
 import ReciboPlantillaPDF from './ReciboPlantillaPDF';
 import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig } from '../types';
@@ -377,25 +377,35 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       
       {/* Lista lateral */}
       <div className="w-1/3 border-r border-gray-200 bg-gray-50 flex flex-col">
-        <div className="p-4 border-b border-gray-200 bg-white flex flex-col gap-3">
-          <div className="flex justify-between items-center">
-             <h2 className="font-bold text-gray-700">Historial</h2>
-             <div className="flex gap-2">
-               <button onClick={() => setImportarVisible(true)} className="flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-blue-200 text-xs font-bold" title="Importar desde CSV">
-                 Importar
-               </button>
-               <button onClick={handleExportCSV} className="text-emerald-600 hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-200 text-xs font-bold" title="Exportar a Excel">
-                 Exportar
-               </button>
-               {/* Botón SOS oculto temporalmente — descomentar para usar
-               <button onClick={handleRepararHistoricos} className="text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors border border-red-200 text-xs font-bold shadow-sm" title="Reparar Historicos Corruptos">
-                 SOS Reparar
-               </button>
-               */}
-               <button onClick={cargarRecibos} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors" title="Actualizar">
-                 <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-               </button>
-             </div>
+        <div className="p-3 border-b border-gray-200 bg-white flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold text-gray-700 text-sm shrink-0">Historial</h2>
+            <div className="flex gap-1.5 items-center shrink-0">
+              <button
+                onClick={() => setImportarVisible(true)}
+                className="flex items-center gap-1.5 text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg transition-colors border border-blue-200 text-xs font-bold"
+                title="Importar desde CSV"
+              >
+                <Upload size={14} className="shrink-0" />
+                <span className="hidden md:inline">Importar</span>
+              </button>
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center gap-1.5 text-emerald-600 hover:bg-emerald-50 px-2 py-1.5 rounded-lg transition-colors border border-emerald-200 text-xs font-bold"
+                title="Exportar a Excel"
+              >
+                <Download size={14} className="shrink-0" />
+                <span className="hidden md:inline">Exportar</span>
+              </button>
+              {/* Botón SOS oculto temporalmente — descomentar para usar
+              <button onClick={handleRepararHistoricos} className="text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors border border-red-200 text-xs font-bold shadow-sm" title="Reparar Historicos Corruptos">
+                SOS Reparar
+              </button>
+              */}
+              <button onClick={cargarRecibos} className="text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg transition-colors" title="Actualizar">
+                <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
           </div>
           {repairProgress && (
              <div className="text-xs font-bold text-red-600 bg-red-50 p-2 rounded border border-red-200 animate-pulse text-center">
@@ -403,11 +413,11 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
              </div>
           )}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
             <input
               type="text"
-              placeholder="Buscar folio, alumno..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Buscar..."
+              className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -477,108 +487,141 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
         )}
       </div>
 
-      {/* Detalle del recibo */}
-      <div className="w-2/3 bg-white p-6 overflow-y-auto">
+      {/* Detalle del recibo — Digital Receipt */}
+      <div className="w-2/3 bg-gray-50 dark:bg-gray-950 overflow-y-auto">
         {reciboSeleccionado ? (
-          <div className="max-w-2xl mx-auto">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">
-                  <Receipt className="text-blue-600" /> Detalle de Recibo
-                </h2>
-                <div className="text-gray-500 font-semibold mt-1">Folio: <span className="text-blue-600">#{reciboSeleccionado.folio}</span></div>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={handleImprimir}
-                  disabled={isGeneratingPDF}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
-                >
-                  {isGeneratingPDF ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-                  Imprimir
-                </button>
-                {reciboSeleccionado.estatus === 'ACTIVO' && (
-                  <button 
-                    onClick={() => handleCancelar(reciboSeleccionado.id)}
-                    className="flex items-center gap-2 text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg text-sm font-semibold transition-colors border border-red-200"
+          <div className="max-w-2xl mx-auto p-6">
+            {/* Cabecera del recibo */}
+            <div className="bg-gradient-to-br from-[#1a2f66] to-[#2a4d9e] rounded-2xl p-5 text-white mb-5 shadow-xl relative overflow-hidden">
+              <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/5 rounded-full blur-3xl" />
+              <div className="relative flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 mb-1 opacity-70">
+                    <Receipt size={14} />
+                    <span className="text-xs font-semibold uppercase tracking-widest">Recibo Digital</span>
+                  </div>
+                  <p className="text-3xl font-black tracking-tight">#{reciboSeleccionado.folio}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${reciboSeleccionado.estatus === 'ACTIVO' ? 'bg-emerald-500/30 border-emerald-400/50 text-emerald-200' : 'bg-red-500/30 border-red-400/50 text-red-200'}`}>
+                      {reciboSeleccionado.estatus}
+                    </span>
+                    <span className="text-blue-200 text-xs">{reciboSeleccionado.fecha_recibo}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap shrink-0">
+                  <button
+                    onClick={handleImprimir}
+                    disabled={isGeneratingPDF}
+                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-white/30 shadow-sm disabled:opacity-50"
                   >
-                    <XCircle size={16} /> Cancelar Recibo
+                    {isGeneratingPDF ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
+                    Imprimir
                   </button>
-                )}
+                  {reciboSeleccionado.estatus === 'ACTIVO' && (
+                    <button
+                      onClick={() => handleCancelar(reciboSeleccionado.id)}
+                      className="flex items-center gap-2 bg-red-500/30 hover:bg-red-500/50 text-red-100 px-3 py-2 rounded-xl text-sm font-semibold transition-colors border border-red-400/50"
+                    >
+                      <XCircle size={15} /> Cancelar
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             {reciboSeleccionado.estatus === 'CANCELADO' && (
-               <div className="bg-red-100 text-red-800 p-3 rounded-lg font-bold mb-6 text-center border border-red-200">
-                 ESTE RECIBO ESTÁ CANCELADO
-               </div>
+              <div className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 p-3 rounded-xl font-bold mb-5 text-center border border-red-200 dark:border-red-800 text-sm">
+                ⚠️ ESTE RECIBO ESTÁ CANCELADO
+              </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                 <div className="text-xs text-gray-500 font-bold uppercase mb-1">Alumno</div>
-                 <div className="font-semibold text-gray-800">{reciboSeleccionado.nombre_alumno}</div>
-                 <div className="text-sm text-gray-600">{reciboSeleccionado.licenciatura}</div>
+            {/* Info cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+              <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Alumno</p>
+                <p className="font-bold text-gray-900 dark:text-white text-sm leading-snug">{reciboSeleccionado.nombre_alumno}</p>
+                {reciboSeleccionado.licenciatura && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{reciboSeleccionado.licenciatura}</p>
+                )}
               </div>
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                 <div className="text-xs text-gray-500 font-bold uppercase mb-1">Información Pago</div>
-                 <div className="text-sm text-gray-800"><span className="font-semibold">F. Recibo:</span> {reciboSeleccionado.fecha_recibo}</div>
-                 <div className="text-sm text-gray-800"><span className="font-semibold">F. Pago:</span> {reciboSeleccionado.fecha_pago}</div>
-                 <div className="text-sm text-gray-800 mt-2 font-semibold">{reciboSeleccionado.forma_pago} - {reciboSeleccionado.banco}</div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Información de Pago</p>
+                <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center justify-between">
+                    <span>Fecha Recibo:</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.fecha_recibo}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Fecha Pago:</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.fecha_pago}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Forma de Pago:</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.forma_pago}</span>
+                  </div>
+                  {reciboSeleccionado.banco && reciboSeleccionado.banco !== 'NO APLICA' && (
+                    <div className="flex items-center justify-between">
+                      <span>Banco:</span>
+                      <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.banco}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <h3 className="font-bold text-gray-700 mb-3 border-b pb-2">Conceptos Cobrados</h3>
-            <div className="bg-white border text-sm border-gray-200 rounded-xl overflow-hidden mb-6">
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 text-gray-600 font-semibold text-xs uppercase border-b border-gray-200">
-                  <tr>
-                    <th className="p-3">Cant.</th>
-                    <th className="p-3">Concepto</th>
-                    <th className="p-3 text-right">P. Unitario</th>
-                    <th className="p-3 text-right">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                   {(reciboSeleccionado.recibos_detalles || []).map(d => (
-                     <tr key={d.id} className="hover:bg-gray-50">
-                       <td className="p-3 font-semibold">{d.cantidad}</td>
-                       <td className="p-3 text-gray-800">
-                         <div>{d.concepto}</div>
-                         {d.observaciones && (
-                           <div className="flex items-center gap-1 mt-0.5">
-                             <span className="text-[10px] italic font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">
-                               ⚠ {d.observaciones}
-                             </span>
-                           </div>
-                         )}
-                         {d.indice_concepto_plan ? (
-                            <span className="ml-0 mt-1 inline-block text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-semibold border border-blue-200">Plan #{d.indice_concepto_plan}</span>
-                         ) : reciboSeleccionado.estatus === 'ACTIVO' ? (
-                            <button onClick={() => setVincularDetalle(d)} className="mt-1 text-xs text-amber-600 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 border border-amber-200 rounded-full font-bold transition-colors shadow-sm">
-                              + Vincular
-                            </button>
-                         ) : null}
-                       </td>
-                       <td className="p-3 text-right">${d.costo_unitario.toFixed(2)}</td>
-                       <td className="p-3 text-right font-bold text-gray-700">${d.subtotal.toFixed(2)}</td>
-                     </tr>
-                   ))}
-                </tbody>
-              </table>
+            {/* Tabla de conceptos */}
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm mb-5">
+              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Conceptos Cobrados</h3>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {(reciboSeleccionado.recibos_detalles || []).map(d => (
+                  <div key={d.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <div className="shrink-0 w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                      <span className="text-xs font-black text-blue-600 dark:text-blue-400">{d.cantidad}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{d.concepto}</p>
+                      {d.observaciones && (
+                        <span className="text-[10px] italic font-semibold text-orange-600 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-full px-2 py-0.5 mt-0.5 inline-block">
+                          ⚠ {d.observaciones}
+                        </span>
+                      )}
+                      {d.indice_concepto_plan ? (
+                        <span className="mt-0.5 inline-block text-[10px] text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full font-semibold border border-blue-200 dark:border-blue-800">
+                          Plan #{d.indice_concepto_plan}
+                        </span>
+                      ) : reciboSeleccionado.estatus === 'ACTIVO' ? (
+                        <button onClick={() => setVincularDetalle(d)} className="mt-0.5 text-[10px] text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 px-2 py-0.5 border border-amber-200 dark:border-amber-800 rounded-full font-bold transition-colors shadow-sm">
+                          + Vincular
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[11px] text-gray-400">${d.costo_unitario.toFixed(2)}</p>
+                      <p className="text-sm font-extrabold text-gray-800 dark:text-white">${d.subtotal.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="flex justify-end border-t border-gray-200 pt-4">
-               <div className="text-right">
-                  <div className="text-sm text-gray-500 font-bold uppercase mb-1">Total Pagado</div>
-                  <div className="text-3xl font-black text-emerald-600">${reciboSeleccionado.total.toFixed(2)}</div>
-               </div>
+            {/* Total */}
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900/50 px-5 py-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Pagado</p>
+                <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">{(reciboSeleccionado.recibos_detalles || []).length} concepto(s)</p>
+              </div>
+              <p className="text-3xl font-black text-emerald-700 dark:text-emerald-400">${reciboSeleccionado.total.toFixed(2)}</p>
             </div>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400">
-            <Eye size={48} className="mb-4 opacity-50" />
-            <p className="font-semibold">Selecciona un recibo de la lista para ver sus detalles</p>
+          <div className="h-full flex flex-col items-center justify-center text-gray-400 min-h-96">
+            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mb-4">
+              <Eye size={28} className="opacity-50" />
+            </div>
+            <p className="font-semibold text-sm">Selecciona un recibo</p>
+            <p className="text-xs text-gray-400 mt-1">para ver sus detalles aquí</p>
           </div>
         )}
       </div>
