@@ -1,0 +1,54 @@
+# CI/CD Pipeline para Despliegue en Hostinger
+# Autor: Senior Software Engineer
+name: Deploy React App to Hostinger
+
+# Se ejecuta cada vez que haces "push" en la rama "main". 
+# (Cambia 'main' por 'master' dependiendo de cómo se llame tu rama principal)
+on:
+  push:
+    branches:
+      - main 
+
+jobs:
+  build-and-deploy:
+    name: 🎉 Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Obtiene el código actual del repositorio
+      - name: 🚚 Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Prepara Node.js para que podamos construir la app
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm' # Hace que las siguientes iteraciones sean más rápidas
+          
+      # 3. Instala dependencias del proyecto
+      - name: 📦 Install Dependencies
+        run: npm ci # 'npm ci' es más seguro en CI/CD que 'npm install'
+
+      # 4. Construye la aplicación (compilar React/Vite)
+      - name: 🏗️ Build Application
+        run: npm run build
+        
+      # (Opcional) Puedes generar un archivo temporal para validar que el build pasó ok.
+      - name: 📂 Directorio de Verificación (Debug)
+        run: ls -la dist/
+        
+      # 5. Despliega la carpeta de build (dist) usando FTP hacia Hostinger
+      - name: 🚀 Sync Files to Hostinger
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          
+          # Especificamos que SOLO suba el contenido ya procesado para evitar subir código fuente.
+          local-dir: ./dist/ # Si estuvieras usando Create-React-App en lugar de Vite, este sería "./build/"
+          
+          # Puedes especificar en qué carpeta de tu Hostinger colocar la App. 
+          # "./" sube a la raíz del usuario FTP creado en el Paso 1
+          server-dir: ./
