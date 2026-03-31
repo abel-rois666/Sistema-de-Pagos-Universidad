@@ -262,6 +262,7 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
             }));
 
             let planUpdates: any = undefined;
+            let excedenteGlobalRecibo = 0;
 
             // Vinculación Automática Inteligente (todas las fechas/ciclos históricos)
             if (reciboPayload.estatus === 'ACTIVO') {
@@ -295,7 +296,8 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                                 const estatus = plan[`estatus_${i}`];
                                 const fechaPlan = plan[`fecha_${i}`];
                                 
-                                if (conc && estatus === 'PENDIENTE' && conc.toUpperCase() === d.concepto.toUpperCase()) {
+                                // FIX: Permitir vincular a conceptos con abonos, verificando que no estén 'PAGADO'
+                                if (conc && !(estatus || '').toUpperCase().includes('PAGADO') && conc.toUpperCase() === d.concepto.toUpperCase()) {
                                     const fpMs = parseDateToMs(fechaPlan);
                                     const diff = fpMs === 0 ? 9999999999999 : Math.abs(fechaReciboMs - fpMs);
                                     
@@ -316,37 +318,49 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                             const montoPlaneado = (planOriginal[`cantidad_${bestMatch.index}`] || 0) as number;
                             const abonoActual = d.subtotal;
 
-                            // -- PARSEAR ABONOS PREVIOS (Misma lógica que RegistrarPago) --
-                            let totalPagadoAnterior = 0;
-                            let folioTextoPrevio = '';
+                            // -- Mismo algoritmo de Abonos que RegistrarPago.tsx --
+                            const getRestanteDe = (estatusText: string, totalOriginal: number): number => {
+                                if (!estatusText || estatusText === 'PENDIENTE') return totalOriginal;
+                                const m = estatusText.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
+                                if (m) return parseFloat(m[1].replace(',', ''));
+                                if (estatusText.toUpperCase().includes('PAGADO')) return 0;
+                                return totalOriginal;
+                            };
 
-                            if (estatusPrevio && estatusPrevio !== 'PENDIENTE') {
-                                const regexAbono = /\((?:Abono|Pagado)\s*\$([0-9,]+(?:\.\d{2})?)\)/g;
-                                let match;
-                                while ((match = regexAbono.exec(estatusPrevio)) !== null) {
-                                    totalPagadoAnterior += parseFloat(match[1].replace(',', ''));
-                                }
+                            const restanteAnterior = getRestanteDe(estatusPrevio, montoPlaneado);
+                            const resta = restanteAnterior - abonoActual;
+                            
+                            // Total acumulado = pagado previamente + este abono
+                            const totalPagadoNuevo = (montoPlaneado - restanteAnterior) + abonoActual;
 
-                                const folios = (estatusPrevio.match(/R-\d+/g) || []);
-                                if (folios.length > 0) {
-                                    folioTextoPrevio = folios.join('; ') + '; ';
-                                }
-                            }
-
-                            const totalPagadoNuevo = totalPagadoAnterior + abonoActual;
-                            const resta = montoPlaneado - totalPagadoNuevo;
+                            // Extraer folios previos
+                            const folios = (estatusPrevio.match(/R-\d+/g) || []);
+                            const folioTextoPrevio = folios.length > 0 ? folios.join('; ') + '; ' : '';
 
                             let nuevoEstatus = '';
-                            if (resta <= 0) {
-                                nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${abonoActual.toFixed(2)})`;
+                            if (resta <= 0.005) {
+                                // Mostrar el total pagado históricamente para este concepto, topado al monto planeado
+                                const topePagado = Math.min(totalPagadoNuevo, montoPlaneado);
+                                nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${topePagado.toFixed(2)})`;
                             } else {
-                                nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${abonoActual.toFixed(2)}, Resta $${resta.toFixed(2)})`;
+                                nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${totalPagadoNuevo.toFixed(2)}, Resta $${resta.toFixed(2)})`;
+                            }
+
+                            // --- NUEVO: ASIGNAR OBSERVACIONES AL RECIBO (ABONOS Y EXCEDENTES) ---
+                            if (resta < -0.005) {
+                                const excedenteAqui = Math.abs(resta);
+                                excedenteGlobalRecibo += excedenteAqui;
+                                d.observaciones = `Concepto liquidado ✓ (Excedente de $${excedenteAqui.toFixed(2)} depositado en Monedero)`;
+                            } else if (resta > 0.005) {
+                                d.observaciones = `Abono $${abonoActual.toFixed(2)} — Restante: $${resta.toFixed(2)}`;
+                            } else if (totalPagadoNuevo < montoPlaneado - 0.005 || estatusPrevio.includes('Abono')) {
+                                d.observaciones = `Abono final — Concepto liquidado ✓ (Total pagado: $${totalPagadoNuevo.toFixed(2)})`;
                             }
 
                             updatesPorPlan[bestMatch.planId][`estatus_${bestMatch.index}`] = nuevoEstatus;
                             
                             if (planOriginal) {
-                                // Evitar que el mismo concepto sea "pescado" por otro detalle en el mismo recibo o ciclo de importación
+                                // Evitar que el mismo concepto sea "pescado" por otro detalle en el mismo recibo o importación repetida
                                 planOriginal[`estatus_${bestMatch.index}`] = nuevoEstatus.replace('{{FOLIO}}', row.no_recibo); 
                                 if (!bestCicloId) bestCicloId = planOriginal.ciclo_id;
                             }
@@ -370,7 +384,9 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                 }
             }
 
-            const result = await saveReciboCompleto(reciboPayload, detallesPayload as any, planUpdates);
+            const saldoAfavorUpdate = excedenteGlobalRecibo > 0 ? { alumnoId: asocAlumno.id, delta: excedenteGlobalRecibo } : undefined;
+
+            const result = await saveReciboCompleto(reciboPayload, detallesPayload as any, planUpdates, saldoAfavorUpdate);
             if (result.error) {
                 // Detect duplicate folio: treat as a skip/warning, not a hard error
                 const isDuplicateFolio = result.error.includes('recibos_folio_key') || result.error.includes('duplicate key');

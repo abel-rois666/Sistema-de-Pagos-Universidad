@@ -86,6 +86,7 @@ export const saveAlumno = async (alumno: Alumno): Promise<string | null> => {
     estatus: alumno.estatus,
     beca_porcentaje: alumno.beca_porcentaje,
     ciclo_ultima_asignacion_grado: alumno.ciclo_ultima_asignacion_grado,
+    saldo_a_favor: alumno.saldo_a_favor,
   });
   if (error) { console.error('[saveAlumno]', error.message); return error.message; }
   return null;
@@ -125,7 +126,8 @@ export const bulkSaveAlumnos = async (alumnos: Alumno[]): Promise<string | null>
         beca_porcentaje: a.beca_porcentaje || '0%',
         beca_tipo: a.beca_tipo || 'NINGUNA',
         observaciones_pago_titulacion: a.observaciones_pago_titulacion || null,
-        ciclo_ultima_asignacion_grado: a.ciclo_ultima_asignacion_grado || null
+        ciclo_ultima_asignacion_grado: a.ciclo_ultima_asignacion_grado || null,
+        saldo_a_favor: a.saldo_a_favor
       }));
 
     const { error } = await supabase.from('alumnos').upsert(
@@ -225,9 +227,10 @@ export const deleteCatalogoItem = async (id: string): Promise<string | null> => 
 
 /** Registrar un nuevo pago (recibo + detalles) y actualizar estatus del plan si aplica */
 export const saveReciboCompleto = async (
-  recibo: Omit<Recibo, 'id' | 'folio' | 'created_at' | 'estatus'> & { estatus?: string; folio?: number },
+  recibo: Omit<Recibo, 'id' | 'folio' | 'created_at' | 'estatus'> & { estatus?: string; folio?: number; uso_saldo_a_favor?: number },
   detalles: Omit<ReciboDetalle, 'id' | 'recibo_id'>[],
-  planUpdates?: { planId: string, updates: Partial<PaymentPlan> }
+  planUpdates?: { planId: string, updates: Partial<PaymentPlan> },
+  saldoAfavorUpdate?: { alumnoId: string, delta: number }
 ): Promise<{ error: string | null; folio?: number }> => {
   try {
     const payload: any = {
@@ -240,6 +243,9 @@ export const saveReciboCompleto = async (
       banco: recibo.banco,
       estatus: recibo.estatus || 'ACTIVO'
     };
+    if (recibo.uso_saldo_a_favor !== undefined) {
+      payload.uso_saldo_a_favor = recibo.uso_saldo_a_favor;
+    }
     if (recibo.folio !== undefined) {
       payload.folio = recibo.folio;
     }
@@ -285,6 +291,21 @@ export const saveReciboCompleto = async (
         .eq('id', planUpdates.planId);
       
       if (planError) throw new Error(`Error actualizando el plan de pagos: ${planError.message}`);
+    }
+
+    // 4. Actualizar Saldo a Favor del alumno (Monedero)
+    if (saldoAfavorUpdate && saldoAfavorUpdate.delta !== 0) {
+       const { data: al, error: alErr } = await supabase
+         .from('alumnos')
+         .select('saldo_a_favor')
+         .eq('id', saldoAfavorUpdate.alumnoId)
+         .single();
+         
+       if (!alErr && al) {
+         const current = Number(al.saldo_a_favor) || 0;
+         const newBalance = current + saldoAfavorUpdate.delta;
+         await supabase.from('alumnos').update({ saldo_a_favor: newBalance }).eq('id', saldoAfavorUpdate.alumnoId);
+       }
     }
 
     return { error: null, folio: newFolio };
@@ -412,6 +433,11 @@ export const vincularReciboDetalleAMultiplesPlan = async (
 ): Promise<string | null> => {
   if (seleccion.length === 0) return 'No se seleccionó ningún concepto';
   try {
+    // 0. Obtener el monto del detalle
+    const { data: detData, error: errFetchDet } = await supabase.from('recibos_detalles').select('subtotal').eq('id', detalleId).single();
+    if (errFetchDet || !detData) throw new Error('No se pudo leer el detalle: ' + errFetchDet?.message);
+    const abonoInicialDelRecibo = Number(detData.subtotal);
+
     // 1. Marcar el detalle con el primer índice seleccionado (retrocompatibilidad con columna única)
     const { error: errDetalle } = await supabase
       .from('recibos_detalles')
@@ -426,6 +452,10 @@ export const vincularReciboDetalleAMultiplesPlan = async (
       porPlan[s.planId].push(s.idx);
     }
 
+    let saldoDistribucion = abonoInicialDelRecibo;
+    let observacionesAbiertas: string[] = [];
+    let alumnoIdForWallet: string | null = null;
+
     // 3. Para cada plan, leer el estado actual y construir el nuevo estatus con folio concatenado
     for (const [planId, indices] of Object.entries(porPlan)) {
       const { data: planData, error: fetchErr } = await supabase
@@ -436,8 +466,31 @@ export const vincularReciboDetalleAMultiplesPlan = async (
       if (fetchErr || !planData) throw new Error('No se pudo leer el plan: ' + fetchErr?.message);
 
       const updatePayload: Record<string, string> = {};
+      
       for (const idx of indices) {
+        if (saldoDistribucion <= 0) break; // Ya nos quedamos sin dinero para abonar a más conceptos
+        
         const estatusPrevio = (planData[`estatus_${idx}`] || 'PENDIENTE') as string;
+        const montoPlaneado = (planData[`cantidad_${idx}`] || 0) as number;
+
+        // -- Algoritmo de extracción de Restante --
+        const getRestanteDe = (estatusText: string, totalOriginal: number): number => {
+            if (!estatusText || estatusText === 'PENDIENTE') return totalOriginal;
+            const m = estatusText.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
+            if (m) return parseFloat(m[1].replace(',', ''));
+            if (estatusText.toUpperCase().includes('PAGADO')) return 0;
+            return totalOriginal;
+        };
+
+        const restanteAnterior = getRestanteDe(estatusPrevio, montoPlaneado);
+        if (restanteAnterior <= 0) continue; // Si por error seleccionó algo ya pagado
+
+        // ¿Cuánto abonamos a ESTE concepto? Lo que deba, o lo que quede del recibo
+        const abonoAEstablecer = Math.min(saldoDistribucion, restanteAnterior);
+        saldoDistribucion -= abonoAEstablecer;
+
+        const restaFinal = restanteAnterior - abonoAEstablecer;
+        const totalPagadoAcumulado = (montoPlaneado - restanteAnterior) + abonoAEstablecer;
 
         // Recoger folios anteriores del texto (ej. "R-101; ")
         let foliosPrevios = '';
@@ -446,7 +499,18 @@ export const vincularReciboDetalleAMultiplesPlan = async (
           foliosPrevios = foliosMatch.join('; ') + '; ';
         }
 
-        updatePayload[`estatus_${idx}`] = `${foliosPrevios}R-${reciboFolio} (Pagado)`;
+        let nuevoEstatus = '';
+        if (restaFinal <= 0.005) {
+            nuevoEstatus = `${foliosPrevios}R-${reciboFolio} (Pagado $${totalPagadoAcumulado.toFixed(2)})`;
+            if (abonoInicialDelRecibo < montoPlaneado - 0.005 || estatusPrevio.includes('Abono')) {
+                 observacionesAbiertas.push(`Abono final liquidado`);
+            }
+        } else {
+            nuevoEstatus = `${foliosPrevios}R-${reciboFolio} (Abono $${totalPagadoAcumulado.toFixed(2)}, Resta $${restaFinal.toFixed(2)})`;
+            observacionesAbiertas.push(`Abono $${abonoAEstablecer.toFixed(2)} — Restante: $${restaFinal.toFixed(2)}`);
+        }
+
+        updatePayload[`estatus_${idx}`] = nuevoEstatus;
       }
 
       const { error: errPlan } = await supabase
@@ -454,6 +518,21 @@ export const vincularReciboDetalleAMultiplesPlan = async (
         .update(updatePayload)
         .eq('id', planId);
       if (errPlan) throw new Error(`Error actualizando plan ${planId}: ${errPlan.message}`);
+    }
+
+    if (saldoDistribucion > 0.005 && alumnoIdForWallet) {
+        // Hubo excedente al vincular!
+        observacionesAbiertas.push(`✓ Excedente de $${saldoDistribucion.toFixed(2)} depositado en Monedero`);
+        const { data: al, error: alErr } = await supabase.from('alumnos').select('saldo_a_favor').eq('id', alumnoIdForWallet).single();
+        if (!alErr && al) {
+            const current = Number(al.saldo_a_favor) || 0;
+            await supabase.from('alumnos').update({ saldo_a_favor: current + saldoDistribucion }).eq('id', alumnoIdForWallet);
+        }
+    }
+
+    // 4. Actualizar observaciones en el detalle si hubo lógica de abono
+    if (observacionesAbiertas.length > 0) {
+       await supabase.from('recibos_detalles').update({ observaciones: observacionesAbiertas.join(' | ') }).eq('id', detalleId);
     }
 
     return null;

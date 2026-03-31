@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText } from 'lucide-react';
+import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid } from '../utils';
 import { supabase } from '../lib/supabase';
@@ -18,9 +18,10 @@ interface PlanPagosProps {
   onSavePlan: (plan: PaymentPlan) => void;
   onGoToPagos?: (alumnoId: string, conceptoIdx: number) => void;
   onViewReceipt?: (folio: string) => void;
+  onBackToFicha?: () => void;
 }
 
-export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], initialAlumnoId, onBack, onSavePlan, onGoToPagos, onViewReceipt }: PlanPagosProps) {
+export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], initialAlumnoId, onBack, onSavePlan, onGoToPagos, onViewReceipt, onBackToFicha }: PlanPagosProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string>(
     (initialAlumnoId && plans.find(p => p.alumno_id === initialAlumnoId)?.id) || plans[0]?.id || ''
   );
@@ -501,24 +502,59 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
     if (paymentModalTab === 'vincular' && selectedReciboId) {
       const recibo = candidateRecibos.find(r => r.id === selectedReciboId);
       if (recibo) {
-        // Build a status string like the rest of the system: R-XXX (Pagado)
+        // Build a status string like the rest of the system: R-XXX (Abono...) or Pagado
         const existing = (selectedPlan[`estatus_${selectedPaymentIndex}` as keyof PaymentPlan] as string) || '';
+        const montoPlaneado = (selectedPlan[`cantidad_${selectedPaymentIndex}` as keyof PaymentPlan] as number) || 0;
+        
         const prevFolios = (existing.match(/R-\d+/g) || []);
         const folioPart = prevFolios.length > 0 ? prevFolios.join('; ') + '; ' : '';
-        statusToWrite = `${folioPart}R-${recibo.folio} (Pagado $${recibo.total.toFixed(2)})`;
+
+        // Extract previous remaining balance
+        const getRestanteDe = (estatusText: string, totalOriginal: number): number => {
+            if (!estatusText || estatusText === 'PENDIENTE') return totalOriginal;
+            const m = estatusText.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
+            if (m) return parseFloat(m[1].replace(',', ''));
+            if (estatusText.toUpperCase().includes('PAGADO')) return 0;
+            return totalOriginal;
+        };
+
+        const restanteAnterior = getRestanteDe(existing, montoPlaneado);
+
+        // Assume the whole receipt total is applied to this single concept.
+        // It's the most common use case for manual single-linkage here.
+        const abonoActual = recibo.total;
+        const resta = restanteAnterior - abonoActual;
+        const totalPagadoNuevo = (montoPlaneado - restanteAnterior) + abonoActual;
+
+        if (resta <= 0.005) {
+            statusToWrite = `${folioPart}R-${recibo.folio} (Pagado $${totalPagadoNuevo.toFixed(2)})`;
+        } else {
+            statusToWrite = `${folioPart}R-${recibo.folio} (Abono $${totalPagadoNuevo.toFixed(2)}, Resta $${resta.toFixed(2)})`;
+        }
 
         // Also try to link in recibos_detalles for bidirectional traceability
         try {
           const { data: detalles } = await supabase
             .from('recibos_detalles')
-            .select('id, indice_concepto_plan')
+            .select('id, indice_concepto_plan, subtotal')
             .eq('recibo_id', recibo.id)
             .is('indice_concepto_plan', null)
             .limit(1);
+            
           if (detalles && detalles.length > 0) {
+            let observacionDB = '';
+            if (resta > 0.005) {
+                observacionDB = `Abono $${abonoActual.toFixed(2)} — Restante: $${resta.toFixed(2)}`;
+            } else if (totalPagadoNuevo < montoPlaneado - 0.005 || existing.includes('Abono')) {
+                observacionDB = `Abono final liquidado`;
+            }
+
             await supabase
               .from('recibos_detalles')
-              .update({ indice_concepto_plan: selectedPaymentIndex })
+              .update({ 
+                 indice_concepto_plan: selectedPaymentIndex,
+                 observaciones: observacionDB || null
+              })
               .eq('id', detalles[0].id);
           }
         } catch { /* si falla la vinculación de detalle, el estatus ya quedó escrito */ }
@@ -651,34 +687,62 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   return (
     <div className="w-full p-2 md:p-6 flex flex-col items-center justify-start font-sans print:p-0">
       
-      {/* Top Action Bar - Hidden in Print (Movido afuera para responsividad) */}
-      <div className="flex flex-col xl:flex-row justify-between items-stretch xl:items-center gap-4 mb-6 w-full max-w-[816px] mx-auto print:hidden z-10">
-        <div className="flex items-center justify-between w-full xl:w-auto">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-700 hover:text-black font-bold transition-colors shrink-0"
-          >
-            <ArrowLeft size={20} /> <span className="hidden sm:inline">Volver</span>
-          </button>
+      {/* Top Action Bar - Hidden in Print (Movido estilo Stack para responsividad y claridad) */}
+      <div className="flex flex-col gap-4 mb-6 w-full max-w-[816px] mx-auto print:hidden z-10">
+        
+        {/* Row 1: Back Buttons & Mobile Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           
-          <div className="flex xl:hidden items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 text-gray-700 hover:text-black font-bold transition-colors shrink-0"
+            >
+              <ArrowLeft size={18} /> <span className="text-sm">Volver al Inicio</span>
+            </button>
+            
+            {onBackToFicha && (
+              <>
+                <div className="hidden sm:block w-px h-5 bg-gray-300"></div>
+                <button
+                  onClick={onBackToFicha}
+                  className="flex items-center gap-2 text-indigo-700 hover:text-indigo-900 font-bold transition-colors shrink-0"
+                >
+                  <User size={16} /> <span className="text-sm">Regresar a Ficha</span>
+                </button>
+              </>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-2 shrink-0">
             {!isCoordinador && (
-              <button onClick={() => setIsNewPlanModalOpen(true)} className="flex items-center justify-center p-2 bg-indigo-600 text-white rounded-lg shadow-sm">
-                <Plus size={20} />
+              <button 
+                onClick={() => setIsNewPlanModalOpen(true)} 
+                className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm gap-2 transition-colors font-medium"
+              >
+                <Plus size={18} /> <span className="hidden xl:inline">Nuevo Plan</span>
               </button>
             )}
-            <button onClick={openEditPlanModal} className="flex items-center justify-center p-2 bg-white text-gray-800 border border-gray-300 rounded-lg shadow-sm">
-              <Edit size={20} />
+            <button 
+              onClick={openEditPlanModal} 
+              className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-white hover:bg-gray-50 text-gray-800 border border-gray-300 rounded-lg shadow-sm gap-2 transition-all font-bold text-sm"
+            >
+              <Edit size={18} /> <span className="hidden xl:inline">Editar</span>
             </button>
-            <button onClick={handleGeneratePDF} disabled={isGeneratingPDF} className="flex items-center justify-center p-2 bg-red-600 text-white rounded-lg shadow-sm disabled:opacity-50">
-              {isGeneratingPDF ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+            <button 
+              onClick={handleGeneratePDF} 
+              disabled={isGeneratingPDF} 
+              className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-sm disabled:opacity-50 gap-2 transition-all font-bold text-sm"
+            >
+              {isGeneratingPDF ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
+              <span className="hidden xl:inline">{isGeneratingPDF ? 'Generando...' : 'PDF / Imprimir'}</span>
             </button>
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="flex items-center gap-2 w-full xl:max-w-md relative z-20">
-          <div className="bg-white border border-gray-400 p-2.5 rounded-lg flex items-center shadow-sm w-full">
+        {/* Row 2: Search Bar */}
+        <div className="relative z-20 w-full xl:max-w-md mx-auto xl:mx-0">
+          <div className="bg-white border border-gray-400 p-2.5 rounded-lg flex items-center shadow-sm w-full transition-shadow focus-within:ring-2 focus-within:ring-indigo-500/50">
             <Search size={18} className="text-gray-400 mr-2 shrink-0" />
             <input
               type="text"
@@ -687,7 +751,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               onChange={handleSearchChange}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-              placeholder="Buscar alumno..."
+              placeholder="Buscar plan mediante nombre del alumno..."
             />
             {searchTerm && (
               <button
@@ -720,31 +784,6 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               )}
             </div>
           )}
-        </div>
-
-        <div className="hidden xl:flex items-center gap-3 shrink-0">
-          {!isCoordinador && (
-            <button
-              onClick={() => setIsNewPlanModalOpen(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
-            >
-              <Plus size={18} /> Nuevo Plan
-            </button>
-          )}
-          <button
-            onClick={openEditPlanModal}
-            className="bg-white hover:bg-gray-50 text-gray-800 font-bold py-2 px-4 rounded shadow-sm border border-gray-300 transition-all flex items-center gap-2 text-sm"
-          >
-            <Edit size={16} /> Editar
-          </button>
-          <button
-            onClick={handleGeneratePDF}
-            disabled={isGeneratingPDF}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2 text-sm disabled:opacity-50"
-          >
-            {isGeneratingPDF ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-            {isGeneratingPDF ? 'Generando...' : 'PDF / Imprimir'}
-          </button>
         </div>
       </div>
 

@@ -130,7 +130,7 @@ export const getMaxFolioCounter = (allPlans: import('./types').PaymentPlan[]): n
 export const CSV_HEADERS = [
   'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO', 'ESTATUS_ALUMNO',
   'CICLO_ESCOLAR', 'FECHA_PLAN', 'TIPO_PLAN', 'BECA_TIPO', 'BECA_PORCENTAJE',
-  'OBSERVACIONES_PAGO_TITULACION',
+  'SALDO_A_FAVOR', 'OBSERVACIONES_PAGO_TITULACION',
   ...Array.from({ length: 9 }, (_, i) => [
       `CONCEPTO_${i + 1}`, `FECHA_${i + 1}`, `CANTIDAD_${i + 1}`, `ESTATUS_${i + 1}`
   ]).flat()

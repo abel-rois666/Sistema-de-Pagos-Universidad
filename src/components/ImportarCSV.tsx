@@ -18,6 +18,7 @@ interface ParsedRow {
     tipo_plan: 'Cuatrimestral' | 'Semestral';
     beca_tipo: string;
     beca_porcentaje: string;
+    saldo_a_favor?: number;
     observaciones_pago_titulacion: string;
     hasPlanData: boolean;    // true si alguna columna de plan tiene valor
     pagos: { concepto: string; fecha: string; cantidad: number; estatus: string }[];
@@ -170,6 +171,8 @@ function parseRows(csvText: string, activeCicloId: string, activeCicloNombre: st
         const tipo_plan_raw = getCol('TIPO_PLAN');
         const beca_tipo = getCol('BECA_TIPO').toUpperCase();
         const beca_porcentaje = getCol('BECA_PORCENTAJE');
+        const saldo_a_favor_raw = getCol('SALDO_A_FAVOR');
+        const saldo_a_favor = saldo_a_favor_raw ? parseFloat(saldo_a_favor_raw.replace(/[^0-9.]/g, '')) : undefined;
         const observaciones_pago_titulacion = getCol('OBSERVACIONES_PAGO_TITULACION');
 
         if (!nombre_alumno) errors.push('Falta NOMBRE_ALUMNO');
@@ -205,6 +208,7 @@ function parseRows(csvText: string, activeCicloId: string, activeCicloNombre: st
             nombre_alumno, no_plan_pagos, licenciatura, grado, turno,
             estatus,
             ciclo_escolar, fecha_plan, tipo_plan, beca_tipo, beca_porcentaje,
+            saldo_a_favor,
             observaciones_pago_titulacion,
             hasPlanData,
             pagos, errors
@@ -239,7 +243,8 @@ function buildAlumnoAndPlan(
             turno: row.turno || 'POR DEFINIR',
             estatus: row.estatus || 'POR DEFINIR',
             beca_porcentaje: row.beca_porcentaje || '0%',
-            beca_tipo: row.beca_tipo || 'NINGUNA'
+            beca_tipo: row.beca_tipo || 'NINGUNA',
+            saldo_a_favor: row.saldo_a_favor
         };
     } else {
         // If it exists, update it with CSV data. Only override if the new CSV value is not empty.
@@ -251,6 +256,7 @@ function buildAlumnoAndPlan(
             estatus:        row.estatus        || alumno.estatus,
             beca_porcentaje: row.beca_porcentaje || alumno.beca_porcentaje,
             beca_tipo:      row.beca_tipo      || alumno.beca_tipo,
+            saldo_a_favor:  row.saldo_a_favor !== undefined ? row.saldo_a_favor : alumno.saldo_a_favor,
             observaciones_pago_titulacion: row.observaciones_pago_titulacion || alumno.observaciones_pago_titulacion || null,
         };
         alumnoUpdated = true; // Always send the upsert so DB sees the latest values

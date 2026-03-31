@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Search, User, FileText } from 'lucide-react';
+import { ArrowLeft, Search, User, FileText, Wallet } from 'lucide-react';
 import { PaymentPlan, Alumno } from '../types';
 import { calculateStudentTotals, isPaid, formatDate } from '../utils';
 
@@ -9,9 +9,10 @@ interface FichaAlumnoProps {
   initialAlumnoId?: string | null;
   onBack: () => void;
   onGoToPlan?: (id: string) => void;
+  onBackToAlumnos?: () => void;
 }
 
-export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBack, onGoToPlan }: FichaAlumnoProps) {
+export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBack, onGoToPlan, onBackToAlumnos }: FichaAlumnoProps) {
   const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(initialAlumnoId || null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -80,10 +81,21 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
     return (
       <div className="w-full font-sans">
         <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-8">
-          <button onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors mb-10">
-            <ArrowLeft size={20} /> Volver al Inicio
-          </button>
+          <div className="flex flex-wrap items-center gap-4 mb-10">
+            <button onClick={onBack}
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors">
+              <ArrowLeft size={20} /> Volver al Inicio
+            </button>
+            {onBackToAlumnos && (
+              <>
+                <div className="hidden sm:block w-px h-5 bg-gray-300 dark:bg-gray-700"></div>
+                <button onClick={onBackToAlumnos}
+                  className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 font-bold transition-colors shrink-0">
+                  <User size={18} /> Regresar a Gestión
+                </button>
+              </>
+            )}
+          </div>
 
           <div className="flex flex-col items-center justify-center py-16">
             {/* Icono */}
@@ -141,10 +153,21 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
 
         {/* Header con buscador */}
         <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-          <button onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors">
-            <ArrowLeft size={20} /> Volver al Inicio
-          </button>
+          <div className="flex flex-wrap items-center gap-4">
+            <button onClick={onBack}
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors">
+              <ArrowLeft size={20} /> Volver al Inicio
+            </button>
+            {onBackToAlumnos && (
+              <>
+                <div className="hidden sm:block w-px h-5 bg-gray-300 dark:bg-gray-700"></div>
+                <button onClick={onBackToAlumnos}
+                  className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 font-bold transition-colors shrink-0">
+                  <User size={18} /> Regresar a Gestión
+                </button>
+              </>
+            )}
+          </div>
           {searchBarJSX}
         </div>
 
@@ -194,6 +217,13 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
                     {activePlan && (
                       <span className="bg-indigo-900/60 border border-indigo-600/50 text-indigo-200 text-xs px-2.5 py-1 rounded-lg font-medium">
                         Plan #{activePlan.no_plan_pagos}
+                      </span>
+                    )}
+                    {/* — Badge Monedero: solo aparece si tiene saldo a favor — */}
+                    {(selectedAlumno.saldo_a_favor ?? 0) > 0 && (
+                      <span className="inline-flex items-center gap-1.5 bg-emerald-900/70 border border-emerald-500/70 text-emerald-200 text-xs px-2.5 py-1 rounded-lg font-bold shadow-lg shadow-emerald-900/40 animate-pulse-once">
+                        <Wallet size={11} />
+                        Monedero: ${(selectedAlumno.saldo_a_favor ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
                       </span>
                     )}
                   </div>

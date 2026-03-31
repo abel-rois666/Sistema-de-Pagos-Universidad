@@ -4,6 +4,7 @@ import { ArrowLeft, TrendingUp, AlertCircle, Inbox, BarChart2, Banknote, CreditC
 import type { PaymentPlan, Alumno, CicloEscolar } from '../types';
 import { supabase } from '../lib/supabase';
 import { extractMonth, isPaid, getRestanteFromEstatus } from '../utils';
+import LoadingSkeleton from './LoadingSkeleton';
 
 interface EstadisticasProps {
   plans: PaymentPlan[];
@@ -19,6 +20,9 @@ interface LibreRow {
   subtotal: number;
   fecha_recibo: string;
   alumno_id?: string;
+  recibo_id?: string;
+  recibo_total?: number;
+  uso_saldo_a_favor?: number;
 }
 
 export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: EstadisticasProps) {
@@ -32,7 +36,7 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
     setLoadingLibres(true);
     supabase
       .from('recibos_detalles')
-      .select('concepto, cantidad, costo_unitario, subtotal, recibos!inner(fecha_recibo, ciclo_id, alumno_id, estatus)')
+      .select('concepto, cantidad, costo_unitario, subtotal, recibos!inner(id, fecha_recibo, ciclo_id, total, alumno_id, estatus, uso_saldo_a_favor)')
       .is('indice_concepto_plan', null)
       .eq('recibos.ciclo_id', activeCiclo.id)
       .neq('recibos.estatus', 'CANCELADO')
@@ -45,6 +49,9 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
             subtotal: d.subtotal,
             fecha_recibo: d.recibos?.fecha_recibo || '',
             alumno_id: d.recibos?.alumno_id,
+            recibo_id: d.recibos?.id,
+            recibo_total: Math.max(Number(d.recibos?.total) || 1, 0.01),
+            uso_saldo_a_favor: d.recibos?.uso_saldo_a_favor || 0,
           })));
         }
         setLoadingLibres(false);
@@ -118,10 +125,21 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
 
   // ── Pagos libres stats ─────────────────────────────────────────────────────
   const libresStats = useMemo(() => {
-    const totalLibres = libres.reduce((s, r) => s + Number(r.subtotal), 0);
+    let totalLibres = 0;
+    let totalMonederoLibres = 0;
+
     // By concept
     const byConcepto: Record<string, { monto: number; count: number }> = {};
     libres.forEach(r => {
+      totalLibres += Number(r.subtotal);
+      
+      // Prorrateo exacto: Si el ticket costó $1000 y se usaron $500 de monedero (50%).
+      // Y un detalle específico libre (ej. Examen) costó $200. (200 / 1000) * 500 = $100.
+      if (r.uso_saldo_a_favor && r.uso_saldo_a_favor > 0 && r.recibo_total) {
+        const proporcion = Number(r.subtotal) / Number(r.recibo_total);
+        totalMonederoLibres += (Number(r.uso_saldo_a_favor) * proporcion);
+      }
+
       if (!byConcepto[r.concepto]) byConcepto[r.concepto] = { monto: 0, count: 0 };
       byConcepto[r.concepto].monto += Number(r.subtotal);
       byConcepto[r.concepto].count += 1;
@@ -141,7 +159,7 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
     });
     // Unique students
     const uniqueAlumnos = new Set(libres.map(r => r.alumno_id).filter(Boolean)).size;
-    return { totalLibres, sortedConceptos, sortedMeses, uniqueAlumnos };
+    return { totalLibres, totalMonederoLibres, sortedConceptos, sortedMeses, uniqueAlumnos };
   }, [libres]);
 
   const totalGeneral = stats.totalPaid + libresStats.totalLibres;
@@ -367,7 +385,7 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
         {activeTab === 'libres' && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="space-y-6">
             {loadingLibres ? (
-              <div className="text-center py-16 text-gray-400 font-semibold animate-pulse">Cargando pagos libres...</div>
+              <LoadingSkeleton type="table" text="Cargando pagos libres..." />
             ) : libres.length === 0 ? (
               <div className="text-center py-16 flex flex-col items-center bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
                 <div className="bg-blue-50 text-blue-300 w-20 h-20 rounded-full flex items-center justify-center mb-4"><CreditCard size={36} /></div>
@@ -378,9 +396,14 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
               <>
                 {/* Summary row */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-2xl border border-blue-100 dark:border-blue-800 flex flex-col">
+                  <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-2xl border border-blue-100 dark:border-blue-800 flex flex-col justify-center">
                     <span className="text-xs font-bold text-blue-500 uppercase tracking-wider mb-1">Total recaudado</span>
-                    <span className="text-3xl font-extrabold text-blue-700 dark:text-blue-300">${libresStats.totalLibres.toLocaleString()}</span>
+                    <span className="text-3xl font-extrabold text-blue-700 dark:text-blue-300 leading-none mb-1">${libresStats.totalLibres.toLocaleString()}</span>
+                    {libresStats.totalMonederoLibres > 0 && (
+                      <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-800/50 rounded flex items-center gap-1 w-fit px-1.5 py-0.5 border border-blue-200/50">
+                        Vía Monedero: ${libresStats.totalMonederoLibres.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    )}
                   </div>
                   <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800 flex flex-col">
                     <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Registros</span>

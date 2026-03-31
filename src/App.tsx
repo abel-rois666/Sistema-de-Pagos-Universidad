@@ -21,6 +21,7 @@ import UsuariosConfig from './components/UsuariosConfig';
 import ControlIngresos from './components/ControlIngresos';
 import { AppConfigSettings } from './components/AppConfigSettings';
 import DarkModeToggle from './components/DarkModeToggle';
+import LoadingSkeleton from './components/LoadingSkeleton';
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -209,6 +210,19 @@ export default function App() {
     } catch { /* silenciar */ }
   };
 
+  /** Recarga ligera: solo alumnos — para actualizar saldo_a_favor tras un cobro */
+  const refreshAlumnos = async () => {
+    try {
+      const { data, error } = await fetchAllSupabase(() => supabase.from('alumnos').select('*'));
+      if (!error && data) setAlumnos(data.length > 0 ? data as Alumno[] : []);
+    } catch { /* silenciar */ }
+  };
+
+  /** Refresco combinado: planes + alumnos (saldos monedero al día) */
+  const refreshAfterPayment = async () => {
+    await Promise.all([refreshPlans(), refreshAlumnos()]);
+  };
+
   const catalogos = buildCatalogos(catalogoItems);
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const filteredPlans = plans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
@@ -287,11 +301,7 @@ export default function App() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-xl font-bold text-blue-600 animate-pulse">Cargando datos...</div>
-      </div>
-    );
+    return <LoadingSkeleton type="full" text="Cargando sistema..." />;
   }
 
   if (!currentUser) {
@@ -864,6 +874,7 @@ export default function App() {
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
               onGoToPagos={(aId, cIdx) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, view: 'registrar', fromPlan: true } })}
               onViewReceipt={(folio) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio } })}
+              onBackToFicha={navState.fromFicha ? () => navigate('/ficha-alumno', { state: { alumnoId: selectedAlumnoId || navState.alumnoId, fromAlumnos: navState.fromAlumnos } }) : undefined}
             />
           </PageWrapper>
         } />
@@ -871,7 +882,8 @@ export default function App() {
           <PageWrapper keyStr="ficha_alumno">
             <FichaAlumno plans={filteredPlans} alumnos={alumnos} initialAlumnoId={selectedAlumnoId || navState.alumnoId}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
-              onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id } }); }}
+              onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
+              onBackToAlumnos={navState.fromAlumnos ? () => { setSelectedAlumnoId(null); navigate('/alumnos'); } : undefined}
             />
           </PageWrapper>
         } />
@@ -883,7 +895,7 @@ export default function App() {
             <AlumnosConfig currentUser={currentUser} alumnos={alumnos} ciclos={ciclos} activeCicloId={activeCicloId} activeCyclePlans={filteredPlans} globalMaxCounter={getMaxFolioCounter(plans)} catalogos={catalogos} plantillas={plantillas}
               onSave={setAlumnos}
               onCreatePlan={handleSavePlan}
-              onViewFicha={(id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id } }); }}
+              onViewFicha={(id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: true } }); }}
               onBack={() => navigate('/')}
             />
           </PageWrapper>
@@ -914,7 +926,7 @@ export default function App() {
               initialView={navState.view}
               initialSearchTerm={navState.searchTerm}
               currentUser={currentUser}
-              onPaymentSaved={refreshPlans}
+              onPaymentSaved={refreshAfterPayment}
               onCatalogoAdded={(item) => setCatalogoItems(prev => [...prev, item])}
             />
           </PageWrapper>

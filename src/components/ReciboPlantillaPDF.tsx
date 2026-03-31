@@ -129,14 +129,15 @@ const SingleReceipt = ({ recibo, detalles, alumno, copyName, logoUrl, licenciatu
 
         {/* ROW LAST: Total */}
         <div className="flex">
-          <div className="w-[50%] p-1 border-r border-black font-bold text-[9px] flex items-end justify-center pb-1">
-             FIRMA CAJERO
+          <div className={`w-[50%] p-1 border-r border-black font-bold text-[9px] flex items-end justify-center pb-1 ${Number(recibo.uso_saldo_a_favor) > 0 ? 'flex-col relative' : ''}`}>
+             {Number(recibo.uso_saldo_a_favor) > 0 && <div className="absolute top-1 left-0 w-full text-center text-[8px] italic opacity-80 leading-tight px-2">Total de servicio: ${Number(recibo.total).toFixed(2)}. Diferencia cubierta usando ${Number(recibo.uso_saldo_a_favor).toFixed(2)} de <strong>Saldo a Favor</strong>.</div>}
+             <span>FIRMA CAJERO</span>
           </div>
-          <div className="w-[15%] bg-gray-200 border-r border-black font-bold flex items-center justify-center text-[10px]">
-             TOTAL
+          <div className="w-[15%] bg-gray-200 border-r border-black font-bold flex items-center justify-center text-[9px] text-center uppercase px-1 leading-tight">
+             {Number(recibo.uso_saldo_a_favor) > 0 ? 'TOTAL REAL CAJA' : 'TOTAL'}
           </div>
           <div className="w-[15%] font-bold flex items-center justify-center text-[11px] border-r border-black bg-gray-50">
-             ${Number(recibo.total).toFixed(2)}
+             ${(Number(recibo.total) - Number(recibo.uso_saldo_a_favor || 0)).toFixed(2)}
           </div>
           <div className="w-[20%]"></div>
         </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download } from 'lucide-react';
 import { downloadElementAsPDF } from '../lib/printUtils';
 import ReciboPlantillaPDF from './ReciboPlantillaPDF';
+import LoadingSkeleton from './LoadingSkeleton';
 import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig } from '../types';
 import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAllSupabase } from '../lib/supabase';
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV } from '../utils';
@@ -14,9 +15,10 @@ interface Props {
   catalogos: Catalogos;
   appConfig?: AppConfig;
   initialSearchTerm?: string;
+  onDataRefresh?: () => void;
 }
 
-export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catalogos, appConfig, initialSearchTerm }: Props) {
+export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catalogos, appConfig, initialSearchTerm, onDataRefresh }: Props) {
   const [recibos, setRecibos] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
@@ -70,7 +72,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       // Actualizar la vista local del recibo seleccionado
       const firstIdx = vincularSeleccion[0].idx;
       const updatedDetails = reciboSeleccionado.recibos_detalles.map(d =>
-        d.id === vincularDetalle.id ? { ...d, indice_concepto_plan: firstIdx } : d
+        d.id === vincularDetalle.id ? { ...d, indice_concepto_plan: firstIdx, observaciones: 'Abono vinculado manualmente al plan' } : d
       );
       setReciboSeleccionado({ ...reciboSeleccionado, recibos_detalles: updatedDetails });
     }
@@ -82,7 +84,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
         r.nombre_alumno || '',
         r.folio?.toString() || '',
         r.fecha_recibo || '',
-        r.total?.toString() || '0',
+        (r.total - (r.uso_saldo_a_favor || 0)).toString() || '0',
         r.fecha_pago || '',
         r.estatus || ''
       ];
@@ -426,7 +428,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
 
         <div className="flex-1 overflow-y-auto p-2">
           {loading ? (
-            <div className="text-center p-4 text-gray-500 text-sm">Cargando recibos...</div>
+            <LoadingSkeleton type="list" text="Cargando recibos..." />
           ) : recibosFiltrados.length === 0 ? (
             <div className="text-center p-4 text-gray-500 text-sm">No se encontraron recibos.</div>
           ) : (
@@ -444,8 +446,14 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                 </div>
                 <div className="text-sm font-semibold text-gray-800 line-clamp-1">{r.nombre_alumno}</div>
                 <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                  <span>{r.fecha_recibo}</span>
-                  <span className="font-bold text-gray-700">${r.total.toFixed(2)}</span>
+                  <div className="flex flex-col items-end">
+                    {(r.uso_saldo_a_favor || 0) > 0 && (
+                      <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 mb-0.5">
+                        Monedero: -${r.uso_saldo_a_favor!.toFixed(2)}
+                      </span>
+                    )}
+                    <span className="font-bold text-gray-700">Caja: ${(r.total - (r.uso_saldo_a_favor || 0)).toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
             ))
@@ -607,12 +615,26 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             </div>
 
             {/* Total */}
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900/50 px-5 py-4 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Pagado</p>
-                <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">{(reciboSeleccionado.recibos_detalles || []).length} concepto(s)</p>
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900/50 px-5 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Valor Conceptos</p>
+                  <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">{(reciboSeleccionado.recibos_detalles || []).length} items</p>
+                </div>
+                <p className="text-xl font-bold text-gray-700 dark:text-gray-300">${reciboSeleccionado.total.toFixed(2)}</p>
               </div>
-              <p className="text-3xl font-black text-emerald-700 dark:text-emerald-400">${reciboSeleccionado.total.toFixed(2)}</p>
+
+              {(reciboSeleccionado.uso_saldo_a_favor || 0) > 0 && (
+                <div className="flex items-center justify-between py-2 border-t border-emerald-200/50 dark:border-emerald-800/50">
+                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Uso de Monedero</p>
+                  <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">-${reciboSeleccionado.uso_saldo_a_favor!.toFixed(2)}</p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-3 border-t-2 border-emerald-300 dark:border-emerald-700">
+                <p className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-widest">TOTAL PAGADO EN CAJA</p>
+                <p className="text-3xl font-black text-emerald-800 dark:text-emerald-300">${(reciboSeleccionado.total - (reciboSeleccionado.uso_saldo_a_favor || 0)).toFixed(2)}</p>
+              </div>
             </div>
           </div>
         ) : (
@@ -648,6 +670,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
           onImport={() => {
             setImportarVisible(false);
             cargarRecibos();
+            if (onDataRefresh) onDataRefresh();
           }}
           onClose={() => setImportarVisible(false)}
         />
@@ -687,7 +710,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     for (let i = 1; i <= 9; i++) {
                       const c = (plan as any)[`concepto_${i}`];
                       const e = (plan as any)[`estatus_${i}`];
-                      if (c && e === 'PENDIENTE') {
+                      if (c && !(e || '').toUpperCase().includes('PAGADO')) {
                         pendientes.push({ idx: i, concepto: c });
                       }
                     }

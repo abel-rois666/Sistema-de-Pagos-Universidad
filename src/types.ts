@@ -26,6 +26,7 @@ export interface Alumno {
   beca_tipo?: string;
   observaciones_pago_titulacion?: string | null;
   ciclo_ultima_asignacion_grado?: string | null;
+  saldo_a_favor?: number;
 }
 
 export interface PaymentPlan {
@@ -154,6 +155,7 @@ export interface Recibo {
   banco: string;
   estatus: 'ACTIVO' | 'CANCELADO';
   created_at?: string;
+  uso_saldo_a_favor?: number;
 
   // Campos unidos (opcionales para vistas/historial)
   nombre_alumno?: string;

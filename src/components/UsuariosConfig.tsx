@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Search, Trash2, Edit2, Loader2, Shield, Eye, EyeOff } 
 import { supabase } from '../lib/supabase';
 import type { Usuario } from '../types';
 import bcrypt from 'bcryptjs';
+import LoadingSkeleton from './LoadingSkeleton';
 
 interface UsuariosConfigProps {
   currentUser: Usuario;
@@ -213,10 +214,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
         {/* List */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-              <Loader2 size={32} className="animate-spin text-indigo-500 mb-4" />
-              <p>Cargando usuarios...</p>
-            </div>
+            <LoadingSkeleton type="list" text="Cargando usuarios..." />
           ) : filteredUsuarios.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
               <Shield size={48} className="mb-4 text-gray-300" />

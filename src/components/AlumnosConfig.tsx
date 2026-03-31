@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet } from 'lucide-react';
 import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } from '../types';
+import { MultiSelectFilter } from './MultiSelectFilter';
 import { supabase, toDBPlan } from '../lib/supabase';
 // Helper para generar folios con base en el ciclo y un consecutivo, ej: 261-1002
 const generateFolio = (cicloNombre: string, counter: number) => {
@@ -41,11 +42,28 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
   
   const isCoordinador = currentUser.rol === 'COORDINADOR';
   const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string }>({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterLicenciatura, setFilterLicenciatura] = useState('');
-  const [filterGrado, setFilterGrado] = useState('');
-  const [filterTurno, setFilterTurno] = useState('');
-  const [filterEstatus, setFilterEstatus] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('alumnos_searchTerm') || '');
+  const [filterLicenciaturas, setFilterLicenciaturas] = useState<string[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem('alumnos_fLicenciaturas') || '[]'); } catch { return []; }
+  });
+  const [filterGrados, setFilterGrados] = useState<string[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem('alumnos_fGrados') || '[]'); } catch { return []; }
+  });
+  const [filterTurnos, setFilterTurnos] = useState<string[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem('alumnos_fTurnos') || '[]'); } catch { return []; }
+  });
+  const [filterEstatusList, setFilterEstatusList] = useState<string[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem('alumnos_fEstatusList') || '[]'); } catch { return []; }
+  });
+
+  React.useEffect(() => {
+    sessionStorage.setItem('alumnos_searchTerm', searchTerm);
+    sessionStorage.setItem('alumnos_fLicenciaturas', JSON.stringify(filterLicenciaturas));
+    sessionStorage.setItem('alumnos_fGrados', JSON.stringify(filterGrados));
+    sessionStorage.setItem('alumnos_fTurnos', JSON.stringify(filterTurnos));
+    sessionStorage.setItem('alumnos_fEstatusList', JSON.stringify(filterEstatusList));
+  }, [searchTerm, filterLicenciaturas, filterGrados, filterTurnos, filterEstatusList]);
+  const hasActiveFilters = filterLicenciaturas.length > 0 || filterGrados.length > 0 || filterTurnos.length > 0 || filterEstatusList.length > 0;
   const [showFilters, setShowFilters] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -299,7 +317,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, sortField, sortDirection, itemsPerPage, filterLicenciatura, filterGrado, filterTurno, filterEstatus]);
+  }, [searchTerm, sortField, sortDirection, itemsPerPage, filterLicenciaturas, filterGrados, filterTurnos, filterEstatusList]);
 
   const licenciaturas = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.licenciatura).filter(Boolean))).sort(), [alumnos]);
   const grados = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.grado_actual).filter(Boolean))).sort(), [alumnos]);
@@ -310,10 +328,10 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     .filter(a => {
       const matchSearch = a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           a.licenciatura.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchLic = filterLicenciatura ? a.licenciatura === filterLicenciatura : true;
-      const matchGrado = filterGrado ? a.grado_actual === filterGrado : true;
-      const matchTurno = filterTurno ? a.turno === filterTurno : true;
-      const matchEstatus = filterEstatus ? a.estatus === filterEstatus : true;
+      const matchLic = filterLicenciaturas.length === 0 || filterLicenciaturas.includes(a.licenciatura);
+      const matchGrado = filterGrados.length === 0 || filterGrados.includes(a.grado_actual);
+      const matchTurno = filterTurnos.length === 0 || filterTurnos.includes(a.turno);
+      const matchEstatus = filterEstatusList.length === 0 || filterEstatusList.includes(a.estatus);
       return matchSearch && matchLic && matchGrado && matchTurno && matchEstatus;
     })
     .sort((a, b) => {
@@ -582,10 +600,10 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                 </div>
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors w-full sm:w-auto ${showFilters || filterLicenciatura || filterGrado || filterTurno || filterEstatus ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors w-full sm:w-auto ${showFilters || hasActiveFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
                 >
                   <Filter size={16} />
-                  Filtros {(filterLicenciatura || filterGrado || filterTurno || filterEstatus) && <span className="bg-indigo-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">!</span>}
+                  Filtros {hasActiveFilters && <span className="bg-indigo-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">!</span>}
                 </button>
               </div>
             )}
@@ -597,41 +615,40 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden border-b border-gray-100 bg-gray-50/50"
+                className="overflow-visible border-b border-gray-100 bg-gray-50/50 relative z-10"
               >
-                <div className="p-4 px-6 flex flex-wrap gap-4 items-end">
-                  <div className="flex-1 min-w-[180px]">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Licenciatura</label>
-                    <select value={filterLicenciatura} onChange={e => setFilterLicenciatura(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                      <option value="">Todas</option>
-                      {licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  </div>
-                  <div className="w-full sm:w-40">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Grado</label>
-                    <select value={filterGrado} onChange={e => setFilterGrado(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                      <option value="">Todos</option>
-                      {grados.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                  </div>
-                  <div className="w-full sm:w-40">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Turno</label>
-                    <select value={filterTurno} onChange={e => setFilterTurno(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                      <option value="">Todos</option>
-                      {turnos.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div className="w-full sm:w-40">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Estatus</label>
-                    <select value={filterEstatus} onChange={e => setFilterEstatus(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                      <option value="">Todos</option>
-                      {estatusList.map(e => <option key={e} value={e}>{e}</option>)}
-                    </select>
-                  </div>
-                  {(filterLicenciatura || filterGrado || filterTurno || filterEstatus) && (
+                <div className="p-4 px-6 flex flex-wrap gap-4 items-center">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-1">Filtrar por:</span>
+                  
+                  <MultiSelectFilter
+                    label="Licenciatura"
+                    options={licenciaturas}
+                    selected={filterLicenciaturas}
+                    onChange={setFilterLicenciaturas}
+                  />
+                  <MultiSelectFilter
+                    label="Grado"
+                    options={grados}
+                    selected={filterGrados}
+                    onChange={setFilterGrados}
+                  />
+                  <MultiSelectFilter
+                    label="Turno"
+                    options={turnos}
+                    selected={filterTurnos}
+                    onChange={setFilterTurnos}
+                  />
+                  <MultiSelectFilter
+                    label="Estatus"
+                    options={estatusList}
+                    selected={filterEstatusList}
+                    onChange={setFilterEstatusList}
+                  />
+
+                  {hasActiveFilters && (
                     <button
-                      onClick={() => { setFilterLicenciatura(''); setFilterGrado(''); setFilterTurno(''); setFilterEstatus(''); }}
-                      className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1"
+                      onClick={() => { setFilterLicenciaturas([]); setFilterGrados([]); setFilterTurnos([]); setFilterEstatusList([]); }}
+                      className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1 ml-auto"
                     >
                       <X size={16} /> Limpiar
                     </button>
@@ -678,13 +695,18 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                       {sortField === 'estatus' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
                     </div>
                   </th>
+                  <th className="py-3 px-4 font-semibold text-center text-emerald-700">
+                    <div className="flex items-center justify-center gap-1">
+                      <Wallet size={13} /> Monedero
+                    </div>
+                  </th>
                   <th className="py-3 px-6 font-semibold text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {editingId === 'new' && (
                   <tr className="bg-indigo-50/50">
-                    <td colSpan={7} className="p-4 border-b border-indigo-100">
+                    <td colSpan={8} className="p-4 border-b border-indigo-100">
                       <div className="bg-white rounded-xl shadow-sm border border-indigo-100 p-5">
                          <h4 className="font-bold text-indigo-800 border-b border-indigo-50 pb-2 mb-4">Datos del Alumno</h4>
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -815,7 +837,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                   <React.Fragment key={alumno.id}>
                     {editingId === alumno.id ? (
                       <tr className="bg-blue-50/40">
-                        <td colSpan={7} className="p-4 border-b border-blue-100">
+                        <td colSpan={8} className="p-4 border-b border-blue-100">
                           <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-5">
                              <h4 className="font-bold text-blue-800 border-b border-blue-50 pb-2 mb-4">Editar Alumno</h4>
                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -934,6 +956,17 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                         <td className="py-4 px-6 text-gray-600">{alumno.turno}</td>
                         <td className="py-4 px-6">
                            <span className={`px-2.5 py-1 rounded-md text-xs font-bold shadow-sm border ${alumno.estatus === 'BAJA' ? 'bg-red-50 text-red-600 border-red-100' : alumno.estatus?.includes('EGRESADO') ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>{alumno.estatus || 'ACTIVO'}</span>
+                        </td>
+                        {/* — Columna Monedero — */}
+                        <td className="py-4 px-4 text-center">
+                          {(alumno.saldo_a_favor ?? 0) > 0 ? (
+                            <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold px-2 py-1 rounded-lg shadow-sm whitespace-nowrap">
+                              <Wallet size={11} />
+                              ${Number(alumno.saldo_a_favor).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
                         </td>
                         <td className="py-4 px-6 text-right">
                           <div className="flex justify-end gap-2 items-center">

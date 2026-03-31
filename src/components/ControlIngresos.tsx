@@ -87,6 +87,7 @@ export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, c
               catalogos={catalogos}
               appConfig={appConfig}
               initialSearchTerm={initialSearchTerm}
+              onDataRefresh={onPaymentSaved}
             />
           )}
         </div>

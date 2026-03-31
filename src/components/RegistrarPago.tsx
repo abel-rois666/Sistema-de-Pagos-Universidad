@@ -39,6 +39,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
   const [fechaPago, setFechaPago] = useState<string>(new Date().toISOString().split('T')[0]);
   const [formaPago, setFormaPago] = useState<string>('Efectivo');
   const [banco, setBanco] = useState<string>('NO APLICA');
+  const [usarMonedero, setUsarMonedero] = useState(false);
   
   useEffect(() => {
     const alumno = alumnos.find(a => a.id === alumnoSeleccionado);
@@ -234,6 +235,10 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       return;
     }
     
+    const saldoDisponible = alumnoData?.saldo_a_favor || 0;
+    const montoMonederoAplicado = usarMonedero ? Math.min(saldoDisponible, totales) : 0;
+    const totalACobrar = totales - montoMonederoAplicado;
+
     // Validar filas
     const validas = filas.filter(f => f.concepto && Number(f.cantidad) > 0 && Number(f.costo_unitario) >= 0);
     if (validas.length === 0) {
@@ -251,9 +256,12 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       alumno_id: alumnoSeleccionado,
       ciclo_id: activeCiclo.id,
       total: totales,
-      forma_pago: formaPago,
-      banco: banco
+      uso_saldo_a_favor: montoMonederoAplicado,
+      forma_pago: totalACobrar === 0 ? 'NO APLICA' : formaPago,
+      banco: totalACobrar === 0 ? 'NO APLICA' : banco
     };
+
+    let excedenteGeneradoGlobal = 0;
 
     // Helper: extrae el monto restante del campo estatus
     // Soporta formatos: "R-101 (Abono $500.00, Resta $1000.00)" → 1000
@@ -288,14 +296,18 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
         // Total acumulado = lo que ya se había pagado antes + este abono
         const totalAcumulado = (cantidadOriginal - restanteAnterior) + abonoActual;
 
-        if (resta > 0.005) {
+        if (resta < -0.005) {
+          const excedenteAqui = Math.abs(resta);
+          excedenteGeneradoGlobal += excedenteAqui;
+          observacionesPorIndice[idx] = `Concepto liquidado ✓ (Excedente de $${excedenteAqui.toFixed(2)} depositado en Monedero)`;
+        } else if (resta > 0.005) {
           // Pago parcial: mostrar abono y restante
           observacionesPorIndice[idx] = `Abono $${abonoActual.toFixed(2)} — Restante: $${resta.toFixed(2)}`;
         } else if (totalAcumulado < cantidadOriginal - 0.005 || estatusPrevio.includes('Abono')) {
           // Último abono de una serie: indicar que se liquidó y mostrar total acumulado
           observacionesPorIndice[idx] = `Abono final — Concepto liquidado ✓ (Total pagado: $${totalAcumulado.toFixed(2)})`;
         }
-        // Si fue pago completo de una sola vez, sin abonos previos: sin observación
+        // Si fue pago completo de una sola vez, sin abonos previos y sin excedentes: sin observación
       }
     }
 
@@ -342,8 +354,9 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
 
           let nuevoEstatus = '';
           if (resta <= 0.005) {
-            // Pagado: mostrar el TOTAL acumulado de todos los abonos, no solo el último
-            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${totalAcumulado.toFixed(2)})`;
+            // Pagado: tope matemático en cantidadOriginal para no arruinar el plan con sobreprecios
+            const topePagado = Math.min(totalAcumulado, cantidadOriginal);
+            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${topePagado.toFixed(2)})`;
           } else {
             nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${totalAcumulado.toFixed(2)}, Resta $${resta.toFixed(2)})`;
           }
@@ -354,9 +367,10 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       }
     }
 
+    const deltaMonedero = excedenteGeneradoGlobal - montoMonederoAplicado;
+    const saldoAfavorUpdate = deltaMonedero !== 0 ? { alumnoId: alumnoSeleccionado, delta: deltaMonedero } : undefined;
 
-
-    const { error, folio } = await saveReciboCompleto(recibo, detalles, planUpdates);
+    const { error, folio } = await saveReciboCompleto(recibo, detalles, planUpdates, saldoAfavorUpdate);
 
     setGuardando(false);
     if (error) {
@@ -398,6 +412,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
     setAlumnoSeleccionado('');
     setFormaPago('Efectivo');
     setBanco('NO APLICA');
+    setUsarMonedero(false);
   };
 
   const handleImprimir = () => {
@@ -477,6 +492,11 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
               onFocus={() => setShowAlumnoSuggestions(true)}
               onBlur={() => setTimeout(() => setShowAlumnoSuggestions(false), 200)}
             />
+            {alumnoData && (alumnoData.saldo_a_favor || 0) > 0 && (
+              <div className="absolute top-2 right-2 bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded flex items-center gap-1 font-black shadow-sm border border-emerald-300 pointer-events-none">
+                💰 Monedero: ${(alumnoData.saldo_a_favor || 0).toFixed(2)}
+              </div>
+            )}
             {showAlumnoSuggestions && (
               <div className="absolute top-full left-0 w-full z-10 bg-white border border-gray-900 shadow-2xl max-h-60 overflow-y-auto">
                 {filteredAlumnos.map(a => (
@@ -667,10 +687,39 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
           </div>
 
           <div className="w-full md:w-1/2 flex flex-col md:order-2 order-1 border-b md:border-b-0 border-gray-900">
-            <div className="flex border-b border-gray-900">
-              <div className="w-1/2 p-2 bg-gray-200 font-bold flex items-center justify-center text-sm border-r border-gray-900 text-center">TOTAL</div>
-              <div className="w-1/2 p-2 flex items-center justify-end font-bold text-lg text-emerald-700">
+            <div className="flex border-b border-gray-900 bg-gray-50">
+              <div className="w-1/2 p-2 bg-gray-200 font-bold flex items-center justify-center text-sm border-r border-gray-900 text-center">SUBTOTAL</div>
+              <div className="w-1/2 p-2 flex items-center justify-end font-bold text-lg text-gray-800">
                  ${totales.toFixed(2)}
+              </div>
+            </div>
+
+            {alumnoData && (alumnoData.saldo_a_favor || 0) > 0 && (
+              <div className="flex border-b border-gray-900 bg-emerald-50/30">
+                <div 
+                  className="w-1/2 p-2 flex items-center justify-between border-r border-gray-900 cursor-pointer hover:bg-emerald-50 transition-colors px-4" 
+                  onClick={() => setUsarMonedero(!usarMonedero)}
+                >
+                  <div className="flex flex-col">
+                    <span className="text-xs font-black text-emerald-700 leading-tight tracking-wide">USAR MONEDERO</span>
+                    <span className="text-[10px] text-emerald-600/80 font-bold">Disp: ${(alumnoData.saldo_a_favor || 0).toFixed(2)}</span>
+                  </div>
+                  <div className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 shadow-inner ${usarMonedero ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 shadow-sm transition-all ${usarMonedero ? 'left-5' : 'left-0.5'}`} />
+                  </div>
+                </div>
+                <div className="w-1/2 p-2 flex items-center justify-end font-bold text-lg text-emerald-600">
+                   {usarMonedero ? `-$${Math.min(alumnoData.saldo_a_favor || 0, totales).toFixed(2)}` : '$0.00'}
+                </div>
+              </div>
+            )}
+
+            <div className="flex border-b border-gray-900 bg-emerald-50">
+              <div className="w-1/2 p-2 bg-emerald-200/50 font-black flex items-center justify-center text-sm border-r border-gray-900 text-center tracking-wide text-emerald-900">
+                TOTAL A PAGAR
+              </div>
+              <div className="w-1/2 p-2 flex items-center justify-end font-black text-xl text-emerald-700">
+                 ${(totales - (usarMonedero ? Math.min(alumnoData?.saldo_a_favor || 0, totales) : 0)).toFixed(2)}
               </div>
             </div>
 
@@ -680,7 +729,8 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                    <select 
                       value={formaPago} 
                       onChange={(e) => setFormaPago(e.target.value)}
-                      className="w-full text-xs font-semibold bg-gray-50 p-1 outline-none border border-gray-300 rounded"
+                      className="w-full text-xs font-semibold bg-gray-50 p-1 outline-none border border-gray-300 rounded disabled:opacity-50"
+                      disabled={(totales - (usarMonedero ? Math.min(alumnoData?.saldo_a_favor || 0, totales) : 0)) === 0}
                     >
                      {FORMAS_PAGO.map(fp => <option key={fp} value={fp}>{fp}</option>)}
                    </select>
@@ -693,8 +743,8 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                    <select 
                       value={banco} 
                       onChange={(e) => setBanco(e.target.value)}
-                      className="w-full text-xs font-semibold bg-gray-50 p-1 outline-none border border-gray-300 rounded"
-                      disabled={formaPago === 'Efectivo'}
+                      className="w-full text-xs font-semibold bg-gray-50 p-1 outline-none border border-gray-300 rounded disabled:opacity-50"
+                      disabled={formaPago === 'Efectivo' || (totales - (usarMonedero ? Math.min(alumnoData?.saldo_a_favor || 0, totales) : 0)) === 0}
                     >
                      {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
                    </select>
