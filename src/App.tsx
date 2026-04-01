@@ -872,15 +872,17 @@ export default function App() {
             <PlanPagos currentUser={currentUser} plans={filteredPlans} alumnos={alumnos} activeCiclo={activeCiclo} catalogos={catalogos} plantillas={plantillas} initialAlumnoId={selectedAlumnoId || navState.alumnoId}
               onSavePlan={handleSavePlan}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
-              onGoToPagos={(aId, cIdx) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, view: 'registrar', fromPlan: true } })}
-              onViewReceipt={(folio) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio } })}
-              onBackToFicha={navState.fromFicha ? () => navigate('/ficha-alumno', { state: { alumnoId: selectedAlumnoId || navState.alumnoId, fromAlumnos: navState.fromAlumnos } }) : undefined}
+              onGoToPagos={(aId, cIdx) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
+              onViewReceipt={(folio) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: selectedAlumnoId || navState.alumnoId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
+              onBackToFicha={navState.fromFicha ? (id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: navState.fromAlumnos } }); } : undefined}
             />
           </PageWrapper>
         } />
         <Route path="/ficha-alumno" element={
           <PageWrapper keyStr="ficha_alumno">
             <FichaAlumno plans={filteredPlans} alumnos={alumnos} initialAlumnoId={selectedAlumnoId || navState.alumnoId}
+              currentUser={currentUser}
+              onRefreshAlumnos={refreshAfterPayment}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
               onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
               onBackToAlumnos={navState.fromAlumnos ? () => { setSelectedAlumnoId(null); navigate('/alumnos'); } : undefined}
@@ -919,7 +921,7 @@ export default function App() {
               appConfig={appConfig || undefined}
               onBack={() => navigate('/')}
               onBackToPlan={navState.fromPlan && navState.alumnoId
-                ? () => navigate('/plan-pagos', { state: { alumnoId: navState.alumnoId } })
+                ? () => navigate('/plan-pagos', { state: { alumnoId: navState.alumnoId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })
                 : undefined}
               initialAlumnoId={navState.alumnoId}
               initialConceptIndex={navState.conceptoIdx}

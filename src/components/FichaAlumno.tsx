@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Search, User, FileText, Wallet } from 'lucide-react';
-import { PaymentPlan, Alumno } from '../types';
+import { ArrowLeft, Search, User, FileText, Wallet, Edit2, Loader2 } from 'lucide-react';
+import type { PaymentPlan, Alumno, Usuario } from '../types';
 import { calculateStudentTotals, isPaid, formatDate } from '../utils';
+import { supabase } from '../lib/supabase';
 
 interface FichaAlumnoProps {
   plans: PaymentPlan[];
   alumnos?: Alumno[];
   initialAlumnoId?: string | null;
+  currentUser?: Usuario | null;
+  onRefreshAlumnos?: () => void;
   onBack: () => void;
   onGoToPlan?: (id: string) => void;
   onBackToAlumnos?: () => void;
 }
 
-export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBack, onGoToPlan, onBackToAlumnos }: FichaAlumnoProps) {
+export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, currentUser, onRefreshAlumnos, onBack, onGoToPlan, onBackToAlumnos }: FichaAlumnoProps) {
   const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(initialAlumnoId || null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -35,6 +38,39 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
 
   const selectedAlumno = alumnos.find(a => a.id === selectedAlumnoId);
   const activePlan = selectedAlumno ? plans.find(p => p.alumno_id === selectedAlumno.id || p.nombre_alumno === selectedAlumno.nombre_completo) : null;
+
+  // ── Admin: Monedero Edition State ──
+  const [editingMonedero, setEditingMonedero] = useState(false);
+  const [tempMonedero, setTempMonedero] = useState('');
+  const [guardandoMonedero, setGuardandoMonedero] = useState(false);
+  const [showConfirmMonedero, setShowConfirmMonedero] = useState(false);
+
+  const handleUpdateMonederoClick = () => {
+    const newMonedero = parseFloat(tempMonedero);
+    if (isNaN(newMonedero) || newMonedero < 0) {
+      alert("Introduce una cantidad válida y mayor o igual a cero.");
+      return;
+    }
+    setShowConfirmMonedero(true);
+  };
+
+  const executeUpdateMonedero = async () => {
+    if(!selectedAlumno) return;
+    const newMonedero = parseFloat(tempMonedero);
+    
+    setGuardandoMonedero(true);
+    const { error } = await supabase.from('alumnos').update({ saldo_a_favor: newMonedero }).eq('id', selectedAlumno.id);
+    setGuardandoMonedero(false);
+
+    if (error) {
+       alert("Error al actualizar monedero: " + error.message);
+       setShowConfirmMonedero(false);
+    } else {
+       if (onRefreshAlumnos) onRefreshAlumnos();
+       setEditingMonedero(false);
+       setShowConfirmMonedero(false);
+    }
+  };
 
   // ── Barra de búsqueda (JSX inline, NO sub-componente para no perder foco) ──
   const searchBarJSX = (
@@ -219,12 +255,23 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
                         Plan #{activePlan.no_plan_pagos}
                       </span>
                     )}
-                    {/* — Badge Monedero: solo aparece si tiene saldo a favor — */}
-                    {(selectedAlumno.saldo_a_favor ?? 0) > 0 && (
-                      <span className="inline-flex items-center gap-1.5 bg-emerald-900/70 border border-emerald-500/70 text-emerald-200 text-xs px-2.5 py-1 rounded-lg font-bold shadow-lg shadow-emerald-900/40 animate-pulse-once">
-                        <Wallet size={11} />
-                        Monedero: ${(selectedAlumno.saldo_a_favor ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
-                      </span>
+                    {/* — Badge Monedero — */}
+                    {((selectedAlumno.saldo_a_favor ?? 0) > 0 || currentUser?.rol === 'ADMINISTRADOR') && (
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-flex items-center gap-1.5 border text-xs px-2.5 py-1 rounded-lg font-bold shadow-lg ${
+                          (selectedAlumno.saldo_a_favor ?? 0) > 0
+                            ? 'bg-emerald-900/70 border-emerald-500/70 text-emerald-200 shadow-emerald-900/40 animate-pulse-once'
+                            : 'bg-white/5 border-white/20 text-white/50 backdrop-blur-sm'
+                        }`}>
+                          <Wallet size={11} />
+                          Monedero: ${(selectedAlumno.saldo_a_favor ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
+                        </span>
+                        {currentUser?.rol === 'ADMINISTRADOR' && (
+                          <button onClick={() => { setTempMonedero((selectedAlumno.saldo_a_favor || 0).toString()); setEditingMonedero(true); }} className="p-1 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/20 rounded-lg backdrop-blur-sm border border-white/10" title="Ajustar Monedero (Admin)">
+                            <Edit2 size={13} />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -338,6 +385,65 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, onBa
           </div>
         </div>
       </div>
+
+      {editingMonedero && selectedAlumno && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3 mb-4 text-emerald-600 dark:text-emerald-400">
+              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl">
+                <Wallet size={24} />
+              </div>
+              <h3 className="font-bold text-lg text-gray-800 dark:text-white">Ajustar Monedero</h3>
+            </div>
+            
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Ajusta el saldo a favor de <strong className="text-gray-700 dark:text-gray-300">{selectedAlumno.nombre_completo}</strong> de forma silenciosa. Esta acción administrativa no genera recibo.
+            </p>
+            
+            <div className="mb-2 relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span className="text-gray-500 font-bold">$</span>
+              </div>
+              <input 
+                type="number" 
+                className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-800 dark:text-white transition-shadow"
+                value={tempMonedero}
+                onChange={e => setTempMonedero(e.target.value)}
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                disabled={showConfirmMonedero}
+              />
+            </div>
+            
+            {!showConfirmMonedero ? (
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button disabled={guardandoMonedero} onClick={() => setEditingMonedero(false)} className="px-4 py-2 font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={handleUpdateMonederoClick} className="flex items-center gap-2 px-5 py-2 font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-lg shadow-emerald-600/20 transition-colors">
+                  Guardar Ajuste
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl animate-in fade-in slide-in-from-bottom-2">
+                <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200 mb-2 flex items-center gap-2">
+                  <span>⚠️</span> Confirmar Ajuste
+                </p>
+                <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80 mb-4 leading-relaxed">
+                  ¿Estás seguro de establecer el monedero en <strong>${parseFloat(tempMonedero).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>? Esta acción actualizará la BD sin generar notas contables automáticas.
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setShowConfirmMonedero(false)} className="px-3 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-lg transition-colors">Verificar</button>
+                  <button onClick={executeUpdateMonedero} disabled={guardandoMonedero} className="flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm disabled:opacity-50 transition-all active:scale-95">
+                    {guardandoMonedero ? <Loader2 size={14} className="animate-spin" /> : 'Sí, confirmar'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

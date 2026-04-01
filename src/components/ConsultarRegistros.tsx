@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download } from 'lucide-react';
+import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle } from 'lucide-react';
 import { downloadElementAsPDF } from '../lib/printUtils';
 import ReciboPlantillaPDF from './ReciboPlantillaPDF';
 import LoadingSkeleton from './LoadingSkeleton';
-import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig } from '../types';
+import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig, Usuario } from '../types';
 import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAllSupabase } from '../lib/supabase';
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV } from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
@@ -16,9 +16,10 @@ interface Props {
   appConfig?: AppConfig;
   initialSearchTerm?: string;
   onDataRefresh?: () => void;
+  currentUser?: Usuario;
 }
 
-export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catalogos, appConfig, initialSearchTerm, onDataRefresh }: Props) {
+export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catalogos, appConfig, initialSearchTerm, onDataRefresh, currentUser }: Props) {
   const [recibos, setRecibos] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
@@ -33,6 +34,45 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   const [planesAlumno, setPlanesAlumno] = useState<PaymentPlan[]>([]);
   const [linking, setLinking] = useState(false);
   const [vincularSeleccion, setVincularSeleccion] = useState<{ planId: string; idx: number }[]>([]);
+
+  // -- Edición de Observaciones --
+  const [editandoObsId, setEditandoObsId] = useState<string | null>(null);
+  const [tempObsText, setTempObsText] = useState<string>('');
+  const [guardandoObs, setGuardandoObs] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({ isOpen: false, title: '', message: '' });
+
+  const handleUpdateObs = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirmar Ajuste a Nota',
+      message: '¿Estás seguro de que deseas sobrescribir la nota aclaratoria original de este concepto? Esta acción actualizará los registros permanentemente.',
+      onConfirm: async () => {
+         setGuardandoObs(true);
+         const textToSave = tempObsText.trim();
+         const { error } = await supabase.from('recibos_detalles').update({ observaciones: textToSave }).eq('id', id);
+         if (!error) {
+            setReciboSeleccionado(prev => {
+              if(!prev) return prev;
+              return {
+                ...prev,
+                recibos_detalles: prev.recibos_detalles.map(d => d.id === id ? { ...d, observaciones: textToSave } : d)
+              };
+            });
+            if(onDataRefresh) onDataRefresh();
+         } else {
+            alert('Error guardando nota: ' + error.message);
+         }
+         setGuardandoObs(false);
+         setEditandoObsId(null);
+         setConfirmModal({ ...confirmModal, isOpen: false });
+      }
+    });
+  };
 
   useEffect(() => {
     if (vincularDetalle && reciboSeleccionado) {
@@ -590,10 +630,31 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{d.concepto}</p>
-                      {d.observaciones && (
-                        <span className="text-[10px] italic font-semibold text-orange-600 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-full px-2 py-0.5 mt-0.5 inline-block">
-                          ⚠ {d.observaciones}
-                        </span>
+                      {d.observaciones && editandoObsId !== d.id && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[10px] italic font-semibold text-orange-600 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-full px-2 py-0.5 inline-block">
+                            ⚠ {d.observaciones}
+                          </span>
+                          {currentUser?.rol === 'ADMINISTRADOR' && (
+                            <button onClick={() => { setEditandoObsId(d.id); setTempObsText(d.observaciones || ''); }} className="text-gray-400 hover:text-blue-600 transition-colors p-1" title="Editar Nota">✎</button>
+                          )}
+                        </div>
+                      )}
+                      {!d.observaciones && editandoObsId !== d.id && currentUser?.rol === 'ADMINISTRADOR' && (
+                        <button onClick={() => { setEditandoObsId(d.id); setTempObsText(''); }} className="mt-1 text-[10px] text-gray-400 hover:text-blue-600 underline">
+                          + Agregar nota a concepto
+                        </button>
+                      )}
+                      {editandoObsId === d.id && (
+                        <div className="mt-1 flex items-center gap-2 bg-blue-50/50 p-1.5 rounded border border-blue-200 shadow-inner">
+                          <input type="text" className="text-xs w-full p-1.5 border border-blue-200 rounded outline-none focus:ring-1 focus:ring-blue-400 bg-white" autoFocus value={tempObsText} onChange={e => setTempObsText(e.target.value)} placeholder="Ej: Pago ajustado manual..." />
+                          <button disabled={guardandoObs} onClick={() => handleUpdateObs(d.id)} className="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded font-bold hover:bg-blue-700 ml-auto transition-colors shadow-sm">
+                            Guardar
+                          </button>
+                          <button disabled={guardandoObs} onClick={() => setEditandoObsId(null)} className="text-[10px] bg-gray-200 text-gray-700 px-3 py-1.5 rounded font-bold hover:bg-gray-300 transition-colors">
+                            Cancelar
+                          </button>
+                        </div>
                       )}
                       {d.indice_concepto_plan ? (
                         <span className="mt-0.5 inline-block text-[10px] text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full font-semibold border border-blue-200 dark:border-blue-800">
@@ -776,6 +837,40 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
           </div>
         </div>
       )}
+
+      {/* Modal Confirmación Custom */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-200/50 dark:border-gray-800 animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
+                <AlertCircle size={24} />
+              </div>
+              <h3 className="text-lg font-black text-gray-900 dark:text-white mb-2">{confirmModal.title}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+                {confirmModal.message}
+              </p>
+              <div className="flex items-center justify-end gap-3 font-semibold">
+                <button 
+                  onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })} 
+                  className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl transition-colors"
+                >
+                  Regresar
+                </button>
+                <button 
+                  onClick={() => {
+                    if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  }} 
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+                >
+                  Sí, actualizar nota
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

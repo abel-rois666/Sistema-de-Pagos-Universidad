@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User } from 'lucide-react';
+import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid } from '../utils';
 import { supabase } from '../lib/supabase';
@@ -18,7 +18,7 @@ interface PlanPagosProps {
   onSavePlan: (plan: PaymentPlan) => void;
   onGoToPagos?: (alumnoId: string, conceptoIdx: number) => void;
   onViewReceipt?: (folio: string) => void;
-  onBackToFicha?: () => void;
+  onBackToFicha?: (alumnoId: string) => void;
 }
 
 export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], initialAlumnoId, onBack, onSavePlan, onGoToPagos, onViewReceipt, onBackToFicha }: PlanPagosProps) {
@@ -449,6 +449,27 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
     };
   };
 
+  // ── Navegación Alfabética ──
+  const sortedActivePlans = React.useMemo(() => {
+    return [...plans].sort((a, b) => {
+      const nameA = getAlumnoName(a).toLowerCase();
+      const nameB = getAlumnoName(b).toLowerCase();
+      return nameA.localeCompare(nameB, 'es');
+    });
+  }, [plans, alumnos]);
+
+  const currentPlanIndex = sortedActivePlans.findIndex(p => p.id === selectedPlanId);
+  const safeCurrentIndex = currentPlanIndex >= 0 ? currentPlanIndex : 0;
+  
+  const prevPlan = safeCurrentIndex > 0 ? sortedActivePlans[safeCurrentIndex - 1] : null;
+  const nextPlan = safeCurrentIndex < sortedActivePlans.length - 1 ? sortedActivePlans[safeCurrentIndex + 1] : null;
+
+  const jumpToPlan = (plan: PaymentPlan) => {
+    setSelectedPlanId(plan.id);
+    setSearchTerm(getAlumnoName(plan));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const filteredPlans = plans.filter(p =>
     getAlumnoName(p).toLowerCase().includes((searchTerm || '').toLowerCase())
   );
@@ -705,7 +726,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               <>
                 <div className="hidden sm:block w-px h-5 bg-gray-300"></div>
                 <button
-                  onClick={onBackToFicha}
+                  onClick={() => onBackToFicha(selectedPlan.alumno_id!)}
                   className="flex items-center gap-2 text-indigo-700 hover:text-indigo-900 font-bold transition-colors shrink-0"
                 >
                   <User size={16} /> <span className="text-sm">Regresar a Ficha</span>
@@ -740,8 +761,30 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
           </div>
         </div>
 
-        {/* Row 2: Search Bar */}
-        <div className="relative z-20 w-full xl:max-w-md mx-auto xl:mx-0">
+        {/* Row 2: Navegación Móvil y Búsqueda */}
+        <div className="relative z-20 w-full xl:max-w-md mx-auto xl:mx-0 flex flex-col gap-3">
+          
+          {/* Navegación Móvil/Tablet */}
+          <div className="flex xl:hidden justify-between items-center gap-2 w-full mt-2">
+            <button
+              onClick={() => prevPlan && jumpToPlan(prevPlan)}
+              disabled={!prevPlan}
+              className="flex items-center justify-center py-2 px-3 bg-white dark:bg-gray-800 hover:bg-gray-50 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm disabled:opacity-40 transition-colors w-full gap-1 active:scale-95"
+            >
+              <ChevronLeft size={16} /> <span className="text-sm font-semibold truncate max-w-[90px]">{prevPlan ? getAlumnoName(prevPlan).split(' ')[0] : 'Inicio'}</span>
+            </button>
+            <span className="text-xs font-bold text-gray-400 min-w-fit px-2 whitespace-nowrap">
+               {safeCurrentIndex + 1} de {sortedActivePlans.length}
+            </span>
+            <button
+              onClick={() => nextPlan && jumpToPlan(nextPlan)}
+              disabled={!nextPlan}
+              className="flex items-center justify-center py-2 px-3 bg-white dark:bg-gray-800 hover:bg-gray-50 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm disabled:opacity-40 transition-colors w-full gap-1 active:scale-95"
+            >
+              <span className="text-sm font-semibold truncate max-w-[90px]">{nextPlan ? getAlumnoName(nextPlan).split(' ')[0] : 'Fin'}</span> <ChevronRight size={16} />
+            </button>
+          </div>
+
           <div className="bg-white border border-gray-400 p-2.5 rounded-lg flex items-center shadow-sm w-full transition-shadow focus-within:ring-2 focus-within:ring-indigo-500/50">
             <Search size={18} className="text-gray-400 mr-2 shrink-0" />
             <input
@@ -787,7 +830,30 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         </div>
       </div>
 
-      <div className="w-full max-w-[816px] overflow-x-auto mx-auto pb-4 custom-scrollbar">
+      {/* --- Navegación Flotante Desktop --- */}
+      <div className="hidden xl:block fixed top-1/2 left-4 w-16 h-16 xl:left-8 -translate-y-1/2 z-40 print:hidden">
+        <button
+          onClick={() => prevPlan && jumpToPlan(prevPlan)}
+          disabled={!prevPlan}
+          title={prevPlan ? `Anterior: ${getAlumnoName(prevPlan)}` : 'Primer plan'}
+          className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-2xl shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
+        >
+          <ChevronLeft size={36} className="group-hover:-translate-x-1 transition-transform" />
+        </button>
+      </div>
+
+      <div className="hidden xl:block fixed top-1/2 right-4 w-16 h-16 xl:right-8 -translate-y-1/2 z-40 print:hidden">
+        <button
+          onClick={() => nextPlan && jumpToPlan(nextPlan)}
+          disabled={!nextPlan}
+          title={nextPlan ? `Siguiente: ${getAlumnoName(nextPlan)}` : 'Último plan'}
+          className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-2xl shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
+        >
+          <ChevronRight size={36} className="group-hover:translate-x-1 transition-transform" />
+        </button>
+      </div>
+
+      <div className="w-full max-w-[816px] overflow-x-auto mx-auto pb-4 custom-scrollbar relative z-10">
         <div
           ref={printRef}
           className="bg-white text-black shadow-none sm:shadow-xl sm:rounded-lg w-full min-w-[650px] mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0 print:min-w-0"
