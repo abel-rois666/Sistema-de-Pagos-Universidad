@@ -207,3 +207,50 @@ export async function downloadElementAsPDF(
     document.body.removeChild(container);
   }
 }
+
+/**
+ * Genera un PDF a partir de un elemento HTML y lo retorna como Blob (útil para ZIPs masivos).
+ */
+export async function generatePDFBlob(
+  sourceElement: HTMLElement
+): Promise<Blob> {
+  const { toPng } = await import('html-to-image');
+  const { default: jsPDF } = await import('jspdf');
+
+  const clone = sourceElement.cloneNode(true) as HTMLElement;
+  inlineComputedStyles(sourceElement, clone);
+
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:816px;background:white;z-index:-1;';
+  container.appendChild(clone);
+  document.body.appendChild(container);
+
+  await convertImagesToDataURL(clone);
+  await new Promise(r => setTimeout(r, 250));
+
+  try {
+    const dataUrl = await toPng(clone, {
+      quality: 1,
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      imagePlaceholder: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAABl0RVh0U29mdHdhcmUAcGFpbnQubmV0IDQuMC4xMkMEa+wAAAANSURBVBhXY2BgYPgPAAEEAQBWpOvLAAAAAElFTkSuQmCC',
+    });
+
+    const img = new Image();
+    img.src = dataUrl;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Error al cargar imagen generada'));
+    });
+
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'px',
+      format: [img.width / 2, img.height / 2],
+    });
+    pdf.addImage(dataUrl, 'PNG', 0, 0, img.width / 2, img.height / 2);
+    return pdf.output('blob');
+  } finally {
+    document.body.removeChild(container);
+  }
+}

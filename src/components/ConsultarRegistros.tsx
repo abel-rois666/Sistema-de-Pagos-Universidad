@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle } from 'lucide-react';
-import { downloadElementAsPDF } from '../lib/printUtils';
+import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, Check } from 'lucide-react';
+import { downloadElementAsPDF, generatePDFBlob } from '../lib/printUtils';
+import JSZip from 'jszip';
 import ReciboPlantillaPDF from './ReciboPlantillaPDF';
 import LoadingSkeleton from './LoadingSkeleton';
 import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig, Usuario } from '../types';
@@ -25,9 +26,123 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
   const [reciboSeleccionado, setReciboSeleccionado] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] }) | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const exportRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [importarVisible, setImportarVisible] = useState(false);
   const [repairProgress, setRepairProgress] = useState('');
+  
+  // -- Filtros Avanzados y Selección Masiva --
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterMetodoPago, setFilterMetodoPago] = useState('');
+  const [filterStartFolio, setFilterStartFolio] = useState('');
+  const [filterEndFolio, setFilterEndFolio] = useState('');
+  
+  const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
+  const [massStatus, setMassStatus] = useState<{ msg: string, isOpen: boolean, results: any[] }>({ msg: '', isOpen: false, results: [] });
+  const [isProcessingMass, setIsProcessingMass] = useState(false);
+
+  const toggleSelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newSet = new Set(selectedReceiptIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedReceiptIds(newSet);
+  };
+
+  const handleSelectAllFilters = (ids: string[]) => {
+    if (selectedReceiptIds.size === ids.length && ids.length > 0) {
+      setSelectedReceiptIds(new Set());
+    } else {
+      setSelectedReceiptIds(new Set(ids));
+    }
+  };
+
+  const executeMassCancel = async () => {
+    if (selectedReceiptIds.size === 0) return;
+    if (!window.confirm(`¿Estás seguro de cancelar ${selectedReceiptIds.size} recibos seleccionados de forma permanente?`)) return;
+    
+    setIsProcessingMass(true);
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const id of Array.from(selectedReceiptIds)) {
+       const folio = recibos.find(r => r.id === id)?.folio || id;
+       setMassStatus({ isOpen: true, msg: `Cancelando recibo #${folio}...`, results });
+       const err = await cancelarRecibo(id);
+       if (!err) {
+         successCount++;
+         results.push({ folio, status: 'Éxito', note: 'Cancelado correctamente' });
+       } else {
+         errorCount++;
+         results.push({ folio, status: 'Error', note: err ? String(err) : 'Error desconocido' });
+       }
+    }
+
+    cargarRecibos();
+    setSelectedReceiptIds(new Set());
+    setMassStatus({ 
+       isOpen: true, 
+       msg: `Proceso completado. Éxitos: ${successCount}, Errores: ${errorCount}.`, 
+       results 
+    });
+    setIsProcessingMass(false);
+  };
+
+  const executeMassExportZIP = async () => {
+    const listToExport = selectedReceiptIds.size > 0 
+      ? recibosFiltrados.filter(r => selectedReceiptIds.has(r.id))
+      : recibosFiltrados;
+      
+    if (listToExport.length === 0) return;
+    if (listToExport.length > 100) {
+      alert(`Actualmente solo se pueden exportar un máximo de 100 recibos por lote. Has intentado exportar ${listToExport.length}. Por favor, utiliza los filtros o selecciona manualmente una porción más pequeña.`);
+      return;
+    }
+
+    setIsProcessingMass(true);
+    const zip = new JSZip();
+    let currentCount = 0;
+
+    for (const r of listToExport) {
+       currentCount++;
+       setMassStatus({ isOpen: true, msg: `Generando PDF ${currentCount} de ${listToExport.length} (Recibo #${r.folio})...`, results: [] });
+       
+       const el = exportRefs.current[r.id];
+       if (el) {
+          try {
+             const blob = await generatePDFBlob(el);
+             const safeName = r.nombre_alumno.replace(/[^a-zA-Z0-9]/g, '_');
+             zip.file(`Recibo_${r.folio}_${safeName}.pdf`, blob);
+          } catch (err) {
+             console.error(`Error generando PDF para #${r.folio}`, err);
+          }
+       } else {
+         console.warn(`Referencia de PDF no encontrada para recibo ${r.folio}`);
+       }
+    }
+
+    setMassStatus({ isOpen: true, msg: `Comprimiendo archivo ZIP...`, results: [] });
+    try {
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Exportacion_Recibos_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      console.error(e);
+      alert("Error al comprimir el archivo ZIP.");
+    }
+
+    setMassStatus({ isOpen: false, msg: '', results: [] });
+    setIsProcessingMass(false);
+  };
   
   // Vincular Modal State
   const [vincularDetalle, setVincularDetalle] = useState<ReciboDetalle | null>(null);
@@ -65,7 +180,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             });
             if(onDataRefresh) onDataRefresh();
          } else {
-            alert('Error guardando nota: ' + error.message);
+            alert('Error guardando nota: ' + (error as any).message);
          }
          setGuardandoObs(false);
          setEditandoObsId(null);
@@ -396,11 +511,45 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
     }
   };
 
-  const recibosFiltrados = recibos.filter(r => 
-    r.folio?.toString().includes(searchTerm) ||
-    r.nombre_alumno?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.fecha_recibo.includes(searchTerm)
-  );
+  const parseDateToMs = (dStr: string) => {
+    if (!dStr) return 0;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return new Date(dStr + "T00:00:00").getTime() || 0;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
+        const [d, m, y] = dStr.split('/');
+        return new Date(Number(y), Number(m)-1, Number(d)).getTime() || 0;
+    }
+    return new Date(dStr).getTime() || 0;
+  };
+
+  const recibosFiltrados = recibos.filter(r => {
+    const matchesSearch = 
+      r.folio?.toString().includes(searchTerm) ||
+      r.nombre_alumno?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.fecha_recibo.includes(searchTerm);
+      
+    if (!matchesSearch) return false;
+
+    if (filterStartDate || filterEndDate) {
+       const rTime = parseDateToMs(r.fecha_recibo);
+       if (filterStartDate && rTime < parseDateToMs(filterStartDate)) return false;
+       if (filterEndDate && rTime > parseDateToMs(filterEndDate)) return false;
+    }
+    
+    if (filterMetodoPago && r.forma_pago !== filterMetodoPago) return false;
+    
+    const fv = Number(r.folio);
+    if (filterStartFolio && fv < Number(filterStartFolio)) return false;
+    if (filterEndFolio && fv > Number(filterEndFolio)) return false;
+
+    return true;
+  });
+
+  const exportTargetList = React.useMemo(() => {
+     if (selectedReceiptIds.size > 0) {
+        return recibosFiltrados.filter(r => selectedReceiptIds.has(r.id));
+     }
+     return recibosFiltrados.slice(0, 100);
+  }, [selectedReceiptIds, recibosFiltrados]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -423,13 +572,17 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-bold text-gray-700 text-sm shrink-0">Historial</h2>
             <div className="flex gap-1.5 items-center shrink-0">
+              <button onClick={() => setShowFilters(!showFilters)} className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1.5 ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} title="Filtros Avanzados">
+                <Filter size={14} className="shrink-0" />
+                <span className="hidden md:inline">Filtros</span>
+              </button>
               <button
                 onClick={() => setImportarVisible(true)}
                 className="flex items-center gap-1.5 text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg transition-colors border border-blue-200 text-xs font-bold"
                 title="Importar desde CSV"
               >
                 <Upload size={14} className="shrink-0" />
-                <span className="hidden md:inline">Importar</span>
+                <span className="hidden xl:inline">Importar</span>
               </button>
               <button
                 onClick={handleExportCSV}
@@ -458,12 +611,91 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
             <input
               type="text"
-              placeholder="Buscar..."
+              placeholder="Buscar por folio, nombre o fecha..."
               className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          
+          {showFilters && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm flex flex-col gap-2">
+              <div className="flex gap-2">
+                 <div className="flex-1">
+                   <label className="text-xs font-bold text-gray-500 block mb-0.5">Fecha Inicio</label>
+                   <input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none" />
+                 </div>
+                 <div className="flex-1">
+                   <label className="text-xs font-bold text-gray-500 block mb-0.5">Fecha Fin</label>
+                   <input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none" />
+                 </div>
+              </div>
+              <div className="flex gap-2">
+                 <div className="flex-1">
+                   <label className="text-xs font-bold text-gray-500 block mb-0.5">Folio Inicio</label>
+                   <input type="number" value={filterStartFolio} onChange={e => setFilterStartFolio(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none" min="1" />
+                 </div>
+                 <div className="flex-1">
+                   <label className="text-xs font-bold text-gray-500 block mb-0.5">Folio Fin</label>
+                   <input type="number" value={filterEndFolio} onChange={e => setFilterEndFolio(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none" min="1" />
+                 </div>
+              </div>
+              <div>
+                 <label className="text-xs font-bold text-gray-500 block mb-0.5">Forma de Pago</label>
+                 <select value={filterMetodoPago} onChange={e => setFilterMetodoPago(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white">
+                   <option value="">Cualquiera</option>
+                   <option value="Depósito Bancario">Depósito Bancario</option>
+                   <option value="Transferencia bancaria">Transferencia bancaria</option>
+                   <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                   <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                   <option value="Efectivo">Efectivo</option>
+                 </select>
+              </div>
+              <div className="flex justify-end mt-1">
+                 <button onClick={() => {
+                   setFilterStartDate(''); setFilterEndDate(''); setFilterMetodoPago(''); setFilterStartFolio(''); setFilterEndFolio('');
+                 }} className="text-xs text-blue-600 hover:text-blue-800 font-bold underline">Limpiar Filtros</button>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Acciones Masivas */}
+        <div className="bg-white px-3 py-2 border-b border-gray-200 flex items-center justify-between text-xs sticky top-0 z-10 shadow-sm">
+           <div className="flex items-center gap-2">
+              <input type="checkbox" className="w-4 h-4 rounded text-blue-600 cursor-pointer" 
+                     checked={paginatedRecibos.length > 0 && selectedReceiptIds.size > 0 && paginatedRecibos.every(r => selectedReceiptIds.has(r.id))}
+                     onChange={(e) => {
+                       const visibleIds = paginatedRecibos.map(r => r.id);
+                       if (e.target.checked) {
+                          const newSet = new Set(selectedReceiptIds);
+                          visibleIds.forEach(id => newSet.add(id));
+                          setSelectedReceiptIds(newSet);
+                       } else {
+                          const newSet = new Set(selectedReceiptIds);
+                          visibleIds.forEach(id => newSet.delete(id));
+                          setSelectedReceiptIds(newSet);
+                       }
+                     }} />
+              <div className="flex items-center gap-1 group relative">
+                 <button onClick={() => handleSelectAllFilters(recibosFiltrados.map(r => r.id))} className="text-gray-500 font-bold hover:text-blue-600 text-xs flex items-center gap-1">
+                    Sel. Todos ({recibosFiltrados.length})
+                 </button>
+              </div>
+           </div>
+           
+           {selectedReceiptIds.size > 0 && (
+             <div className="flex gap-1.5">
+               {currentUser?.rol === 'ADMINISTRADOR' && (
+                 <button onClick={executeMassCancel} className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 px-2 py-1 rounded border border-red-200 flex items-center gap-1 font-bold transition-colors" title="Cancelar Múltiples">
+                    <Trash2 size={13} />
+                 </button>
+               )}
+               <button onClick={executeMassExportZIP} className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded border border-blue-200 flex items-center gap-1 font-bold transition-colors" title="Exportar ZIP Múltiple">
+                  <Archive size={13} /> ({selectedReceiptIds.size})
+               </button>
+             </div>
+           )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
@@ -475,25 +707,34 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             paginatedRecibos.map(r => (
               <div 
                 key={r.id} 
+                className={`p-3 border-b border-gray-100 hover:bg-white rounded-lg transition-colors mb-1 ${reciboSeleccionado?.id === r.id ? 'bg-white shadow-sm border-blue-200 ring-1 ring-blue-500' : ''}`}
                 onClick={() => setReciboSeleccionado(r)}
-                className={`p-3 border-b border-gray-100 cursor-pointer hover:bg-white rounded-lg transition-colors mb-1 ${reciboSeleccionado?.id === r.id ? 'bg-white shadow-sm border-blue-200 ring-1 ring-blue-500' : ''}`}
               >
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-bold text-blue-700">Folio: {r.folio}</span>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${r.estatus === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                    {r.estatus}
-                  </span>
-                </div>
-                <div className="text-sm font-semibold text-gray-800 line-clamp-1">{r.nombre_alumno}</div>
-                <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                  <div className="flex flex-col items-end">
-                    {(r.uso_saldo_a_favor || 0) > 0 && (
-                      <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 mb-0.5">
-                        Monedero: -${r.uso_saldo_a_favor!.toFixed(2)}
-                      </span>
-                    )}
-                    <span className="font-bold text-gray-700">Caja: ${(r.total - (r.uso_saldo_a_favor || 0)).toFixed(2)}</span>
-                  </div>
+                <div className="flex gap-2">
+                   <div className="flex items-start pt-1" onClick={e => e.stopPropagation()}>
+                     <input type="checkbox" className="w-4 h-4 rounded text-blue-600 cursor-pointer border-gray-300" 
+                            checked={selectedReceiptIds.has(r.id)} 
+                            onChange={(e) => toggleSelection(r.id, e as any)} />
+                   </div>
+                   <div className="flex-1 overflow-hidden cursor-pointer">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-bold text-blue-700">Folio: {r.folio}</span>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${r.estatus === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                          {r.estatus}
+                        </span>
+                      </div>
+                      <div className="text-sm font-semibold text-gray-800 line-clamp-1">{r.nombre_alumno}</div>
+                      <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                        <div className="flex flex-col items-end w-full">
+                          {(r.uso_saldo_a_favor || 0) > 0 && (
+                            <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 mb-0.5">
+                              Monedero: -${r.uso_saldo_a_favor!.toFixed(2)}
+                            </span>
+                          )}
+                          <span className="font-bold text-gray-700">Caja: ${(r.total - (r.uso_saldo_a_favor || 0)).toFixed(2)}</span>
+                        </div>
+                      </div>
+                   </div>
                 </div>
               </div>
             ))
@@ -710,7 +951,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       </div>
 
       {/* Hidden PDF container */}
-      <div className="absolute left-[-9999px] top-0">
+      <div className="absolute left-[-9999px] top-0 pointer-events-none opacity-0 z-[-100]">
          {reciboSeleccionado && (
            <ReciboPlantillaPDF 
              ref={printRef}
@@ -721,7 +962,49 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
              licenciaturasMetadata={catalogos?.licenciaturasMetadata}
            />
          )}
+         
+         {/* Rendering invisible nodes para exportación masiva */}
+         {exportTargetList.map((r) => (
+            <div key={`export-${r.id}`} ref={(el) => { exportRefs.current[r.id] = el; }}>
+               <ReciboPlantillaPDF 
+                 recibo={r}
+                 detalles={r.recibos_detalles || []}
+                 alumno={alumnos.find(a => a.id === r.alumno_id)}
+                 logoUrl={appConfig?.logoUrl}
+                 licenciaturasMetadata={catalogos?.licenciaturasMetadata}
+               />
+            </div>
+         ))}
       </div>
+
+      {massStatus.isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-gray-100 bg-blue-50/50 flex flex-col items-center justify-center text-center">
+               {isProcessingMass ? <Loader2 size={36} className="text-blue-600 animate-spin mb-3" /> : <CheckSquare size={36} className="text-emerald-600 mb-3" />}
+               <h3 className="font-bold text-gray-800 text-lg">Procesamiento Masivo</h3>
+               <p className="text-sm font-semibold text-blue-800 mt-1">{massStatus.msg}</p>
+            </div>
+            {massStatus.results.length > 0 && !isProcessingMass && (
+              <div className="p-4 overflow-y-auto max-h-60 bg-gray-50 border-b border-gray-100 divide-y divide-gray-200 text-sm">
+                 {massStatus.results.map((res, i) => (
+                    <div key={i} className="py-2 flex justify-between items-center pr-2">
+                       <div><span className="font-bold text-gray-700 block">Folio #{res.folio}</span><span className="text-xs text-gray-500">{res.note}</span></div>
+                       <span className={`px-2 py-1 rounded text-xs font-bold ${res.status === 'Éxito' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{res.status}</span>
+                    </div>
+                 ))}
+              </div>
+            )}
+            {!isProcessingMass && (
+              <div className="p-4 bg-white flex justify-end">
+                 <button onClick={() => setMassStatus({ ...massStatus, isOpen: false, results: [] })} className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-xl transition-colors">
+                   Cerrar Reporte
+                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {importarVisible && (
         <ImportarRegistrosCSV
