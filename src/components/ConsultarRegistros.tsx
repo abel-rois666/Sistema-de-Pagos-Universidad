@@ -224,6 +224,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       setVincularDetalle(null);
       setVincularSeleccion([]);
       cargarRecibos();
+      onDataRefresh?.(); // Notificar globalmente la actualización de planes
       // Actualizar la vista local del recibo seleccionado
       const firstIdx = vincularSeleccion[0].idx;
       const updatedDetails = reciboSeleccionado.recibos_detalles.map(d =>

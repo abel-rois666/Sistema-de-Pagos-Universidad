@@ -40,9 +40,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   const [paymentInput, setPaymentInput] = useState('');
   // Vincular recibo state
   const [paymentModalTab, setPaymentModalTab] = useState<'manual' | 'vincular'>('manual');
-  const [candidateRecibos, setCandidateRecibos] = useState<Recibo[]>([]);
+  const [candidateDetalles, setCandidateDetalles] = useState<any[]>([]);
   const [loadingRecibos, setLoadingRecibos] = useState(false);
-  const [selectedReciboId, setSelectedReciboId] = useState<string>('');
+  const [selectedDetalleId, setSelectedDetalleId] = useState<string>('');
 
   const [editForm, setEditForm] = useState<Partial<PaymentPlan>>({});
   const [newPlanForm, setNewPlanForm] = useState<Partial<PaymentPlan>>({
@@ -496,8 +496,8 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
     setSelectedPaymentIndex(index);
     setPaymentInput(selectedPlan[`estatus_${index}` as keyof PaymentPlan] as string || '');
     setPaymentModalTab('manual');
-    setCandidateRecibos([]);
-    setSelectedReciboId('');
+    setCandidateDetalles([]);
+    setSelectedDetalleId('');
     setIsPaymentModalOpen(true);
   };
 
@@ -508,21 +508,30 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       if (!alumnoId) { setLoadingRecibos(false); return; }
       const { data } = await supabase
         .from('recibos')
-        .select('*')
+        .select('*, recibos_detalles(*)')
         .eq('alumno_id', alumnoId)
         .neq('estatus', 'CANCELADO')
         .order('folio', { ascending: false });
-      setCandidateRecibos((data || []) as Recibo[]);
+      
+      const detallesLibres: any[] = [];
+      (data || []).forEach((r: any) => {
+        (r.recibos_detalles || []).forEach((d: any) => {
+           if (d.indice_concepto_plan == null) {
+              detallesLibres.push({ ...d, _recibo: r });
+           }
+        });
+      });
+      setCandidateDetalles(detallesLibres);
     } catch { /* silenciar */ }
     setLoadingRecibos(false);
   };
 
   const handleSavePayment = async () => {
-    let statusToWrite = paymentInput;
+    let statusToWrite = paymentInput.trim() === '' ? 'PENDIENTE' : paymentInput;
 
-    if (paymentModalTab === 'vincular' && selectedReciboId) {
-      const recibo = candidateRecibos.find(r => r.id === selectedReciboId);
-      if (recibo) {
+    if (paymentModalTab === 'vincular' && selectedDetalleId) {
+      const detalle = candidateDetalles.find(d => d.id === selectedDetalleId);
+      if (detalle) {
         // Build a status string like the rest of the system: R-XXX (Abono...) or Pagado
         const existing = (selectedPlan[`estatus_${selectedPaymentIndex}` as keyof PaymentPlan] as string) || '';
         const montoPlaneado = (selectedPlan[`cantidad_${selectedPaymentIndex}` as keyof PaymentPlan] as number) || 0;
@@ -541,43 +550,31 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
         const restanteAnterior = getRestanteDe(existing, montoPlaneado);
 
-        // Assume the whole receipt total is applied to this single concept.
-        // It's the most common use case for manual single-linkage here.
-        const abonoActual = recibo.total;
+        const abonoActual = Number(detalle.subtotal) || 0;
         const resta = restanteAnterior - abonoActual;
         const totalPagadoNuevo = (montoPlaneado - restanteAnterior) + abonoActual;
 
         if (resta <= 0.005) {
-            statusToWrite = `${folioPart}R-${recibo.folio} (Pagado $${totalPagadoNuevo.toFixed(2)})`;
+            statusToWrite = `${folioPart}R-${detalle._recibo.folio} (Pagado $${totalPagadoNuevo.toFixed(2)})`;
         } else {
-            statusToWrite = `${folioPart}R-${recibo.folio} (Abono $${totalPagadoNuevo.toFixed(2)}, Resta $${resta.toFixed(2)})`;
+            statusToWrite = `${folioPart}R-${detalle._recibo.folio} (Abono $${totalPagadoNuevo.toFixed(2)}, Resta $${resta.toFixed(2)})`;
         }
 
-        // Also try to link in recibos_detalles for bidirectional traceability
         try {
-          const { data: detalles } = await supabase
-            .from('recibos_detalles')
-            .select('id, indice_concepto_plan, subtotal')
-            .eq('recibo_id', recibo.id)
-            .is('indice_concepto_plan', null)
-            .limit(1);
-            
-          if (detalles && detalles.length > 0) {
-            let observacionDB = '';
-            if (resta > 0.005) {
-                observacionDB = `Abono $${abonoActual.toFixed(2)} — Restante: $${resta.toFixed(2)}`;
-            } else if (totalPagadoNuevo < montoPlaneado - 0.005 || existing.includes('Abono')) {
-                observacionDB = `Abono final liquidado`;
-            }
-
-            await supabase
-              .from('recibos_detalles')
-              .update({ 
-                 indice_concepto_plan: selectedPaymentIndex,
-                 observaciones: observacionDB || null
-              })
-              .eq('id', detalles[0].id);
+          let observacionDB = '';
+          if (resta > 0.005) {
+              observacionDB = `Abono $${abonoActual.toFixed(2)} — Restante: $${resta.toFixed(2)}`;
+          } else if (totalPagadoNuevo < montoPlaneado - 0.005 || existing.includes('Abono')) {
+              observacionDB = `Abono final liquidado`;
           }
+
+          await supabase
+            .from('recibos_detalles')
+            .update({ 
+               indice_concepto_plan: selectedPaymentIndex,
+               observaciones: observacionDB || null
+            })
+            .eq('id', detalle.id);
         } catch { /* si falla la vinculación de detalle, el estatus ya quedó escrito */ }
       }
     }
@@ -980,7 +977,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 <Edit size={15} /> Manual
               </button>
               <button
-                onClick={() => { setPaymentModalTab('vincular'); if (candidateRecibos.length === 0) loadCandidateRecibos(); }}
+                onClick={() => { setPaymentModalTab('vincular'); if (candidateDetalles.length === 0) loadCandidateRecibos(); }}
                 className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
                   paymentModalTab === 'vincular'
                     ? 'border-emerald-600 text-emerald-700'
@@ -1018,19 +1015,19 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
                     <Loader2 size={20} className="animate-spin" /> Buscando recibos...
                   </div>
-                ) : candidateRecibos.length === 0 ? (
+                ) : candidateDetalles.length === 0 ? (
                   <div className="text-center py-8 text-gray-400">
                     <FileText size={32} className="mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">No hay recibos registrados para este alumno.</p>
-                    <p className="text-xs mt-1 text-gray-400">Genera un cobro primero desde el botón <strong>Cobrar</strong>.</p>
+                    <p className="text-sm">No hay detalles de recibos sueltos para este alumno.</p>
+                    <p className="text-xs mt-1 text-gray-400">Sólo aparecen conceptos que no se hayan vinculado previamente.</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                    {candidateRecibos.map(r => (
+                    {candidateDetalles.map(d => (
                       <label
-                        key={r.id}
+                        key={d.id}
                         className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                          selectedReciboId === r.id
+                          selectedDetalleId === d.id
                             ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                         }`}
@@ -1038,25 +1035,25 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                         <input
                           type="radio"
                           name="recibo-vincular"
-                          className="accent-emerald-600 w-4 h-4"
-                          checked={selectedReciboId === r.id}
-                          onChange={() => setSelectedReciboId(r.id)}
+                          className="accent-emerald-600 w-4 h-4 shrink-0"
+                          checked={selectedDetalleId === d.id}
+                          onChange={() => setSelectedDetalleId(d.id)}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-emerald-700">R-{r.folio ?? '—'}</span>
-                            <span className="text-xs text-gray-500">{r.fecha_pago}</span>
-                            <span className="text-xs font-semibold text-gray-700 ml-auto">${r.total.toFixed(2)}</span>
+                            <span className="font-bold text-sm text-emerald-700">R-{d._recibo?.folio ?? '—'}: {d.concepto}</span>
+                            <span className="text-xs text-gray-500">{d._recibo?.fecha_pago}</span>
+                            <span className="text-xs font-semibold text-gray-700 ml-auto">${Number(d.subtotal || 0).toFixed(2)}</span>
                           </div>
-                          <p className="text-xs text-gray-400 truncate">{r.forma_pago} · {r.banco}</p>
+                          <p className="text-xs text-gray-400 truncate">{d._recibo?.forma_pago} · {d._recibo?.banco}</p>
                         </div>
                       </label>
                     ))}
                   </div>
                 )}
-                {selectedReciboId && (
+                {selectedDetalleId && (
                   <p className="text-xs text-emerald-600 mt-3 font-semibold">
-                    ✓ Se vinculará R-{candidateRecibos.find(r => r.id === selectedReciboId)?.folio} a este concepto.
+                    ✓ Se vinculará el abono de ${Number(candidateDetalles.find(d => d.id === selectedDetalleId)?.subtotal || 0).toFixed(2)} a este concepto.
                   </p>
                 )}
               </div>
@@ -1075,7 +1072,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 )}
                 <button
                   onClick={handleSavePayment}
-                  disabled={paymentModalTab === 'vincular' && !selectedReciboId}
+                  disabled={paymentModalTab === 'vincular' && !selectedDetalleId}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Save size={16} /> Guardar
