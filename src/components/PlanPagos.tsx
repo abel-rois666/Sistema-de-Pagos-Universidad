@@ -709,7 +709,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
     <div className="w-full p-2 md:p-6 flex flex-col items-center justify-start font-sans print:p-0">
       
       {/* Top Action Bar - Hidden in Print (Movido estilo Stack para responsividad y claridad) */}
-      <div className="flex flex-col gap-4 mb-6 w-full max-w-[816px] mx-auto print:hidden z-10">
+      <div className="flex flex-col gap-4 mb-6 w-full max-w-[816px] mx-auto print:hidden relative z-50">
         
         {/* Row 1: Back Buttons & Mobile Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3">
