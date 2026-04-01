@@ -577,6 +577,21 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             .eq('id', detalle.id);
         } catch { /* si falla la vinculación de detalle, el estatus ya quedó escrito */ }
       }
+    } else if (statusToWrite === 'PENDIENTE') {
+      // Liberar todos los detalles asociados si se reinicia a PENDIENTE
+      try {
+        const alumnoId = selectedPlan.alumno_id || alumnos.find(a => a.nombre_completo === selectedPlan.nombre_alumno)?.id;
+        if (alumnoId) {
+          const { data: recibosAlumno } = await supabase.from('recibos').select('id').eq('alumno_id', alumnoId);
+          if (recibosAlumno && recibosAlumno.length > 0) {
+             const reciboIds = recibosAlumno.map(r => r.id);
+             await supabase.from('recibos_detalles')
+                .update({ indice_concepto_plan: null, observaciones: null })
+                .eq('indice_concepto_plan', selectedPaymentIndex)
+                .in('recibo_id', reciboIds);
+          }
+        }
+      } catch { /* ignorar fallos de limpieza en red */ }
     }
 
     const updatedPlan = { ...selectedPlan, [`estatus_${selectedPaymentIndex}`]: statusToWrite };
@@ -589,8 +604,45 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
     setIsEditPlanModalOpen(true);
   };
 
-  const handleSavePlanStructure = () => {
-    onSavePlan(editForm as PaymentPlan);
+  const handleSavePlanStructure = async () => {
+    const indicesToFree: number[] = [];
+    for (let i = 1; i <= 9; i++) {
+        const estatusKey = `estatus_${i}` as keyof PaymentPlan;
+        const oldStatus = selectedPlan[estatusKey] as string || '';
+        const newStatus = editForm[estatusKey] as string || 'PENDIENTE';
+        
+        if (oldStatus !== 'PENDIENTE' && (newStatus.trim() === '' || newStatus === 'PENDIENTE')) {
+             indicesToFree.push(i);
+        }
+    }
+
+    if (indicesToFree.length > 0) {
+      try {
+        const alumnoId = selectedPlan.alumno_id || alumnos.find(a => a.nombre_completo === selectedPlan.nombre_alumno)?.id;
+        if (alumnoId) {
+          const { data: recibosAlumno } = await supabase.from('recibos').select('id').eq('alumno_id', alumnoId);
+          if (recibosAlumno && recibosAlumno.length > 0) {
+             const reciboIds = recibosAlumno.map(r => r.id);
+             for (const idx of indicesToFree) {
+                 await supabase.from('recibos_detalles')
+                    .update({ indice_concepto_plan: null, observaciones: null })
+                    .eq('indice_concepto_plan', idx)
+                    .in('recibo_id', reciboIds);
+             }
+          }
+        }
+      } catch { /* ignorar fallos de limpieza en red */ }
+    }
+
+    const formToSave = { ...editForm };
+    for (let i = 1; i <= 9; i++) {
+       const key = `estatus_${i}` as keyof PaymentPlan;
+       if (typeof formToSave[key] === 'string' && (formToSave[key] as string).trim() === '') {
+           (formToSave as any)[key] = 'PENDIENTE';
+       }
+    }
+
+    onSavePlan(formToSave as PaymentPlan);
     setIsEditPlanModalOpen(false);
   };
 

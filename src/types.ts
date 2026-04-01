@@ -156,6 +156,9 @@ export interface Recibo {
   estatus: 'ACTIVO' | 'CANCELADO';
   created_at?: string;
   uso_saldo_a_favor?: number;
+  requiere_factura?: boolean;
+  estatus_factura?: string;
+  folio_fiscal?: string | null;
 
   // Campos unidos (opcionales para vistas/historial)
   nombre_alumno?: string;

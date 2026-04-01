@@ -241,7 +241,9 @@ export const saveReciboCompleto = async (
       total: recibo.total,
       forma_pago: recibo.forma_pago,
       banco: recibo.banco,
-      estatus: recibo.estatus || 'ACTIVO'
+      estatus: recibo.estatus || 'ACTIVO',
+      requiere_factura: recibo.requiere_factura || false,
+      estatus_factura: recibo.requiere_factura ? 'PENDIENTE' : 'NO APLICA'
     };
     if (recibo.uso_saldo_a_favor !== undefined) {
       payload.uso_saldo_a_favor = recibo.uso_saldo_a_favor;
@@ -312,6 +314,22 @@ export const saveReciboCompleto = async (
   } catch (err: any) {
     console.error('[saveReciboCompleto]', err.message);
     return { error: err.message || 'Error desconocido' };
+  }
+};
+
+/** Asentar número de factura a un recibo */
+export const updateReciboFactura = async (reciboId: string, folioFiscal: string): Promise<string | null> => {
+  if (!isUUID(reciboId)) return null;
+  try {
+    const { error } = await supabase
+      .from('recibos')
+      .update({ estatus_factura: 'FACTURADO', folio_fiscal: folioFiscal })
+      .eq('id', reciboId);
+    if (error) throw new Error(error.message);
+    return null;
+  } catch (err: any) {
+    console.error('[updateReciboFactura]', err.message);
+    return err.message;
   }
 };
 

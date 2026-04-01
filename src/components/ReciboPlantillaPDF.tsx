@@ -143,7 +143,11 @@ const SingleReceipt = ({ recibo, detalles, alumno, copyName, logoUrl, licenciatu
         </div>
       </div>
       <div className="flex justify-between text-[8px] font-bold mt-[2px] px-2 uppercase">
-        <span>RECIBO SIN VALOR FISCAL ÚNICAMENTE PARA CONTROL ESCOLAR</span>
+        <span>
+          {recibo.folio_fiscal 
+            ? `COMPROBANTE VINCULADO A FACTURA FISCAL (UUID/FOLIO: ${recibo.folio_fiscal})`
+            : 'RECIBO SIN VALOR FISCAL ÚNICAMENTE PARA CONTROL ESCOLAR'}
+        </span>
         <span className="text-[9px]">{copyName}</span>
       </div>
     </div>

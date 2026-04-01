@@ -85,6 +85,8 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
   const [savingConcepto, setSavingConcepto] = useState(false);
   const [addConceptoRowId, setAddConceptoRowId] = useState<string>('');
 
+  const [requiereFactura, setRequiereFactura] = useState(false);
+
   // Fecha del recibo (hoy)
   const fechaRecibo = useMemo(() => {
     const d = new Date();
@@ -258,7 +260,8 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       total: totales,
       uso_saldo_a_favor: montoMonederoAplicado,
       forma_pago: totalACobrar === 0 ? 'NO APLICA' : formaPago,
-      banco: totalACobrar === 0 ? 'NO APLICA' : banco
+      banco: totalACobrar === 0 ? 'NO APLICA' : banco,
+      requiere_factura: requiereFactura
     };
 
     let excedenteGeneradoGlobal = 0;
@@ -413,6 +416,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
     setFormaPago('Efectivo');
     setBanco('NO APLICA');
     setUsarMonedero(false);
+    setRequiereFactura(false);
   };
 
   const handleImprimir = () => {
@@ -749,6 +753,22 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                      {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
                    </select>
                 </div>
+            </div>
+
+            {/* Toggle Requiere Factura */}
+            <div className="flex border-t-2 border-gray-900 bg-gray-50">
+              <div
+                className="w-full p-2.5 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors px-4 group"
+                onClick={() => setRequiereFactura(!requiereFactura)}
+              >
+                <div className="flex flex-col">
+                  <span className="text-xs font-black text-gray-800 leading-tight tracking-wide group-hover:text-amber-700 transition-colors">¿REQUIERE FACTURA?</span>
+                  <span className="text-[10px] text-gray-500 font-bold">Marcar para el área de Contabilidad</span>
+                </div>
+                <div className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 shadow-inner ${requiereFactura ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                  <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 shadow-sm transition-all ${requiereFactura ? 'left-6' : 'left-1'}`} />
+                </div>
+              </div>
             </div>
           </div>
         </div>

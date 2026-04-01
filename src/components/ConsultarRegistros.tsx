@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, Check } from 'lucide-react';
+import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, Check, FileText } from 'lucide-react';
 import { downloadElementAsPDF, generatePDFBlob } from '../lib/printUtils';
 import JSZip from 'jszip';
 import ReciboPlantillaPDF from './ReciboPlantillaPDF';
 import LoadingSkeleton from './LoadingSkeleton';
 import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig, Usuario } from '../types';
-import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAllSupabase } from '../lib/supabase';
+import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAllSupabase, updateReciboFactura } from '../lib/supabase';
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV } from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
 
@@ -38,6 +38,11 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   const [filterMetodoPago, setFilterMetodoPago] = useState('');
   const [filterStartFolio, setFilterStartFolio] = useState('');
   const [filterEndFolio, setFilterEndFolio] = useState('');
+  const [filterFactura, setFilterFactura] = useState(false);
+
+  // Modal para capturar folio factura
+  const [facturarRecibo, setFacturarRecibo] = useState<any>(null);
+  const [folioFiscalInput, setFolioFiscalInput] = useState('');
   
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
   const [massStatus, setMassStatus] = useState<{ msg: string, isOpen: boolean, results: any[] }>({ msg: '', isOpen: false, results: [] });
@@ -64,14 +69,14 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
     if (!window.confirm(`¿Estás seguro de cancelar ${selectedReceiptIds.size} recibos seleccionados de forma permanente?`)) return;
     
     setIsProcessingMass(true);
-    const results = [];
+    const results: any[] = [];
     let successCount = 0;
     let errorCount = 0;
 
     for (const id of Array.from(selectedReceiptIds)) {
-       const folio = recibos.find(r => r.id === id)?.folio || id;
+       const folio = String(recibos.find(r => r.id === id)?.folio || id);
        setMassStatus({ isOpen: true, msg: `Cancelando recibo #${folio}...`, results });
-       const err = await cancelarRecibo(id);
+       const err = await cancelarRecibo(id as string);
        if (!err) {
          successCount++;
          results.push({ folio, status: 'Éxito', note: 'Cancelado correctamente' });
@@ -189,6 +194,38 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
     });
   };
 
+  const handleUnlinkDetail = async (detalleId: string, idx: number) => {
+      if (!reciboSeleccionado) return;
+      if (!window.confirm(`¿Estás seguro de desvincular este cobro del Plan #${idx}? Su estatus en el plan regresará a PENDIENTE.`)) return;
+
+      const { error } = await supabase.from('recibos_detalles').update({ indice_concepto_plan: null, observaciones: null }).eq('id', detalleId);
+      if (error) { alert('Error: ' + error.message); return; }
+
+      const { data: planes } = await supabase.from('planes_pago').select('*')
+          .eq('alumno_id', reciboSeleccionado.alumno_id)
+          .eq('ciclo_id', reciboSeleccionado.ciclo_id);
+          
+      if (planes && planes.length > 0) {
+          const currentEstatus = planes[0][`estatus_${idx}` as keyof PaymentPlan] as string || '';
+          const targetSubstr = `R-${reciboSeleccionado.folio}`;
+          let newEstatus = 'PENDIENTE';
+          if (currentEstatus.includes(targetSubstr)) {
+               const modified = currentEstatus.replace(new RegExp(`(.*?)${targetSubstr}.*?(\\(.*?\\))?(;|$)`), '').trim();
+               newEstatus = modified.length > 0 && modified !== ';' ? modified : 'PENDIENTE';
+          }
+          await supabase.from('planes_pago').update({ [`estatus_${idx}`]: newEstatus }).eq('id', planes[0].id);
+      }
+
+      setReciboSeleccionado(prev => {
+          if (!prev) return prev;
+          return {
+              ...prev,
+              recibos_detalles: prev.recibos_detalles.map(dd => dd.id === detalleId ? { ...dd, indice_concepto_plan: null as any, observaciones: null as any } : dd)
+          };
+      });
+      if (onDataRefresh) onDataRefresh();
+  };
+
   useEffect(() => {
     if (vincularDetalle && reciboSeleccionado) {
        supabase.from('planes_pago').select('*')
@@ -242,7 +279,10 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
         r.fecha_recibo || '',
         (r.total - (r.uso_saldo_a_favor || 0)).toString() || '0',
         r.fecha_pago || '',
-        r.estatus || ''
+        r.estatus || '',
+        r.requiere_factura ? 'SÍ' : 'NO',
+        r.estatus_factura || 'NO APLICA',
+        r.folio_fiscal || ''
       ];
       const dets = r.recibos_detalles || [];
       for (let i = 0; i < 5; i++) {
@@ -523,6 +563,10 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   };
 
   const recibosFiltrados = recibos.filter(r => {
+    if (filterFactura && (!r.requiere_factura || r.estatus_factura === 'FACTURADO')) {
+       return false;
+    }
+
     const matchesSearch = 
       r.folio?.toString().includes(searchTerm) ||
       r.nombre_alumno?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -576,6 +620,14 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               <button onClick={() => setShowFilters(!showFilters)} className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1.5 ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} title="Filtros Avanzados">
                 <Filter size={14} className="shrink-0" />
                 <span className="hidden md:inline">Filtros</span>
+              </button>
+              <button
+                onClick={() => setFilterFactura(!filterFactura)}
+                className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1.5 ${filterFactura ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-200 text-amber-600 hover:bg-amber-50'}`}
+                title="Mostrar solo Pedientes de Factura"
+              >
+                <FileText size={14} className="shrink-0" />
+                <span className="hidden md:inline">Facturas</span>
               </button>
               <button
                 onClick={() => setImportarVisible(true)}
@@ -723,6 +775,18 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${r.estatus === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                           {r.estatus}
                         </span>
+                        {r.requiere_factura && (
+                           <span className={`text-[10px] font-bold px-2 py-1 rounded-full ml-1 cursor-pointer transition-colors ${
+                              r.estatus_factura === 'FACTURADO' 
+                                 ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' 
+                                 : 'bg-amber-100 text-amber-800 hover:bg-amber-200 animate-pulse'
+                           }`}
+                           onClick={(e) => { e.stopPropagation(); setFacturarRecibo(r); setFolioFiscalInput(r.folio_fiscal || ''); }}
+                           title={r.estatus_factura === 'FACTURADO' ? `Facturado: ${r.folio_fiscal}` : 'Clic para asentar folio de factura'}
+                           >
+                             {r.estatus_factura === 'FACTURADO' ? 'Facturado' : 'Pend. Factura'}
+                           </span>
+                        )}
                       </div>
                       <div className="text-sm font-semibold text-gray-800 line-clamp-1">{r.nombre_alumno}</div>
                       <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
@@ -899,9 +963,18 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                         </div>
                       )}
                       {d.indice_concepto_plan ? (
-                        <span className="mt-0.5 inline-block text-[10px] text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full font-semibold border border-blue-200 dark:border-blue-800">
-                          Plan #{d.indice_concepto_plan}
-                        </span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="inline-block text-[10px] text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full font-semibold border border-blue-200 dark:border-blue-800">
+                            Plan #{d.indice_concepto_plan}
+                          </span>
+                          <button 
+                             onClick={() => handleUnlinkDetail(d.id, d.indice_concepto_plan as number)} 
+                             className="text-red-500 hover:bg-red-50 rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors"
+                             title="Desvincular del Plan"
+                          >
+                             ✕
+                          </button>
+                        </div>
                       ) : reciboSeleccionado.estatus === 'ACTIVO' ? (
                         <button onClick={() => setVincularDetalle(d)} className="mt-0.5 text-[10px] text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 px-2 py-0.5 border border-amber-200 dark:border-amber-800 rounded-full font-bold transition-colors shadow-sm">
                           + Vincular
@@ -1148,6 +1221,62 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95"
                 >
                   Sí, actualizar nota
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Facturación */}
+      {facturarRecibo && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+                <FileText size={24} />
+              </div>
+              <h3 className="text-lg font-black text-gray-900 mb-2">Asentar Factura</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Ingresa el folio fiscal o el identificador de la factura emitida para el folio <strong>{facturarRecibo.folio}</strong>.
+              </p>
+              <input
+                type="text"
+                autoFocus
+                className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-amber-500 font-mono text-sm uppercase mb-6"
+                placeholder="Ej. ABC123XYZ, FAC-001..."
+                value={folioFiscalInput}
+                onChange={e => setFolioFiscalInput(e.target.value)}
+              />
+              <div className="flex items-center justify-end gap-3 font-semibold">
+                <button 
+                  onClick={() => { setFacturarRecibo(null); setFolioFiscalInput(''); }} 
+                  className="px-4 py-2 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  disabled={!folioFiscalInput.trim()}
+                  onClick={async () => {
+                     const f = folioFiscalInput.trim().toUpperCase();
+                     if (!f) return;
+                     const err = await updateReciboFactura(facturarRecibo.id, f);
+                     if (err) {
+                        alert(`Error guardando factura: ${err}`);
+                     } else {
+                        // Actualizamos en local para no tener que refrescar toda la data
+                        const rIndex = recibos.findIndex(r => r.id === facturarRecibo.id);
+                        if (rIndex > -1) {
+                           recibos[rIndex].estatus_factura = 'FACTURADO';
+                           recibos[rIndex].folio_fiscal = f;
+                        }
+                        setFacturarRecibo(null);
+                        setFolioFiscalInput('');
+                     }
+                  }} 
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg shadow-amber-600/20 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  Guardar Factura
                 </button>
               </div>
             </div>
