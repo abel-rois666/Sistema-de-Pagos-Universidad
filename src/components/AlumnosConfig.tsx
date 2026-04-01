@@ -300,8 +300,17 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
   const [showBulkStatusModal, setShowBulkStatusModal] = useState(false);
   const [bulkStatusTarget, setBulkStatusTarget] = useState('ACTIVO');
   
-  const [sortField, setSortField] = useState<'nombre_completo' | 'licenciatura' | 'grado_actual' | 'turno' | 'estatus'>('nombre_completo');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortField, setSortField] = useState<'nombre_completo' | 'licenciatura' | 'grado_actual' | 'turno' | 'estatus'>(() => {
+    return (sessionStorage.getItem('alumnos_sortField') as any) || 'nombre_completo';
+  });
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => {
+    return (sessionStorage.getItem('alumnos_sortDirection') as any) || 'asc';
+  });
+
+  React.useEffect(() => {
+    sessionStorage.setItem('alumnos_sortField', sortField);
+    sessionStorage.setItem('alumnos_sortDirection', sortDirection);
+  }, [sortField, sortDirection]);
 
   const handleSort = (field: 'nombre_completo' | 'licenciatura' | 'grado_actual' | 'turno' | 'estatus') => {
     if (sortField === field) {
@@ -312,11 +321,43 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     }
   };
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('alumnos_currentPage');
+      return saved ? parseInt(saved, 10) : 1;
+    } catch {
+      return 1;
+    }
+  });
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const prevFilters = React.useRef({
+    searchTerm, sortField, sortDirection, itemsPerPage,
+    filterLicenciaturas, filterGrados, filterTurnos, filterEstatusList
+  });
+
   React.useEffect(() => {
-    setCurrentPage(1);
+    sessionStorage.setItem('alumnos_currentPage', currentPage.toString());
+  }, [currentPage]);
+
+  React.useEffect(() => {
+    const prev = prevFilters.current;
+    if (
+      prev.searchTerm !== searchTerm ||
+      prev.sortField !== sortField ||
+      prev.sortDirection !== sortDirection ||
+      prev.itemsPerPage !== itemsPerPage ||
+      prev.filterLicenciaturas !== filterLicenciaturas ||
+      prev.filterGrados !== filterGrados ||
+      prev.filterTurnos !== filterTurnos ||
+      prev.filterEstatusList !== filterEstatusList
+    ) {
+      setCurrentPage(1);
+      prevFilters.current = {
+        searchTerm, sortField, sortDirection, itemsPerPage,
+        filterLicenciaturas, filterGrados, filterTurnos, filterEstatusList
+      };
+    }
   }, [searchTerm, sortField, sortDirection, itemsPerPage, filterLicenciaturas, filterGrados, filterTurnos, filterEstatusList]);
 
   const licenciaturas = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.licenciatura).filter(Boolean))).sort(), [alumnos]);

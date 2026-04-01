@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS public.usuarios (
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     rol TEXT NOT NULL CHECK (rol IN ('ADMINISTRADOR', 'COORDINADOR')),
+    ultimo_ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE SET NULL,
+    preferencia_tema TEXT DEFAULT 'light',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -59,6 +61,9 @@ CREATE TABLE IF NOT EXISTS public.alumnos (
     estatus TEXT DEFAULT 'ACTIVO',
     beca_tipo TEXT,
     beca_porcentaje TEXT,
+    ciclo_ultima_asignacion_grado TEXT,
+    observaciones_pago_titulacion TEXT,
+    saldo_a_favor NUMERIC(10,2) DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_alumnos_matricula ON public.alumnos(matricula);
