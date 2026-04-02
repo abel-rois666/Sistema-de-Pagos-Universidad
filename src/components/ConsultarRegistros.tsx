@@ -43,6 +43,10 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   // Modal para capturar folio factura
   const [facturarRecibo, setFacturarRecibo] = useState<any>(null);
   const [folioFiscalInput, setFolioFiscalInput] = useState('');
+
+  const [editingFormaPago, setEditingFormaPago] = useState<any>(null);
+  const [formaPagoInput, setFormaPagoInput] = useState('');
+  const [bancoInput, setBancoInput] = useState('');
   
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
   const [massStatus, setMassStatus] = useState<{ msg: string, isOpen: boolean, results: any[] }>({ msg: '', isOpen: false, results: [] });
@@ -781,8 +785,13 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                                  ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' 
                                  : 'bg-amber-100 text-amber-800 hover:bg-amber-200 animate-pulse'
                            }`}
-                           onClick={(e) => { e.stopPropagation(); setFacturarRecibo(r); setFolioFiscalInput(r.folio_fiscal || ''); }}
-                           title={r.estatus_factura === 'FACTURADO' ? `Facturado: ${r.folio_fiscal}` : 'Clic para asentar folio de factura'}
+                           onClick={(e) => { 
+                               e.stopPropagation(); 
+                               if (r.estatus_factura === 'FACTURADO' && currentUser?.rol !== 'ADMINISTRADOR') return;
+                               setFacturarRecibo(r); 
+                               setFolioFiscalInput(r.folio_fiscal || ''); 
+                           }}
+                           title={r.estatus_factura === 'FACTURADO' ? (currentUser?.rol === 'ADMINISTRADOR' ? 'Modificar factura asentada' : `Facturado: ${r.folio_fiscal}`) : 'Clic para asentar folio de factura'}
                            >
                              {r.estatus_factura === 'FACTURADO' ? 'Facturado' : 'Pend. Factura'}
                            </span>
@@ -914,14 +923,24 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     <span>Fecha Pago:</span>
                     <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.fecha_pago}</span>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between group">
                     <span>Forma de Pago:</span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.forma_pago}</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
+                      {reciboSeleccionado.forma_pago}
+                      {currentUser?.rol === 'ADMINISTRADOR' && (
+                         <button onClick={() => { setEditingFormaPago(reciboSeleccionado); setFormaPagoInput(reciboSeleccionado.forma_pago || ''); setBancoInput(reciboSeleccionado.banco || ''); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Modificar Forma de Pago">✎</button>
+                      )}
+                    </span>
                   </div>
                   {reciboSeleccionado.banco && reciboSeleccionado.banco !== 'NO APLICA' && (
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between group">
                       <span>Banco:</span>
-                      <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.banco}</span>
+                      <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
+                         {reciboSeleccionado.banco}
+                         {currentUser?.rol === 'ADMINISTRADOR' && (
+                            <button onClick={() => { setEditingFormaPago(reciboSeleccionado); setFormaPagoInput(reciboSeleccionado.forma_pago || ''); setBancoInput(reciboSeleccionado.banco || ''); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Modificar Banco">✎</button>
+                         )}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1275,13 +1294,75 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                            recibos[rIndex].estatus_factura = 'FACTURADO';
                            recibos[rIndex].folio_fiscal = f;
                         }
+                        // Refrescar plan view string replacement locally if needed? DataRefresh will handle it, but for now we just close model
                         setFacturarRecibo(null);
                         setFolioFiscalInput('');
+                        if (onDataRefresh) onDataRefresh();
                      }
                   }} 
                   className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg shadow-amber-600/20 transition-all active:scale-95 disabled:opacity-50"
                 >
                   Guardar Factura
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Forma de Pago */}
+      {editingFormaPago && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <h3 className="text-lg font-black text-gray-900 mb-2">Modificar Forma de Pago</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Recibo: <strong>{editingFormaPago.folio}</strong>
+              </p>
+              
+              <div className="space-y-3 mb-6">
+                 <div>
+                    <label className="text-xs font-bold text-gray-500 block mb-1">Método</label>
+                    <select className="w-full border border-gray-300 rounded-lg p-2.5 outline-none text-sm focus:ring-2 focus:ring-blue-500 bg-white" value={formaPagoInput} onChange={e => setFormaPagoInput(e.target.value)}>
+                       <option value="">Seleccione...</option>
+                       <option value="Depósito Bancario">Depósito Bancario</option>
+                       <option value="Transferencia bancaria">Transferencia bancaria</option>
+                       <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                       <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                       <option value="Efectivo">Efectivo</option>
+                    </select>
+                 </div>
+                 <div>
+                    <label className="text-xs font-bold text-gray-500 block mb-1">Banco (Opcional)</label>
+                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2.5 outline-none text-sm focus:ring-2 focus:ring-blue-500 bg-white" placeholder="Ej. BBVA, NO APLICA" value={bancoInput} onChange={e => setBancoInput(e.target.value)} />
+                 </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 font-semibold">
+                <button 
+                  onClick={() => { setEditingFormaPago(null); }} 
+                  className="px-4 py-2 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                     const { error } = await supabase.from('recibos').update({ forma_pago: formaPagoInput, banco: bancoInput || 'NO APLICA' }).eq('id', editingFormaPago.id);
+                     if (error) { alert('Error: ' + error.message); return; }
+                     
+                     const rIndex = recibos.findIndex(r => r.id === editingFormaPago.id);
+                     if (rIndex > -1) {
+                         recibos[rIndex].forma_pago = formaPagoInput;
+                         recibos[rIndex].banco = bancoInput || 'NO APLICA';
+                     }
+                     if (reciboSeleccionado && reciboSeleccionado.id === editingFormaPago.id) {
+                         setReciboSeleccionado({ ...reciboSeleccionado, forma_pago: formaPagoInput, banco: bancoInput || 'NO APLICA' });
+                     }
+                     setEditingFormaPago(null);
+                  }}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-colors"
+                >
+                  Guardar
                 </button>
               </div>
             </div>
