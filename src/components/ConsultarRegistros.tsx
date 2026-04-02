@@ -207,10 +207,10 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
           
       if (planes && planes.length > 0) {
           const currentEstatus = planes[0][`estatus_${idx}` as keyof PaymentPlan] as string || '';
-          const targetSubstr = `R-${reciboSeleccionado.folio}`;
           let newEstatus = 'PENDIENTE';
-          if (currentEstatus.includes(targetSubstr)) {
-               const modified = currentEstatus.replace(new RegExp(`(.*?)${targetSubstr}.*?(\\(.*?\\))?(;|$)`), '').trim();
+          const rx = new RegExp(`(.*?)((?:F-${reciboSeleccionado.folio_fiscal}|R-${reciboSeleccionado.folio}))\\b.*?(\\(.*?\\))?(;|$)`, 'i');
+          if (rx.test(currentEstatus)) {
+               const modified = currentEstatus.replace(rx, '').trim();
                newEstatus = modified.length > 0 && modified !== ';' ? modified : 'PENDIENTE';
           }
           await supabase.from('planes_pago').update({ [`estatus_${idx}`]: newEstatus }).eq('id', planes[0].id);
@@ -855,11 +855,16 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     <span className="text-xs font-semibold uppercase tracking-widest">Recibo Digital</span>
                   </div>
                   <p className="text-3xl font-black tracking-tight">#{reciboSeleccionado.folio}</p>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${reciboSeleccionado.estatus === 'ACTIVO' ? 'bg-emerald-500/30 border-emerald-400/50 text-emerald-200' : 'bg-red-500/30 border-red-400/50 text-red-200'}`}>
                       {reciboSeleccionado.estatus}
                     </span>
-                    <span className="text-blue-200 text-xs">{reciboSeleccionado.fecha_recibo}</span>
+                    <span className="text-blue-200 text-xs mt-0.5">{reciboSeleccionado.fecha_recibo}</span>
+                    {reciboSeleccionado.estatus_factura === 'FACTURADO' && (
+                        <span className="text-amber-200 text-[11px] font-mono bg-amber-500/20 px-2 py-0.5 mt-0.5 rounded border border-amber-400/30 shadow-sm" title="Folio Fiscal Asentado">
+                          FAC: {reciboSeleccionado.folio_fiscal}
+                        </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap shrink-0">

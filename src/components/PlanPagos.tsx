@@ -536,7 +536,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         const existing = (selectedPlan[`estatus_${selectedPaymentIndex}` as keyof PaymentPlan] as string) || '';
         const montoPlaneado = (selectedPlan[`cantidad_${selectedPaymentIndex}` as keyof PaymentPlan] as number) || 0;
         
-        const prevFolios = (existing.match(/R-\d+/g) || []);
+        const prevFolios = (existing.match(/(?:R-\d+|F-[A-Z0-9\-]+)/gi) || []);
         const folioPart = prevFolios.length > 0 ? prevFolios.join('; ') + '; ' : '';
 
         // Extract previous remaining balance
@@ -554,10 +554,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         const resta = restanteAnterior - abonoActual;
         const totalPagadoNuevo = (montoPlaneado - restanteAnterior) + abonoActual;
 
+        const prefixFolio = detalle._recibo.folio_fiscal ? `F-${detalle._recibo.folio_fiscal}` : `R-${detalle._recibo.folio}`;
+
         if (resta <= 0.005) {
-            statusToWrite = `${folioPart}R-${detalle._recibo.folio} (Pagado $${totalPagadoNuevo.toFixed(2)})`;
+            statusToWrite = `${folioPart}${prefixFolio} (Pagado $${totalPagadoNuevo.toFixed(2)})`;
         } else {
-            statusToWrite = `${folioPart}R-${detalle._recibo.folio} (Abono $${totalPagadoNuevo.toFixed(2)}, Resta $${resta.toFixed(2)})`;
+            statusToWrite = `${folioPart}${prefixFolio} (Abono $${totalPagadoNuevo.toFixed(2)}, Resta $${resta.toFixed(2)})`;
         }
 
         try {

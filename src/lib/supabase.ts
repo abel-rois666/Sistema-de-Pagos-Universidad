@@ -321,11 +321,44 @@ export const saveReciboCompleto = async (
 export const updateReciboFactura = async (reciboId: string, folioFiscal: string): Promise<string | null> => {
   if (!isUUID(reciboId)) return null;
   try {
+    const { data: recibo } = await supabase
+        .from('recibos')
+        .select('*, recibos_detalles(*)')
+        .eq('id', reciboId)
+        .single();
+
     const { error } = await supabase
       .from('recibos')
       .update({ estatus_factura: 'FACTURADO', folio_fiscal: folioFiscal })
       .eq('id', reciboId);
     if (error) throw new Error(error.message);
+
+    // Actualizar texto en Plan de Pagos si hay conceptos
+    if (recibo && recibo.alumno_id && recibo.ciclo_id) {
+        const detallesConPlan = (recibo.recibos_detalles || []).filter((d: any) => d.indice_concepto_plan != null);
+        if (detallesConPlan.length > 0) {
+           const { data: planes } = await supabase.from('planes_pago').select('*')
+               .eq('alumno_id', recibo.alumno_id)
+               .eq('ciclo_id', recibo.ciclo_id);
+           if (planes && planes.length > 0) {
+               const planId = planes[0].id;
+               const updates: Record<string, string> = {};
+               for (const d of detallesConPlan) {
+                   const idx = d.indice_concepto_plan;
+                   const txt = planes[0][`estatus_${idx}`] as string || '';
+                   // Reemplaza de forma segura (ej. no afecta R-120 si el folio es R-12)
+                   const regex = new RegExp(`R-${recibo.folio}\\b`, 'g');
+                   if (regex.test(txt)) {
+                       updates[`estatus_${idx}`] = txt.replace(regex, `F-${folioFiscal}`);
+                   }
+               }
+               if (Object.keys(updates).length > 0) {
+                   await supabase.from('planes_pago').update(updates).eq('id', planId);
+               }
+           }
+        }
+    }
+
     return null;
   } catch (err: any) {
     console.error('[updateReciboFactura]', err.message);
