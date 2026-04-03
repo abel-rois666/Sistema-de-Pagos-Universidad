@@ -85,7 +85,8 @@ export default function App() {
     return localStorage.getItem('current_ciclo_id') || MOCK_CICLOS.find(c => c.activo)?.id || MOCK_CICLOS[0].id;
   });
   const [catalogoItems, setCatalogoItems] = useState<CatalogoItem[]>(DEFAULT_CATALOGOS);
-  const [loading, setLoading] = useState(false);
+  // Inicia en true para evitar pantalla en blanco en móvil mientras se cargan datos
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const navState = (location.state || {}) as any;
@@ -118,9 +119,10 @@ export default function App() {
   }, [showConfigMenu, showCicloMenu]);
 
   // 1. Inicialización síncrona de sesión: evita flasheos de vista de "Login" al refrescar la página
+  // Usa sessionStorage como fallback de localStorage para móviles con restricciones
   const [currentUser, setCurrentUser] = useState<Usuario | null>(() => {
     try {
-      const savedUser = localStorage.getItem('crm_user');
+      const savedUser = localStorage.getItem('crm_user') || sessionStorage.getItem('crm_user');
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
         if (parsed && typeof parsed === 'object' && parsed.id) {
@@ -141,11 +143,14 @@ export default function App() {
   };
 
   // ── Persistencia de Sesión (Escrito) ───────────────────────────────────────────────
+  // Guarda en ambos storages para compatibilidad con móviles que restringen localStorage
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('crm_user', JSON.stringify(currentUser));
+      try { localStorage.setItem('crm_user', JSON.stringify(currentUser)); } catch {}
+      try { sessionStorage.setItem('crm_user', JSON.stringify(currentUser)); } catch {}
     } else {
-      localStorage.removeItem('crm_user');
+      try { localStorage.removeItem('crm_user'); } catch {}
+      try { sessionStorage.removeItem('crm_user'); } catch {}
     }
   }, [currentUser]);
 
@@ -300,16 +305,18 @@ export default function App() {
     }
   };
 
+  // Siempre mostrar el skeleton PRIMERO mientras se cargan datos (evita pantalla en blanco en móvil)
   if (loading) {
     return <LoadingSkeleton type="full" text="Cargando sistema..." />;
   }
 
+  // Solo mostrar Login después de que la carga inicial terminó y no hay sesión
   if (!currentUser) {
     return <Login onLogin={(u) => {
       setCurrentUser(u);
       
       if (u.preferencia_tema) {
-         localStorage.setItem('theme', u.preferencia_tema);
+         try { localStorage.setItem('theme', u.preferencia_tema); } catch {}
          const root = window.document.documentElement;
          if (u.preferencia_tema === 'dark') root.classList.add('dark');
          else root.classList.remove('dark');
@@ -317,7 +324,7 @@ export default function App() {
       
       if (u.ultimo_ciclo_id) {
          setActiveCicloId(u.ultimo_ciclo_id);
-         localStorage.setItem('current_ciclo_id', u.ultimo_ciclo_id);
+         try { localStorage.setItem('current_ciclo_id', u.ultimo_ciclo_id); } catch {}
       }
     }} />;
   }
