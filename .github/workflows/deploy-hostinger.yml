@@ -17,14 +17,14 @@ jobs:
     steps:
       # 1. Obtiene el código actual del repositorio
       - name: 🚚 Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2  # ← actualizado (Node 24 compatible)
 
       # 2. Prepara Node.js para que podamos construir la app
       - name: ⚙️ Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.4.0  # ← actualizado (Node 24 compatible)
         with:
-          node-version: 20
-          cache: 'npm' # Hace que las siguientes iteraciones sean más rápidas
+          node-version: 22              # ← Node 22 LTS (estable y compatible con la app)
+          cache: 'npm'                  # Hace que las siguientes iteraciones sean más rápidas
           
       # 3. Instala dependencias del proyecto
       - name: 📦 Install Dependencies
@@ -43,7 +43,7 @@ jobs:
         
       # 5. Despliega la carpeta de build (dist) usando FTP hacia Hostinger
       - name: 🚀 Sync Files to Hostinger
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@4.3.5  # ← quitado el 'v' del tag (más estable)
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
