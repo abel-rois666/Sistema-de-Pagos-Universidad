@@ -150,44 +150,44 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
   };
 
   const renderForm = () => (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8">
-      <h3 className="text-lg font-bold text-gray-800 mb-4">{editingId === 'new' ? 'Nueva Plantilla' : 'Editar Plantilla'}</h3>
+    <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 mb-8 transition-colors">
+      <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">{editingId === 'new' ? 'Nueva Plantilla' : 'Editar Plantilla'}</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Nombre de la Plantilla *</label>
-          <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Nombre de la Plantilla *</label>
+          <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             value={editForm.nombre || ''} onChange={e => setEditForm({ ...editForm, nombre: e.target.value })} />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Ciclo Asociado</label>
-          <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Ciclo Asociado</label>
+          <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             value={editForm.ciclo_id || ''} onChange={e => setEditForm({ ...editForm, ciclo_id: e.target.value || null })}>
             <option value="">(Ninguno)</option>
             {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Tipo de Plan</label>
-          <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Tipo de Plan</label>
+          <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             value={editForm.tipo_plan || 'Cuatrimestral'} onChange={e => setEditForm({ ...editForm, tipo_plan: e.target.value as any })}>
             <option value="Cuatrimestral">Cuatrimestral</option>
             <option value="Semestral">Semestral</option>
           </select>
         </div>
         <div className="col-span-full">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Descripción (Opcional)</label>
-          <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Descripción (Opcional)</label>
+          <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             value={editForm.descripcion || ''} onChange={e => setEditForm({ ...editForm, descripcion: e.target.value })} />
         </div>
         <div className="col-span-full flex items-center gap-2">
           <input type="checkbox" id="activo" checked={editForm.activo !== false} onChange={e => setEditForm({ ...editForm, activo: e.target.checked })} />
-          <label htmlFor="activo" className="text-sm text-gray-700">Plantilla Activa (visible al crear planes)</label>
+          <label htmlFor="activo" className="text-sm text-gray-700 dark:text-gray-300">Plantilla Activa (visible al crear planes)</label>
         </div>
       </div>
 
-      <div className="border border-gray-200 rounded-xl overflow-hidden mb-6">
-        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200"><span className="font-semibold text-gray-700 text-sm">Configuración de Pagos</span></div>
-        <div className="p-4 bg-white grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-6">
+        <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700"><span className="font-semibold text-gray-700 dark:text-gray-300 text-sm">Configuración de Pagos</span></div>
+        <div className="p-4 bg-white dark:bg-gray-900 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2">
           <div>
             {renderSlotHeader(1)}
             {[1, 2, 3, 4, 5].map(n => renderSlotInput(n))}
@@ -199,8 +199,8 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-        <button onClick={() => setEditingId(null)} disabled={saving} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+        <button onClick={() => setEditingId(null)} disabled={saving} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg font-medium transition-colors">
           Cancelar
         </button>
         <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
@@ -212,15 +212,15 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-8 font-sans transition-colors duration-300">
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <button onClick={onBack} className="flex flex-shrink-0 items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors">
+          <button onClick={onBack} className="flex flex-shrink-0 items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white font-bold transition-colors">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
 
           <div className="flex-1 w-full max-w-lg relative">
-            <input type="text" placeholder="Buscar plantillas..." className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            <input type="text" placeholder="Buscar plantillas..." className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-xl shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
               value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
           </div>
@@ -243,15 +243,15 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPlantillas.map(plantilla => (
-            <div key={plantilla.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex flex-col transition-shadow hover:shadow-md">
-              <div className="flex justify-between items-start mb-3 border-b border-gray-100 pb-3">
+            <div key={plantilla.id} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-5 flex flex-col transition-shadow hover:shadow-md">
+              <div className="flex justify-between items-start mb-3 border-b border-gray-100 dark:border-gray-800 pb-3">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-xl ${plantilla.activo ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
                     <BookOpen size={20} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-800 leading-tight">{plantilla.nombre}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{getCicloName(plantilla.ciclo_id)} · {plantilla.tipo_plan}</p>
+                    <h3 className="font-bold text-gray-800 dark:text-gray-100 leading-tight">{plantilla.nombre}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{getCicloName(plantilla.ciclo_id)} · {plantilla.tipo_plan}</p>
                   </div>
                 </div>
                 {!plantilla.activo && <span className="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded">Inactiva</span>}
@@ -269,8 +269,8 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
                 }
               </div>
 
-              <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-                <button onClick={() => handleEdit(plantilla)} className="flex-1 border text-gray-700 hover:bg-gray-50 py-1.5 rounded-lg text-sm font-medium transition-colors">
+              <div className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <button onClick={() => handleEdit(plantilla)} className="flex-1 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 py-1.5 rounded-lg text-sm font-medium transition-colors">
                   Editar
                 </button>
                 <button onClick={() => handleDuplicate(plantilla)} title="Duplicar" className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
@@ -284,10 +284,10 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
           ))}
 
           {filteredPlantillas.length === 0 && (
-             <div className="col-span-full py-20 text-center bg-white rounded-2xl border border-dashed border-gray-300">
-              <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500 font-medium">No se encontraron plantillas de planes.</p>
-              <p className="text-sm text-gray-400 mt-1">Crea una nueva plantilla para usarla al generar cobros rápidos.</p>
+             <div className="col-span-full py-20 text-center bg-white dark:bg-gray-900 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 transition-colors">
+              <BookOpen size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
+              <p className="text-gray-500 dark:text-gray-400 font-medium">No se encontraron plantillas de planes.</p>
+              <p className="text-sm text-gray-400 dark:text-gray-600 mt-1">Crea una nueva plantilla para usarla al generar cobros rápidos.</p>
             </div>
           )}
         </div>

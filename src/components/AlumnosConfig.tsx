@@ -587,10 +587,10 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-8 font-sans transition-colors duration-300">
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors">
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white font-bold transition-colors">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
           
@@ -609,17 +609,17 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
 
         {notification && (
           <div className={`mb-4 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold shadow-sm
-            ${notification.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            ${notification.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
             {notification.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
             {notification.msg}
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">Gestión de Alumnos</h1>
-              <p className="text-gray-500 text-sm mt-1">Administra el padrón de alumnos y promuévelos de grado.</p>
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Gestión de Alumnos</h1>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Administra el padrón de alumnos y promúévelos de grado.</p>
             </div>
             {mainTableSelected.size > 0 ? (
               <div className="flex flex-wrap items-center gap-3 bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-xl">
@@ -636,12 +636,12 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Search size={18} className="text-gray-400" />
                     </div>
-                    <input type="text" className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                    <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                       placeholder="Buscar alumno o licenciatura..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </div>
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors w-full sm:w-auto ${showFilters || hasActiveFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors w-full sm:w-auto ${showFilters || hasActiveFilters ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                 >
                   <Filter size={16} />
                   Filtros {hasActiveFilters && <span className="bg-indigo-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">!</span>}
@@ -656,7 +656,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-visible border-b border-gray-100 bg-gray-50/50 relative z-10"
+              className="overflow-visible border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 relative z-10"
               >
                 <div className="p-4 px-6 flex flex-wrap gap-4 items-center">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-1">Filtrar por:</span>
@@ -702,41 +702,41 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
+                <tr className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm uppercase tracking-wider">
                   <th className="py-3 px-4 w-12 text-center">
                     <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={filteredAlumnos.length > 0 && mainTableSelected.size === filteredAlumnos.length} onChange={toggleAllMainTable} title="Seleccionar todos los filtrados" />
                   </th>
-                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('nombre_completo')}>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors select-none" onClick={() => handleSort('nombre_completo')}>
                     <div className="flex items-center gap-1">
                       Nombre Completo
                       {sortField === 'nombre_completo' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
                     </div>
                   </th>
-                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('licenciatura')}>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors select-none" onClick={() => handleSort('licenciatura')}>
                     <div className="flex items-center gap-1">
                       Licenciatura
                       {sortField === 'licenciatura' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
                     </div>
                   </th>
-                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('grado_actual')}>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors select-none" onClick={() => handleSort('grado_actual')}>
                     <div className="flex items-center gap-1">
                       Grado
                       {sortField === 'grado_actual' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
                     </div>
                   </th>
-                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('turno')}>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors select-none" onClick={() => handleSort('turno')}>
                     <div className="flex items-center gap-1">
                       Turno
                       {sortField === 'turno' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
                     </div>
                   </th>
-                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 transition-colors select-none" onClick={() => handleSort('estatus')}>
+                  <th className="py-3 px-6 font-semibold cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors select-none" onClick={() => handleSort('estatus')}>
                     <div className="flex items-center gap-1">
                       Estatus
                       {sortField === 'estatus' && (sortDirection === 'asc' ? <ChevronUp size={14} className="text-indigo-600" /> : <ChevronDown size={14} className="text-indigo-600" />)}
                     </div>
                   </th>
-                  <th className="py-3 px-4 font-semibold text-center text-emerald-700">
+                  <th className="py-3 px-4 font-semibold text-center text-emerald-700 dark:text-emerald-400">
                     <div className="flex items-center justify-center gap-1">
                       <Wallet size={13} /> Monedero
                     </div>
@@ -744,32 +744,32 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                   <th className="py-3 px-6 font-semibold text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {editingId === 'new' && (
-                  <tr className="bg-indigo-50/50">
-                    <td colSpan={8} className="p-4 border-b border-indigo-100">
-                      <div className="bg-white rounded-xl shadow-sm border border-indigo-100 p-5">
-                         <h4 className="font-bold text-indigo-800 border-b border-indigo-50 pb-2 mb-4">Datos del Alumno</h4>
+                  <tr className="bg-indigo-50/50 dark:bg-indigo-900/20">
+                    <td colSpan={8} className="p-4 border-b border-indigo-100 dark:border-indigo-800">
+                      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-indigo-100 dark:border-indigo-800 p-5">
+                         <h4 className="font-bold text-indigo-800 dark:text-indigo-300 border-b border-indigo-50 dark:border-indigo-800 pb-2 mb-4">Datos del Alumno</h4>
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                            <div className="col-span-2">
-                             <label className="block text-xs text-gray-500 mb-1">Nombre Completo</label>
-                             <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.nombre_completo || ''} onChange={e => setEditForm({...editForm, nombre_completo: e.target.value})} />
+                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Nombre Completo</label>
+                             <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.nombre_completo || ''} onChange={e => setEditForm({...editForm, nombre_completo: e.target.value})} />
                            </div>
                            <div>
-                             <label className="block text-xs text-gray-500 mb-1">Licenciatura</label>
+                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Licenciatura</label>
                              {catalogos?.licenciaturas?.length ? (
-                               <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({...editForm, licenciatura: e.target.value})}>
+                               <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({...editForm, licenciatura: e.target.value})}>
                                  <option value="">-- Seleccionar --</option>
                                  {catalogos.licenciaturas.map(c => <option key={c} value={c}>{c}</option>)}
                                </select>
                              ) : (
-                               <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({...editForm, licenciatura: e.target.value})} />
+                               <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({...editForm, licenciatura: e.target.value})} />
                              )}
                            </div>
                            <div>
-                             <label className="block text-xs text-gray-500 mb-1">Grado</label>
+                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Grado</label>
                              {catalogos?.grados?.length ? (
-                               <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
+                               <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
                                  <option value="">-- Seleccionar --</option>
                                  {catalogos.grados.filter(g => {
                                     if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
@@ -779,72 +779,72 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                  }).map(c => <option key={c} value={c}>{c}</option>)}
                                </select>
                              ) : (
-                               <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
+                               <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
                              )}
                              {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-1 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
                            </div>
                            <div>
-                             <label className="block text-xs text-gray-500 mb-1">Turno</label>
+                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Turno</label>
                              {catalogos?.turnos?.length ? (
-                               <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({...editForm, turno: e.target.value})}>
+                               <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({...editForm, turno: e.target.value})}>
                                  <option value="">-- Seleccionar --</option>
                                  {catalogos.turnos.map(c => <option key={c} value={c}>{c}</option>)}
                                </select>
                              ) : (
-                               <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({...editForm, turno: e.target.value})} />
+                               <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({...editForm, turno: e.target.value})} />
                              )}
                            </div>
                            <div>
-                             <label className="block text-xs text-gray-500 mb-1">Estatus</label>
+                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Estatus</label>
                              {catalogos?.estatus_alumnos?.length ? (
-                               <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({...editForm, estatus: e.target.value})}>
+                               <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({...editForm, estatus: e.target.value})}>
                                  <option value="">-- Seleccionar --</option>
                                  {catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>)}
                                </select>
                              ) : (
-                               <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({...editForm, estatus: e.target.value})} />
+                               <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({...editForm, estatus: e.target.value})} />
                              )}
                            </div>
                            <div>
-                             <label className="block text-xs text-gray-500 mb-1">Tipo de Beca</label>
+                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tipo de Beca</label>
                              {catalogos?.beca_tipos?.length ? (
-                               <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({...editForm, beca_tipo: e.target.value})}>
+                               <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({...editForm, beca_tipo: e.target.value})}>
                                  <option value="">-- Seleccionar --</option>
                                  {catalogos.beca_tipos.map(c => <option key={c} value={c}>{c}</option>)}
                                </select>
                              ) : (
-                               <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({...editForm, beca_tipo: e.target.value})} />
+                               <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({...editForm, beca_tipo: e.target.value})} />
                              )}
                            </div>
                            <div>
-                             <label className="block text-xs text-gray-500 mb-1">% de Beca</label>
+                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">% de Beca</label>
                              {catalogos?.beca_porcentajes?.length ? (
-                               <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({...editForm, beca_porcentaje: e.target.value})}>
+                               <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({...editForm, beca_porcentaje: e.target.value})}>
                                  <option value="">-- Seleccionar --</option>
                                  {catalogos.beca_porcentajes.map(c => <option key={c} value={c}>{c}</option>)}
                                </select>
                              ) : (
-                               <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({...editForm, beca_porcentaje: e.target.value})} />
+                               <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({...editForm, beca_porcentaje: e.target.value})} />
                              )}
                            </div>
                          </div>
                          
                          <div className="mb-6">
-                            <label className="block text-xs text-gray-500 mb-1">Observaciones de Pago / Titulación</label>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Observaciones de Pago / Titulación</label>
                             <textarea
                               rows={2}
                               placeholder="Ej: Descuento de titulación acordado el 15/01/2026, reducción del 30% en cuotas restantes..."
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-indigo-500"
+                              className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                               value={editForm.observaciones_pago_titulacion || ''}
                               onChange={e => setEditForm({...editForm, observaciones_pago_titulacion: e.target.value})}
                             />
                          </div>
                          
-                         <h4 className="font-bold text-indigo-800 border-b border-indigo-50 pb-2 mb-4 mt-6">Plan de Pagos a Asignar (Ciclo Activo)</h4>
-                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                         <h4 className="font-bold text-indigo-800 dark:text-indigo-300 border-b border-indigo-50 dark:border-indigo-800 pb-2 mb-4 mt-6">Plan de Pagos a Asignar (Ciclo Activo)</h4>
+                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                            <div className="col-span-2 md:col-span-1">
-                             <label className="block text-xs font-semibold text-gray-600 mb-1">Asignar Plan</label>
-                             <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white font-medium text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.assignPlanType || 'none'} onChange={e => setEditForm({...editForm, assignPlanType: e.target.value as 'none'|'blank'|'template'})}>
+                             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Asignar Plan</label>
+                             <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 font-medium text-indigo-700 dark:text-indigo-300 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.assignPlanType || 'none'} onChange={e => setEditForm({...editForm, assignPlanType: e.target.value as 'none'|'blank'|'template'})}>
                                <option value="none">(Ninguno) Asignar después</option>
                                <option value="blank">Formato Vacío</option>
                                <option value="template">Desde Plantilla</option>
@@ -852,8 +852,8 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                            </div>
                            {editForm.assignPlanType === 'template' && (
                            <div className="col-span-2 md:col-span-3">
-                             <label className="block text-xs font-semibold text-gray-600 mb-1">Seleccionar Plantilla</label>
-                             <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500 transition-colors" value={editForm.templateId || ''} onChange={e => setEditForm({...editForm, templateId: e.target.value})}>
+                             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Seleccionar Plantilla</label>
+                             <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 transition-colors" value={editForm.templateId || ''} onChange={e => setEditForm({...editForm, templateId: e.target.value})}>
                                <option value="">-- Elegir Plantilla --</option>
                                {plantillas?.filter(p => p.activo && (!p.ciclo_id || p.ciclo_id === activeCicloId)).map(p => (
                                  <option key={p.id} value={p.id}>{p.nombre}</option>
@@ -863,8 +863,8 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                            )}
                          </div>
 
-                         <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-                           <button onClick={() => setEditingId(null)} className="px-5 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-red-100 font-medium">Cancelar</button>
+                         <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                           <button onClick={() => setEditingId(null)} className="px-5 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors border border-red-100 dark:border-red-900 font-medium">Cancelar</button>
                            <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-colors flex items-center gap-2 font-bold">
                              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                              Guardar Alumno
@@ -877,30 +877,30 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                 {paginatedAlumnos.map(alumno => (
                   <React.Fragment key={alumno.id}>
                     {editingId === alumno.id ? (
-                      <tr className="bg-blue-50/40">
-                        <td colSpan={8} className="p-4 border-b border-blue-100">
-                          <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-5">
-                             <h4 className="font-bold text-blue-800 border-b border-blue-50 pb-2 mb-4">Editar Alumno</h4>
+                      <tr className="bg-blue-50/40 dark:bg-blue-900/20">
+                        <td colSpan={8} className="p-4 border-b border-blue-100 dark:border-blue-800">
+                          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-blue-100 dark:border-blue-800 p-5">
+                             <h4 className="font-bold text-blue-800 dark:text-blue-300 border-b border-blue-50 dark:border-blue-800 pb-2 mb-4">Editar Alumno</h4>
                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                                <div className="col-span-2">
-                                 <label className="block text-xs text-gray-500 mb-1">Nombre Completo</label>
-                                 <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" value={editForm.nombre_completo || ''} onChange={e => setEditForm({...editForm, nombre_completo: e.target.value})} />
+                                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Nombre Completo</label>
+                                 <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.nombre_completo || ''} onChange={e => setEditForm({...editForm, nombre_completo: e.target.value})} />
                                </div>
                                <div>
-                                 <label className="block text-xs text-gray-500 mb-1">Licenciatura</label>
+                                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Licenciatura</label>
                                  {catalogos?.licenciaturas?.length ? (
-                                   <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({...editForm, licenciatura: e.target.value})}>
+                                   <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({...editForm, licenciatura: e.target.value})}>
                                      <option value="">-- Seleccionar --</option>
                                      {catalogos.licenciaturas.map(c => <option key={c} value={c}>{c}</option>)}
                                    </select>
                                  ) : (
-                                   <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={editForm.licenciatura || ''} onChange={e => setEditForm({...editForm, licenciatura: e.target.value})} />
+                                   <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.licenciatura || ''} onChange={e => setEditForm({...editForm, licenciatura: e.target.value})} />
                                  )}
                                </div>
                                <div>
-                                 <label className="block text-xs text-gray-500 mb-1">Grado</label>
+                                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Grado</label>
                                  {catalogos?.grados?.length ? (
-                                   <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
+                                   <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})}>
                                      <option value="">-- Seleccionar --</option>
                                      {catalogos.grados.filter(g => {
                                         if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
@@ -910,67 +910,67 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                      }).map(c => <option key={c} value={c}>{c}</option>)}
                                    </select>
                                  ) : (
-                                   <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:opacity-50 disabled:bg-gray-100" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
+                                   <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({...editForm, grado_actual: e.target.value})} />
                                  )}
                                  {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-1 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
                                </div>
                                <div>
-                                 <label className="block text-xs text-gray-500 mb-1">Turno</label>
+                                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Turno</label>
                                  {catalogos?.turnos?.length ? (
-                                   <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" value={editForm.turno || ''} onChange={e => setEditForm({...editForm, turno: e.target.value})}>
+                                   <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.turno || ''} onChange={e => setEditForm({...editForm, turno: e.target.value})}>
                                      <option value="">-- Seleccionar --</option>
                                      {catalogos.turnos.map(c => <option key={c} value={c}>{c}</option>)}
                                    </select>
                                  ) : (
-                                   <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={editForm.turno || ''} onChange={e => setEditForm({...editForm, turno: e.target.value})} />
+                                   <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.turno || ''} onChange={e => setEditForm({...editForm, turno: e.target.value})} />
                                  )}
                                </div>
                                <div>
-                                 <label className="block text-xs text-gray-500 mb-1">Estatus</label>
+                                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Estatus</label>
                                  {catalogos?.estatus_alumnos?.length ? (
-                                   <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" value={editForm.estatus || ''} onChange={e => setEditForm({...editForm, estatus: e.target.value})}>
+                                   <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.estatus || ''} onChange={e => setEditForm({...editForm, estatus: e.target.value})}>
                                      <option value="">-- Seleccionar --</option>
                                      {catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>)}
                                    </select>
                                  ) : (
-                                   <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={editForm.estatus || ''} onChange={e => setEditForm({...editForm, estatus: e.target.value})} />
+                                   <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.estatus || ''} onChange={e => setEditForm({...editForm, estatus: e.target.value})} />
                                  )}
                                </div>
                                <div>
-                                 <label className="block text-xs text-gray-500 mb-1">Tipo de Beca</label>
+                                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tipo de Beca</label>
                                  {catalogos?.beca_tipos?.length ? (
-                                   <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({...editForm, beca_tipo: e.target.value})}>
+                                   <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({...editForm, beca_tipo: e.target.value})}>
                                      <option value="">-- Seleccionar --</option>
                                      {catalogos.beca_tipos.map(c => <option key={c} value={c}>{c}</option>)}
                                    </select>
                                  ) : (
-                                   <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={editForm.beca_tipo || ''} onChange={e => setEditForm({...editForm, beca_tipo: e.target.value})} />
+                                   <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.beca_tipo || ''} onChange={e => setEditForm({...editForm, beca_tipo: e.target.value})} />
                                  )}
                                </div>
                                <div>
-                                 <label className="block text-xs text-gray-500 mb-1">% de Beca</label>
+                                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">% de Beca</label>
                                  {catalogos?.beca_porcentajes?.length ? (
-                                   <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({...editForm, beca_porcentaje: e.target.value})}>
+                                   <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({...editForm, beca_porcentaje: e.target.value})}>
                                      <option value="">-- Seleccionar --</option>
                                      {catalogos.beca_porcentajes.map(c => <option key={c} value={c}>{c}</option>)}
                                    </select>
                                  ) : (
-                                   <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({...editForm, beca_porcentaje: e.target.value})} />
+                                   <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({...editForm, beca_porcentaje: e.target.value})} />
                                  )}
                                </div>
                              </div>
                              <div className="mt-3">
-                                <label className="block text-xs text-gray-500 mb-1">Observaciones de Pago / Titulación</label>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Observaciones de Pago / Titulación</label>
                                 <textarea
                                   rows={2}
                                   placeholder="Ej: Descuento de titulación acordado el 15/01/2026, reducción del 30% en cuotas restantes..."
-                                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                                   value={editForm.observaciones_pago_titulacion || ''}
                                   onChange={e => setEditForm({...editForm, observaciones_pago_titulacion: e.target.value})}
                                 />
                               </div>
-                             <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-50">
-                               <button onClick={() => setEditingId(null)} className="px-5 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200 font-medium">Cancelar</button>
+                             <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-50 dark:border-gray-800">
+                               <button onClick={() => setEditingId(null)} className="px-5 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors border border-gray-200 dark:border-gray-700 font-medium">Cancelar</button>
                                <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-colors flex items-center gap-2 font-bold">
                                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                                  Actualizar
@@ -980,44 +980,44 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                         </td>
                       </tr>
                     ) : (
-                      <tr className={`hover:bg-gray-50 transition-colors ${mainTableSelected.has(alumno.id) ? 'bg-indigo-50/20' : ''}`}>
+                      <tr className={`hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors ${mainTableSelected.has(alumno.id) ? 'bg-indigo-50/20 dark:bg-indigo-900/20' : ''}`}>
                         <td className="py-4 px-4 text-center">
                           <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={mainTableSelected.has(alumno.id)} onChange={(e) => toggleMainTableSelect(alumno.id, e)} />
                         </td>
-                        <td className="py-4 px-6 font-bold text-gray-800">
+                        <td className="py-4 px-6 font-bold text-gray-800 dark:text-gray-100">
                           {alumno.nombre_completo}
-                          <div className="text-xs text-gray-400 font-normal mt-0.5 whitespace-nowrap">
+                          <div className="text-xs text-gray-400 dark:text-gray-500 font-normal mt-0.5 whitespace-nowrap">
                              {alumno.beca_porcentaje && alumno.beca_porcentaje !== '0%' 
-                               ? <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">{'Beca: ' + alumno.beca_porcentaje + ' (' + alumno.beca_tipo + ')'}</span> 
+                               ? <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded border border-amber-100 dark:border-amber-800">{'Beca: ' + alumno.beca_porcentaje + ' (' + alumno.beca_tipo + ')'}</span> 
                                : 'Sin beca'}
                           </div>
                         </td>
-                        <td className="py-4 px-6 text-gray-600">{alumno.licenciatura}</td>
-                        <td className="py-4 px-6 font-semibold text-indigo-600">{alumno.grado_actual}</td>
-                        <td className="py-4 px-6 text-gray-600">{alumno.turno}</td>
+                        <td className="py-4 px-6 text-gray-600 dark:text-gray-300">{alumno.licenciatura}</td>
+                        <td className="py-4 px-6 font-semibold text-indigo-600 dark:text-indigo-400">{alumno.grado_actual}</td>
+                        <td className="py-4 px-6 text-gray-600 dark:text-gray-300">{alumno.turno}</td>
                         <td className="py-4 px-6">
-                           <span className={`px-2.5 py-1 rounded-md text-xs font-bold shadow-sm border ${alumno.estatus === 'BAJA' ? 'bg-red-50 text-red-600 border-red-100' : alumno.estatus?.includes('EGRESADO') ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>{alumno.estatus || 'ACTIVO'}</span>
+                           <span className={`px-2.5 py-1 rounded-md text-xs font-bold shadow-sm border ${alumno.estatus === 'BAJA' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900' : alumno.estatus?.includes('EGRESADO') ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900'}`}>{alumno.estatus || 'ACTIVO'}</span>
                         </td>
                         {/* — Columna Monedero — */}
                         <td className="py-4 px-4 text-center">
                           {(alumno.saldo_a_favor ?? 0) > 0 ? (
-                            <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold px-2 py-1 rounded-lg shadow-sm whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-2 py-1 rounded-lg shadow-sm whitespace-nowrap">
                               <Wallet size={11} />
                               ${Number(alumno.saldo_a_favor).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                             </span>
                           ) : (
-                            <span className="text-gray-300 text-xs">—</span>
+                            <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
                           )}
                         </td>
                         <td className="py-4 px-6 text-right">
                           <div className="flex justify-end gap-2 items-center">
                             {onViewFicha && (
-                              <button onClick={() => onViewFicha(alumno.id)} className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 text-xs font-bold bg-blue-50 px-3 py-1.5 rounded transition-colors border border-blue-100">
+                              <button onClick={() => onViewFicha(alumno.id)} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-xs font-bold bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded transition-colors border border-blue-100 dark:border-blue-800">
                                 Ver Ficha
                               </button>
                             )}
                             {activeCyclePlans.some(p => p.alumno_id === alumno.id || p.nombre_alumno === alumno.nombre_completo) ? (
-                              <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1.5 rounded border border-emerald-100 shadow-sm">
+                              <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1.5 rounded border border-emerald-100 dark:border-emerald-800 shadow-sm">
                                 <CheckCircle size={14} /> Inscrito
                               </span>
                             ) : (
@@ -1048,24 +1048,24 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                       );
                                     }
                                   }}
-                                  className="text-emerald-600 hover:text-emerald-800 flex items-center gap-1 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded transition-colors border border-emerald-100 shadow-sm"
+                                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-2 py-1.5 rounded transition-colors border border-emerald-100 dark:border-emerald-800 shadow-sm"
                                   title="Inscribir con Plan Vacío"
                                 >
                                   <CheckCircle size={14} />
                                 </button>
                                 {!isCoordinador && (
                                   <button onClick={() => handlePromote(alumno)} disabled={saving}
-                                    className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded transition-colors border border-indigo-100 shadow-sm">
+                                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 px-2 py-1.5 rounded transition-colors border border-indigo-100 dark:border-indigo-800 shadow-sm">
                                     <GraduationCap size={14} /> Promover
                                   </button>
                                 )}
                               </div>
                             )}
-                            <button onClick={() => handleEdit(alumno)} className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg transition-colors ml-1" title="Editar Alumno">
+                            <button onClick={() => handleEdit(alumno)} className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded-lg transition-colors ml-1" title="Editar Alumno">
                               <Edit2 size={18} />
                             </button>
                             {!isCoordinador && (
-                              <button onClick={() => handleDelete(alumno)} className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors ml-1" title="Eliminar Alumno">
+                              <button onClick={() => handleDelete(alumno)} className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 p-1.5 rounded-lg transition-colors ml-1" title="Eliminar Alumno">
                                 <Trash2 size={18} />
                               </button>
                             )}
@@ -1080,11 +1080,11 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
           </div>
 
           {filteredAlumnos.length > 0 && (
-            <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500 font-medium">Mostrar</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Mostrar</span>
                 <select 
-                  className="border border-gray-300 rounded-md text-sm p-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer"
+                  className="border border-gray-300 dark:border-gray-700 rounded-md text-sm p-1.5 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer"
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
                 >
@@ -1093,21 +1093,21 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
-                <span className="text-sm text-gray-500 font-medium">alumnos</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">alumnos</span>
               </div>
-              <div className="text-sm text-gray-500 font-medium bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-                Mostrando <span className="text-gray-900 font-bold">{startIndex + 1}</span> a <span className="text-gray-900 font-bold">{endIndex}</span> de <span className="text-gray-900 font-bold">{filteredAlumnos.length}</span>
+              <div className="text-sm text-gray-500 dark:text-gray-400 font-medium bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                Mostrando <span className="text-gray-900 dark:text-gray-100 font-bold">{startIndex + 1}</span> a <span className="text-gray-900 dark:text-gray-100 font-bold">{endIndex}</span> de <span className="text-gray-900 dark:text-gray-100 font-bold">{filteredAlumnos.length}</span>
               </div>
               <div className="flex items-center gap-2">
                 <button 
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => p - 1)}
-                  className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-white text-gray-700 font-bold transition-all shadow-sm hover:shadow active:scale-95"
+                  className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg disabled:opacity-40 hover:bg-white dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold transition-all shadow-sm hover:shadow active:scale-95"
                 >
                   Anterior
                 </button>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Página</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Página</span>
                   <input
                     type="number"
                     min={1}
@@ -1129,14 +1129,14 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                     onBlur={() => {
                         if (!currentPage || currentPage < 1) setCurrentPage(1);
                     }}
-                    className="w-16 border border-gray-300 rounded-md p-1.5 text-center text-sm font-bold bg-white text-gray-900 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-16 border border-gray-300 dark:border-gray-700 rounded-md p-1.5 text-center text-sm font-bold bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                   />
-                  <span className="text-sm text-gray-700 font-medium">de {totalPages || 1}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">de {totalPages || 1}</span>
                 </div>
                 <button 
                   disabled={currentPage === totalPages || totalPages === 0}
                   onClick={() => setCurrentPage(p => p + 1)}
-                  className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-white text-gray-700 font-bold transition-all shadow-sm hover:shadow active:scale-95"
+                  className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg disabled:opacity-40 hover:bg-white dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold transition-all shadow-sm hover:shadow active:scale-95"
                 >
                   Siguiente
                 </button>
@@ -1150,19 +1150,19 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
       <AnimatePresence>
       {showBulkModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sans">
-          <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col h-[85vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-3xl flex flex-col h-[85vh] overflow-hidden border border-gray-200 dark:border-gray-800">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
               <div>
-                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><Users size={24} className="text-amber-500" /> Promoción Masiva de Alumnos</h3>
-                <p className="text-sm text-gray-500 mt-1">Sube de grado a múltiples alumnos y créales un nuevo plan de pagos para el ciclo activo ({ciclos.find(c => c.id === activeCicloId)?.nombre}).</p>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2"><Users size={24} className="text-amber-500" /> Promoción Masiva de Alumnos</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sube de grado a múltiples alumnos y créales un nuevo plan de pagos para el ciclo activo ({ciclos.find(c => c.id === activeCicloId)?.nombre}).</p>
               </div>
-              <button disabled={bulkProcessing} onClick={() => setShowBulkModal(false)} className="text-gray-400 hover:text-gray-700 p-2 rounded-full hover:bg-gray-200 transition-colors">
+              <button disabled={bulkProcessing} onClick={() => setShowBulkModal(false)} className="text-gray-400 hover:text-gray-700 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                 <X size={24} />
               </button>
             </div>
             
-            <div className="p-4 border-b border-gray-100 bg-white">
-               <div className="flex items-center gap-3 bg-blue-50 text-blue-800 p-3 rounded-xl border border-blue-100 mb-0">
+            <div className="p-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+               <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 p-3 rounded-xl border border-blue-100 dark:border-blue-800 mb-0">
                   <input type="checkbox" id="copyConcepts" className="w-5 h-5 text-blue-600 rounded border-gray-300"
                          checked={bulkCopyConcepts} onChange={e => setBulkCopyConcepts(e.target.checked)} />
                   <label htmlFor="copyConcepts" className="text-sm font-medium cursor-pointer">
@@ -1173,33 +1173,33 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
 
             <div className="flex-1 overflow-y-auto p-0">
                <table className="w-full text-left text-sm border-collapse">
-                 <thead className="sticky top-0 bg-gray-100 shadow-sm z-10">
+                 <thead className="sticky top-0 bg-gray-100 dark:bg-gray-800 shadow-sm z-10">
                    <tr>
                      <th className="py-3 px-4 w-12 text-center">
                         <input type="checkbox" className="w-4 h-4" checked={promotableAlumnos.length > 0 && bulkSelected.size === promotableAlumnos.length} onChange={toggleAllBulk} />
                      </th>
-                     <th className="py-3 px-4 font-semibold text-gray-700">Alumno</th>
-                     <th className="py-3 px-4 font-semibold text-gray-700 text-center">Cambio de Grado</th>
+                     <th className="py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Alumno</th>
+                     <th className="py-3 px-4 font-semibold text-gray-700 dark:text-gray-300 text-center">Cambio de Grado</th>
                    </tr>
                  </thead>
-                 <tbody className="divide-y divide-gray-100">
+                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                    {promotableAlumnos.map(a => (
-                     <tr key={a.id} className={`hover:bg-gray-50 cursor-pointer ${bulkSelected.has(a.id) ? 'bg-amber-50/30' : ''}`} onClick={() => toggleBulkSelect(a.id)}>
+                     <tr key={a.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${bulkSelected.has(a.id) ? 'bg-amber-50/30 dark:bg-amber-900/20' : ''}`} onClick={() => toggleBulkSelect(a.id)}>
                        <td className="py-3 px-4 text-center">
                           <input type="checkbox" className="w-4 h-4 pointer-events-none" checked={bulkSelected.has(a.id)} readOnly />
                        </td>
-                       <td className="py-3 px-4 font-medium text-gray-800">
+                       <td className="py-3 px-4 font-medium text-gray-800 dark:text-gray-100">
                           {a.nombre_completo}
-                          <div className="text-xs text-gray-500 font-normal">{a.licenciatura} · {a.turno}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 font-normal">{a.licenciatura} · {a.turno}</div>
                        </td>
                        <td className="py-3 px-4 text-center">
-                          <span className="text-gray-500 line-through mr-2">{a.grado_actual}</span>
-                          <span className="font-bold text-indigo-600 text-base">{getNextGrade(a.grado_actual, a.licenciatura)}</span>
+                          <span className="text-gray-400 dark:text-gray-500 line-through mr-2">{a.grado_actual}</span>
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-base">{getNextGrade(a.grado_actual, a.licenciatura)}</span>
                        </td>
                      </tr>
                    ))}
                    {promotableAlumnos.length === 0 && (
-                      <tr><td colSpan={3} className="text-center py-8 text-gray-500">
+                      <tr><td colSpan={3} className="text-center py-8 text-gray-500 dark:text-gray-400">
                         {filteredAlumnos.length > 0 ? "Todos los alumnos filtrados ya están inscritos en el ciclo actual." : "No hay alumnos para mostrar."}
                       </td></tr>
                    )}
@@ -1207,10 +1207,10 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                </table>
             </div>
 
-            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-              <span className="text-sm font-medium text-amber-700 bg-amber-100 px-3 py-1 rounded-full">{bulkSelected.size} agrupados seleccionados</span>
+            <div className="p-5 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
+              <span className="text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-3 py-1 rounded-full">{bulkSelected.size} agrupados seleccionados</span>
               <div className="flex gap-3">
-                <button disabled={bulkProcessing} onClick={() => setShowBulkModal(false)} className="px-5 py-2.5 text-gray-600 hover:bg-gray-200 rounded-xl font-medium transition-colors border border-gray-300">Cancelar</button>
+                <button disabled={bulkProcessing} onClick={() => setShowBulkModal(false)} className="px-5 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl font-medium transition-colors border border-gray-300 dark:border-gray-600">Cancelar</button>
                 <button disabled={bulkProcessing || bulkSelected.size === 0} onClick={executeBulkPromotion} className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-transform active:scale-95 disabled:opacity-50 disabled:active:scale-100">
                   {bulkProcessing && <Loader2 size={18} className="animate-spin" />}
                   Promover y Generar Planes
@@ -1225,14 +1225,14 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
       <AnimatePresence>
         {showBulkStatusModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-gray-200 dark:border-gray-800">
               <div className="bg-gradient-to-r from-indigo-600 to-blue-600 p-4 text-white">
                 <h3 className="font-bold text-lg">Cambiar Estatus Masivo</h3>
                 <p className="text-indigo-100 text-sm">{mainTableSelected.size} alumnos seleccionados</p>
               </div>
               <div className="p-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nuevo Estatus</label>
-                <select className="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 mb-6" value={bulkStatusTarget} onChange={e => setBulkStatusTarget(e.target.value)}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nuevo Estatus</label>
+                <select className="w-full border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 mb-6" value={bulkStatusTarget} onChange={e => setBulkStatusTarget(e.target.value)}>
                   {catalogos?.estatus_alumnos?.length ? catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>) : (
                     <>
                       <option value="ACTIVO">ACTIVO</option>
@@ -1243,7 +1243,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                   )}
                 </select>
                 <div className="flex justify-end gap-3">
-                  <button onClick={() => setShowBulkStatusModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors font-medium">Cancelar</button>
+                  <button onClick={() => setShowBulkStatusModal(false)} className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors font-medium">Cancelar</button>
                   <button onClick={executeBulkStatusChange} disabled={saving} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-colors flex items-center gap-2 font-bold disabled:opacity-50">
                     {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
                     Aplicar Cambios
@@ -1259,15 +1259,15 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
       <AnimatePresence>
       {modalState.isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+          <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col border border-gray-200 dark:border-gray-800">
             <div className="p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-2">{modalState.title}</h3>
-              <p className="text-gray-600">{modalState.message}</p>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">{modalState.title}</h3>
+              <p className="text-gray-600 dark:text-gray-300">{modalState.message}</p>
             </div>
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+            <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
               {modalState.type === 'confirm' && (
                 <button onClick={() => setModalState({ ...modalState, isOpen: false })}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors">
+                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors">
                   Cancelar
                 </button>
               )}

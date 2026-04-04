@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, Check, FileText } from 'lucide-react';
+import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, Check, FileText, ArrowLeft } from 'lucide-react';
 import { downloadElementAsPDF, generatePDFBlob } from '../lib/printUtils';
 import JSZip from 'jszip';
 import ReciboPlantillaPDF from './ReciboPlantillaPDF';
@@ -613,48 +613,51 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   const paginatedRecibos = recibosFiltrados.slice(startIndex, endIndex);
 
   return (
-    <div className="flex h-full min-h-[600px]">
+    <div className="flex h-full min-h-[600px] relative overflow-hidden">
       
-      {/* Lista lateral */}
-      <div className="w-1/3 border-r border-gray-200 bg-gray-50 flex flex-col">
-        <div className="p-3 border-b border-gray-200 bg-white flex flex-col gap-2">
+      {/* Lista lateral — en móvil ocupa el 100% y se oculta si hay recibo seleccionado */}
+      <div className={`
+        flex flex-col transition-all duration-300
+        w-full md:w-1/3
+        absolute md:relative inset-0
+        ${reciboSeleccionado ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}
+        border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900
+        z-10
+      `}>
+        <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col gap-2">
+          {/* Fila 1: título + botones de acción */}
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-bold text-gray-700 text-sm shrink-0">Historial</h2>
-            <div className="flex gap-1.5 items-center shrink-0">
-              <button onClick={() => setShowFilters(!showFilters)} className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1.5 ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} title="Filtros Avanzados">
-                <Filter size={14} className="shrink-0" />
-                <span className="hidden md:inline">Filtros</span>
+            <h2 className="font-bold text-gray-700 dark:text-gray-200 text-sm shrink-0">Historial</h2>
+            <div className="flex gap-1 items-center shrink-0 flex-wrap justify-end">
+              <button onClick={() => setShowFilters(!showFilters)} className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1 ${showFilters ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`} title="Filtros Avanzados">
+                <Filter size={13} className="shrink-0" />
+                <span className="hidden sm:inline text-xs">Filtros</span>
               </button>
               <button
                 onClick={() => setFilterFactura(!filterFactura)}
-                className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1.5 ${filterFactura ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-200 text-amber-600 hover:bg-amber-50'}`}
-                title="Mostrar solo Pedientes de Factura"
+                className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1 ${filterFactura ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'}`}
+                title="Mostrar solo Pendientes de Factura"
               >
-                <FileText size={14} className="shrink-0" />
-                <span className="hidden md:inline">Facturas</span>
+                <FileText size={13} className="shrink-0" />
+                <span className="hidden sm:inline text-xs">Facturas</span>
               </button>
               <button
                 onClick={() => setImportarVisible(true)}
-                className="flex items-center gap-1.5 text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg transition-colors border border-blue-200 text-xs font-bold"
+                className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1.5 rounded-lg transition-colors border border-blue-200 dark:border-blue-800 text-xs font-bold bg-white dark:bg-gray-800"
                 title="Importar desde CSV"
               >
-                <Upload size={14} className="shrink-0" />
-                <span className="hidden xl:inline">Importar</span>
+                <Upload size={13} className="shrink-0" />
+                <span className="hidden sm:inline text-xs">Importar</span>
               </button>
               <button
                 onClick={handleExportCSV}
-                className="flex items-center gap-1.5 text-emerald-600 hover:bg-emerald-50 px-2 py-1.5 rounded-lg transition-colors border border-emerald-200 text-xs font-bold"
+                className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 px-2 py-1.5 rounded-lg transition-colors border border-emerald-200 dark:border-emerald-800 text-xs font-bold bg-white dark:bg-gray-800"
                 title="Exportar a Excel"
               >
-                <Download size={14} className="shrink-0" />
-                <span className="hidden md:inline">Exportar</span>
+                <Download size={13} className="shrink-0" />
+                <span className="hidden sm:inline text-xs">Exportar</span>
               </button>
-              {/* Botón SOS oculto temporalmente — descomentar para usar
-              <button onClick={handleRepararHistoricos} className="text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors border border-red-200 text-xs font-bold shadow-sm" title="Reparar Historicos Corruptos">
-                SOS Reparar
-              </button>
-              */}
-              <button onClick={cargarRecibos} className="text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg transition-colors" title="Actualizar">
+              <button onClick={cargarRecibos} className="text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded-lg transition-colors flex items-center gap-1" title="Actualizar">
                 <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               </button>
             </div>
@@ -665,41 +668,41 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
              </div>
           )}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={15} />
             <input
               type="text"
               placeholder="Buscar por folio, nombre o fecha..."
-              className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-8 pr-3 py-1.5 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           
           {showFilters && (
-            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm flex flex-col gap-2">
+            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm flex flex-col gap-2">
               <div className="flex gap-2">
                  <div className="flex-1">
-                   <label className="text-xs font-bold text-gray-500 block mb-0.5">Fecha Inicio</label>
-                   <input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none" />
+                   <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Fecha Inicio</label>
+                   <input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200" />
                  </div>
                  <div className="flex-1">
-                   <label className="text-xs font-bold text-gray-500 block mb-0.5">Fecha Fin</label>
-                   <input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none" />
+                   <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Fecha Fin</label>
+                   <input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200" />
                  </div>
               </div>
               <div className="flex gap-2">
                  <div className="flex-1">
-                   <label className="text-xs font-bold text-gray-500 block mb-0.5">Folio Inicio</label>
-                   <input type="number" value={filterStartFolio} onChange={e => setFilterStartFolio(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none" min="1" />
+                   <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Folio Inicio</label>
+                   <input type="number" value={filterStartFolio} onChange={e => setFilterStartFolio(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200" min="1" />
                  </div>
                  <div className="flex-1">
-                   <label className="text-xs font-bold text-gray-500 block mb-0.5">Folio Fin</label>
-                   <input type="number" value={filterEndFolio} onChange={e => setFilterEndFolio(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none" min="1" />
+                   <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Folio Fin</label>
+                   <input type="number" value={filterEndFolio} onChange={e => setFilterEndFolio(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200" min="1" />
                  </div>
               </div>
               <div>
-                 <label className="text-xs font-bold text-gray-500 block mb-0.5">Forma de Pago</label>
-                 <select value={filterMetodoPago} onChange={e => setFilterMetodoPago(e.target.value)} className="w-full p-1.5 border border-gray-200 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white">
+                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Forma de Pago</label>
+                 <select value={filterMetodoPago} onChange={e => setFilterMetodoPago(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
                    <option value="">Cualquiera</option>
                    <option value="Depósito Bancario">Depósito Bancario</option>
                    <option value="Transferencia bancaria">Transferencia bancaria</option>
@@ -711,14 +714,14 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               <div className="flex justify-end mt-1">
                  <button onClick={() => {
                    setFilterStartDate(''); setFilterEndDate(''); setFilterMetodoPago(''); setFilterStartFolio(''); setFilterEndFolio('');
-                 }} className="text-xs text-blue-600 hover:text-blue-800 font-bold underline">Limpiar Filtros</button>
+                 }} className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-bold underline">Limpiar Filtros</button>
               </div>
             </div>
           )}
         </div>
         
         {/* Acciones Masivas */}
-        <div className="bg-white px-3 py-2 border-b border-gray-200 flex items-center justify-between text-xs sticky top-0 z-10 shadow-sm">
+        <div className="bg-white dark:bg-gray-900 px-3 py-2 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between text-xs sticky top-0 z-10 shadow-sm">
            <div className="flex items-center gap-2">
               <input type="checkbox" className="w-4 h-4 rounded text-blue-600 cursor-pointer" 
                      checked={paginatedRecibos.length > 0 && selectedReceiptIds.size > 0 && paginatedRecibos.every(r => selectedReceiptIds.has(r.id))}
@@ -735,7 +738,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                        }
                      }} />
               <div className="flex items-center gap-1 group relative">
-                 <button onClick={() => handleSelectAllFilters(recibosFiltrados.map(r => r.id))} className="text-gray-500 font-bold hover:text-blue-600 text-xs flex items-center gap-1">
+                 <button onClick={() => handleSelectAllFilters(recibosFiltrados.map(r => r.id))} className="text-gray-500 dark:text-gray-400 font-bold hover:text-blue-600 text-xs flex items-center gap-1">
                     Sel. Todos ({recibosFiltrados.length})
                  </button>
               </div>
@@ -764,7 +767,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             paginatedRecibos.map(r => (
               <div 
                 key={r.id} 
-                className={`p-3 border-b border-gray-100 hover:bg-white rounded-lg transition-colors mb-1 ${reciboSeleccionado?.id === r.id ? 'bg-white shadow-sm border-blue-200 ring-1 ring-blue-500' : ''}`}
+          className={`p-3 border-b border-gray-100 dark:border-gray-800 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-colors mb-1 ${reciboSeleccionado?.id === r.id ? 'bg-white dark:bg-gray-800 shadow-sm border-blue-200 dark:border-blue-700 ring-1 ring-blue-500' : ''}`}
                 onClick={() => setReciboSeleccionado(r)}
               >
                 <div className="flex gap-2">
@@ -774,38 +777,40 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                             onChange={(e) => toggleSelection(r.id, e as any)} />
                    </div>
                    <div className="flex-1 overflow-hidden cursor-pointer">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="font-bold text-blue-700">Folio: {r.folio}</span>
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${r.estatus === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                          {r.estatus}
-                        </span>
-                        {r.requiere_factura && (
-                           <span className={`text-[10px] font-bold px-2 py-1 rounded-full ml-1 cursor-pointer transition-colors ${
-                              r.estatus_factura === 'FACTURADO' 
-                                 ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' 
-                                 : 'bg-amber-100 text-amber-800 hover:bg-amber-200 animate-pulse'
-                           }`}
-                           onClick={(e) => { 
-                               e.stopPropagation(); 
-                               if (r.estatus_factura === 'FACTURADO' && currentUser?.rol !== 'ADMINISTRADOR') return;
-                               setFacturarRecibo(r); 
-                               setFolioFiscalInput(r.folio_fiscal || ''); 
-                           }}
-                           title={r.estatus_factura === 'FACTURADO' ? (currentUser?.rol === 'ADMINISTRADOR' ? 'Modificar factura asentada' : `Facturado: ${r.folio_fiscal}`) : 'Clic para asentar folio de factura'}
-                           >
-                             {r.estatus_factura === 'FACTURADO' ? 'Facturado' : 'Pend. Factura'}
+                       <div className="flex flex-wrap justify-between items-start gap-1 mb-1">
+                         <span className="font-bold text-blue-600 dark:text-blue-400 text-sm">Folio: {r.folio}</span>
+                         <div className="flex items-center gap-1 flex-wrap">
+                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.estatus === 'ACTIVO' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'}`}>
+                             {r.estatus}
                            </span>
-                        )}
-                      </div>
-                      <div className="text-sm font-semibold text-gray-800 line-clamp-1">{r.nombre_alumno}</div>
-                      <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                           {r.requiere_factura && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer transition-colors ${
+                                 r.estatus_factura === 'FACTURADO' 
+                                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 hover:bg-blue-200' 
+                                    : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:bg-amber-200 animate-pulse'
+                              }`}
+                              onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  if (r.estatus_factura === 'FACTURADO' && currentUser?.rol !== 'ADMINISTRADOR') return;
+                                  setFacturarRecibo(r); 
+                                  setFolioFiscalInput(r.folio_fiscal || ''); 
+                              }}
+                              title={r.estatus_factura === 'FACTURADO' ? (currentUser?.rol === 'ADMINISTRADOR' ? 'Modificar factura asentada' : `Facturado: ${r.folio_fiscal}`) : 'Clic para asentar folio de factura'}
+                              >
+                                {r.estatus_factura === 'FACTURADO' ? 'Facturado' : 'Pend. Factura'}
+                              </span>
+                           )}
+                         </div>
+                       </div>
+                      <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 line-clamp-1">{r.nombre_alumno}</div>
+                      <div className="flex justify-between items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
                         <div className="flex flex-col items-end w-full">
                           {(r.uso_saldo_a_favor || 0) > 0 && (
                             <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 mb-0.5">
                               Monedero: -${r.uso_saldo_a_favor!.toFixed(2)}
                             </span>
                           )}
-                          <span className="font-bold text-gray-700">Caja: ${(r.total - (r.uso_saldo_a_favor || 0)).toFixed(2)}</span>
+                          <span className="font-bold text-gray-700 dark:text-gray-200">Caja: ${(r.total - (r.uso_saldo_a_favor || 0)).toFixed(2)}</span>
                         </div>
                       </div>
                    </div>
@@ -816,11 +821,11 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
         </div>
 
         {recibosFiltrados.length > 0 && (
-          <div className="p-3 border-t border-gray-200 bg-white flex flex-col gap-2">
+          <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col gap-2">
             <div className="flex justify-between items-center text-xs text-gray-500 font-medium">
-              <span>{startIndex + 1}-{endIndex} de {recibosFiltrados.length}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">{startIndex + 1}-{endIndex} de {recibosFiltrados.length}</span>
               <select 
-                className="border border-gray-300 rounded p-1 outline-none focus:border-blue-500 bg-gray-50 cursor-pointer"
+                className="border border-gray-300 dark:border-gray-700 rounded p-1 outline-none focus:border-blue-500 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 cursor-pointer"
                 value={itemsPerPage}
                 onChange={(e) => setItemsPerPage(Number(e.target.value))}
               >
@@ -834,14 +839,14 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               <button 
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => p - 1)}
-                className="flex-1 py-1.5 border border-gray-300 rounded bg-gray-50 hover:bg-gray-100 disabled:opacity-40 text-xs font-bold text-gray-700 transition-colors shadow-sm active:scale-95"
+                className="flex-1 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 text-xs font-bold text-gray-700 dark:text-gray-300 transition-colors shadow-sm active:scale-95"
               >
                 Anterior
               </button>
               <button 
                 disabled={currentPage === totalPages || totalPages === 0}
                 onClick={() => setCurrentPage(p => p + 1)}
-                className="flex-1 py-1.5 border border-gray-300 rounded bg-gray-50 hover:bg-gray-100 disabled:opacity-40 text-xs font-bold text-gray-700 transition-colors shadow-sm active:scale-95"
+                className="flex-1 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 text-xs font-bold text-gray-700 dark:text-gray-300 transition-colors shadow-sm active:scale-95"
               >
                 Siguiente
               </button>
@@ -850,8 +855,29 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
         )}
       </div>
 
-      {/* Detalle del recibo — Digital Receipt */}
-      <div className="w-2/3 bg-gray-50 dark:bg-gray-950 overflow-y-auto">
+      {/* Detalle del recibo — en móvil ocupa pantalla completa cuando hay recibo seleccionado */}
+      <div className={`
+        bg-gray-50 dark:bg-gray-950 overflow-y-auto
+        w-full md:w-2/3
+        absolute md:relative inset-0
+        transition-transform duration-300
+        ${reciboSeleccionado ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+        z-20 md:z-auto
+      `}>
+        {/* Barra de navegación móvil — solo visible en pantallas pequeñas */}
+        {reciboSeleccionado && (
+          <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
+            <button
+              onClick={() => setReciboSeleccionado(null)}
+              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-sm hover:text-blue-800 transition-colors"
+            >
+              <ArrowLeft size={18} />
+              <span>Volver a lista</span>
+            </button>
+            <span className="text-gray-400 dark:text-gray-600 text-xs">|</span>
+            <span className="text-gray-600 dark:text-gray-300 text-sm font-semibold truncate">Folio #{reciboSeleccionado.folio}</span>
+          </div>
+        )}
         {reciboSeleccionado ? (
           <div className="max-w-2xl mx-auto p-6">
             {/* Cabecera del recibo */}

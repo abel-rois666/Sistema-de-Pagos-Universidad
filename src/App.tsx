@@ -530,7 +530,7 @@ export default function App() {
               </div>
 
               {/* Right: Dark Mode, User, Logout */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <DarkModeToggle 
                   initialTheme={currentUser.preferencia_tema} 
                   onChange={(isDark) => {
@@ -540,22 +540,22 @@ export default function App() {
                   }} 
                 />
                 
-                <div className="w-px h-8 bg-gray-200 dark:bg-gray-800 hidden sm:block"></div>
+                <div className="w-px h-8 bg-gray-200 dark:bg-gray-800 hidden sm:block shrink-0"></div>
                 
-                <div className="flex items-center gap-2">
-                  <div className="flex flex-col items-end leading-none">
-                    <span className="text-[15px] font-extrabold text-[#0a152d] dark:text-gray-200">{currentUser.username}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex flex-col items-end leading-none min-w-0 hidden xs:flex">
+                    <span className="text-[14px] font-extrabold text-[#0a152d] dark:text-gray-200 truncate max-w-[100px]">{currentUser.username}</span>
                     <span className="text-[10px] font-bold text-[#3d2793] dark:text-indigo-400 uppercase tracking-widest mt-1">{currentUser.rol}</span>
                   </div>
                   
-                  <div className="w-9 h-9 ml-1 rounded-full bg-[#d0cedd] border border-[#c0bdd0] dark:bg-gray-700 flex items-center justify-center text-[#1c1836] dark:text-white font-extrabold text-sm shadow-inner">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#d0cedd] border border-[#c0bdd0] dark:bg-gray-700 flex items-center justify-center text-[#1c1836] dark:text-white font-extrabold text-sm shadow-inner shrink-0">
                     {currentUser.username.charAt(0).toUpperCase()}
                   </div>
                 </div>
 
-                <button onClick={() => supabase.auth.signOut()} className="relative ml-2 group shrink-0">
+                <button onClick={() => supabase.auth.signOut()} className="relative ml-1 group shrink-0">
                   <div className="absolute -inset-1 bg-red-500 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-200"></div>
-                  <div className="relative px-4 py-1.5 border border-[#fcb5b5] bg-[#ffeaea] dark:bg-red-900/40 text-[#ce2121] dark:text-red-300 dark:border-red-800 rounded-lg text-xs font-bold tracking-wide hover:bg-[#ffd9d9] dark:hover:bg-red-900/60 transition-colors">
+                  <div className="relative px-3 py-1.5 border border-[#fcb5b5] bg-[#ffeaea] dark:bg-red-900/40 text-[#ce2121] dark:text-red-300 dark:border-red-800 rounded-lg text-xs font-bold tracking-wide hover:bg-[#ffd9d9] dark:hover:bg-red-900/60 transition-colors">
                     SALIR
                   </div>
                 </button>

@@ -768,7 +768,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-gray-700 hover:text-black font-bold transition-colors shrink-0"
+              className="flex items-center gap-2 text-gray-700 dark:text-gray-200 hover:text-black dark:hover:text-white font-bold transition-colors shrink-0"
             >
               <ArrowLeft size={18} /> <span className="text-sm">Volver al Inicio</span>
             </button>

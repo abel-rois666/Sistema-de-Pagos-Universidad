@@ -51,13 +51,13 @@ export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, c
           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
             <button
               onClick={() => setActiveTab('registrar')}
-              className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all text-sm w-full md:w-auto ${activeTab === 'registrar' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+              className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all text-sm w-full md:w-auto ${activeTab === 'registrar' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
             >
               <ReceiptText size={18} /> Registrar Pago
             </button>
             <button
               onClick={() => setActiveTab('consultar')}
-              className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all text-sm w-full md:w-auto ${activeTab === 'consultar' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+              className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all text-sm w-full md:w-auto ${activeTab === 'consultar' ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-blue-900/40' : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
             >
               <List size={18} /> Consultar Registros
             </button>

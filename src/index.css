@@ -95,3 +95,31 @@ html, body, #root {
   animation: countUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* ── Dark mode global: inputs, selects y textareas nativos ────────────────
+   Evita el fondo blanco del navegador en elementos sin clase dark: explícita.
+   Los componentes que ya tienen dark:bg-gray-* prevalecen (mayor especificidad). */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.dark select,
+.dark textarea {
+  color-scheme: dark;
+}
+
+/* ── Animación de notificaciones toast ───────────────────────────────────── */
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.toast-enter {
+  animation: slideInDown 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Aria helpers ────────────────────────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+

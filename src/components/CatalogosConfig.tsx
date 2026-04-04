@@ -249,20 +249,20 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
 
     // ──────────────── RENDER ────────────────
     return (
-        <div className="min-h-screen bg-gray-50 p-6 font-sans">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 font-sans transition-colors duration-300">
             <div className="max-w-4xl mx-auto">
 
                 {/* Header */}
                 <div className="flex items-center justify-between mb-8">
                     <button
                         onClick={onBack}
-                        className="flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors"
+                        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white font-bold transition-colors"
                     >
                         <ArrowLeft size={20} /> Volver al Inicio
                     </button>
                     <div className="text-right">
-                        <h1 className="text-2xl font-extrabold text-gray-800">Catálogos de Configuración</h1>
-                        <p className="text-sm text-gray-500">Gestiona las opciones predefinidas del sistema</p>
+                        <h1 className="text-2xl font-extrabold text-gray-800 dark:text-gray-100">Catálogos de Configuración</h1>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Gestiona las opciones predefinidas del sistema</p>
                     </div>
                 </div>
 
@@ -287,12 +287,12 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm border transition-all
                 ${activeTab === tab.key
                                     ? `${tab.bgColor} ${tab.color} ${tab.borderColor} shadow-sm`
-                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                                    : 'bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
                         >
                             {tab.icon}
                             {tab.label}
                             <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full font-bold
-                ${activeTab === tab.key ? 'bg-white/60' : 'bg-gray-100'}`}>
+                ${activeTab === tab.key ? 'bg-white/60 dark:bg-black/20' : 'bg-gray-100 dark:bg-gray-700 dark:text-gray-300'}`}>
                                 {items.filter(i => i.tipo === tab.key && i.activo).length}
                             </span>
                         </button>
@@ -300,21 +300,21 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                 </div>
 
                 {/* Card */}
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden transition-colors">
 
                     {/* Card header */}
                     <div className={`px-6 py-4 border-b flex items-center gap-3 ${activeConfig.bgColor} ${activeConfig.borderColor} border-b`}>
                         <span className={activeConfig.color}>{activeConfig.icon}</span>
                         <div>
                             <h2 className={`font-bold text-base ${activeConfig.color}`}>{activeConfig.label}</h2>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {filteredItems.filter(i => i.activo).length} activos · {filteredItems.filter(i => !i.activo).length} inactivos
                             </p>
                         </div>
                     </div>
 
                     {/* Add new row */}
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
+                    <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-col gap-3">
                         <div className="flex gap-3 items-center flex-wrap">
                             <input
                                 type="text"
@@ -322,7 +322,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                                 onChange={e => setNewValue(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleAdd()}
                                 placeholder={`Nuevo valor para ${activeConfig.label.toLowerCase()}...`}
-                                className="flex-grow min-w-[200px] border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase placeholder:normal-case"
+                                className="flex-grow min-w-[200px] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase placeholder:normal-case bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                             />
                             <button
                                 onClick={handleAdd}
@@ -346,7 +346,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={saving}
-                                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg font-semibold text-sm transition-all shadow-sm hover:shadow"
+                                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg font-semibold text-sm transition-all shadow-sm hover:shadow"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                                 Importar CSV
@@ -390,9 +390,9 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                     )}
 
                     {/* Items list */}
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
                         {filteredItems.length === 0 && (
-                            <div className="px-6 py-12 text-center text-gray-400 text-sm">
+                            <div className="px-6 py-12 text-center text-gray-400 dark:text-gray-600 text-sm">
                                 No hay ítems. Agrega el primero arriba.
                             </div>
                         )}
@@ -403,7 +403,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                                 transition={{ delay: idx * 0.05, duration: 0.2 }}
                                 key={item.id}
                                 className={`flex items-center gap-3 px-6 py-3 group transition-colors
-                  ${item.activo ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-60'}`}
+                  ${item.activo ? 'hover:bg-gray-50 dark:hover:bg-gray-800/50' : 'bg-gray-50 dark:bg-gray-800/30 opacity-60'}`}
                             >
                                 {/* Order badge */}
                                 <span className="text-xs font-bold text-gray-300 w-6 text-center">{idx + 1}</span>
@@ -442,7 +442,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                                     </div>
                                 ) : (
                                     <div className="flex-grow flex flex-col gap-0.5">
-                                        <span className={`text-sm font-semibold ${item.activo ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                                        <span className={`text-sm font-semibold ${item.activo ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400 dark:text-gray-600 line-through'}`}>
                                             {item.valor}
                                         </span>
                                         {item.tipo === 'licenciatura' && item.metadata && (
@@ -461,8 +461,8 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                                 {/* Status badge */}
                                 <span className={`hidden sm:inline-block text-xs px-2 py-0.5 rounded-full font-bold border
                   ${item.activo
-                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                        : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
+                                        ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-gray-700'}`}>
                                     {item.activo ? 'Activo' : 'Inactivo'}
                                 </span>
 
@@ -520,7 +520,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                 </div>
 
                 {/* Footer tip */}
-                <p className="text-xs text-gray-400 text-center mt-4">
+                <p className="text-xs text-gray-400 dark:text-gray-600 text-center mt-4">
                     💡 Los ítems <strong>inactivos</strong> no aparecerán en los formularios, pero se conservan en la BD.
                     Puedes reactivarlos cuando los necesites.
                 </p>

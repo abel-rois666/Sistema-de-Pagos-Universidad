@@ -437,37 +437,35 @@ export default function ImportarCSV({
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-gray-200 dark:border-gray-800">
 
-                {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
                     <div className="flex items-center gap-3">
-                        <div className="bg-emerald-100 p-2 rounded-lg">
-                            <Upload size={20} className="text-emerald-600" />
+                        <div className="bg-emerald-100 dark:bg-emerald-900/40 p-2 rounded-lg">
+                            <Upload size={20} className="text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900">Importar desde CSV</h2>
-                            <p className="text-sm text-gray-500">Ciclo activo: <span className="font-semibold text-blue-600">{activeCicloNombre}</span></p>
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Importar desde CSV</h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Ciclo activo: <span className="font-semibold text-blue-600 dark:text-blue-400">{activeCicloNombre}</span></p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                        <X size={20} className="text-gray-500" />
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                        <X size={20} className="text-gray-500 dark:text-gray-400" />
                     </button>
                 </div>
 
-                {/* Steps indicator */}
-                <div className="flex items-center gap-2 px-6 py-4 bg-gray-50 border-b border-gray-100">
+                <div className="flex items-center gap-2 px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
                     {[
                         { n: 1, label: 'Subir archivo' },
                         { n: 2, label: 'Previsualizar' },
                         { n: 3, label: 'Resultado' },
                     ].map((s, i) => (
                         <React.Fragment key={s.n}>
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${step === s.n ? 'bg-blue-600 text-white' : step > s.n ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${step === s.n ? 'bg-blue-600 text-white' : step > s.n ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
                                 {step > s.n ? <CheckCircle size={14} /> : <span className="w-4 h-4 flex items-center justify-center text-xs">{s.n}</span>}
                                 {s.label}
                             </div>
-                            {i < 2 && <ChevronRight size={14} className="text-gray-400" />}
+                            {i < 2 && <ChevronRight size={14} className="text-gray-400 dark:text-gray-600" />}
                         </React.Fragment>
                     ))}
                 </div>
@@ -479,11 +477,11 @@ export default function ImportarCSV({
                     {step === 1 && (
                         <div className="space-y-6">
                             {/* Plantilla */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-4">
-                                <FileText size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                            <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-start gap-4">
+                                <FileText size={20} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
-                                    <p className="font-semibold text-blue-900 mb-1">¿Primera vez? Descarga la plantilla</p>
-                                    <p className="text-sm text-blue-700 mb-3">
+                                    <p className="font-semibold text-blue-900 dark:text-blue-200 mb-1">¿Primera vez? Descarga la plantilla</p>
+                                    <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
                                         El archivo incluye <strong>2 alumnos de ejemplo</strong> con todos los campos llenos. Edítalo en Excel y vuelve a subirlo.
                                     </p>
                                     <button
@@ -497,13 +495,13 @@ export default function ImportarCSV({
                             </div>
 
                             {/* Sugerencia de Folio */}
-                            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-4">
-                                <AlertCircle size={20} className="text-indigo-600 mt-0.5 flex-shrink-0" />
+                            <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 flex items-start gap-4">
+                                <AlertCircle size={20} className="text-indigo-600 dark:text-indigo-400 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
-                                    <p className="font-semibold text-indigo-900 mb-1">Sugerencia de Folio (Para <span className="font-mono text-xs font-bold">NO_PLAN_PAGOS</span>)</p>
-                                    <p className="text-sm text-indigo-700">
+                                    <p className="font-semibold text-indigo-900 dark:text-indigo-200 mb-1">Sugerencia de Folio (Para <span className="font-mono text-xs font-bold">NO_PLAN_PAGOS</span>)</p>
+                                    <p className="text-sm text-indigo-700 dark:text-indigo-300">
                                         Para mantener tu consecutivo global y evitar folios repetidos, te sugerimos que asignes tus folios del ciclo <strong>{activeCicloNombre}</strong> a partir del:
-                                        <br/><span className="inline-block mt-2 font-mono text-base font-bold bg-white text-indigo-800 px-3 py-1 rounded shadow-sm border border-indigo-200">
+                                        <br/><span className="inline-block mt-2 font-mono text-base font-bold bg-white dark:bg-gray-800 text-indigo-800 dark:text-indigo-300 px-3 py-1 rounded shadow-sm border border-indigo-200 dark:border-indigo-700">
                                             {getCyclePrefix(activeCicloNombre)}-{(globalMaxCounter + 1).toString().padStart(3, '0')}
                                         </span>
                                     </p>
@@ -516,12 +514,12 @@ export default function ImportarCSV({
                                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                                 onDragLeave={() => setDragOver(false)}
                                 onClick={() => fileInputRef.current?.click()}
-                                className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}`}
+                                className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
                             >
-                                <Upload size={40} className={`mx-auto mb-4 ${dragOver ? 'text-blue-500' : 'text-gray-400'}`} />
-                                <p className="text-gray-700 font-semibold text-lg mb-1">Arrastra el CSV aquí</p>
-                                <p className="text-gray-500 text-sm">o haz clic para seleccionar el archivo</p>
-                                <p className="text-xs text-gray-400 mt-2">Solo archivos .csv (codificación UTF-8)</p>
+                                <Upload size={40} className={`mx-auto mb-4 ${dragOver ? 'text-blue-500' : 'text-gray-400 dark:text-gray-600'}`} />
+                                <p className="text-gray-700 dark:text-gray-200 font-semibold text-lg mb-1">Arrastra el CSV aquí</p>
+                                <p className="text-gray-500 dark:text-gray-400 text-sm">o haz clic para seleccionar el archivo</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Solo archivos .csv (codificación UTF-8)</p>
                                 <input
                                     ref={fileInputRef}
                                     type="file"
@@ -532,26 +530,26 @@ export default function ImportarCSV({
                             </div>
 
                             {/* Descripción de columnas */}
-                            <div className="bg-gray-50 rounded-xl p-4">
-                                <p className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><Eye size={16} />Columnas del CSV</p>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600">
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">NOMBRE_ALUMNO</span> <span className="text-red-500">*</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">NO_PLAN_PAGOS</span> <span className="text-red-500">*</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">LICENCIATURA</span> <span className="text-red-500">*</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">GRADO</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">TURNO</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">ESTATUS_ALUMNO</span> <span className="text-red-500">*</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">CICLO_ESCOLAR</span> <span className="text-red-500">*</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">FECHA_PLAN</span> <span className="text-red-500">*</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">TIPO_PLAN</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">BECA_TIPO</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200"><span className="font-mono font-bold">BECA_PORCENTAJE</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200 col-span-2 md:col-span-3"><span className="font-mono font-bold">OBSERVACIONES_PAGO_TITULACION</span></div>
-                                    <div className="bg-white rounded-lg p-2 border border-gray-200 col-span-2 md:col-span-3">
+                            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+                                <p className="font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2"><Eye size={16} />Columnas del CSV</p>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">NOMBRE_ALUMNO</span> <span className="text-red-500">*</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">NO_PLAN_PAGOS</span> <span className="text-red-500">*</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">LICENCIATURA</span> <span className="text-red-500">*</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">GRADO</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">TURNO</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">ESTATUS_ALUMNO</span> <span className="text-red-500">*</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">CICLO_ESCOLAR</span> <span className="text-red-500">*</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">FECHA_PLAN</span> <span className="text-red-500">*</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">TIPO_PLAN</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">BECA_TIPO</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700"><span className="font-mono font-bold">BECA_PORCENTAJE</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700 col-span-2 md:col-span-3"><span className="font-mono font-bold">OBSERVACIONES_PAGO_TITULACION</span></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-gray-200 dark:border-gray-700 col-span-2 md:col-span-3">
                                         <span className="font-mono font-bold">CONCEPTO_1, FECHA_1, CANTIDAD_1, ESTATUS_1</span> … hasta <span className="font-mono font-bold">_9</span>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-2"><span className="text-red-500">*</span> Requerido</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2"><span className="text-red-500">*</span> Requerido</p>
                             </div>
                         </div>
                     )}
@@ -576,7 +574,7 @@ export default function ImportarCSV({
                             </div>
 
                             {/* Archivo cargado */}
-                            <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-2">
+                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-lg px-4 py-2">
                                 <FileText size={14} />
                                 <span className="font-mono">{fileName}</span>
                                 <button
@@ -622,35 +620,34 @@ export default function ImportarCSV({
                             )}
 
                             {/* Tabla preview */}
-                            <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="bg-gray-50 border-b border-gray-200">
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Fila</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Alumno</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Plan</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Ciclo</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Pagos</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Estado</th>
+                                        <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Fila</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Alumno</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Plan</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Ciclo</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Pagos</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Estado</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
+                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                         {parsedRows.map(row => {
                                             const isDuplicateGroup = duplicateGroups.some(g => g[0] === row.nombre_alumno);
                                             const isOmitted = isDuplicateGroup && selectedDuplicates[row.nombre_alumno] !== row.rowIndex;
                                             
                                             return (
-                                              <tr key={row.rowIndex} className={isOmitted ? 'bg-gray-100 opacity-60' : row.errors.length > 0 ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                                                  <td className="px-4 py-3 text-gray-500 font-mono text-xs">
+                                              <tr key={row.rowIndex} className={isOmitted ? 'bg-gray-100 dark:bg-gray-800/60 opacity-60' : row.errors.length > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}>
+                                                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">
                                                       {row.rowIndex}
-                                                      {isOmitted && <span className="ml-2 bg-gray-300 text-gray-600 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold">Omitida</span>}
+                                                      {isOmitted && <span className="ml-2 bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold">Omitida</span>}
                                                   </td>
-                                                  <td className="px-4 py-3 font-semibold text-gray-800">{row.nombre_alumno || <span className="text-gray-400 italic">—</span>}</td>
-                                                  <td className="px-4 py-3 text-gray-600">{row.no_plan_pagos}</td>
-                                                  <td className="px-4 py-3 text-gray-600">{row.ciclo_escolar}</td>
-
+                                                  <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-100">{row.nombre_alumno || <span className="text-gray-400 italic">—</span>}</td>
+                                                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.no_plan_pagos}</td>
+                                                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{row.ciclo_escolar}</td>
                                                 <td className="px-4 py-3">
-                                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                                                    <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full text-xs font-bold">
                                                         {row.pagos.length} pago{row.pagos.length !== 1 ? 's' : ''}
                                                     </span>
                                                 </td>
@@ -673,9 +670,9 @@ export default function ImportarCSV({
                             </div>
 
                             {validCount === 0 && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3">
                                     <AlertTriangle size={20} className="text-amber-600 flex-shrink-0" />
-                                    <p className="text-amber-800 text-sm">No hay registros válidos para importar. Corrige los errores en el CSV y vuelve a subirlo.</p>
+                                    <p className="text-amber-800 dark:text-amber-300 text-sm">No hay registros válidos para importar. Corrige los errores en el CSV y vuelve a subirlo.</p>
                                 </div>
                             )}
                         </div>
@@ -688,8 +685,8 @@ export default function ImportarCSV({
                                 <CheckCircle size={40} className="text-emerald-600" />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-extrabold text-gray-900 mb-1">¡Importación completada!</h3>
-                                <p className="text-gray-500">Los datos ya están disponibles en Plan de Pagos y Alumnos.</p>
+                                <h3 className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 mb-1">¡Importación completada!</h3>
+                                <p className="text-gray-500 dark:text-gray-400">Los datos ya están disponibles en Plan de Pagos y Alumnos.</p>
                             </div>
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
                                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
@@ -714,18 +711,18 @@ export default function ImportarCSV({
                 </div>
 
                 {/* Footer / Acciones */}
-                <div className="flex items-center justify-between p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+                <div className="flex items-center justify-between p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
                     <button
                         onClick={step === 1 ? onClose : () => setStep(prev => (prev - 1) as 1 | 2)}
                         disabled={step === 3}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition-colors disabled:opacity-40"
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors disabled:opacity-40"
                     >
                         <ChevronLeft size={16} />
                         {step === 1 ? 'Cancelar' : 'Volver'}
                     </button>
 
                     {step === 1 && (
-                        <p className="text-xs text-gray-400">Sube un archivo CSV para continuar</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">Sube un archivo CSV para continuar</p>
                     )}
 
                     {step === 2 && (

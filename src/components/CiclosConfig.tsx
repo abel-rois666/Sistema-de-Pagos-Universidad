@@ -178,10 +178,10 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-8 font-sans transition-colors duration-300">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-600 hover:text-black font-bold transition-colors">
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white font-bold transition-colors">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
           <button onClick={handleAddNew} disabled={editingId !== null || saving}
@@ -198,16 +198,16 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 bg-gray-50">
-            <h1 className="text-2xl font-bold text-gray-800">Configuración de Ciclos Escolares</h1>
-            <p className="text-gray-500 text-sm mt-1">Administra los periodos escolares y define cuál es el ciclo activo.</p>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Configuración de Ciclos Escolares</h1>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Administra los periodos escolares y define cuál es el ciclo activo.</p>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
-                <tr className="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
+                <tr className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm uppercase tracking-wider">
                   <th className="py-3 px-6 font-semibold">Nombre del Ciclo</th>
                   <th className="py-3 px-6 font-semibold min-w-[220px]">Meses que Abarca</th>
                   <th className="py-3 px-6 font-semibold min-w-[140px]">Año(s)</th>
@@ -215,9 +215,9 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                   <th className="py-3 px-6 font-semibold text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {editingId === 'new' && (
-                  <tr className="bg-blue-50/50">
+                  <tr className="bg-blue-50/50 dark:bg-blue-900/20">
                     <td className="py-3 px-6">
                       <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="Ej. 26/1"
                         title="Formato Libre"
@@ -239,7 +239,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                   </tr>
                 )}
                 {ciclos.map(ciclo => (
-                  <tr key={ciclo.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={ciclo.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                     {editingId === ciclo.id ? (
                       <>
                         <td className="py-3 px-6">
@@ -265,13 +265,13 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                       </>
                     ) : (
                       <>
-                        <td className="py-4 px-6 font-bold text-gray-800">{ciclo.nombre}</td>
-                        <td className="py-4 px-6 text-gray-600 font-medium">
-                          <span className="bg-gray-100 px-3 py-1 rounded-full text-xs text-gray-700 inline-block shadow-sm">
+                        <td className="py-4 px-6 font-bold text-gray-800 dark:text-gray-100">{ciclo.nombre}</td>
+                        <td className="py-4 px-6 text-gray-600 dark:text-gray-400 font-medium">
+                          <span className="bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-700 dark:text-gray-300 inline-block shadow-sm">
                             {ciclo.meses_abarca}
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-gray-600 font-semibold">
+                        <td className="py-4 px-6 text-gray-600 dark:text-gray-400 font-semibold">
                           {ciclo.anio_fin && ciclo.anio_fin !== ciclo.anio
                             ? <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{ciclo.anio} – {ciclo.anio_fin}</span>
                             : ciclo.anio
