@@ -85,8 +85,8 @@ export default function App() {
     return localStorage.getItem('current_ciclo_id') || MOCK_CICLOS.find(c => c.activo)?.id || MOCK_CICLOS[0].id;
   });
   const [catalogoItems, setCatalogoItems] = useState<CatalogoItem[]>(DEFAULT_CATALOGOS);
-  // Inicia en true para evitar pantalla en blanco en móvil mientras se cargan datos
-  const [loading, setLoading] = useState(true);
+  // Loading inicia en false; la pantalla vacía se evita con authChecked (ver abajo)
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const navState = (location.state || {}) as any;
@@ -118,22 +118,13 @@ export default function App() {
     };
   }, [showConfigMenu, showCicloMenu]);
 
-  // 1. Inicialización síncrona de sesión: evita flasheos de vista de "Login" al refrescar la página
-  // Usa sessionStorage como fallback de localStorage para móviles con restricciones
-  const [currentUser, setCurrentUser] = useState<Usuario | null>(() => {
-    try {
-      const savedUser = localStorage.getItem('crm_user') || sessionStorage.getItem('crm_user');
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && typeof parsed === 'object' && parsed.id) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error('Error al cargar sesión:', e);
-    }
-    return null;
-  });
+  // Sesión gestionada por Supabase Auth (JWT real con expiración).
+  // El estado inicial es null; se llena desde getSession() al montar.
+  const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
+
+  // authChecked: se vuelve true cuando sabemos si hay sesión o no.
+  // Mientras sea false, mostramos el skeleton para evitar flash de Login.
+  const [authChecked, setAuthChecked] = useState(false);
 
   // ── Toast global ─────────────────────────────────────────────────────────
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -142,25 +133,59 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // ── Persistencia de Sesión (Escrito) ───────────────────────────────────────────────
-  // Guarda en ambos storages para compatibilidad con móviles que restringen localStorage
-  useEffect(() => {
-    if (currentUser) {
-      try { localStorage.setItem('crm_user', JSON.stringify(currentUser)); } catch {}
-      try { sessionStorage.setItem('crm_user', JSON.stringify(currentUser)); } catch {}
-    } else {
-      try { localStorage.removeItem('crm_user'); } catch {}
-      try { sessionStorage.removeItem('crm_user'); } catch {}
-    }
-  }, [currentUser]);
-
+  // ── Persistencia del último ciclo seleccionado ───────────────────────────────────────
   useEffect(() => {
     if (activeCicloId) {
-      localStorage.setItem('current_ciclo_id', activeCicloId);
+      try { localStorage.setItem('current_ciclo_id', activeCicloId); } catch {}
     }
   }, [activeCicloId]);
 
-  useEffect(() => { fetchAll(); }, []);
+  // ── Supabase Auth: verificar sesión al montar y escuchar cambios ──────────────────────
+  useEffect(() => {
+    // Al recargar la página: busca sesión JWT activa
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        // Hay sesión — cargar el perfil del usuario
+        const { data: perfil } = await supabase
+          .from('usuarios')
+          .select('id, username, rol, preferencia_tema, ultimo_ciclo_id')
+          .eq('auth_id', session.user.id)
+          .maybeSingle();
+
+        if (perfil) {
+          const u = perfil as Usuario;
+          setCurrentUser(u);
+          // Aplicar tema guardado
+          if (u.preferencia_tema) {
+            const root = window.document.documentElement;
+            if (u.preferencia_tema === 'dark') root.classList.add('dark');
+            else root.classList.remove('dark');
+          }
+          // Aplicar último ciclo
+          if (u.ultimo_ciclo_id) {
+            setActiveCicloId(u.ultimo_ciclo_id);
+          }
+          // Cargar datos del sistema (fetchAll pone authChecked=true al final)
+          fetchAll();
+          return;
+        } else {
+          // Sesión Auth válida pero sin perfil en la BD — cerrar sesión
+          await supabase.auth.signOut();
+        }
+      }
+      // Sin sesión o perfil no encontrado
+      setAuthChecked(true);
+    });
+
+    // Escuchar cambios de estado (logout desde otra pestaña, expiración de token)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -204,6 +229,7 @@ export default function App() {
       console.log('Using mock/default data (Supabase not connected or tables missing)');
     } finally {
       setLoading(false);
+      setAuthChecked(true); // La carga de datos confirma que la sesión es válida
     }
   };
 
@@ -305,27 +331,30 @@ export default function App() {
     }
   };
 
-  // Siempre mostrar el skeleton PRIMERO mientras se cargan datos (evita pantalla en blanco en móvil)
-  if (loading) {
+  // Mostrar skeleton mientras se verifica la sesión o se cargan datos
+  if (!authChecked || loading) {
     return <LoadingSkeleton type="full" text="Cargando sistema..." />;
   }
 
-  // Solo mostrar Login después de que la carga inicial terminó y no hay sesión
+  // Sin sesión válida → mostrar Login
   if (!currentUser) {
     return <Login onLogin={(u) => {
       setCurrentUser(u);
-      
+
+      // Aplicar tema del usuario recién autenticado
       if (u.preferencia_tema) {
-         try { localStorage.setItem('theme', u.preferencia_tema); } catch {}
-         const root = window.document.documentElement;
-         if (u.preferencia_tema === 'dark') root.classList.add('dark');
-         else root.classList.remove('dark');
+        const root = window.document.documentElement;
+        if (u.preferencia_tema === 'dark') root.classList.add('dark');
+        else root.classList.remove('dark');
       }
-      
+
+      // Aplicar último ciclo guardado
       if (u.ultimo_ciclo_id) {
-         setActiveCicloId(u.ultimo_ciclo_id);
-         try { localStorage.setItem('current_ciclo_id', u.ultimo_ciclo_id); } catch {}
+        setActiveCicloId(u.ultimo_ciclo_id);
       }
+
+      // Cargar todos los datos del sistema
+      fetchAll();
     }} />;
   }
 
@@ -482,7 +511,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <button onClick={() => setCurrentUser(null)} className="relative ml-2 group shrink-0">
+                <button onClick={() => supabase.auth.signOut()} className="relative ml-2 group shrink-0">
                   <div className="absolute -inset-1 bg-red-500 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-200"></div>
                   <div className="relative px-4 py-1.5 border border-[#fcb5b5] bg-[#ffeaea] dark:bg-red-900/40 text-[#ce2121] dark:text-red-300 dark:border-red-800 rounded-lg text-xs font-bold tracking-wide hover:bg-[#ffd9d9] dark:hover:bg-red-900/60 transition-colors">
                     SALIR

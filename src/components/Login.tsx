@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, User, LogIn, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import bcrypt from 'bcryptjs';
 import type { Usuario } from '../types';
 
 interface LoginProps {
@@ -25,32 +24,41 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
 
     try {
-      // 1. Buscar solo por username (nunca enviamos password al servidor)
-      const { data, error: dbError } = await supabase
+      // El email interno nunca se muestra al usuario.
+      // Es solo el identificador técnico para Supabase Auth.
+      const email = `${username.trim().toLowerCase()}@cuom.sistema`;
+
+      // Supabase verifica la contraseña en el servidor — nunca llega al cliente.
+      // authData.user.id contiene el UUID del usuario autenticado — lo usamos directamente.
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError || !authData.user) {
+        setError('Usuario o contraseña incorrectos.');
+        return;
+      }
+
+      console.log('✅ Login exitoso. Auth ID:', authData.user.id);
+
+      // Obtener el perfil vinculado usando el UUID del usuario autenticado.
+      // Usamos authData.user.id directamente (evita una segunda llamada a getUser() que puede fallar).
+      const { data: perfil, error: perfilError } = await supabase
         .from('usuarios')
-        .select('*')
-        .eq('username', username.trim())
+        .select('id, username, rol, preferencia_tema, ultimo_ciclo_id')
+        .eq('auth_id', authData.user.id)
         .maybeSingle();
 
-      if (dbError) {
-        console.warn('Login - Error de BD:', dbError.message);
-        setError('Error al conectar con el servidor.');
+      console.log('🔍 Resultado de buscar perfil:', { perfil, perfilError });
+
+      if (perfilError || !perfil) {
+        setError('Usuario autenticado pero sin perfil en el sistema. Contacta al administrador.');
+        await supabase.auth.signOut();
         return;
       }
 
-      if (!data) {
-        setError('Credenciales incorrectas o el usuario no existe.');
-        return;
-      }
-
-      // 2. Verificar password localmente con bcrypt (hash nunca revela la contraseña original)
-      const passwordValid = await bcrypt.compare(password, data.password);
-      if (!passwordValid) {
-        setError('Credenciales incorrectas o el usuario no existe.');
-        return;
-      }
-
-      onLogin(data as Usuario);
+      onLogin(perfil as Usuario);
     } catch (err) {
       console.error(err);
       setError('Ocurrió un error al conectar con el servidor.');
@@ -58,7 +66,6 @@ export default function Login({ onLogin }: LoginProps) {
       setLoading(false);
     }
   };
-
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
@@ -87,6 +94,7 @@ export default function Login({ onLogin }: LoginProps) {
                   name="username"
                   type="text"
                   required
+                  autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-xl bg-gray-50 py-3 border outline-none transition-colors"
@@ -108,6 +116,7 @@ export default function Login({ onLogin }: LoginProps) {
                   name="password"
                   type="password"
                   required
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-xl bg-gray-50 py-3 border outline-none transition-colors"
@@ -130,7 +139,7 @@ export default function Login({ onLogin }: LoginProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-70 flex items-center gap-2"
+                className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-70"
               >
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
                 {loading ? 'Verificando...' : 'Iniciar Sesión'}

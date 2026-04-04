@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Search, Trash2, Edit2, Loader2, Shield, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Edit2, Loader2, Shield, Info } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Usuario } from '../types';
-import bcrypt from 'bcryptjs';
 import LoadingSkeleton from './LoadingSkeleton';
 
 interface UsuariosConfigProps {
@@ -19,12 +18,10 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
-  const [showPassword, setShowPassword] = useState(false);
   const [errorInput, setErrorInput] = useState('');
 
   const [formData, setFormData] = useState({
     username: '',
-    password: '',
     rol: 'COORDINADOR' as 'ADMINISTRADOR' | 'COORDINADOR'
   });
 
@@ -37,7 +34,8 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
       setLoading(true);
       const { data, error } = await supabase
         .from('usuarios')
-        .select('*')
+        // No seleccionamos 'password' — con Supabase Auth ya no existe en la tabla
+        .select('id, username, rol, preferencia_tema, ultimo_ciclo_id')
         .order('username');
       
       if (error) throw error;
@@ -54,19 +52,18 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
     setErrorInput('');
     if (user) {
       setEditingUser(user);
-      setFormData({ username: user.username, rol: user.rol, password: '' });
+      setFormData({ username: user.username, rol: user.rol });
     } else {
       setEditingUser(null);
-      setFormData({ username: '', rol: 'COORDINADOR', password: '' });
+      setFormData({ username: '', rol: 'COORDINADOR' });
     }
-    setShowPassword(false);
     setShowModal(true);
   };
 
   const closeModal = () => {
     setShowModal(false);
     setEditingUser(null);
-    setFormData({ username: '', rol: 'COORDINADOR', password: '' });
+    setFormData({ username: '', rol: 'COORDINADOR' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,26 +77,11 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
         return;
       }
 
-      // Validación de contraseña en creación
-      if (!editingUser && !formData.password) {
-        setErrorInput('La contraseña es obligatoria para nuevos usuarios.');
-        return;
-      }
-
-      let hash = undefined;
-      if (formData.password) {
-        hash = await bcrypt.hash(formData.password, 12);
-      }
-
       if (editingUser) {
-        // ACTUALIZAR
-        const payload: any = {
-          username: formData.username.trim(),
-          rol: formData.rol
+        // ACTUALIZAR: solo rol (la contraseña se gestiona desde Supabase Auth Dashboard)
+        const payload = {
+          rol: formData.rol,
         };
-        if (hash) {
-          payload.password = hash;
-        }
 
         const { error } = await supabase
           .from('usuarios')
@@ -108,25 +90,10 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
 
         if (error) throw error;
       } else {
-        // CREAR
-        const payload = {
-          id: crypto.randomUUID(),
-          username: formData.username.trim(),
-          rol: formData.rol,
-          password: hash!
-        };
-
-        const { error } = await supabase
-          .from('usuarios')
-          .insert([payload]);
-
-        if (error) {
-          if (error.code === '23505') {
-            setErrorInput('Ese nombre de usuario ya existe.');
-            return;
-          }
-          throw error;
-        }
+        // CREAR: no se puede desde el cliente (requiere service_role key)
+        // Los nuevos usuarios deben crearse en Supabase Dashboard → Authentication → Users
+        setErrorInput('Para crear nuevos usuarios, usa el Dashboard de Supabase (Authentication → Users). Ver instrucciones en el panel.');
+        return;
       }
 
       await fetchUsuarios();
@@ -190,16 +157,34 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
             </div>
           </div>
           
-          <button
-            onClick={() => handleOpenModal()}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-semibold transition-all shadow-sm hover:shadow-md"
-          >
-            <Plus size={20} />
-            Nuevo Usuario
-          </button>
+          {/* Boton de nuevo usuario deshabilitado — crear desde Supabase Dashboard */}
+          <div className="relative group">
+            <button
+              disabled
+              className="flex items-center gap-2 px-6 py-3 bg-gray-300 text-gray-500 rounded-xl font-semibold cursor-not-allowed text-sm"
+            >
+              <Plus size={20} />
+              Nuevo Usuario
+            </button>
+            <div className="absolute bottom-full right-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-xl p-3 hidden group-hover:block z-10 shadow-xl">
+              Para crear nuevos usuarios, ve a Supabase Dashboard → Authentication → Users → Add user.<br/>
+              Email: <strong>usuario@cuom.sistema</strong><br/>
+              Luego ejecuta el SQL de vinculación (migration_paso3.sql).
+            </div>
+          </div>
         </div>
 
-        {/* Search */}
+      {/* Aviso de cómo crear usuarios */}
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+        <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
+        <div className="text-sm text-blue-800">
+          <strong>Para crear o eliminar usuarios:</strong> Usa el Dashboard de Supabase → <em>Authentication → Users</em>.
+          El email debe tener el formato <code className="bg-blue-100 px-1 rounded">usuario@cuom.sistema</code>.
+          Después de crear uno, ejecuta el SQL de vinculación (<code>migration_paso3.sql</code>).
+          <br />
+          <strong>Para cambiar contraseñas:</strong> Supabase Dashboard → Authentication → Users → Reset password.
+        </div>
+      </div>
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6 flex items-center gap-3">
           <Search className="text-gray-400" size={20} />
           <input
@@ -308,6 +293,11 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                     onChange={(e) => setFormData({...formData, username: e.target.value})}
                     className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow bg-gray-50 disabled:opacity-70 disabled:cursor-not-allowed"
                   />
+                  {!editingUser && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      El usuario se crea en Supabase Dashboard con email <strong>username@cuom.sistema</strong>.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -322,33 +312,14 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">
-                    {editingUser ? 'Nueva Contraseña (Opcional)' : 'Contraseña'}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required={!editingUser}
-                      placeholder={editingUser ? "Solo si deseas cambiarla..." : "••••••••"}
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow bg-gray-50 pr-12"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 focus:outline-none"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
+                {editingUser && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                    <Info size={14} className="shrink-0 mt-0.5" />
+                    <span>
+                      Para cambiar la contraseña de este usuario, ve a Supabase Dashboard → Authentication → Users → Reset password.
+                    </span>
                   </div>
-                  {editingUser && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Déjalo en blanco si quieres conservar la misma contraseña.
-                    </p>
-                  )}
-                </div>
+                )}
               </div>
 
               <div className="flex gap-3 justify-end mt-8">
