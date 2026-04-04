@@ -13,6 +13,8 @@ export interface Usuario {
   rol: 'ADMINISTRADOR' | 'COORDINADOR';
   preferencia_tema?: string;
   ultimo_ciclo_id?: string;
+  auth_id?: string | null;
+  activo?: boolean | null;
 }
 
 export interface Alumno {

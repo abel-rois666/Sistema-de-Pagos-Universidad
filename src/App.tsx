@@ -259,15 +259,52 @@ export default function App() {
   const filteredPlans = plans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
 
   const totalActivos = alumnos.filter(a => a.estatus === 'ACTIVO').length;
-  const totalDeudores = filteredPlans.filter(p => {
-    for (let i = 1; i <= 9; i++) {
-        if (p[`estatus_${i}` as keyof PaymentPlan] === 'PENDIENTE') return true;
-    }
-    return false;
-  }).length;
+  // Solo cuenta alumnos con AL MENOS UN pago vencido a la fecha de hoy (no pagos futuros)
+  const totalDeudores = useMemo(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const parsePaymentDate = (dStr: string): Date | null => {
+      if (!dStr) return null;
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
+        const [d, m, y] = dStr.split('/');
+        return new Date(Number(y), Number(m) - 1, Number(d));
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+        const [y, m, d] = dStr.split('-');
+        return new Date(Number(y), Number(m) - 1, Number(d));
+      }
+      return null;
+    };
+    return filteredPlans.filter(p => {
+      const alumno = alumnos.find(a => a.id === p.alumno_id || a.nombre_completo === p.nombre_alumno);
+      if (alumno?.estatus === 'BAJA') return false;
+      for (let i = 1; i <= 9; i++) {
+        const estatus = p[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
+        const fecha = p[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
+        if (estatus !== 'PENDIENTE' || !fecha) continue;
+        const d = parsePaymentDate(fecha);
+        if (d && d <= today) return true;
+      }
+      return false;
+    }).length;
+  }, [filteredPlans, alumnos]);
 
-  // Suma de todo el adeudo pendiente del ciclo activo (usando saldo real con abonos)
+  // Suma del adeudo vencido hasta hoy (fecha_limite <= hoy, excluye pagos futuros)
   const totalAdeudoCiclo = useMemo(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const parseDate = (dStr: string): Date | null => {
+      if (!dStr) return null;
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
+        const [d, m, y] = dStr.split('/');
+        return new Date(Number(y), Number(m) - 1, Number(d));
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+        const [y, m, d] = dStr.split('-');
+        return new Date(Number(y), Number(m) - 1, Number(d));
+      }
+      return null;
+    };
     let total = 0;
     filteredPlans.forEach(plan => {
       const alumno = alumnos.find(a => a.id === plan.alumno_id || a.nombre_completo === plan.nombre_alumno);
@@ -275,8 +312,13 @@ export default function App() {
       for (let i = 1; i <= 9; i++) {
         const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
         const estatus  = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
-        if (cantidad && estatus && !isPaid(estatus)) {
-          total += getRestanteFromEstatus(estatus, Number(cantidad));
+        const fecha    = plan[`fecha_${i}`   as keyof PaymentPlan] as string | undefined;
+        if (cantidad && estatus && fecha && !isPaid(estatus)) {
+          const fechaDate = parseDate(fecha);
+          // Solo sumar si la fecha ya venció (hasta hoy)
+          if (fechaDate && fechaDate <= today) {
+            total += getRestanteFromEstatus(estatus, Number(cantidad));
+          }
         }
       }
     });
@@ -616,7 +658,7 @@ export default function App() {
                 textColor: 'text-rose-600 dark:text-rose-400',
                 bg: 'bg-rose-50 dark:bg-rose-900/20',
                 border: 'border-rose-100 dark:border-rose-800',
-                sub: 'pendiente de cobro',
+                sub: 'vencido hasta hoy',
               },
               {
                 label: 'Alumnos Deudores',
@@ -627,7 +669,7 @@ export default function App() {
                 textColor: 'text-amber-600 dark:text-amber-400',
                 bg: 'bg-amber-50 dark:bg-amber-900/20',
                 border: 'border-amber-100 dark:border-amber-800',
-                sub: 'con pagos pendientes',
+                sub: 'con pagos vencidos a hoy',
               },
               {
                 label: 'Planes del Ciclo',
@@ -926,7 +968,7 @@ export default function App() {
           </PageWrapper>
         } />
         <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas plans={filteredPlans} alumnos={alumnos} activeCiclo={activeCiclo} onBack={() => navigate('/')} /></PageWrapper>} />
-        <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores plans={filteredPlans} alumnos={alumnos} onBack={() => navigate('/')} /></PageWrapper>} />
+        <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores plans={filteredPlans} alumnos={alumnos} onBack={() => navigate('/')} onNavigateToAlumno={(alumnoId) => { setSelectedAlumnoId(alumnoId); navigate('/ficha-alumno', { state: { alumnoId } }); }} /></PageWrapper>} />
         <Route path="/ciclos" element={<PageWrapper keyStr="ciclos"><CiclosConfig ciclos={ciclos} onSave={setCiclos} onBack={() => navigate('/')} /></PageWrapper>} />
         <Route path="/alumnos" element={
           <PageWrapper keyStr="alumnos">

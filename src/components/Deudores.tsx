@@ -10,10 +10,12 @@ interface DeudoresProps {
   plans: PaymentPlan[];
   alumnos: import('../types').Alumno[];
   onBack: () => void;
+  onNavigateToAlumno: (alumnoId: string) => void;
 }
 
 interface DebtRecord {
   id: string;
+  alumno_id: string;
   alumno: string;
   licenciatura: string;
   grado: string;
@@ -27,8 +29,22 @@ type SortKey = keyof DebtRecord;
 
 
 
+// ── Helpers de fecha ────────────────────────────────────────────────────────
+const parsePaymentDate = (dStr: string): Date | null => {
+  if (!dStr) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
+    const [d, m, y] = dStr.split('/');
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+    const [y, m, d] = dStr.split('-');
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+  return null;
+};
+
 // ── Main Component ──────────────────────────────────────────────────────────
-export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
+export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }: DeudoresProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLicenciaturas, setFilterLicenciaturas] = useState<string[]>([]);
   const [filterGrados, setFilterGrados] = useState<string[]>([]);
@@ -57,9 +73,16 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
 
   const debtors = useMemo(() => {
     const records: DebtRecord[] = [];
+    // Fecha de hoy al final del día (cualquier vencimiento <= hoy aplica)
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
 
-    const checkDebt = (plan: PaymentPlan, concepto: string, cantidad: number, estatus: string, fecha: string) => {
+    const checkDebt = (plan: PaymentPlan, alumnoId: string, concepto: string, cantidad: number, estatus: string, fecha: string) => {
       if (cantidad > 0 && !isPaid(estatus)) {
+        // --- NUEVO: solo incluir si ya venció (fecha_limite <= hoy) ---
+        const fechaDate = parsePaymentDate(fecha);
+        if (!fechaDate || fechaDate > today) return;
+
         let fallbackGrado = '';
         let fallbackTurno = '';
         if (plan.grado_turno && plan.grado_turno.includes('/')) {
@@ -73,6 +96,7 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
 
         records.push({
           id: `${plan.id}-${concepto}`,
+          alumno_id: alumnoId,
           alumno: plan.nombre_alumno,
           licenciatura: plan.licenciatura || '',
           grado: plan.grado || fallbackGrado,
@@ -85,20 +109,22 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
     };
 
     filteredPlans.forEach(plan => {
+      const alumno = alumnos.find(a => a.id === plan.alumno_id || a.nombre_completo === plan.nombre_alumno);
+      const alumnoId = alumno?.id || plan.alumno_id || '';
       for (let i = 1; i <= 9; i++) {
         const concepto = plan[`concepto_${i}` as keyof PaymentPlan] as string | undefined;
         const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
         const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
         const fecha = plan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
         if (concepto && cantidad && fecha) {
-          checkDebt(plan, concepto, cantidad, estatus || '', fecha);
+          checkDebt(plan, alumnoId, concepto, cantidad, estatus || '', fecha);
         }
       }
     });
 
     // Sort by student name
     return records.sort((a, b) => a.alumno.localeCompare(b.alumno));
-  }, [filteredPlans]);
+  }, [filteredPlans, alumnos]);
 
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return '';
@@ -227,7 +253,7 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-1 flex items-center gap-3">
               Lista de Deudores <AlertTriangle className="text-red-500" size={24} />
             </h1>
-            <p className="text-gray-500 dark:text-gray-400">Alumnos con pagos pendientes en el ciclo activo</p>
+            <p className="text-gray-500 dark:text-gray-400">Alumnos con pagos vencidos a la fecha de hoy</p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -444,7 +470,19 @@ export default function Deudores({ plans, alumnos, onBack }: DeudoresProps) {
                       animate={{ opacity: 1, x: 0 }} 
                       transition={{ delay: idx * 0.05, duration: 0.2 }}
                       key={record.id} className="hover:bg-red-50/30 dark:hover:bg-red-900/20 transition-colors">
-                      <td className="py-3 px-4 font-bold text-gray-800 dark:text-gray-100">{record.alumno}</td>
+                      <td className="py-3 px-4 font-bold text-gray-800 dark:text-gray-100">
+                        {record.alumno_id ? (
+                          <button
+                            onClick={() => onNavigateToAlumno(record.alumno_id)}
+                            className="text-left hover:text-blue-700 dark:hover:text-blue-400 hover:underline underline-offset-2 transition-colors"
+                            title="Ver ficha del alumno"
+                          >
+                            {record.alumno}
+                          </button>
+                        ) : (
+                          record.alumno
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-gray-600 dark:text-gray-400 text-sm max-w-[150px] truncate" title={record.licenciatura}>{record.licenciatura}</td>
                       <td className="py-3 px-4 text-indigo-700 dark:text-indigo-400 font-medium text-sm">{record.grado}</td>
                       <td className="py-3 px-4 text-gray-600 dark:text-gray-400 text-sm">{record.turno}</td>
