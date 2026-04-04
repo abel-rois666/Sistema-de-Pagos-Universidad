@@ -43,7 +43,7 @@ jobs:
         
       # 5. Despliega la carpeta de build (dist) usando FTP hacia Hostinger
       - name: 🚀 Sync Files to Hostinger
-        uses: SamKirkland/FTP-Deploy-Action@4.3.5  # ← quitado el 'v' del tag (más estable)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
