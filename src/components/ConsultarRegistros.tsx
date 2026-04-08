@@ -47,6 +47,13 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   const [editingFormaPago, setEditingFormaPago] = useState<any>(null);
   const [formaPagoInput, setFormaPagoInput] = useState('');
   const [bancoInput, setBancoInput] = useState('');
+
+  // -- Edición de Detalles del Recibo (Admin) --
+  const [editingFechaPago, setEditingFechaPago] = useState<any>(null);
+  const [fechaPagoInput, setFechaPagoInput] = useState('');
+  const [editandoConceptoId, setEditandoConceptoId] = useState<string | null>(null);
+  const [tempConceptoText, setTempConceptoText] = useState<string>('');
+  const [guardandoConcepto, setGuardandoConcepto] = useState(false);
   
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
   const [massStatus, setMassStatus] = useState<{ msg: string, isOpen: boolean, results: any[] }>({ msg: '', isOpen: false, results: [] });
@@ -193,6 +200,39 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
          }
          setGuardandoObs(false);
          setEditandoObsId(null);
+         setConfirmModal({ ...confirmModal, isOpen: false });
+      }
+    });
+  };
+
+  const handleUpdateConcepto = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirmar Cambio de Concepto',
+      message: '¿Estás seguro de que deseas modificar el nombre del concepto? Esto actualizará los registros de forma permanente.',
+      onConfirm: async () => {
+         setGuardandoConcepto(true);
+         const textToSave = tempConceptoText.trim();
+         if (!textToSave) {
+           alert('El concepto no puede estar vacío');
+           setGuardandoConcepto(false);
+           return;
+         }
+         const { error } = await supabase.from('recibos_detalles').update({ concepto: textToSave }).eq('id', id);
+         if (!error) {
+            setReciboSeleccionado(prev => {
+              if(!prev) return prev;
+              return {
+                ...prev,
+                recibos_detalles: prev.recibos_detalles.map(d => d.id === id ? { ...d, concepto: textToSave } : d)
+              };
+            });
+            if(onDataRefresh) onDataRefresh();
+         } else {
+            alert('Error guardando concepto: ' + (error as any).message);
+         }
+         setGuardandoConcepto(false);
+         setEditandoConceptoId(null);
          setConfirmModal({ ...confirmModal, isOpen: false });
       }
     });
@@ -945,9 +985,14 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     <span>Fecha Recibo:</span>
                     <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.fecha_recibo}</span>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between group">
                     <span>Fecha Pago:</span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.fecha_pago}</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
+                      {reciboSeleccionado.fecha_pago}
+                      {currentUser?.rol === 'ADMINISTRADOR' && (
+                         <button onClick={() => { setEditingFechaPago(reciboSeleccionado); setFechaPagoInput(reciboSeleccionado.fecha_pago || ''); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Modificar Fecha de Pago">✎</button>
+                      )}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between group">
                     <span>Forma de Pago:</span>
@@ -985,7 +1030,23 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                       <span className="text-xs font-black text-blue-600 dark:text-blue-400">{d.cantidad}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{d.concepto}</p>
+                      <div className="flex items-center gap-2 group">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{d.concepto}</p>
+                        {currentUser?.rol === 'ADMINISTRADOR' && editandoConceptoId !== d.id && (
+                          <button onClick={() => { setEditandoConceptoId(d.id); setTempConceptoText(d.concepto || ''); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Editar Concepto">✎</button>
+                        )}
+                      </div>
+                      {editandoConceptoId === d.id && (
+                        <div className="mt-1 flex items-center gap-2 bg-blue-50/50 p-1.5 rounded border border-blue-200 shadow-inner mb-1">
+                          <input type="text" className="text-xs w-full p-1.5 border border-blue-200 rounded outline-none focus:ring-1 focus:ring-blue-400 bg-white" autoFocus value={tempConceptoText} onChange={e => setTempConceptoText(e.target.value)} placeholder="Nombre del concepto..." />
+                          <button disabled={guardandoConcepto} onClick={() => handleUpdateConcepto(d.id)} className="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded font-bold hover:bg-blue-700 ml-auto transition-colors shadow-sm">
+                            Guardar
+                          </button>
+                          <button disabled={guardandoConcepto} onClick={() => setEditandoConceptoId(null)} className="text-[10px] bg-gray-200 text-gray-700 px-3 py-1.5 rounded font-bold hover:bg-gray-300 transition-colors">
+                            Cancelar
+                          </button>
+                        </div>
+                      )}
                       {d.observaciones && editandoObsId !== d.id && (
                         <div className="flex items-center gap-1 mt-0.5">
                           <span className="text-[10px] italic font-semibold text-orange-600 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-full px-2 py-0.5 inline-block">
@@ -1385,6 +1446,54 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                          setReciboSeleccionado({ ...reciboSeleccionado, forma_pago: formaPagoInput, banco: bancoInput || 'NO APLICA' });
                      }
                      setEditingFormaPago(null);
+                  }}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Fecha de Pago */}
+      {editingFechaPago && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <h3 className="text-lg font-black text-gray-900 mb-2">Modificar Fecha de Pago</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Recibo: <strong>{editingFechaPago.folio}</strong>
+              </p>
+              
+              <div className="space-y-3 mb-6">
+                 <div>
+                    <label className="text-xs font-bold text-gray-500 block mb-1">Fecha de Pago</label>
+                    <input type="date" className="w-full border border-gray-300 rounded-lg p-2.5 outline-none text-sm focus:ring-2 focus:ring-blue-500 bg-white" value={fechaPagoInput} onChange={e => setFechaPagoInput(e.target.value)} />
+                 </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 font-semibold">
+                <button 
+                  onClick={() => { setEditingFechaPago(null); }} 
+                  className="px-4 py-2 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                     const { error } = await supabase.from('recibos').update({ fecha_pago: fechaPagoInput }).eq('id', editingFechaPago.id);
+                     if (error) { alert('Error: ' + error.message); return; }
+                     
+                     const rIndex = recibos.findIndex(r => r.id === editingFechaPago.id);
+                     if (rIndex > -1) {
+                         recibos[rIndex].fecha_pago = fechaPagoInput;
+                     }
+                     if (reciboSeleccionado && reciboSeleccionado.id === editingFechaPago.id) {
+                         setReciboSeleccionado({ ...reciboSeleccionado, fecha_pago: fechaPagoInput });
+                     }
+                     setEditingFechaPago(null);
                   }}
                   className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-colors"
                 >
