@@ -745,335 +745,99 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {editingId === 'new' && (
-                  <tr className="bg-indigo-50/50 dark:bg-indigo-900/20">
-                    <td colSpan={8} className="p-4 border-b border-indigo-100 dark:border-indigo-800">
-                      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-indigo-100 dark:border-indigo-800 p-5">
-                        <h4 className="font-bold text-indigo-800 dark:text-indigo-300 border-b border-indigo-50 dark:border-indigo-800 pb-2 mb-4">Datos del Alumno</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                          <div className="col-span-2">
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Nombre Completo</label>
-                            <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.nombre_completo || ''} onChange={e => setEditForm({ ...editForm, nombre_completo: e.target.value })} />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Licenciatura</label>
-                            {catalogos?.licenciaturas?.length ? (
-                              <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })}>
-                                <option value="">-- Seleccionar --</option>
-                                {catalogos.licenciaturas.map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            ) : (
-                              <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })} />
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Grado</label>
-                            {catalogos?.grados?.length ? (
-                              <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })}>
-                                <option value="">-- Seleccionar --</option>
-                                {catalogos.grados.filter(g => {
-                                  if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
-                                    return g !== '9NO' && g !== '10MO';
-                                  }
-                                  return true;
-                                }).map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            ) : (
-                              <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })} />
-                            )}
-                            {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-1 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Turno</label>
-                            {catalogos?.turnos?.length ? (
-                              <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({ ...editForm, turno: e.target.value })}>
-                                <option value="">-- Seleccionar --</option>
-                                {catalogos.turnos.map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            ) : (
-                              <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({ ...editForm, turno: e.target.value })} />
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Estatus</label>
-                            {catalogos?.estatus_alumnos?.length ? (
-                              <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })}>
-                                <option value="">-- Seleccionar --</option>
-                                {catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            ) : (
-                              <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })} />
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tipo de Beca</label>
-                            {catalogos?.beca_tipos?.length ? (
-                              <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({ ...editForm, beca_tipo: e.target.value })}>
-                                <option value="">-- Seleccionar --</option>
-                                {catalogos.beca_tipos.map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            ) : (
-                              <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({ ...editForm, beca_tipo: e.target.value })} />
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">% de Beca</label>
-                            {catalogos?.beca_porcentajes?.length ? (
-                              <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({ ...editForm, beca_porcentaje: e.target.value })}>
-                                <option value="">-- Seleccionar --</option>
-                                {catalogos.beca_porcentajes.map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            ) : (
-                              <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({ ...editForm, beca_porcentaje: e.target.value })} />
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="mb-6">
-                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Observaciones de Pago / Titulación</label>
-                          <textarea
-                            rows={2}
-                            placeholder="Ej: Descuento de titulación acordado el 15/01/2026, reducción del 30% en cuotas restantes..."
-                            className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                            value={editForm.observaciones_pago_titulacion || ''}
-                            onChange={e => setEditForm({ ...editForm, observaciones_pago_titulacion: e.target.value })}
-                          />
-                        </div>
-
-                        <h4 className="font-bold text-indigo-800 dark:text-indigo-300 border-b border-indigo-50 dark:border-indigo-800 pb-2 mb-4 mt-6">Plan de Pagos a Asignar (Ciclo Activo)</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                          <div className="col-span-2 md:col-span-1">
-                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Asignar Plan</label>
-                            <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 font-medium text-indigo-700 dark:text-indigo-300 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.assignPlanType || 'none'} onChange={e => setEditForm({ ...editForm, assignPlanType: e.target.value as 'none' | 'blank' | 'template' })}>
-                              <option value="none">(Ninguno) Asignar después</option>
-                              <option value="blank">Formato Vacío</option>
-                              <option value="template">Desde Plantilla</option>
-                            </select>
-                          </div>
-                          {editForm.assignPlanType === 'template' && (
-                            <div className="col-span-2 md:col-span-3">
-                              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Seleccionar Plantilla</label>
-                              <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 transition-colors" value={editForm.templateId || ''} onChange={e => setEditForm({ ...editForm, templateId: e.target.value })}>
-                                <option value="">-- Elegir Plantilla --</option>
-                                {plantillas?.filter(p => p.activo && (!p.ciclo_id || p.ciclo_id === activeCicloId)).map(p => (
-                                  <option key={p.id} value={p.id}>{p.nombre}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                          <button onClick={() => setEditingId(null)} className="px-5 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors border border-red-100 dark:border-red-900 font-medium">Cancelar</button>
-                          <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-colors flex items-center gap-2 font-bold">
-                            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                            Guardar Alumno
+                {paginatedAlumnos.map(alumno => (
+                  <tr key={alumno.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors ${mainTableSelected.has(alumno.id) ? 'bg-indigo-50/20 dark:bg-indigo-900/20' : ''}`}>
+                    <td className="py-4 px-4 text-center">
+                      <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={mainTableSelected.has(alumno.id)} onChange={(e) => toggleMainTableSelect(alumno.id, e)} />
+                    </td>
+                    <td className="py-4 px-6 font-bold text-gray-800 dark:text-gray-100">
+                      {alumno.nombre_completo}
+                      <div className="text-xs text-gray-400 dark:text-gray-500 font-normal mt-0.5 whitespace-nowrap">
+                        {alumno.beca_porcentaje && alumno.beca_porcentaje !== '0%'
+                          ? <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded border border-amber-100 dark:border-amber-800">{'Beca: ' + alumno.beca_porcentaje + ' (' + alumno.beca_tipo + ')'}</span>
+                          : 'Sin beca'}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300">{alumno.licenciatura}</td>
+                    <td className="py-4 px-6 font-semibold text-indigo-600 dark:text-indigo-400">{alumno.grado_actual}</td>
+                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300">{alumno.turno}</td>
+                    <td className="py-4 px-6">
+                      <span className={`px-2.5 py-1 rounded-md text-xs font-bold shadow-sm border ${alumno.estatus === 'BAJA' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900' : alumno.estatus?.includes('EGRESADO') ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900'}`}>{alumno.estatus || 'ACTIVO'}</span>
+                    </td>
+                    {/* — Columna Monedero — */}
+                    <td className="py-4 px-4 text-center">
+                      {(alumno.saldo_a_favor ?? 0) > 0 ? (
+                        <span className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-2 py-1 rounded-lg shadow-sm whitespace-nowrap">
+                          <Wallet size={11} />
+                          ${Number(alumno.saldo_a_favor).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <div className="flex justify-end gap-2 items-center">
+                        {onViewFicha && (
+                          <button onClick={() => onViewFicha(alumno.id)} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-xs font-bold bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded transition-colors border border-blue-100 dark:border-blue-800">
+                            Ver Ficha
                           </button>
-                        </div>
+                        )}
+                        {activeCyclePlans.some(p => p.alumno_id === alumno.id || p.nombre_alumno === alumno.nombre_completo) ? (
+                          <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1.5 rounded border border-emerald-100 dark:border-emerald-800 shadow-sm">
+                            <CheckCircle size={14} /> Inscrito
+                          </span>
+                        ) : (
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => {
+                                const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+                                if (activeCiclo) {
+                                  showConfirm("Confirmar Inscripción",
+                                    `¿Inscribir a ${alumno.nombre_completo} en el ciclo ${activeCiclo.nombre}?`,
+                                    () => {
+                                      localCounter.current++;
+                                      const newPlan: PaymentPlan = {
+                                        id: crypto.randomUUID(),
+                                        alumno_id: alumno.id, ciclo_id: activeCiclo.id,
+                                        nombre_alumno: alumno.nombre_completo,
+                                        no_plan_pagos: generateFolio(activeCiclo.nombre, localCounter.current),
+                                        fecha_plan: new Date().toLocaleDateString('es-MX'),
+                                        beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
+                                        ciclo_escolar: activeCiclo.nombre,
+                                        tipo_plan: 'Cuatrimestral',
+                                        licenciatura: alumno.licenciatura,
+                                        grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
+                                      };
+                                      onCreatePlan(newPlan);
+                                      showNotification('success', `Alumno inscrito en ciclo ${activeCiclo.nombre}.`);
+                                    }
+                                  );
+                                }
+                              }}
+                              className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-2 py-1.5 rounded transition-colors border border-emerald-100 dark:border-emerald-800 shadow-sm"
+                              title="Inscribir con Plan Vacío"
+                            >
+                              <CheckCircle size={14} />
+                            </button>
+                            {!isCoordinador && (
+                              <button onClick={() => handlePromote(alumno)} disabled={saving}
+                                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 px-2 py-1.5 rounded transition-colors border border-indigo-100 dark:border-indigo-800 shadow-sm">
+                                <GraduationCap size={14} /> Promover
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <button onClick={() => handleEdit(alumno)} className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded-lg transition-colors ml-1" title="Editar Alumno">
+                          <Edit2 size={18} />
+                        </button>
+                        {!isCoordinador && (
+                          <button onClick={() => handleDelete(alumno)} className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 p-1.5 rounded-lg transition-colors ml-1" title="Eliminar Alumno">
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
-                )}
-                {paginatedAlumnos.map(alumno => (
-                  <React.Fragment key={alumno.id}>
-                    {editingId === alumno.id ? (
-                      <tr className="bg-blue-50/40 dark:bg-blue-900/20">
-                        <td colSpan={8} className="p-4 border-b border-blue-100 dark:border-blue-800">
-                          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-blue-100 dark:border-blue-800 p-5">
-                            <h4 className="font-bold text-blue-800 dark:text-blue-300 border-b border-blue-50 dark:border-blue-800 pb-2 mb-4">Editar Alumno</h4>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                              <div className="col-span-2">
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Nombre Completo</label>
-                                <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.nombre_completo || ''} onChange={e => setEditForm({ ...editForm, nombre_completo: e.target.value })} />
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Licenciatura</label>
-                                {catalogos?.licenciaturas?.length ? (
-                                  <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })}>
-                                    <option value="">-- Seleccionar --</option>
-                                    {catalogos.licenciaturas.map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                                ) : (
-                                  <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })} />
-                                )}
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Grado</label>
-                                {catalogos?.grados?.length ? (
-                                  <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })}>
-                                    <option value="">-- Seleccionar --</option>
-                                    {catalogos.grados.filter(g => {
-                                      if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
-                                        return g !== '9NO' && g !== '10MO';
-                                      }
-                                      return true;
-                                    }).map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                                ) : (
-                                  <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })} />
-                                )}
-                                {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-1 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Turno</label>
-                                {catalogos?.turnos?.length ? (
-                                  <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.turno || ''} onChange={e => setEditForm({ ...editForm, turno: e.target.value })}>
-                                    <option value="">-- Seleccionar --</option>
-                                    {catalogos.turnos.map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                                ) : (
-                                  <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.turno || ''} onChange={e => setEditForm({ ...editForm, turno: e.target.value })} />
-                                )}
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Estatus</label>
-                                {catalogos?.estatus_alumnos?.length ? (
-                                  <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })}>
-                                    <option value="">-- Seleccionar --</option>
-                                    {catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                                ) : (
-                                  <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })} />
-                                )}
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tipo de Beca</label>
-                                {catalogos?.beca_tipos?.length ? (
-                                  <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({ ...editForm, beca_tipo: e.target.value })}>
-                                    <option value="">-- Seleccionar --</option>
-                                    {catalogos.beca_tipos.map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                                ) : (
-                                  <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.beca_tipo || ''} onChange={e => setEditForm({ ...editForm, beca_tipo: e.target.value })} />
-                                )}
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">% de Beca</label>
-                                {catalogos?.beca_porcentajes?.length ? (
-                                  <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({ ...editForm, beca_porcentaje: e.target.value })}>
-                                    <option value="">-- Seleccionar --</option>
-                                    {catalogos.beca_porcentajes.map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                                ) : (
-                                  <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({ ...editForm, beca_porcentaje: e.target.value })} />
-                                )}
-                              </div>
-                            </div>
-                            <div className="mt-3">
-                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Observaciones de Pago / Titulación</label>
-                              <textarea
-                                rows={2}
-                                placeholder="Ej: Descuento de titulación acordado el 15/01/2026, reducción del 30% en cuotas restantes..."
-                                className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                                value={editForm.observaciones_pago_titulacion || ''}
-                                onChange={e => setEditForm({ ...editForm, observaciones_pago_titulacion: e.target.value })}
-                              />
-                            </div>
-                            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-50 dark:border-gray-800">
-                              <button onClick={() => setEditingId(null)} className="px-5 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors border border-gray-200 dark:border-gray-700 font-medium">Cancelar</button>
-                              <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-colors flex items-center gap-2 font-bold">
-                                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                Actualizar
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr className={`hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors ${mainTableSelected.has(alumno.id) ? 'bg-indigo-50/20 dark:bg-indigo-900/20' : ''}`}>
-                        <td className="py-4 px-4 text-center">
-                          <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={mainTableSelected.has(alumno.id)} onChange={(e) => toggleMainTableSelect(alumno.id, e)} />
-                        </td>
-                        <td className="py-4 px-6 font-bold text-gray-800 dark:text-gray-100">
-                          {alumno.nombre_completo}
-                          <div className="text-xs text-gray-400 dark:text-gray-500 font-normal mt-0.5 whitespace-nowrap">
-                            {alumno.beca_porcentaje && alumno.beca_porcentaje !== '0%'
-                              ? <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded border border-amber-100 dark:border-amber-800">{'Beca: ' + alumno.beca_porcentaje + ' (' + alumno.beca_tipo + ')'}</span>
-                              : 'Sin beca'}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6 text-gray-600 dark:text-gray-300">{alumno.licenciatura}</td>
-                        <td className="py-4 px-6 font-semibold text-indigo-600 dark:text-indigo-400">{alumno.grado_actual}</td>
-                        <td className="py-4 px-6 text-gray-600 dark:text-gray-300">{alumno.turno}</td>
-                        <td className="py-4 px-6">
-                          <span className={`px-2.5 py-1 rounded-md text-xs font-bold shadow-sm border ${alumno.estatus === 'BAJA' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900' : alumno.estatus?.includes('EGRESADO') ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900'}`}>{alumno.estatus || 'ACTIVO'}</span>
-                        </td>
-                        {/* — Columna Monedero — */}
-                        <td className="py-4 px-4 text-center">
-                          {(alumno.saldo_a_favor ?? 0) > 0 ? (
-                            <span className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-2 py-1 rounded-lg shadow-sm whitespace-nowrap">
-                              <Wallet size={11} />
-                              ${Number(alumno.saldo_a_favor).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          <div className="flex justify-end gap-2 items-center">
-                            {onViewFicha && (
-                              <button onClick={() => onViewFicha(alumno.id)} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-xs font-bold bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded transition-colors border border-blue-100 dark:border-blue-800">
-                                Ver Ficha
-                              </button>
-                            )}
-                            {activeCyclePlans.some(p => p.alumno_id === alumno.id || p.nombre_alumno === alumno.nombre_completo) ? (
-                              <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1.5 rounded border border-emerald-100 dark:border-emerald-800 shadow-sm">
-                                <CheckCircle size={14} /> Inscrito
-                              </span>
-                            ) : (
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => {
-                                    const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-                                    if (activeCiclo) {
-                                      showConfirm("Confirmar Inscripción",
-                                        `¿Inscribir a ${alumno.nombre_completo} en el ciclo ${activeCiclo.nombre}?`,
-                                        () => {
-                                          localCounter.current++;
-                                          const newPlan: PaymentPlan = {
-                                            id: crypto.randomUUID(),
-                                            alumno_id: alumno.id, ciclo_id: activeCiclo.id,
-                                            nombre_alumno: alumno.nombre_completo,
-                                            no_plan_pagos: generateFolio(activeCiclo.nombre, localCounter.current),
-                                            fecha_plan: new Date().toLocaleDateString('es-MX'),
-                                            beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
-                                            ciclo_escolar: activeCiclo.nombre,
-                                            tipo_plan: 'Cuatrimestral',
-                                            licenciatura: alumno.licenciatura,
-                                            grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
-                                          };
-                                          onCreatePlan(newPlan);
-                                          showNotification('success', `Alumno inscrito en ciclo ${activeCiclo.nombre}.`);
-                                        }
-                                      );
-                                    }
-                                  }}
-                                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-2 py-1.5 rounded transition-colors border border-emerald-100 dark:border-emerald-800 shadow-sm"
-                                  title="Inscribir con Plan Vacío"
-                                >
-                                  <CheckCircle size={14} />
-                                </button>
-                                {!isCoordinador && (
-                                  <button onClick={() => handlePromote(alumno)} disabled={saving}
-                                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 px-2 py-1.5 rounded transition-colors border border-indigo-100 dark:border-indigo-800 shadow-sm">
-                                    <GraduationCap size={14} /> Promover
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                            <button onClick={() => handleEdit(alumno)} className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded-lg transition-colors ml-1" title="Editar Alumno">
-                              <Edit2 size={18} />
-                            </button>
-                            {!isCoordinador && (
-                              <button onClick={() => handleDelete(alumno)} className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 p-1.5 rounded-lg transition-colors ml-1" title="Eliminar Alumno">
-                                <Trash2 size={18} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -1146,7 +910,176 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         </div>
       </div>
 
+      {/* ── Modal Unificado Crear / Editar Alumno ── */}
+      <AnimatePresence>
+        {editingId !== null && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sans backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-4xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-800"
+            >
+              {/* Header */}
+              <div className="px-5 py-3.5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
+                <div>
+                  <h3 className="text-lg font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-2">
+                    {editingId === 'new' ? '✚ Registrar Nuevo Alumno' : '✎ Editar Alumno'}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {editingId === 'new'
+                      ? 'Completa los datos para registrar al alumno en el padrón.'
+                      : 'Modifica los datos generales del alumno.'}
+                  </p>
+                </div>
+                <button disabled={saving} onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Body — no scroll needed */}
+              <div className="p-4 md:p-5">
+                <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Datos del Alumno</p>
+                {/* Row 1: Nombre + Licenciatura + Grado */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Nombre Completo</label>
+                    <input type="text" autoFocus className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value={editForm.nombre_completo || ''} onChange={e => setEditForm({ ...editForm, nombre_completo: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Licenciatura</label>
+                    {catalogos?.licenciaturas?.length ? (
+                      <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })}>
+                        <option value="">-- Seleccionar --</option>
+                        {catalogos.licenciaturas.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })} />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Grado</label>
+                    {catalogos?.grados?.length ? (
+                      <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })}>
+                        <option value="">-- Seleccionar --</option>
+                        {catalogos.grados.filter(g => {
+                          if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
+                            return g !== '9NO' && g !== '10MO';
+                          }
+                          return true;
+                        }).map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : (
+                      <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })} />
+                    )}
+                    {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-0.5 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
+                  </div>
+                </div>
+                {/* Row 2: Turno + Estatus + Tipo Beca + % Beca */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Turno</label>
+                    {catalogos?.turnos?.length ? (
+                      <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({ ...editForm, turno: e.target.value })}>
+                        <option value="">-- Seleccionar --</option>
+                        {catalogos.turnos.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({ ...editForm, turno: e.target.value })} />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Estatus</label>
+                    {catalogos?.estatus_alumnos?.length ? (
+                      <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })}>
+                        <option value="">-- Seleccionar --</option>
+                        {catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })} />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Tipo de Beca</label>
+                    {catalogos?.beca_tipos?.length ? (
+                      <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({ ...editForm, beca_tipo: e.target.value })}>
+                        <option value="">-- Seleccionar --</option>
+                        {catalogos.beca_tipos.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({ ...editForm, beca_tipo: e.target.value })} />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">% de Beca</label>
+                    {catalogos?.beca_porcentajes?.length ? (
+                      <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({ ...editForm, beca_porcentaje: e.target.value })}>
+                        <option value="">-- Seleccionar --</option>
+                        {catalogos.beca_porcentajes.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({ ...editForm, beca_porcentaje: e.target.value })} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Observaciones */}
+                <div className="mb-3">
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Observaciones de Pago / Titulación</label>
+                  <textarea
+                    rows={1}
+                    placeholder="Ej: Descuento de titulación acordado el 15/01/2026, reducción del 30% en cuotas restantes..."
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none resize-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    value={editForm.observaciones_pago_titulacion || ''}
+                    onChange={e => setEditForm({ ...editForm, observaciones_pago_titulacion: e.target.value })}
+                  />
+                </div>
+
+                {/* Asignar plan — solo visible al crear */}
+                {editingId === 'new' && (
+                  <>
+                    <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Plan de Pagos (Ciclo Activo)</p>
+                    <div className="flex flex-col md:flex-row gap-3 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                      <div className="w-full md:w-56 flex-shrink-0">
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Asignar Plan</label>
+                        <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 font-medium text-indigo-700 dark:text-indigo-300 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.assignPlanType || 'none'} onChange={e => setEditForm({ ...editForm, assignPlanType: e.target.value as 'none' | 'blank' | 'template' })}>
+                          <option value="none">(Ninguno) Asignar después</option>
+                          <option value="blank">Formato Vacío</option>
+                          <option value="template">Desde Plantilla</option>
+                        </select>
+                      </div>
+                      {editForm.assignPlanType === 'template' && (
+                        <div className="flex-1">
+                          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Seleccionar Plantilla</label>
+                          <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 transition-colors" value={editForm.templateId || ''} onChange={e => setEditForm({ ...editForm, templateId: e.target.value })}>
+                            <option value="">-- Elegir Plantilla --</option>
+                            {plantillas?.filter(p => p.activo && (!p.ciclo_id || p.ciclo_id === activeCicloId)).map(p => (
+                              <option key={p.id} value={p.id}>{p.nombre}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex justify-end gap-2.5">
+                <button onClick={() => setEditingId(null)} disabled={saving} className="px-4 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium border border-gray-300 dark:border-gray-700">Cancelar</button>
+                <button onClick={handleSave} disabled={saving} className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition-colors flex items-center gap-2 font-bold disabled:opacity-60">
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                  {editingId === 'new' ? 'Guardar Alumno' : 'Actualizar Información'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Bulk Promote Modal */}
+
       <AnimatePresence>
         {showBulkModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sans">

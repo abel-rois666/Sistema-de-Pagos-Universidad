@@ -54,6 +54,9 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   const [editandoConceptoId, setEditandoConceptoId] = useState<string | null>(null);
   const [tempConceptoText, setTempConceptoText] = useState<string>('');
   const [guardandoConcepto, setGuardandoConcepto] = useState(false);
+  const [editandoSubtotalId, setEditandoSubtotalId] = useState<string | null>(null);
+  const [tempSubtotalMonto, setTempSubtotalMonto] = useState<number>(0);
+  const [guardandoSubtotal, setGuardandoSubtotal] = useState(false);
   
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
   const [massStatus, setMassStatus] = useState<{ msg: string, isOpen: boolean, results: any[] }>({ msg: '', isOpen: false, results: [] });
@@ -233,6 +236,76 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
          }
          setGuardandoConcepto(false);
          setEditandoConceptoId(null);
+         setConfirmModal({ ...confirmModal, isOpen: false });
+      }
+    });
+  };
+
+  const handleUpdateSubtotal = (id: string, reciboId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirmar Cambio de Monto',
+      message: '¿Estás seguro de que deseas modificar el monto de este concepto? El sistema recalculará automáticamente el total del recibo.',
+      onConfirm: async () => {
+         setGuardandoSubtotal(true);
+         const newMonto = Number(tempSubtotalMonto);
+         if (isNaN(newMonto) || newMonto < 0) {
+           alert('El monto ingresado es inválido');
+           setGuardandoSubtotal(false);
+           return;
+         }
+
+         const detalleOriginal = reciboSeleccionado?.recibos_detalles.find(d => d.id === id);
+         const cantidad = detalleOriginal?.cantidad || 1;
+         const newCostoUnitario = newMonto / cantidad;
+
+         const { error: errorUpdateDetalle } = await supabase
+           .from('recibos_detalles')
+           .update({ subtotal: newMonto, costo_unitario: newCostoUnitario })
+           .eq('id', id);
+
+         if (errorUpdateDetalle) {
+            alert('Error guardando monto: ' + (errorUpdateDetalle as any).message);
+            setGuardandoSubtotal(false);
+            return;
+         }
+
+         // Recalcular el total del recibo principal basándose en todos los demás "detalles" cargados más el nuevo modificado
+         const uneditedDetalles = reciboSeleccionado?.recibos_detalles.filter(d => d.id !== id) || [];
+         const newTotal = uneditedDetalles.reduce((acc, d) => acc + d.subtotal, 0) + newMonto;
+
+         const { error: errorUpdateRecibo } = await supabase
+           .from('recibos')
+           .update({ total: newTotal })
+           .eq('id', reciboId);
+
+         if (errorUpdateRecibo) {
+            alert('Aviso: Se actualizó el concepto pero hubo un error recalculando el total del recibo en BD: ' + (errorUpdateRecibo as any).message);
+         }
+
+         // Actualizamos de forma reactiva local
+         setReciboSeleccionado(prev => {
+            if(!prev) return prev;
+            return {
+              ...prev,
+              total: newTotal,
+              recibos_detalles: prev.recibos_detalles.map(d => d.id === id ? { ...d, subtotal: newMonto, costo_unitario: newCostoUnitario } : d)
+            };
+         });
+         
+         // Refrescamos localmente en el listado de recibos consultado
+         setRecibos(oldRecibos => oldRecibos.map(r => {
+             if (r.id === reciboId) {
+                return {
+                    ...r,
+                    total: newTotal,
+                    recibos_detalles: r.recibos_detalles.map(d => d.id === id ? { ...d, subtotal: newMonto, costo_unitario: newCostoUnitario } : d)
+                };
+             } return r;
+         }));
+
+         setGuardandoSubtotal(false);
+         setEditandoSubtotalId(null);
          setConfirmModal({ ...confirmModal, isOpen: false });
       }
     });
@@ -1092,9 +1165,30 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                         </button>
                       ) : null}
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 group">
                       <p className="text-[11px] text-gray-400">${d.costo_unitario.toFixed(2)}</p>
-                      <p className="text-sm font-extrabold text-gray-800 dark:text-white">${d.subtotal.toFixed(2)}</p>
+                      <div className="flex items-center justify-end gap-1">
+                        {currentUser?.rol === 'ADMINISTRADOR' && editandoSubtotalId !== d.id && (
+                          <button onClick={() => { setEditandoSubtotalId(d.id); setTempSubtotalMonto(d.subtotal); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Editar Monto">✎</button>
+                        )}
+                        <p className="text-sm font-extrabold text-gray-800 dark:text-white">${d.subtotal.toFixed(2)}</p>
+                      </div>
+                      {editandoSubtotalId === d.id && (
+                        <div className="mt-1 flex flex-col items-end gap-1 bg-blue-50/50 p-1.5 rounded border border-blue-200 shadow-inner min-w-[120px]">
+                          <div className="flex items-center gap-1 w-full justify-end">
+                            <span className="text-gray-500 font-bold text-xs">$</span>
+                            <input type="number" className="text-xs w-full p-1 border border-blue-200 rounded outline-none focus:ring-1 focus:ring-blue-400 bg-white font-mono text-right" autoFocus value={tempSubtotalMonto} onChange={e => setTempSubtotalMonto(Number(e.target.value))} step="0.01" />
+                          </div>
+                          <div className="flex gap-1 justify-end w-full">
+                            <button disabled={guardandoSubtotal} onClick={() => handleUpdateSubtotal(d.id, reciboSeleccionado!.id)} className="flex-1 text-[10px] bg-blue-600 text-white py-1 rounded font-bold hover:bg-blue-700 transition-colors shadow-sm">
+                              Guardar
+                            </button>
+                            <button disabled={guardandoSubtotal} onClick={() => setEditandoSubtotalId(null)} className="flex-1 text-[10px] bg-gray-200 text-gray-700 py-1 rounded font-bold hover:bg-gray-300 transition-colors">
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
