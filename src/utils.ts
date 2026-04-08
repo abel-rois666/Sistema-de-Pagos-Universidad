@@ -101,11 +101,11 @@ export const getCyclePrefix = (cicloNombre: string): string => {
   if (!cicloNombre) return 'PP';
   const nums = cicloNombre.replace(/[^0-9]/g, '');
   if (nums.length >= 5) {
-     return nums.substring(2, 4) + nums.substring(4, 5);
+    return nums.substring(2, 4) + nums.substring(4, 5);
   } else if (nums.length === 4) {
-     return nums.substring(2, 4);
+    return nums.substring(2, 4);
   } else {
-     return cicloNombre.replace(/[^0-9A-Za-z]/g, '').substring(0, 3).toUpperCase() || 'PP';
+    return cicloNombre.replace(/[^0-9A-Za-z]/g, '').substring(0, 3).toUpperCase() || 'PP';
   }
 };
 
@@ -118,7 +118,7 @@ export const getMaxFolioCounter = (allPlans: import('./types').PaymentPlan[]): n
     if (parts.length > 1) {
       if (parts[0] === 'PP') continue; // Ignorar legado de UUID auto-generados (PP-a1b2 o PP-1234)
       const lastPart = parts[parts.length - 1];
-      if (/^\d+$/.test(lastPart)) { 
+      if (/^\d+$/.test(lastPart)) {
         const num = parseInt(lastPart, 10);
         if (!isNaN(num) && num > max) { max = num; }
       }
@@ -132,15 +132,15 @@ export const CSV_HEADERS = [
   'CICLO_ESCOLAR', 'FECHA_PLAN', 'TIPO_PLAN', 'BECA_TIPO', 'BECA_PORCENTAJE',
   'SALDO_A_FAVOR', 'OBSERVACIONES_PAGO_TITULACION',
   ...Array.from({ length: 9 }, (_, i) => [
-      `CONCEPTO_${i + 1}`, `FECHA_${i + 1}`, `CANTIDAD_${i + 1}`, `ESTATUS_${i + 1}`
+    `CONCEPTO_${i + 1}`, `FECHA_${i + 1}`, `CANTIDAD_${i + 1}`, `ESTATUS_${i + 1}`
   ]).flat()
 ];
 
 export function generateCSV(headers: string[], rows: string[][]): string {
   const escape = (v: string | number | undefined | null) => {
-      if (v == null) return '';
-      const str = String(v);
-      return str.includes(',') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+    if (v == null) return '';
+    const str = String(v);
+    return str.includes(',') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
   };
   return [headers, ...rows].map(r => r.map(escape).join(',')).join('\r\n');
 }
