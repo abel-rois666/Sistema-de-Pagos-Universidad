@@ -950,6 +950,7 @@ export default function App() {
           <PageWrapper keyStr="plan_pagos">
             <PlanPagos currentUser={currentUser} plans={filteredPlans} alumnos={alumnos} activeCiclo={activeCiclo} catalogos={catalogos} plantillas={plantillas} initialAlumnoId={selectedAlumnoId || navState.alumnoId}
               onSavePlan={handleSavePlan}
+              onDeletePlan={(planId) => setPlans(prev => prev.filter(p => p.id !== planId))}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
               onGoToPagos={(aId, cIdx) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
               onViewReceipt={(folio, aId) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: aId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}

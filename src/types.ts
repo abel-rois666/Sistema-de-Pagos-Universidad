@@ -87,11 +87,41 @@ export interface PaymentPlan {
   cantidad_9?: number;
   estatus_9?: string;
 
+  concepto_10?: string;
+  fecha_10?: string;
+  cantidad_10?: number;
+  estatus_10?: string;
+
+  concepto_11?: string;
+  fecha_11?: string;
+  cantidad_11?: number;
+  estatus_11?: string;
+
+  concepto_12?: string;
+  fecha_12?: string;
+  cantidad_12?: number;
+  estatus_12?: string;
+
+  concepto_13?: string;
+  fecha_13?: string;
+  cantidad_13?: number;
+  estatus_13?: string;
+
+  concepto_14?: string;
+  fecha_14?: string;
+  cantidad_14?: number;
+  estatus_14?: string;
+
+  concepto_15?: string;
+  fecha_15?: string;
+  cantidad_15?: number;
+  estatus_15?: string;
+
   licenciatura: string;
   grado_turno: string;  // campo combinado (para display y compat. con vista)
   grado?: string;       // grado separado (columna planes_pago.grado)
   turno?: string;       // turno separado (columna planes_pago.turno)
-  tipo_plan?: 'Cuatrimestral' | 'Semestral';
+  tipo_plan?: 'Cuatrimestral' | 'Semestral' | 'Titulación' | 'Especialidad Completa' | 'Especialidad Cuatrimestral';
 }
 
 export interface AppConfig {
@@ -130,7 +160,7 @@ export interface PlantillaPlan {
   id: string;
   nombre: string;
   ciclo_id: string | null;
-  tipo_plan: 'Cuatrimestral' | 'Semestral';
+  tipo_plan: 'Cuatrimestral' | 'Semestral' | 'Titulación' | 'Especialidad Completa' | 'Especialidad Cuatrimestral';
   descripcion?: string;
   activo: boolean;
 
@@ -143,6 +173,12 @@ export interface PlantillaPlan {
   concepto_7?: string; fecha_7?: string; cantidad_7?: number;
   concepto_8?: string; fecha_8?: string; cantidad_8?: number;
   concepto_9?: string; fecha_9?: string; cantidad_9?: number;
+  concepto_10?: string; fecha_10?: string; cantidad_10?: number;
+  concepto_11?: string; fecha_11?: string; cantidad_11?: number;
+  concepto_12?: string; fecha_12?: string; cantidad_12?: number;
+  concepto_13?: string; fecha_13?: string; cantidad_13?: number;
+  concepto_14?: string; fecha_14?: string; cantidad_14?: number;
+  concepto_15?: string; fecha_15?: string; cantidad_15?: number;
 }
 
 export interface Recibo {

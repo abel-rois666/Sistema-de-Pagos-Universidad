@@ -59,6 +59,12 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
   const [tempSubtotalMonto, setTempSubtotalMonto] = useState<number>(0);
   const [guardandoSubtotal, setGuardandoSubtotal] = useState(false);
   
+  // -- Adición de Nuevo Concepto (Admin) --
+  const [isAddingConcept, setIsAddingConcept] = useState(false);
+  const [newConceptoText, setNewConceptoText] = useState('');
+  const [newConceptoMonto, setNewConceptoMonto] = useState<number | ''>('');
+  const [guardandoNewConcept, setGuardandoNewConcept] = useState(false);
+  
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
   const [massStatus, setMassStatus] = useState<{ msg: string, isOpen: boolean, results: any[] }>({ msg: '', isOpen: false, results: [] });
   const [isProcessingMass, setIsProcessingMass] = useState(false);
@@ -308,6 +314,82 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
          setGuardandoSubtotal(false);
          setEditandoSubtotalId(null);
          setConfirmModal({ ...confirmModal, isOpen: false });
+      }
+    });
+  };
+
+  const handleAddConcepto = async (reciboId: string) => {
+    if (!newConceptoText.trim() || Number(newConceptoMonto) <= 0) {
+      alert("Introduce un nombre y un monto válido superior a $0");
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirmar Nuevo Concepto',
+      message: 'Al guardar, el nuevo sub-concepto se añadirá a este recibo y el TOTAL DEL RECIBO AUMENTARÁ automáticamente por este monto. ¿Estás seguro de continuar?',
+      onConfirm: async () => {
+        setGuardandoNewConcept(true);
+        const monto = Number(newConceptoMonto);
+        
+        const nuevoDetalle = {
+          recibo_id: reciboId,
+          concepto: newConceptoText.trim(),
+          cantidad: 1,
+          costo_unitario: monto,
+          subtotal: monto
+        };
+
+        const { data: insertado, error: errInsert } = await supabase
+          .from('recibos_detalles')
+          .insert(nuevoDetalle)
+          .select()
+          .single();
+
+        if (errInsert || !insertado) {
+          alert("Error al guardar concepto: " + (errInsert as any).message);
+          setGuardandoNewConcept(false);
+          setConfirmModal({ ...confirmModal, isOpen: false });
+          return;
+        }
+
+        const oldDetalles = reciboSeleccionado?.recibos_detalles || [];
+        const newTotal = oldDetalles.reduce((acc, d) => acc + d.subtotal, 0) + monto;
+
+        const { error: errUpdateTotal } = await supabase
+          .from('recibos')
+          .update({ total: newTotal })
+          .eq('id', reciboId);
+
+        if (errUpdateTotal) {
+          alert("Aviso: El concepto se creó, pero falló recalculando el total maestro en Base de Datos: " + errUpdateTotal.message);
+        }
+
+        setReciboSeleccionado(prev => {
+          if(!prev) return prev;
+          return {
+            ...prev,
+            total: newTotal,
+            recibos_detalles: [...prev.recibos_detalles, insertado]
+          };
+        });
+
+        setRecibos(oldRecibos => oldRecibos.map(r => {
+          if (r.id === reciboId) {
+            return {
+              ...r,
+              total: newTotal,
+              recibos_detalles: [...r.recibos_detalles, insertado]
+            };
+          }
+          return r;
+        }));
+
+        setGuardandoNewConcept(false);
+        setIsAddingConcept(false);
+        setNewConceptoText('');
+        setNewConceptoMonto('');
+        setConfirmModal({ ...confirmModal, isOpen: false });
       }
     });
   };
@@ -1273,6 +1355,53 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   </div>
                 ))}
               </div>
+              
+              {/* Botón de añadir concepto extra */}
+              {currentUser?.rol === 'ADMINISTRADOR' && reciboSeleccionado.estatus === 'ACTIVO' && (
+                <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 p-3 flex justify-center">
+                  {!isAddingConcept ? (
+                    <button
+                      onClick={() => setIsAddingConcept(true)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-lg border border-blue-100 dark:border-blue-900 shadow-sm hover:shadow"
+                    >
+                      + Añadir Concepto Extra
+                    </button>
+                  ) : (
+                    <div className="w-full bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm flex flex-col gap-2">
+                       <p className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase px-1 tracking-wider">Registrar Nuevo Concepto</p>
+                       <div className="flex flex-col sm:flex-row gap-2">
+                         <input 
+                           type="text" 
+                           autoFocus
+                           className="flex-[2] text-xs p-2 border border-blue-200 dark:border-blue-700 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-900 dark:text-white" 
+                           placeholder="Ej. Constancia de Estudio" 
+                           value={newConceptoText} 
+                           onChange={e => setNewConceptoText(e.target.value)} 
+                         />
+                         <div className="flex-1 flex items-center bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-700 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
+                           <span className="text-gray-500 dark:text-gray-400 font-bold text-xs pl-3">$</span>
+                           <input 
+                             type="number" 
+                             className="text-xs w-full p-2 outline-none bg-transparent dark:text-white" 
+                             placeholder="0.00" 
+                             value={newConceptoMonto} 
+                             onChange={e => setNewConceptoMonto(e.target.value ? Number(e.target.value) : '')} 
+                             step="0.01" 
+                           />
+                         </div>
+                       </div>
+                       <div className="flex gap-2 justify-end mt-2">
+                         <button disabled={guardandoNewConcept} onClick={() => setIsAddingConcept(false)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-1.5 rounded-lg font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                           Cancelar
+                         </button>
+                         <button disabled={guardandoNewConcept} onClick={() => handleAddConcepto(reciboSeleccionado.id)} className="text-xs bg-blue-600 text-white px-5 py-1.5 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-1">
+                           {guardandoNewConcept ? 'Guardando...' : 'Guardar y Recalcular'}
+                         </button>
+                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Total */}

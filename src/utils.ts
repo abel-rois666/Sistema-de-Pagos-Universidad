@@ -116,10 +116,17 @@ export const getMaxFolioCounter = (allPlans: import('./types').PaymentPlan[]): n
     if (!p.no_plan_pagos) continue;
     const parts = p.no_plan_pagos.split('-');
     if (parts.length > 1) {
-      if (parts[0] === 'PP') continue; // Ignorar legado de UUID auto-generados (PP-a1b2 o PP-1234)
-      const lastPart = parts[parts.length - 1];
-      if (/^\d+$/.test(lastPart)) {
-        const num = parseInt(lastPart, 10);
+      if (parts[0] === 'PP') {
+         if (/^\d+$/.test(parts[1])) {
+             const num = parseInt(parts[1], 10);
+             if (num > max) max = num;
+         }
+         continue; 
+      }
+      // Formato: 262-454 o 262-454-ESP -> El folio siempre es parts[1]
+      const maybeFolio = parts[1];
+      if (/^\d+$/.test(maybeFolio)) {
+        const num = parseInt(maybeFolio, 10);
         if (!isNaN(num) && num > max) { max = num; }
       }
     }

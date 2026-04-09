@@ -172,6 +172,9 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
             value={editForm.tipo_plan || 'Cuatrimestral'} onChange={e => setEditForm({ ...editForm, tipo_plan: e.target.value as any })}>
             <option value="Cuatrimestral">Cuatrimestral</option>
             <option value="Semestral">Semestral</option>
+            <option value="Titulación">Titulación</option>
+            <option value="Especialidad Completa">Especialidad Completa</option>
+            <option value="Especialidad Cuatrimestral">Especialidad Cuatrimestral</option>
           </select>
         </div>
         <div className="col-span-full">
@@ -187,14 +190,18 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-6">
         <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700"><span className="font-semibold text-gray-700 dark:text-gray-300 text-sm">Configuración de Pagos</span></div>
-        <div className="p-4 bg-white dark:bg-gray-900 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2">
+        <div className="p-4 bg-white dark:bg-gray-900 grid grid-cols-1 lg:grid-cols-3 gap-x-8 gap-y-2">
           <div>
             {renderSlotHeader(1)}
             {[1, 2, 3, 4, 5].map(n => renderSlotInput(n))}
           </div>
           <div>
             {renderSlotHeader(6)}
-            {[6, 7, 8, 9].map(n => renderSlotInput(n))}
+            {[6, 7, 8, 9, 10].map(n => renderSlotInput(n))}
+          </div>
+          <div>
+            {renderSlotHeader(11)}
+            {[11, 12, 13, 14, 15].map(n => renderSlotInput(n))}
           </div>
         </div>
       </div>
@@ -261,9 +268,9 @@ export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave
               {!plantilla.descripcion && <div className="flex-1"></div>}
 
               <div className="flex flex-wrap gap-2 text-xs text-gray-500 font-medium mb-4">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].filter(i => plantilla[`concepto_${i}` as keyof PlantillaPlan]).length > 0
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].filter(i => plantilla[`concepto_${i}` as keyof PlantillaPlan]).length > 0
                   ? <span className="bg-gray-50 border border-gray-200 px-2 py-1 rounded">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].filter(i => plantilla[`concepto_${i}` as keyof PlantillaPlan]).length} conceptos configurados
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].filter(i => plantilla[`concepto_${i}` as keyof PlantillaPlan]).length} conceptos configurados
                     </span>
                   : <span className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-1 rounded">Sin conceptos</span>
                 }
