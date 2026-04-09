@@ -17,17 +17,38 @@ interface PlanPagosProps {
   onBack: () => void;
   onSavePlan: (plan: PaymentPlan) => void;
   onGoToPagos?: (alumnoId: string, conceptoIdx: number) => void;
-  onViewReceipt?: (folio: string) => void;
+  onViewReceipt?: (folio: string, alumnoId: string) => void;
   onBackToFicha?: (alumnoId: string) => void;
+  onBackToReceipt?: () => void;
 }
 
-export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], initialAlumnoId, onBack, onSavePlan, onGoToPagos, onViewReceipt, onBackToFicha }: PlanPagosProps) {
-  const [selectedPlanId, setSelectedPlanId] = useState<string>(
-    (initialAlumnoId && plans.find(p => p.alumno_id === initialAlumnoId)?.id) || plans[0]?.id || ''
-  );
-  const [searchTerm, setSearchTerm] = useState<string>(
-    (initialAlumnoId && plans.find(p => p.alumno_id === initialAlumnoId)?.nombre_alumno) || plans[0]?.nombre_alumno || ''
-  );
+export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], initialAlumnoId, onBack, onSavePlan, onGoToPagos, onViewReceipt, onBackToFicha, onBackToReceipt }: PlanPagosProps) {
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(() => {
+    if (initialAlumnoId) {
+      const match = plans.find(p => p.alumno_id === initialAlumnoId);
+      if (match) return match.id;
+    }
+    const savedId = localStorage.getItem('lastSelectedPlanId');
+    if (savedId && plans.find(p => p.id === savedId)) return savedId;
+    return plans[0]?.id || '';
+  });
+
+  const [searchTerm, setSearchTerm] = useState<string>(() => {
+    if (initialAlumnoId) {
+      const match = plans.find(p => p.alumno_id === initialAlumnoId);
+      if (match) return match.nombre_alumno || '';
+    }
+    const savedId = localStorage.getItem('lastSelectedPlanId');
+    const savedPlan = savedId ? plans.find(p => p.id === savedId) : null;
+    if (savedPlan) return savedPlan.nombre_alumno || '';
+    return plans[0]?.nombre_alumno || '';
+  });
+
+  useEffect(() => {
+    if (selectedPlanId) {
+      localStorage.setItem('lastSelectedPlanId', selectedPlanId);
+    }
+  }, [selectedPlanId]);
   
   const isCoordinador = currentUser.rol === 'COORDINADOR';
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -684,7 +705,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     return (
                       <button 
                         key={i} 
-                        onClick={() => onViewReceipt?.(folioStr)}
+                        onClick={() => onViewReceipt?.(folioStr, selectedPlan.alumno_id!)}
                         className="text-blue-700 underline hover:text-blue-900 mx-1 print:no-underline print:text-black"
                         title="Ver Recibo"
                       >
@@ -715,7 +736,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                       return (
                         <button
                           key={i}
-                          onClick={() => onViewReceipt?.(folioStr)}
+                          onClick={() => onViewReceipt?.(folioStr, selectedPlan.alumno_id!)}
                           className="text-blue-700 underline hover:text-blue-900 mx-0.5 print:no-underline print:text-black"
                           title="Ver Recibo"
                         >
@@ -781,6 +802,18 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   className="flex items-center gap-2 text-indigo-700 hover:text-indigo-900 font-bold transition-colors shrink-0"
                 >
                   <User size={16} /> <span className="text-sm">Regresar a Ficha</span>
+                </button>
+              </>
+            )}
+
+            {onBackToReceipt && (
+              <>
+                <div className="hidden sm:block w-px h-5 bg-gray-300"></div>
+                <button
+                  onClick={onBackToReceipt}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 transition-colors shrink-0"
+                >
+                  <ArrowLeft size={13} /> Volver al Recibo
                 </button>
               </>
             )}

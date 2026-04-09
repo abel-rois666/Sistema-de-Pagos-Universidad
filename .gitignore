@@ -11,3 +11,9 @@ migration_paso3.sql
 migration_paso2_sql_directo.sql
 migration_paso1_2.sql
 migration_paso0_fix_trigger.sql
+
+# ── Archivos con info sensible o utilerías de prueba (Añadido por seguridad) ──
+test_*.js
+hashes_generados.sql
+generar-hashes.cjs
+patch_*.py

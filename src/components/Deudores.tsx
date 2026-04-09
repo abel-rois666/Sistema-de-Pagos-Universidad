@@ -510,8 +510,11 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
                           </>
                         ) : (
                           <>
-                            <div className="bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400 w-20 h-20 rounded-full flex items-center justify-center mb-4">
-                              <CheckCircle size={40} />
+                            <div className="relative">
+                              <div className="absolute inset-0 bg-green-500/20 dark:bg-green-400/20 rounded-full blur-xl animate-pulse" />
+                              <div className="relative bg-gradient-to-br from-green-100 to-emerald-50 dark:from-green-900/40 dark:to-emerald-900/20 text-green-600 dark:text-green-400 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm border border-green-200 dark:border-green-800/50">
+                                <CheckCircle size={40} className="drop-shadow-sm" />
+                              </div>
                             </div>
                             <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">¡Todo al corriente!</h3>
                             <p className="text-gray-500 dark:text-gray-400 mb-6">No hay alumnos con pagos pendientes en este ciclo escolar.</p>

@@ -21,10 +21,11 @@ interface Props {
   currentUser?: Usuario;
   onPaymentSaved?: () => void;
   onCatalogoAdded?: (item: CatalogoItem) => void;
+  onNavigateToPlan?: (alumnoId: string, folioReciboOrigen?: string) => void;
   key?: string;
 }
 
-export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, catalogos, appConfig, onBack, onBackToPlan, initialAlumnoId, initialConceptIndex, initialView, initialSearchTerm, currentUser, onPaymentSaved, onCatalogoAdded }: Props) {
+export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, catalogos, appConfig, onBack, onBackToPlan, initialAlumnoId, initialConceptIndex, initialView, initialSearchTerm, currentUser, onPaymentSaved, onCatalogoAdded, onNavigateToPlan }: Props) {
   const [activeTab, setActiveTab] = useState<'registrar' | 'consultar'>(initialView || 'registrar');
 
   return (
@@ -89,6 +90,7 @@ export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, c
               initialSearchTerm={initialSearchTerm}
               onDataRefresh={onPaymentSaved}
               currentUser={currentUser}
+              onNavigateToPlan={onNavigateToPlan}
             />
           )}
         </div>

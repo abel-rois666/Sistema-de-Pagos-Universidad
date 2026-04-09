@@ -61,11 +61,40 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
 
   // ── Llamada a Edge Function ───────────────────────────────────────────────
   const invokeManageUsers = async (action: string, payload: Record<string, unknown>) => {
-    const { data, error } = await supabase.functions.invoke('manage-users', {
-      body: { action, ...payload },
+    // 1. Obtener la sesión activa para asegurar que enviamos el token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    // 2. Extraer parámetros del cliente para no tener hardcoded la URL base
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const functionUrl = `${supabaseUrl}/functions/v1/manage-users`;
+
+    // 3. Invocar directamente mediante Fetch para atrapar perfectamente la respuesta 401/403/500
+    const response = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'apikey': anonKey
+      },
+      body: JSON.stringify({ action, ...payload })
     });
-    if (error) throw new Error(error.message);
-    if (data?.error) throw new Error(data.error);
+
+    if (!response.ok) {
+      let errMessage = `Error HTTP: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData && errorData.error) {
+          errMessage = errorData.error;
+        }
+      } catch (e) {
+        // No era JSON
+      }
+      throw new Error(`Edge Function falló (${response.status}): ${errMessage}`);
+    }
+
+    const data = await response.json();
     return data;
   };
 

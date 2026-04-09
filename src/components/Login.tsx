@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Lock, User, LogIn, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
+import { Lock, User, LogIn, Loader2, AlertCircle } from 'lucide-react';
+import { supabase, getAppConfig } from '../lib/supabase';
 import type { Usuario } from '../types';
 
 interface LoginProps {
@@ -12,6 +13,15 @@ export default function Login({ onLogin }: LoginProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAppConfig().then(config => {
+      if (config && config.logoUrl) {
+        setLogoUrl(config.logoUrl);
+      }
+    });
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,24 +78,61 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans transition-colors duration-300">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative min-h-screen flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-slate-950">
+
+      {/* Background Decorators */}
+      <div className="absolute inset-0 grid-bg pointer-events-none opacity-50 dark:opacity-20 z-0" />
+      <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-indigo-100/50 dark:from-indigo-900/20 to-transparent pointer-events-none z-0" />
+      <div className="absolute -left-40 top-1/4 w-96 h-96 bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl pointer-events-none z-0" />
+      <div className="absolute -right-40 bottom-1/4 w-96 h-96 bg-purple-400/20 dark:bg-purple-600/10 rounded-full blur-3xl pointer-events-none z-0" />
+
+      {/* Main Content Container */}
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
         {/* Logo / Ícono */}
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-[#1c2c54] to-[#263e77] rounded-2xl flex items-center justify-center shadow-lg border border-[#2b4482]">
-            <span className="text-white font-extrabold text-2xl">U</span>
-          </div>
-        </div>
-        <h2 className="text-center text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-          Bienvenido al Sistema de Pagos CUOM
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-          Inicia sesión para gestionar alumnos y pagos
-        </p>
+        <motion.div
+          initial={{ opacity: 0, y: -20, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="flex justify-center mb-8 relative"
+        >
+          <div className="absolute inset-0 bg-indigo-500/20 dark:bg-indigo-400/20 blur-xl rounded-full scale-110 animate-pulse pointer-events-none" />
+          
+          {logoUrl ? (
+            <div className="animate-float relative z-10 flex items-center justify-center">
+              <img 
+                src={logoUrl}
+                alt="Logo Universidad" 
+                className="h-24 w-auto object-contain drop-shadow-xl"
+              />
+            </div>
+          ) : (
+            <div className="animate-float w-20 h-20 bg-gradient-to-br from-indigo-700 to-blue-900 dark:from-indigo-600 dark:to-blue-800 rounded-2xl flex items-center justify-center shadow-2xl border border-indigo-400/30 relative z-10">
+              <span className="text-white font-black text-4xl tracking-tighter">U</span>
+            </div>
+          )}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+        >
+          <h2 className="text-center text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+            Bienvenido al Sistema de Pagos CUOM
+          </h2>
+          <p className="mt-2 text-center text-sm font-medium text-slate-600 dark:text-slate-400 max-w-sm mx-auto">
+            Inicia sesión para gestionar alumnos y pagos
+          </p>
+        </motion.div>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white dark:bg-gray-900 py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100 dark:border-gray-800 transition-colors duration-300">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+        className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
+      >
+        <div className="glass-card py-8 px-4 sm:rounded-3xl sm:px-10 transition-colors duration-300">
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -132,13 +179,12 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
 
             {error && (
-              <div className="rounded-xl bg-red-50 dark:bg-red-950/40 p-4 border border-red-100 dark:border-red-900/60">
-                <div className="flex">
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800 dark:text-red-300">{error}</h3>
-                  </div>
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="rounded-xl bg-rose-50 dark:bg-rose-900/30 p-4 border border-rose-200 dark:border-rose-800/50">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
+                  <h3 className="text-sm font-semibold text-rose-800 dark:text-rose-300">{error}</h3>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             <div>
@@ -153,7 +199,7 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
           </form>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

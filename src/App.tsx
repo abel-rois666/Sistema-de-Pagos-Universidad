@@ -422,6 +422,7 @@ export default function App() {
           p.tipo_plan || 'Cuatrimestral',
           p.beca_tipo || 'NINGUNA',
           p.beca_porcentaje || '0%',
+          a?.saldo_a_favor || '',
           a?.observaciones_pago_titulacion || '',
           ...Array.from({ length: 9 }, (_, i) => {
              const id = i + 1;
@@ -951,8 +952,9 @@ export default function App() {
               onSavePlan={handleSavePlan}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
               onGoToPagos={(aId, cIdx) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
-              onViewReceipt={(folio) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: selectedAlumnoId || navState.alumnoId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
+              onViewReceipt={(folio, aId) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: aId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
               onBackToFicha={navState.fromFicha ? (id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: navState.fromAlumnos } }); } : undefined}
+              onBackToReceipt={navState.returnFolio ? () => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: navState.returnFolio, fromPlan: true, alumnoId: selectedAlumnoId || navState.alumnoId } }) : undefined}
             />
           </PageWrapper>
         } />
@@ -1008,6 +1010,10 @@ export default function App() {
               currentUser={currentUser}
               onPaymentSaved={refreshAfterPayment}
               onCatalogoAdded={(item) => setCatalogoItems(prev => [...prev, item])}
+              onNavigateToPlan={(alumnoId, folio) => {
+                setSelectedAlumnoId(alumnoId);
+                navigate('/plan-pagos', { state: { alumnoId, returnFolio: folio } });
+              }}
             />
           </PageWrapper>
         } />

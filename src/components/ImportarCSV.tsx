@@ -44,7 +44,7 @@ interface ImportarCSVProps {
 const SAMPLE_ROWS = [
     [
         'CHAVEZ CORDERO SAMARA YAMIL', '00207', 'DERECHO', '5TO', 'MIXTO', 'ACTIVO',
-        '2026-1', '15/01/2026', 'Cuatrimestral', 'NINGUNA', '0%', '',
+        '2026-1', '15/01/2026', 'Cuatrimestral', 'NINGUNA', '0%', '', '',
         'INSCRIPCION', '15/01/2026', '1200', 'PAGADO',
         '1ER PAGO', '15/02/2026', '1500', 'PAGADO',
         '2DO PAGO', '15/03/2026', '1500', 'PENDIENTE',
@@ -54,7 +54,7 @@ const SAMPLE_ROWS = [
     ],
     [
         'GARCIA MENDOZA PEDRO IVAN', '00208', 'ADMINISTRACION', '3ER', 'MATUTINO', 'ACTIVO',
-        '2026-1', '15/01/2026', 'Cuatrimestral', 'BECA INSTITUCIONAL', '25%', '',
+        '2026-1', '15/01/2026', 'Cuatrimestral', 'BECA INSTITUCIONAL', '25%', '', '',
         'INSCRIPCION', '15/01/2026', '900', 'PAGADO',
         '1ER PAGO', '15/02/2026', '1125', 'PENDIENTE',
         '', '', '', '', '', '', '', '', '', '', '', '',

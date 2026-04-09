@@ -85,6 +85,8 @@ export const saveAlumno = async (alumno: Alumno): Promise<string | null> => {
     turno: alumno.turno,
     estatus: alumno.estatus,
     beca_porcentaje: alumno.beca_porcentaje,
+    beca_tipo: alumno.beca_tipo,
+    observaciones_pago_titulacion: alumno.observaciones_pago_titulacion,
     ciclo_ultima_asignacion_grado: alumno.ciclo_ultima_asignacion_grado,
     saldo_a_favor: alumno.saldo_a_favor,
   });

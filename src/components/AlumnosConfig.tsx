@@ -953,6 +953,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                       <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })}>
                         <option value="">-- Seleccionar --</option>
                         {catalogos.licenciaturas.map(c => <option key={c} value={c}>{c}</option>)}
+                        {editForm.licenciatura && !catalogos.licenciaturas.includes(editForm.licenciatura) && (
+                          <option value={editForm.licenciatura}>{editForm.licenciatura} (Mantenida)</option>
+                        )}
                       </select>
                     ) : (
                       <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value })} />
@@ -969,6 +972,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                           }
                           return true;
                         }).map(c => <option key={c} value={c}>{c}</option>)}
+                        {editForm.grado_actual && !catalogos.grados.includes(editForm.grado_actual) && (
+                          <option value={editForm.grado_actual}>{editForm.grado_actual} (Mantenido)</option>
+                        )}
                       </select>
                     ) : (
                       <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })} />
@@ -984,6 +990,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                       <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({ ...editForm, turno: e.target.value })}>
                         <option value="">-- Seleccionar --</option>
                         {catalogos.turnos.map(c => <option key={c} value={c}>{c}</option>)}
+                        {editForm.turno && !catalogos.turnos.includes(editForm.turno) && (
+                          <option value={editForm.turno}>{editForm.turno} (Mantenido)</option>
+                        )}
                       </select>
                     ) : (
                       <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.turno || ''} onChange={e => setEditForm({ ...editForm, turno: e.target.value })} />
@@ -995,6 +1004,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                       <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })}>
                         <option value="">-- Seleccionar --</option>
                         {catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>)}
+                        {editForm.estatus && !catalogos.estatus_alumnos.includes(editForm.estatus) && (
+                          <option value={editForm.estatus}>{editForm.estatus} (Mantenido)</option>
+                        )}
                       </select>
                     ) : (
                       <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })} />
@@ -1006,6 +1018,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                       <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({ ...editForm, beca_tipo: e.target.value })}>
                         <option value="">-- Seleccionar --</option>
                         {catalogos.beca_tipos.map(c => <option key={c} value={c}>{c}</option>)}
+                        {editForm.beca_tipo && !catalogos.beca_tipos.includes(editForm.beca_tipo) && (
+                          <option value={editForm.beca_tipo}>{editForm.beca_tipo} (Mantenida)</option>
+                        )}
                       </select>
                     ) : (
                       <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_tipo || ''} onChange={e => setEditForm({ ...editForm, beca_tipo: e.target.value })} />
@@ -1017,6 +1032,9 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                       <select className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({ ...editForm, beca_porcentaje: e.target.value })}>
                         <option value="">-- Seleccionar --</option>
                         {catalogos.beca_porcentajes.map(c => <option key={c} value={c}>{c}</option>)}
+                        {editForm.beca_porcentaje && !catalogos.beca_porcentajes.includes(editForm.beca_porcentaje) && (
+                          <option value={editForm.beca_porcentaje}>{editForm.beca_porcentaje} (Mantenido)</option>
+                        )}
                       </select>
                     ) : (
                       <input type="text" className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" value={editForm.beca_porcentaje || ''} onChange={e => setEditForm({ ...editForm, beca_porcentaje: e.target.value })} />

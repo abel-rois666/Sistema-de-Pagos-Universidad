@@ -209,8 +209,8 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
             <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Adeudo Plan</p>
             <p className="text-xl font-extrabold text-rose-700 dark:text-rose-400 leading-tight mt-0.5">${stats.totalOwed.toLocaleString()}</p>
             {(stats.totalPaid + stats.totalOwed) > 0 && (
-              <div className="mt-2 h-1 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full transition-all duration-700"
+              <div className="mt-2.5 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden shadow-inner">
+                <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full transition-all duration-700 shadow-[0_0_8px_rgba(52,211,153,0.5)]"
                   style={{ width: `${(stats.totalPaid / (stats.totalPaid + stats.totalOwed)) * 100}%` }} />
               </div>
             )}
@@ -249,16 +249,16 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
         </div>
 
         {/* ── TABS ─────────────────────────────────────────────────────────── */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 p-1 bg-gray-100 dark:bg-gray-800/80 rounded-2xl w-fit">
           <button
             onClick={() => setActiveTab('planes')}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'planes' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50'}`}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'planes' ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'}`}
           >
             <BarChart2 size={16} /> Planes de Pago
           </button>
           <button
             onClick={() => setActiveTab('libres')}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'libres' ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50'}`}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'libres' ? 'bg-white dark:bg-gray-700 text-blue-700 dark:text-blue-300 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'}`}
           >
             <CreditCard size={16} /> Pagos Libres
             {libresStats.totalLibres > 0 && (
@@ -315,9 +315,9 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
                   </div>
                 ) : (
                   <div className="text-center py-16 flex flex-col items-center">
-                    <div className="bg-gray-100 text-gray-400 w-20 h-20 rounded-full flex items-center justify-center mb-4"><Inbox size={40} /></div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">No hay datos financieros</h3>
-                    <p className="text-gray-500">No se encontraron registros para este ciclo.</p>
+                    <div className="bg-gray-100 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500 w-20 h-20 rounded-full flex items-center justify-center mb-4"><Inbox size={40} /></div>
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">No hay datos financieros</h3>
+                    <p className="text-gray-500 dark:text-gray-400">No se encontraron registros para este ciclo.</p>
                   </div>
                 )}
               </div>

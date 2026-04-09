@@ -18,9 +18,10 @@ interface Props {
   initialSearchTerm?: string;
   onDataRefresh?: () => void;
   currentUser?: Usuario;
+  onNavigateToPlan?: (alumnoId: string, folioReciboOrigen?: string) => void;
 }
 
-export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catalogos, appConfig, initialSearchTerm, onDataRefresh, currentUser }: Props) {
+export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catalogos, appConfig, initialSearchTerm, onDataRefresh, currentUser, onNavigateToPlan }: Props) {
   const [recibos, setRecibos] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
@@ -496,6 +497,48 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
     } else {
       alert('Error cancelando recibo: ' + err);
     }
+  };
+
+  const handleToggleFactura = async (id: string, currentRequiereFactura: boolean, currentFacturaEstatus: string) => {
+    const newStatus = !currentRequiereFactura;
+    
+    // Si se desea desactivar y ya tiene un folio, confirmar
+    if (!newStatus && currentFacturaEstatus === 'FACTURADO') {
+       if (!window.confirm("Este recibo ya tiene un folio fiscal asignado. Si quitas la opción de factura, perderás el folio fiscal registrado en este recibo. ¿Deseas continuar?")) {
+         return;
+       }
+    }
+
+    const newEstatusFactura = newStatus ? 'PENDIENTE' : 'NO APLICA';
+    const updatePayload: any = {
+        requiere_factura: newStatus,
+        estatus_factura: newEstatusFactura,
+    };
+    if (!newStatus) {
+        updatePayload.folio_fiscal = null;
+    }
+
+    const { error } = await supabase
+      .from('recibos')
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (error) {
+      alert('Error al actualizar opciones de factura: ' + error.message);
+      return;
+    }
+
+    setReciboSeleccionado(prev => {
+      if (!prev) return prev;
+      return { ...prev, ...updatePayload };
+    });
+
+    setRecibos(oldRecibos => oldRecibos.map(r => {
+      if (r.id === id) {
+        return { ...r, ...updatePayload };
+      }
+      return r;
+    }));
   };
 
   const handleRepararHistoricos = async () => {
@@ -1042,6 +1085,18 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               </div>
             )}
 
+            {/* Enlace al plan de pagos si tiene conceptos vinculados */}
+            {(reciboSeleccionado.recibos_detalles || []).some(d => d.indice_concepto_plan != null) && onNavigateToPlan && (
+              <div className="mb-5 flex justify-center">
+                <button
+                  onClick={() => onNavigateToPlan(reciboSeleccionado.alumno_id, String(reciboSeleccionado.folio))}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors shadow-sm"
+                >
+                  Ver Plan de Pagos Asociado
+                </button>
+              </div>
+            )}
+
             {/* Info cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
               <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -1087,6 +1142,31 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                       </span>
                     </div>
                   )}
+
+                  <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100 dark:border-gray-800">
+                    <span>Requiere Factura:</span>
+                    {currentUser?.rol === 'ADMINISTRADOR' ? (
+                      <button
+                        onClick={() => handleToggleFactura(reciboSeleccionado.id, !!reciboSeleccionado.requiere_factura, reciboSeleccionado.estatus_factura || 'NO APLICA')}
+                        className={`font-semibold px-2.5 py-0.5 rounded transition-colors text-xs ${
+                          reciboSeleccionado.requiere_factura 
+                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300' 
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                        }`}
+                        title={reciboSeleccionado.requiere_factura ? 'Clic para desactivar' : 'Clic para activar'}
+                      >
+                        {reciboSeleccionado.requiere_factura ? 'SÍ (Facturable)' : 'NO'}
+                      </button>
+                    ) : (
+                      <span className={`font-semibold px-2.5 py-0.5 rounded text-xs ${
+                        reciboSeleccionado.requiere_factura 
+                          ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border border-amber-200 dark:border-amber-800' 
+                          : 'bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                      }`}>
+                        {reciboSeleccionado.requiere_factura ? 'SÍ (Facturable)' : 'NO'}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
