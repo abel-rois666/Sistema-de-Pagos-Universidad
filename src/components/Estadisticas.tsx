@@ -62,41 +62,63 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
   const stats = useMemo(() => {
     let totalPaid = 0;
     let totalOwed = 0;
+    let totalTitPaid = 0;
+    let totalTitOwed = 0;
+    
     const monthsData: Record<string, { paid: number; owed: number }> = {};
+    const titMonthsData: Record<string, { paid: number; owed: number }> = {};
     const licenciaturaData: Record<string, { paid: number; owed: number }> = {};
     const turnoData: Record<string, { paid: number; owed: number }> = {};
 
     const processPayment = (plan: PaymentPlan, cantidad: number, estatus: string, fecha: string, isBaja: boolean) => {
       if (!cantidad) return;
       const month = extractMonth(fecha);
-      if (!monthsData[month]) monthsData[month] = { paid: 0, owed: 0 };
+      const isTit = plan.tipo_plan === 'Titulación';
+      if (isTit && !titMonthsData[month]) titMonthsData[month] = { paid: 0, owed: 0 };
+      if (!isTit && !monthsData[month]) monthsData[month] = { paid: 0, owed: 0 };
+      
       const lic = plan.licenciatura?.trim() || 'Desconocida';
-      if (!licenciaturaData[lic]) licenciaturaData[lic] = { paid: 0, owed: 0 };
+      if (!isTit && !licenciaturaData[lic]) licenciaturaData[lic] = { paid: 0, owed: 0 };
+      
       let fallbackTurno = '';
       if (plan.grado_turno && plan.grado_turno.includes('/')) fallbackTurno = plan.grado_turno.split('/')[1].trim();
       const tur = plan.turno?.trim() || fallbackTurno || 'Desconocido';
-      if (!turnoData[tur]) turnoData[tur] = { paid: 0, owed: 0 };
+      if (!isTit && !turnoData[tur]) turnoData[tur] = { paid: 0, owed: 0 };
 
       if (isPaid(estatus)) {
-        totalPaid += Number(cantidad);
-        monthsData[month].paid += Number(cantidad);
-        licenciaturaData[lic].paid += Number(cantidad);
-        turnoData[tur].paid += Number(cantidad);
+        if (isTit) {
+          totalTitPaid += Number(cantidad);
+          titMonthsData[month].paid += Number(cantidad);
+        } else {
+          totalPaid += Number(cantidad);
+          monthsData[month].paid += Number(cantidad);
+          licenciaturaData[lic].paid += Number(cantidad);
+          turnoData[tur].paid += Number(cantidad);
+        }
       } else {
         if (!isBaja) {
-          // Para abonos parciales: la parte abonada va a "paid", el restante a "owed"
           const restante = getRestanteFromEstatus(estatus, Number(cantidad));
           const abonado = Number(cantidad) - restante;
           if (abonado > 0) {
-            totalPaid += abonado;
-            monthsData[month].paid += abonado;
-            licenciaturaData[lic].paid += abonado;
-            turnoData[tur].paid += abonado;
+            if (isTit) {
+              totalTitPaid += abonado;
+              titMonthsData[month].paid += abonado;
+            } else {
+              totalPaid += abonado;
+              monthsData[month].paid += abonado;
+              licenciaturaData[lic].paid += abonado;
+              turnoData[tur].paid += abonado;
+            }
           }
-          totalOwed += restante;
-          monthsData[month].owed += restante;
-          licenciaturaData[lic].owed += restante;
-          turnoData[tur].owed += restante;
+          if (isTit) {
+            totalTitOwed += restante;
+            titMonthsData[month].owed += restante;
+          } else {
+            totalOwed += restante;
+            monthsData[month].owed += restante;
+            licenciaturaData[lic].owed += restante;
+            turnoData[tur].owed += restante;
+          }
         }
       }
     };
@@ -118,9 +140,14 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
       if (ia === -1) ia = 99; if (ib === -1) ib = 99;
       return ia - ib;
     });
+    const sortedTitMonths = Object.entries(titMonthsData).sort((a, b) => {
+      let ia = monthOrder.indexOf(a[0]); let ib = monthOrder.indexOf(b[0]);
+      if (ia === -1) ia = 99; if (ib === -1) ib = 99;
+      return ia - ib;
+    });
     const sortedLicenciaturas = Object.entries(licenciaturaData).sort((a, b) => b[1].paid + b[1].owed - (a[1].paid + a[1].owed));
     const sortedTurnos = Object.entries(turnoData).sort((a, b) => b[1].paid + b[1].owed - (a[1].paid + a[1].owed));
-    return { totalPaid, totalOwed, sortedMonths, sortedLicenciaturas, sortedTurnos };
+    return { totalPaid, totalOwed, totalTitPaid, totalTitOwed, sortedMonths, sortedTitMonths, sortedLicenciaturas, sortedTurnos };
   }, [plans, alumnos]);
 
   // ── Pagos libres stats ─────────────────────────────────────────────────────
@@ -162,7 +189,7 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
     return { totalLibres, totalMonederoLibres, sortedConceptos, sortedMeses, uniqueAlumnos };
   }, [libres]);
 
-  const totalGeneral = stats.totalPaid + libresStats.totalLibres;
+  const totalGeneral = stats.totalPaid + stats.totalTitPaid + libresStats.totalLibres;
 
   return (
     <div className="w-full font-sans">
@@ -180,8 +207,8 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
         </div>
 
         {/* ── KPI CARDS ─────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {/* Ingresos Plan */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          {/* Ingresos Lic/Esp */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
             className="card-interactive group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl p-4 border border-emerald-100 dark:border-emerald-900/50 shadow-sm hover:shadow-xl hover:shadow-emerald-500/15 hover:-translate-y-1 transition-all duration-300"
@@ -191,14 +218,14 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
               <ListChecks size={18} />
             </div>
-            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Ingresos Plan</p>
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Ingresos Plan (Lic/Esp)</p>
             <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-400 leading-tight mt-0.5">${stats.totalPaid.toLocaleString()}</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">cobrado en el ciclo</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">cobrado de planes</p>
           </motion.div>
 
-          {/* Adeudo Plan */}
+          {/* Adeudo Lic/Esp */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.06 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}
             className="card-interactive group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl p-4 border border-rose-100 dark:border-rose-900/50 shadow-sm hover:shadow-xl hover:shadow-rose-500/15 hover:-translate-y-1 transition-all duration-300"
             onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
           >
@@ -206,7 +233,7 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-400 to-red-500 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
               <AlertCircle size={18} />
             </div>
-            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Adeudo Plan</p>
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Adeudo Plan (Lic/Esp)</p>
             <p className="text-xl font-extrabold text-rose-700 dark:text-rose-400 leading-tight mt-0.5">${stats.totalOwed.toLocaleString()}</p>
             {(stats.totalPaid + stats.totalOwed) > 0 && (
               <div className="mt-2.5 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden shadow-inner">
@@ -216,10 +243,46 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
             )}
             <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">pendiente de cobro</p>
           </motion.div>
+          
+          {/* Ingresos Titulación */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}
+            className="card-interactive group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl p-4 border border-teal-100 dark:border-teal-900/50 shadow-sm hover:shadow-xl hover:shadow-teal-500/15 hover:-translate-y-1 transition-all duration-300"
+            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
+          >
+            <div className="absolute -right-3 -top-3 w-16 h-16 bg-gradient-to-br from-teal-400 to-green-500 opacity-10 rounded-full blur-2xl group-hover:opacity-25 transition-opacity duration-500 pointer-events-none" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-400 to-green-500 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+              <Banknote size={18} />
+            </div>
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Ingresos Titulación</p>
+            <p className="text-xl font-extrabold text-teal-700 dark:text-teal-400 leading-tight mt-0.5">${stats.totalTitPaid.toLocaleString()}</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">cobrado en titulación</p>
+          </motion.div>
+
+          {/* Adeudo Titulación */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}
+            className="card-interactive group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl p-4 border border-orange-100 dark:border-orange-900/50 shadow-sm hover:shadow-xl hover:shadow-orange-500/15 hover:-translate-y-1 transition-all duration-300"
+            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
+          >
+            <div className="absolute -right-3 -top-3 w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 opacity-10 rounded-full blur-2xl group-hover:opacity-25 transition-opacity duration-500 pointer-events-none" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+              <AlertCircle size={18} />
+            </div>
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Adeudo Titulación</p>
+            <p className="text-xl font-extrabold text-orange-700 dark:text-orange-400 leading-tight mt-0.5">${stats.totalTitOwed.toLocaleString()}</p>
+            {(stats.totalTitPaid + stats.totalTitOwed) > 0 && (
+              <div className="mt-2.5 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden shadow-inner">
+                <div className="h-full bg-gradient-to-r from-teal-400 to-green-500 rounded-full transition-all duration-700 shadow-[0_0_8px_rgba(20,184,166,0.5)]"
+                  style={{ width: `${(stats.totalTitPaid / (stats.totalTitPaid + stats.totalTitOwed)) * 100}%` }} />
+              </div>
+            )}
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">pendiente en titulación</p>
+          </motion.div>
 
           {/* Pagos Libres */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.12 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }}
             className="card-interactive group relative flex flex-col bg-white dark:bg-gray-900 rounded-2xl p-4 border border-sky-100 dark:border-sky-900/50 shadow-sm hover:shadow-xl hover:shadow-sky-500/15 hover:-translate-y-1 transition-all duration-300"
             onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
           >
@@ -234,17 +297,17 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
 
           {/* Total Caja */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.18 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.25 }}
             className="card-interactive group relative flex flex-col rounded-2xl p-4 shadow-md bg-gradient-to-br from-indigo-600 to-blue-500 hover:shadow-2xl hover:shadow-indigo-500/30 hover:-translate-y-1 transition-all duration-300"
             onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - r.left}px`); e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - r.top}px`); }}
           >
             <div className="absolute -right-3 -top-3 w-16 h-16 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all duration-500 pointer-events-none" />
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white shadow-md mb-3 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-              <Banknote size={18} />
+              <TrendingUp size={18} />
             </div>
-            <p className="text-[11px] font-semibold text-indigo-100 uppercase tracking-wider">Total Caja</p>
+            <p className="text-[11px] font-semibold text-indigo-100 uppercase tracking-wider">Total Caja General</p>
             <p className="text-xl font-extrabold text-white leading-tight mt-0.5">${totalGeneral.toLocaleString()}</p>
-            <p className="text-[10px] text-indigo-200 mt-1">ingresos totales</p>
+            <p className="text-[10px] text-indigo-200 mt-1">ingresos consolidados</p>
           </motion.div>
         </div>
 
@@ -322,6 +385,51 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, onBack }: Es
                 )}
               </div>
             </motion.div>
+
+            {/* Monthly Breakdown Titulación */}
+            {stats.sortedTitMonths.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.1 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="p-6 border-b border-teal-100 dark:border-teal-900/40 bg-teal-50/50 dark:bg-teal-900/10">
+                  <h2 className="text-xl font-bold text-teal-800 dark:text-teal-400">Desglose Mensual (Titulación)</h2>
+                </div>
+                <div className="p-6">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-teal-50/50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-400 text-sm uppercase tracking-wider">
+                          <th className="py-3 px-4 font-semibold rounded-tl-lg">Mes / Periodo</th>
+                          <th className="py-3 px-4 font-semibold text-right">Ingresos (Pagado)</th>
+                          <th className="py-3 px-4 font-semibold text-right">Adeudo (Pendiente)</th>
+                          <th className="py-3 px-4 font-semibold text-right rounded-tr-lg">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.sortedTitMonths.map(([month, data], idx) => (
+                          <motion.tr
+                            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.2 + idx * 0.05, duration: 0.2 }}
+                            key={month} className="border-b border-gray-100 dark:border-gray-700 hover:bg-teal-50/30 dark:hover:bg-teal-900/20">
+                            <td className="py-4 px-4 font-medium text-gray-800 dark:text-gray-200">{month}</td>
+                            <td className="py-4 px-4 text-right font-semibold text-teal-600 dark:text-teal-400">${data.paid.toLocaleString()}</td>
+                            <td className="py-4 px-4 text-right font-semibold text-orange-500 dark:text-orange-400">${data.owed.toLocaleString()}</td>
+                            <td className="py-4 px-4 text-right font-bold text-gray-800 dark:text-gray-100">${(data.paid + data.owed).toLocaleString()}</td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-teal-50/80 dark:bg-teal-900/30 font-bold text-teal-900 dark:text-teal-100">
+                          <td className="py-4 px-4 rounded-bl-lg">TOTAL TITULACIÓN</td>
+                          <td className="py-4 px-4 text-right text-teal-700 dark:text-teal-300">${stats.totalTitPaid.toLocaleString()}</td>
+                          <td className="py-4 px-4 text-right text-orange-600 dark:text-orange-400">${stats.totalTitOwed.toLocaleString()}</td>
+                          <td className="py-4 px-4 text-right text-gray-900 dark:text-white rounded-br-lg">${(stats.totalTitPaid + stats.totalTitOwed).toLocaleString()}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {/* By Licenciatura + Turno */}
             {stats.sortedLicenciaturas.length > 0 && (
