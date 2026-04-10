@@ -1308,11 +1308,11 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               </thead>
               <tbody>
                 {paymentIndices.map(i => renderPaymentRow(i))}
-                <tr>
+                <tr key="filler-1">
                   <Td className="bg-gray-100"><div className="h-6 w-full bg-gray-200 rounded-full"></div></Td>
                   <Td></Td><Td></Td><Td></Td>
                 </tr>
-                <tr>
+                <tr key="filler-2">
                   <Td className="bg-gray-100"><div className="h-6 w-full bg-gray-200 rounded-full"></div></Td>
                   <Td></Td><Td></Td><Td></Td>
                 </tr>
@@ -2044,12 +2044,15 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               </tr>
             </thead>
             <tbody className="text-gray-800 bg-white">
-              {selectedPlan?.desglose_conceptos?.map((item: any, idx: number) => (
+              {(Array.isArray(selectedPlan?.desglose_conceptos) ? selectedPlan.desglose_conceptos : 
+                 (typeof selectedPlan?.desglose_conceptos === 'string' && selectedPlan.desglose_conceptos.trim().startsWith('[') 
+                 ? JSON.parse(selectedPlan.desglose_conceptos) : [])
+              ).map((item: any, idx: number) => (
                 <tr key={idx} className="border-b border-gray-200">
-                  <td className="p-3 font-medium text-center">{item.cantidad}</td>
-                  <td className="p-3">{item.concepto}</td>
-                  <td className="p-3 text-right">${Number(item.costo_unitario).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                  <td className="p-3 text-right font-bold">${Number(item.costo_total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                  <td className="p-3 font-medium text-center">{item?.cantidad || 0}</td>
+                  <td className="p-3">{item?.concepto || ''}</td>
+                  <td className="p-3 text-right">${Number(item?.costo_unitario || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                  <td className="p-3 text-right font-bold">${Number(item?.costo_total || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                 </tr>
               ))}
             </tbody>

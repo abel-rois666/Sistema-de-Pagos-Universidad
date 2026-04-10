@@ -360,7 +360,7 @@ export default function FichaAlumno({ plans, alumnos = [], initialAlumnoId, curr
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => {
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map(i => {
                           const concepto = activePlan[`concepto_${i}` as keyof PaymentPlan] as string | undefined;
                           const fecha = activePlan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
                           const cantidad = activePlan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;

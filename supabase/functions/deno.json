@@ -1,5 +1,10 @@
 {
-  "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
-  }
+  "tasks": [
+    {
+      "name": "deno",
+      "command": "deno",
+      "args": ["run", "-A", "test.ts"],
+      "type": "shell"
+    }
+  ]
 }

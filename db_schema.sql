@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.plantillas_plan (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     nombre TEXT NOT NULL,
     ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE SET NULL,
-    tipo_plan TEXT CHECK (tipo_plan IN ('Cuatrimestral', 'Semestral')),
+    tipo_plan TEXT CHECK (tipo_plan IN ('Cuatrimestral', 'Semestral', 'Titulación', 'Especialidad Completa', 'Especialidad Cuatrimestral')),
     descripcion TEXT,
     activo BOOLEAN DEFAULT true,
     concepto_1 TEXT, fecha_1 DATE, cantidad_1 NUMERIC(10,2),
@@ -99,6 +99,12 @@ CREATE TABLE IF NOT EXISTS public.plantillas_plan (
     concepto_7 TEXT, fecha_7 DATE, cantidad_7 NUMERIC(10,2),
     concepto_8 TEXT, fecha_8 DATE, cantidad_8 NUMERIC(10,2),
     concepto_9 TEXT, fecha_9 DATE, cantidad_9 NUMERIC(10,2),
+    concepto_10 TEXT, fecha_10 DATE, cantidad_10 NUMERIC(10,2),
+    concepto_11 TEXT, fecha_11 DATE, cantidad_11 NUMERIC(10,2),
+    concepto_12 TEXT, fecha_12 DATE, cantidad_12 NUMERIC(10,2),
+    concepto_13 TEXT, fecha_13 DATE, cantidad_13 NUMERIC(10,2),
+    concepto_14 TEXT, fecha_14 DATE, cantidad_14 NUMERIC(10,2),
+    concepto_15 TEXT, fecha_15 DATE, cantidad_15 NUMERIC(10,2),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -115,8 +121,10 @@ CREATE TABLE IF NOT EXISTS public.planes_pago (
     beca_tipo TEXT,
     grado TEXT,
     turno TEXT,
-    tipo_plan TEXT CHECK (tipo_plan IN ('Cuatrimestral', 'Semestral')),
+    tipo_plan TEXT CHECK (tipo_plan IN ('Cuatrimestral', 'Semestral', 'Titulación', 'Especialidad Completa', 'Especialidad Cuatrimestral')),
+    licenciatura TEXT,
     
+    -- Conceptos 1 - 15 (Soporte extendido para Especialidades/Titulación)
     concepto_1 TEXT, fecha_1 DATE, cantidad_1 NUMERIC(10,2), estatus_1 TEXT DEFAULT 'PENDIENTE',
     concepto_2 TEXT, fecha_2 DATE, cantidad_2 NUMERIC(10,2), estatus_2 TEXT DEFAULT 'PENDIENTE',
     concepto_3 TEXT, fecha_3 DATE, cantidad_3 NUMERIC(10,2), estatus_3 TEXT DEFAULT 'PENDIENTE',
@@ -126,9 +134,22 @@ CREATE TABLE IF NOT EXISTS public.planes_pago (
     concepto_7 TEXT, fecha_7 DATE, cantidad_7 NUMERIC(10,2), estatus_7 TEXT DEFAULT 'PENDIENTE',
     concepto_8 TEXT, fecha_8 DATE, cantidad_8 NUMERIC(10,2), estatus_8 TEXT DEFAULT 'PENDIENTE',
     concepto_9 TEXT, fecha_9 DATE, cantidad_9 NUMERIC(10,2), estatus_9 TEXT DEFAULT 'PENDIENTE',
+    concepto_10 TEXT, fecha_10 DATE, cantidad_10 NUMERIC(10,2), estatus_10 TEXT DEFAULT 'PENDIENTE',
+    concepto_11 TEXT, fecha_11 DATE, cantidad_11 NUMERIC(10,2), estatus_11 TEXT DEFAULT 'PENDIENTE',
+    concepto_12 TEXT, fecha_12 DATE, cantidad_12 NUMERIC(10,2), estatus_12 TEXT DEFAULT 'PENDIENTE',
+    concepto_13 TEXT, fecha_13 DATE, cantidad_13 NUMERIC(10,2), estatus_13 TEXT DEFAULT 'PENDIENTE',
+    concepto_14 TEXT, fecha_14 DATE, cantidad_14 NUMERIC(10,2), estatus_14 TEXT DEFAULT 'PENDIENTE',
+    concepto_15 TEXT, fecha_15 DATE, cantidad_15 NUMERIC(10,2), estatus_15 TEXT DEFAULT 'PENDIENTE',
+
+    -- Metadatos para Especialidad Completa (Cotización dinámica)
+    desglose_conceptos JSONB,
+    desglose_total_bruto NUMERIC(15,2),
+    desglose_descuento_porcentaje NUMERIC(5,2),
+    desglose_descuento_monto NUMERIC(15,2),
+    desglose_total_neto NUMERIC(15,2),
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    UNIQUE(alumno_id, ciclo_id)
+    UNIQUE(alumno_id, ciclo_id, no_plan_pagos)
 );
 CREATE INDEX IF NOT EXISTS idx_planes_pago_alumno ON public.planes_pago(alumno_id);
 CREATE INDEX IF NOT EXISTS idx_planes_pago_ciclo ON public.planes_pago(ciclo_id);
@@ -158,8 +179,21 @@ SELECT
     p.concepto_7, p.fecha_7, p.cantidad_7, p.estatus_7,
     p.concepto_8, p.fecha_8, p.cantidad_8, p.estatus_8,
     p.concepto_9, p.fecha_9, p.cantidad_9, p.estatus_9,
+    p.concepto_10, p.fecha_10, p.cantidad_10, p.estatus_10,
+    p.concepto_11, p.fecha_11, p.cantidad_11, p.estatus_11,
+    p.concepto_12, p.fecha_12, p.cantidad_12, p.estatus_12,
+    p.concepto_13, p.fecha_13, p.cantidad_13, p.estatus_13,
+    p.concepto_14, p.fecha_14, p.cantidad_14, p.estatus_14,
+    p.concepto_15, p.fecha_15, p.cantidad_15, p.estatus_15,
     
-    a.licenciatura,
+    -- Desglose
+    p.desglose_conceptos,
+    p.desglose_total_bruto,
+    p.desglose_descuento_porcentaje,
+    p.desglose_descuento_monto,
+    p.desglose_total_neto,
+
+    COALESCE(p.licenciatura, a.licenciatura) AS licenciatura,
     (COALESCE(p.grado, a.grado_actual) || ' - ' || COALESCE(p.turno, a.turno)) AS grado_turno,
     p.grado,
     p.turno,
@@ -174,6 +208,7 @@ LEFT JOIN public.ciclos_escolares c ON p.ciclo_id = c.id;
 CREATE TABLE IF NOT EXISTS public.recibos (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     folio SERIAL UNIQUE NOT NULL,
+    folio_fiscal TEXT,        -- Para cuando se factura un recibo
     fecha_recibo DATE NOT NULL,
     fecha_pago DATE NOT NULL,
     alumno_id UUID REFERENCES public.alumnos(id) ON DELETE RESTRICT,
@@ -196,7 +231,7 @@ CREATE TABLE IF NOT EXISTS public.recibos_detalles (
     concepto TEXT NOT NULL,
     costo_unitario NUMERIC(15,2) NOT NULL,
     subtotal NUMERIC(15,2) NOT NULL,
-    indice_concepto_plan INTEGER, -- 1 a 9, sirve para saber a qué concepto del plan le abonó
+    indice_concepto_plan INTEGER, -- 1 a 15, sirve para saber a qué concepto del plan le abonó
     observaciones TEXT,           -- Nota de abono parcial: "Abono $X — Restante: $Y"
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

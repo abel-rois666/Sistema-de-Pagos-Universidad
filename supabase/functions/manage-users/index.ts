@@ -5,6 +5,7 @@
 // Variables de entorno: SUPABASE_URL, SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY
 // son inyectadas automáticamente por Supabase en todas las Edge Functions.
 
+// @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -20,6 +21,7 @@ function json(data: unknown, status = 200) {
   });
 }
 
+// @ts-ignore
 Deno.serve(async (req) => {
   // Responder preflight CORS
   if (req.method === 'OPTIONS') {
@@ -35,7 +37,9 @@ Deno.serve(async (req) => {
 
     // ── 2. Verificar rol ADMINISTRADOR con el JWT del caller ──────────────
     const supabaseClient = createClient(
+      // @ts-ignore
       Deno.env.get('SUPABASE_URL')!,
+      // @ts-ignore
       Deno.env.get('SUPABASE_ANON_KEY')!,
       { global: { headers: { Authorization: authHeader } } }
     );
@@ -51,7 +55,9 @@ Deno.serve(async (req) => {
 
     // ── 4. Cliente admin con service_role (nunca sale al cliente) ─────────
     const supabaseAdmin = createClient(
+      // @ts-ignore
       Deno.env.get('SUPABASE_URL')!,
+      // @ts-ignore
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
