@@ -51,7 +51,7 @@ export const DEFAULT_ESPECIALIDAD_DESGLOSE = [
   { cantidad: 1, concepto: 'CEREMONIA DE GRADO', costo_unitario: 4826 },
 ].map(item => ({...item, costo_total: item.cantidad * item.costo_unitario }));
 
-const EspecialidadDesgloseTable = ({ form, setForm }: { form: Partial<PaymentPlan>, setForm: (val: Partial<PaymentPlan>) => void }) => {
+const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: Partial<PaymentPlan>, setForm: (val: Partial<PaymentPlan>) => void, isEditing?: boolean }) => {
   const desglose = Array.isArray(form.desglose_conceptos) && form.desglose_conceptos.length > 0 
       ? form.desglose_conceptos 
       : DEFAULT_ESPECIALIDAD_DESGLOSE;
@@ -115,6 +115,7 @@ const EspecialidadDesgloseTable = ({ form, setForm }: { form: Partial<PaymentPla
   };
 
   const [pagosADividir, setPagosADividir] = React.useState(15);
+  const [isDistributed, setIsDistributed] = React.useState(false);
 
   const distribuir = () => {
     if (pagosADividir < 1 || pagosADividir > 15) return;
@@ -123,9 +124,7 @@ const EspecialidadDesgloseTable = ({ form, setForm }: { form: Partial<PaymentPla
     const updates: any = {};
     for (let i = 1; i <= 15; i++) {
        if (i <= pagosADividir) {
-          updates[`concepto_${i}`] = `${i}ER PAGO`.replace('1ER', '1ER').replace('2ER', '2DO').replace('3ER', '3ER').replace('4ER', '4TO').replace('5ER', '5TO').replace('6ER', '6TO').replace('7ER', '7MO').replace('8ER', '8VO').replace('9ER', '9NO') + (i >= 10 ? ' PAGO' : '');
-          if (i > 9) updates[`concepto_${i}`] = `${i}VO PAGO`; // just rough ordinal fix, maybe just PAGO N
-          updates[`concepto_${i}`] = i === 1 ? '1ER PAGO' : i === 2 ? '2DO PAGO' : i === 3 ? '3ER PAGO' : i === 4 ? '4TO PAGO' : i === 5 ? '5TO PAGO' : i === 6 ? '6TO PAGO' : i === 7 ? '7MO PAGO' : i === 8 ? '8VO PAGO' : i === 9 ? '9NO PAGO' : `${i}VO PAGO`;
+          updates[`concepto_${i}`] = i === 1 ? '1ER PAGO' : i === 2 ? '2DO PAGO' : i === 3 ? '3ER PAGO' : i === 4 ? '4TO PAGO' : i === 5 ? '5TO PAGO' : i === 6 ? '6TO PAGO' : i === 7 ? '7MO PAGO' : i === 8 ? '8VO PAGO' : i === 9 ? '9NO PAGO' : i === 10 ? '10MO PAGO' : i === 11 ? '11VO PAGO' : i === 12 ? '12VO PAGO' : i === 13 ? '13VO PAGO' : i === 14 ? '14VO PAGO' : i === 15 ? '15VO PAGO' : `${i}VO PAGO`;
           updates[`cantidad_${i}`] = montoPorPago;
           const estatusKey = `estatus_${i}` as keyof typeof form;
           updates[`estatus_${i}`] = form[estatusKey] || 'PENDIENTE';
@@ -137,6 +136,8 @@ const EspecialidadDesgloseTable = ({ form, setForm }: { form: Partial<PaymentPla
        }
     }
     setForm({ ...form, ...updates });
+    setIsDistributed(true);
+    setTimeout(() => setIsDistributed(false), 2500);
   };
 
   return (
@@ -205,18 +206,20 @@ const EspecialidadDesgloseTable = ({ form, setForm }: { form: Partial<PaymentPla
            <p className="text-2xl font-black text-indigo-700 dark:text-indigo-400">${Number(dtn).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
         </div>
       </div>
-      <div className="bg-indigo-50 dark:bg-indigo-900/40 p-4 flex flex-wrap gap-4 items-center justify-between border-t border-indigo-100 dark:border-indigo-800/30">
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">Dividir Neto en:</label>
-          <div className="flex items-center gap-2">
-            <input type="number" min="1" max="15" className="w-16 p-1.5 border border-indigo-300 rounded-lg text-center bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700" value={pagosADividir} onChange={e => setPagosADividir(Number(e.target.value))}/>
-            <span className="text-sm font-medium text-indigo-800/60 dark:text-indigo-200/60">pagos</span>
+      {isEditing && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/40 p-4 flex flex-wrap gap-4 items-center justify-between border-t border-indigo-100 dark:border-indigo-800/30">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">Dividir Neto en:</label>
+            <div className="flex items-center gap-2">
+              <input type="number" min="1" max="15" className="w-16 p-1.5 border border-indigo-300 rounded-lg text-center bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700" value={pagosADividir} onChange={e => setPagosADividir(Number(e.target.value))}/>
+              <span className="text-sm font-medium text-indigo-800/60 dark:text-indigo-200/60">pagos</span>
+            </div>
           </div>
+          <button onClick={distribuir} type="button" className={`px-5 py-2 rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 ${isDistributed ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+            {isDistributed ? '¡Pagos Distribuidos!' : 'Calculadora Mágica (Auto-Rellenar)'}
+          </button>
         </div>
-        <button onClick={distribuir} type="button" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2">
-          Calculadora Mágica (Auto-Rellenar Abajo)
-        </button>
-      </div>
+      )}
     </div>
   );
 };
@@ -389,6 +392,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   const printRef = useRef<HTMLDivElement>(null);
   const cotizacionRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  // Post-Create Modal State
+  const [postCreatePrompt, setPostCreatePrompt] = useState<PaymentPlan | null>(null);
 
   const handleGeneratePDF = async () => {
     if (!printRef.current) return;
@@ -1892,7 +1898,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 )}
                 
                 {newPlanForm.tipo_plan === 'Especialidad Completa' && (
-                  <EspecialidadDesgloseTable form={newPlanForm} setForm={setNewPlanForm as any} />
+                  <EspecialidadDesgloseTable form={newPlanForm} setForm={setNewPlanForm as any} isEditing={false} />
                 )}
             </div>
 
@@ -1939,7 +1945,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     concepto_15: newPlanForm.concepto_15, fecha_15: newPlanForm.fecha_15, cantidad_15: newPlanForm.cantidad_15,
                   };
                   onSavePlan(newPlan);
-                  setSelectedPlanId(newPlan.id);
+                  setPostCreatePrompt(newPlan);
                   setIsNewPlanModalOpen(false);
                   setNewPlanSearchTerm('');
                   setNewPlanForm({
@@ -1974,6 +1980,45 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
               >
                 Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Post-Create Prompt Modal */}
+      {postCreatePrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                <Save className="text-emerald-600" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">¡Plan Creado Exitosamente!</h3>
+              <p className="text-gray-600 mb-4">
+                La carátula del plan ha sido guardada. Sin embargo, antes de imprimirlo o cobrarlo, es <b>altamente recomendable configurar las fechas de vencimiento y montos</b> de los pagos programados.
+              </p>
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setSelectedPlanId(postCreatePrompt.id);
+                  setPostCreatePrompt(null);
+                }}
+                className="px-4 py-2 border border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg font-medium transition-colors"
+              >
+                Hacerlo Más Tarde
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedPlanId(postCreatePrompt.id);
+                  setEditForm({ ...postCreatePrompt });
+                  setIsEditPlanModalOpen(true);
+                  setPostCreatePrompt(null);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors border border-transparent shadow-sm"
+              >
+                Editar Plan Ahora
               </button>
             </div>
           </div>
