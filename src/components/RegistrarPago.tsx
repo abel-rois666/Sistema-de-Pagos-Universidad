@@ -13,6 +13,7 @@ interface ConceptoRow {
   indice_concepto_plan: number | null;
   searchConceptoTerm: string;
   showConceptoSuggestions: boolean;
+  plan_id?: string;
 }
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
   appConfig?: AppConfig;
   initialAlumnoId?: string;
   initialConceptIndex?: number;
+  initialPlanId?: string;
   currentUser?: Usuario;
   onPaymentSaved?: () => void;
   onCatalogoAdded?: (item: CatalogoItem) => void;
@@ -32,7 +34,7 @@ interface Props {
 const BANCOS = ['BBVA 1', 'BBVA 2', 'MIFEL', 'BANORTE', 'NO APLICA'];
 const FORMAS_PAGO = ['Depósito Bancario', 'Transferencia bancaria', 'Tarjeta de Débito', 'Tarjeta de Crédito', 'Efectivo'];
 
-export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, appConfig, initialAlumnoId, initialConceptIndex, currentUser, onPaymentSaved, onCatalogoAdded }: Props) {
+export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, appConfig, initialAlumnoId, initialConceptIndex, initialPlanId, currentUser, onPaymentSaved, onCatalogoAdded }: Props) {
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<string>(initialAlumnoId || '');
   const [searchAlumnoTerm, setSearchAlumnoTerm] = useState('');
   const [showAlumnoSuggestions, setShowAlumnoSuggestions] = useState(false);
@@ -101,23 +103,30 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
     }
   }, [formaPago]);
 
-  const alumnoData = alumnos.find(a => a.id === alumnoSeleccionado);
-  const planActual = plans.find(p => p.alumno_id === alumnoSeleccionado && p.ciclo_id === activeCiclo?.id);
+  const alumnoData = useMemo(() => alumnos.find(a => a.id === alumnoSeleccionado), [alumnos, alumnoSeleccionado]);
 
-  // Generar opciones de conceptos combinando los pendientes del plan y los del catálogo
+  // Si venimos navegados con un initialPlanId específico, forzamos usar solo ese plan.
+  // De lo contrario, usamos TODOS los planes activos del ciclo para el alumno.
+  const pupilPlans = useMemo(() => {
+    if (initialPlanId) {
+      const explicitPlan = plans.find(p => p.id === initialPlanId && p.alumno_id === alumnoSeleccionado);
+      if (explicitPlan) return [explicitPlan];
+    }
+    return plans.filter(p => p.alumno_id === alumnoSeleccionado && p.ciclo_id === activeCiclo?.id);
+  }, [plans, alumnoSeleccionado, activeCiclo, initialPlanId]);
+
+  // Generar opciones de conceptos combinando los pendientes de TODOS los planes y los del catálogo
   const opcionesConceptos = useMemo(() => {
-    const opciones: { value: string, label: string, index?: number, sugerido?: number }[] = [];
+    const opciones: { value: string, label: string, index?: number, sugerido?: number, planId?: string }[] = [];
     
-    // 1. Conceptos del plan actual del alumno (solamente los que tengan cantidad y no digan 'PAGADO')
-    if (planActual) {
-      for (let i = 1; i <= 9; i++) {
+    // 1. Conceptos de los planes actuales (solamente los que tengan cantidad y no digan 'PAGADO')
+    pupilPlans.forEach(planActual => {
+      for (let i = 1; i <= 15; i++) {
         const conceptoName = planActual[`concepto_${i}` as keyof PaymentPlan] as string;
         const cantidad = planActual[`cantidad_${i}` as keyof PaymentPlan] as number;
         const estatus = planActual[`estatus_${i}` as keyof PaymentPlan] as string;
         
         if (conceptoName && cantidad > 0 && !(estatus || '').toUpperCase().includes('PAGADO')) {
-          // Si hay un abono previo, extraer el monto Restante del texto del estatus
-          // El estatus puede ser "R-101 (Abono $850.00, Resta $350.00)"
           let montoSugerido = cantidad;
           let etiquetaResta = `$${cantidad.toFixed(2)}`;
 
@@ -130,14 +139,15 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
           }
 
           opciones.push({
-            value: `PLAN_${i}_${conceptoName}`,
-            label: `[Plan] ${conceptoName} — Resta: ${etiquetaResta}`,
+            value: `PLAN_${planActual.id}_${i}_${conceptoName}`,
+            label: `[${planActual.tipo_plan || 'Plan'}] ${conceptoName} — Resta: ${etiquetaResta}`,
             index: i,
+            planId: planActual.id,
             sugerido: montoSugerido
           });
         }
       }
-    }
+    });
 
     // 2. Conceptos genéricos del catálogo
     catalogos.conceptos.forEach(c => {
@@ -145,29 +155,34 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
     });
 
     return opciones;
-  }, [planActual, catalogos.conceptos]);
+  }, [pupilPlans, catalogos.conceptos]);
 
   const hasInitialized = React.useRef(false);
   useEffect(() => {
-    if (initialConceptIndex && planActual && opcionesConceptos.length > 0 && !hasInitialized.current) {
+    // Cuando viene desde PlanPagos y traemos un planId + concepto index
+    if (initialConceptIndex && initialPlanId && pupilPlans.length > 0 && !hasInitialized.current) {
       hasInitialized.current = true;
       const idx = initialConceptIndex;
-      const conceptoRef = planActual[`concepto_${idx}` as keyof PaymentPlan] as string;
-      const targetValue = `PLAN_${idx}_${conceptoRef}`;
-      const op = opcionesConceptos.find(o => o.value === targetValue);
-      if (op) {
-        setFilas([{
-          localId: Date.now().toString(),
-          cantidad: 1,
-          concepto: conceptoRef,
-          costo_unitario: op.sugerido || '',
-          indice_concepto_plan: idx,
-          searchConceptoTerm: conceptoRef,
-          showConceptoSuggestions: false,
-        }]);
+      const targetPlan = pupilPlans.find(p => p.id === initialPlanId);
+      if (targetPlan) {
+        const conceptoRef = targetPlan[`concepto_${idx}` as keyof PaymentPlan] as string;
+        const targetValue = `PLAN_${initialPlanId}_${idx}_${conceptoRef}`;
+        const op = opcionesConceptos.find(o => o.value === targetValue);
+        if (op) {
+          setFilas([{
+            localId: Date.now().toString(),
+            cantidad: 1,
+            concepto: conceptoRef,
+            costo_unitario: op.sugerido || '',
+            indice_concepto_plan: idx,
+            searchConceptoTerm: conceptoRef,
+            showConceptoSuggestions: false,
+            plan_id: initialPlanId,
+          }]);
+        }
       }
     }
-  }, [initialConceptIndex, planActual, opcionesConceptos]);
+  }, [initialConceptIndex, initialPlanId, pupilPlans, opcionesConceptos]);
 
   const agregarFila = () => {
     setFilas([...filas, {
@@ -186,19 +201,19 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
     setFilas(filas.filter(f => f.localId !== id));
   };
 
-  /** Selecciona un concepto de la lista y cierra el dropdown */
   const selectConcepto = (filaId: string, opValue: string) => {
     setFilas(filas.map(f => {
       if (f.localId !== filaId) return f;
       if (opValue.startsWith('PLAN_')) {
-        const parts = opValue.split('_');
-        const idx = parseInt(parts[1], 10);
-        const refName = parts.slice(2).join('_');
+        const parts = opValue.split('_'); // PLAN_planId_idx_refName
+        const pId = parts[1];
+        const idx = parseInt(parts[2], 10);
+        const refName = parts.slice(3).join('_');
         const op = opcionesConceptos.find(o => o.value === opValue);
-        return { ...f, concepto: refName, indice_concepto_plan: idx, costo_unitario: op?.sugerido || '', searchConceptoTerm: refName, showConceptoSuggestions: false };
+        return { ...f, concepto: refName, indice_concepto_plan: idx, plan_id: pId, costo_unitario: op?.sugerido || '', searchConceptoTerm: refName, showConceptoSuggestions: false };
       } else if (opValue.startsWith('CAT_')) {
         const name = opValue.replace('CAT_', '');
-        return { ...f, concepto: name, indice_concepto_plan: null, costo_unitario: '', searchConceptoTerm: name, showConceptoSuggestions: false };
+        return { ...f, concepto: name, indice_concepto_plan: null, plan_id: undefined, costo_unitario: '', searchConceptoTerm: name, showConceptoSuggestions: false };
       }
       return { ...f, showConceptoSuggestions: false };
     }));
@@ -247,6 +262,16 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       setMensaje({ tipo: 'error', texto: 'Debes agregar al menos un concepto válido.' });
       return;
     }
+
+    // Validar que no haya conceptos de distintos planes en el mismo recibo
+    const planIdsInvolved = Array.from(new Set(validas.filter(f => f.plan_id).map(f => f.plan_id as string)));
+    if (planIdsInvolved.length > 1) {
+      setMensaje({ tipo: 'error', texto: 'No puedes cobrar conceptos de distintos planes en un mismo recibo. Por favor, hazlos en recibos separados.' });
+      return;
+    }
+
+    const unicoPlanIdInvolucrado = planIdsInvolved.length === 1 ? planIdsInvolved[0] : null;
+    const planActual = unicoPlanIdInvolucrado ? pupilPlans.find(p => p.id === unicoPlanIdInvolucrado) : undefined;
 
     setGuardando(true);
     setMensaje(null);
@@ -448,11 +473,21 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       )}
 
       {/* Banner: sin plan activo */}
-      {alumnoSeleccionado && !planActual && (
+      {alumnoSeleccionado && pupilPlans.length === 0 && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 text-blue-800 text-sm">
           <Info size={18} className="shrink-0 mt-0.5 text-blue-500" />
           <span>
             <strong>Sin plan en el ciclo activo.</strong> Este alumno no tiene plan de pagos registrado para <em>{activeCiclo?.nombre || 'este ciclo'}</em>. El recibo se guardará suelto (no afectará ningún plan).
+          </span>
+        </div>
+      )}
+
+      {/* Banner: múltiples planes detectados (informativo si no está bloqueado por initialPlanId) */}
+      {alumnoSeleccionado && pupilPlans.length > 1 && !initialPlanId && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3 text-green-800 text-sm">
+          <Info size={18} className="shrink-0 mt-0.5 text-green-600" />
+          <span>
+            <strong>Múltiples planes detectados.</strong> Este alumno tiene {pupilPlans.length} planes activos en este ciclo escolar. Se han agregado todos los conceptos al catálogo de busqueda. <em>Nota: Haz recibos separados si vas a pagar conceptos de diferentes planes.</em>
           </span>
         </div>
       )}

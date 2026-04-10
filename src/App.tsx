@@ -952,7 +952,7 @@ export default function App() {
               onSavePlan={handleSavePlan}
               onDeletePlan={(planId) => setPlans(prev => prev.filter(p => p.id !== planId))}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
-              onGoToPagos={(aId, cIdx) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
+              onGoToPagos={(aId, cIdx, pId) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, initialPlanId: pId, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
               onViewReceipt={(folio, aId) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: aId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
               onBackToFicha={navState.fromFicha ? (id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: navState.fromAlumnos } }); } : undefined}
               onBackToReceipt={navState.returnFolio ? () => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: navState.returnFolio, fromPlan: true, alumnoId: selectedAlumnoId || navState.alumnoId } }) : undefined}
@@ -990,7 +990,7 @@ export default function App() {
           <PageWrapper keyStr="config_app">
             <AppConfigSettings 
               config={appConfig || { title: 'Sistema de Control de Pagos', logoUrl: '' }} 
-              onSave={(newC) => { setAppConfig(newC); navigate('/'); showToast('success', 'Configuración guardada correctamente.'); }} 
+              onSave={(newC) => { setAppConfig(newC); navigate('/'); }} 
               onBack={() => navigate('/')} 
             />
           </PageWrapper>
@@ -1006,6 +1006,7 @@ export default function App() {
                 : undefined}
               initialAlumnoId={navState.alumnoId}
               initialConceptIndex={navState.conceptoIdx}
+              initialPlanId={navState.initialPlanId}
               initialView={navState.view}
               initialSearchTerm={navState.searchTerm}
               currentUser={currentUser}

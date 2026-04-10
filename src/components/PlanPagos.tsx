@@ -234,7 +234,7 @@ interface PlanPagosProps {
   initialAlumnoId?: string | null;
   onBack: () => void;
   onSavePlan: (plan: PaymentPlan) => void;
-  onGoToPagos?: (alumnoId: string, conceptoIdx: number) => void;
+  onGoToPagos?: (alumnoId: string, conceptoIdx: number, planId?: string) => void;
   onViewReceipt?: (folio: string, alumnoId: string) => void;
   onBackToFicha?: (alumnoId: string) => void;
   onBackToReceipt?: () => void;
@@ -1055,7 +1055,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               {/* Botones de acción */}
               <div className="flex items-center justify-center gap-2 print:hidden" data-html2canvas-ignore="true">
                 <button
-                  onClick={() => onGoToPagos?.(selectedPlan.alumno_id!, index)}
+                  onClick={() => onGoToPagos?.(selectedPlan.alumno_id!, index, selectedPlan.id)}
                   className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 transition-colors"
                   title="Generar recibo de ingresos"
                 >
@@ -1085,7 +1085,17 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
   // Pestañas dinámicas para estudiantes con múltiples planes
   const studentAllPlans = React.useMemo(() => {
-    return plans.filter(p => p.alumno_id === selectedPlan.alumno_id);
+    const p = plans.filter(p => p.alumno_id === selectedPlan.alumno_id);
+    return p.sort((a, b) => {
+      const getWeight = (tipo: string) => {
+        if (!tipo) return 0;
+        const low = tipo.toLowerCase();
+        if (low.includes('titulaci')) return 2;
+        if (low.includes('especialidad')) return 1;
+        return 0;
+      };
+      return getWeight(a.tipo_plan || '') - getWeight(b.tipo_plan || '');
+    });
   }, [plans, selectedPlan.alumno_id]);
 
   return (

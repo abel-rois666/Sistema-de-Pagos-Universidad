@@ -16,6 +16,7 @@ interface Props {
   onBackToPlan?: () => void;
   initialAlumnoId?: string;
   initialConceptIndex?: number;
+  initialPlanId?: string;
   initialView?: 'registrar' | 'consultar';
   initialSearchTerm?: string;
   currentUser?: Usuario;
@@ -25,7 +26,7 @@ interface Props {
   key?: string;
 }
 
-export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, catalogos, appConfig, onBack, onBackToPlan, initialAlumnoId, initialConceptIndex, initialView, initialSearchTerm, currentUser, onPaymentSaved, onCatalogoAdded, onNavigateToPlan }: Props) {
+export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, catalogos, appConfig, onBack, onBackToPlan, initialAlumnoId, initialConceptIndex, initialPlanId, initialView, initialSearchTerm, currentUser, onPaymentSaved, onCatalogoAdded, onNavigateToPlan }: Props) {
   const [activeTab, setActiveTab] = useState<'registrar' | 'consultar'>(initialView || 'registrar');
 
   return (
@@ -75,6 +76,7 @@ export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, c
               appConfig={appConfig}
               initialAlumnoId={initialAlumnoId}
               initialConceptIndex={initialConceptIndex}
+              initialPlanId={initialPlanId}
               currentUser={currentUser}
               onPaymentSaved={onPaymentSaved}
               onCatalogoAdded={onCatalogoAdded}

@@ -21,6 +21,7 @@ interface DebtRecord {
   grado: string;
   turno: string;
   concepto: string;
+  tipo_plan: string;
   monto: number;
   fecha_limite: string;
 }
@@ -50,6 +51,7 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
   const [filterGrados, setFilterGrados] = useState<string[]>([]);
   const [filterTurnos, setFilterTurnos] = useState<string[]>([]);
   const [filterConceptos, setFilterConceptos] = useState<string[]>([]);
+  const [filterTiposPlan, setFilterTiposPlan] = useState<string[]>([]);
   const [filterFechas, setFilterFechas] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
@@ -57,11 +59,11 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const printDeudoresRef = useRef<HTMLDivElement>(null);
 
-  const hasActiveFilters = filterLicenciaturas.length > 0 || filterGrados.length > 0 || filterTurnos.length > 0 || filterConceptos.length > 0 || filterFechas.length > 0;
+  const hasActiveFilters = filterLicenciaturas.length > 0 || filterGrados.length > 0 || filterTurnos.length > 0 || filterConceptos.length > 0 || filterTiposPlan.length > 0 || filterFechas.length > 0;
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, sortConfig, itemsPerPage, filterLicenciaturas, filterGrados, filterTurnos, filterConceptos, filterFechas]);
+  }, [searchTerm, sortConfig, itemsPerPage, filterLicenciaturas, filterGrados, filterTurnos, filterConceptos, filterTiposPlan, filterFechas]);
 
   // Filter out plans for students that are 'BAJA'
   const filteredPlans = useMemo(() => {
@@ -102,6 +104,7 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
           grado: plan.grado || fallbackGrado,
           turno: plan.turno || fallbackTurno,
           concepto: concepto,
+          tipo_plan: plan.tipo_plan || 'Indefinido',
           monto: montoReal,
           fecha_limite: fecha
         });
@@ -111,7 +114,7 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
     filteredPlans.forEach(plan => {
       const alumno = alumnos.find(a => a.id === plan.alumno_id || a.nombre_completo === plan.nombre_alumno);
       const alumnoId = alumno?.id || plan.alumno_id || '';
-      for (let i = 1; i <= 9; i++) {
+      for (let i = 1; i <= 15; i++) {
         const concepto = plan[`concepto_${i}` as keyof PaymentPlan] as string | undefined;
         const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
         const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
@@ -140,6 +143,7 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
   const licenciaturas = useMemo(() => Array.from(new Set(debtors.map(d => d.licenciatura).filter(Boolean))).sort(), [debtors]);
   const grados = useMemo(() => Array.from(new Set(debtors.map(d => d.grado).filter(Boolean))).sort(), [debtors]);
   const turnos = useMemo(() => Array.from(new Set(debtors.map(d => d.turno).filter(Boolean))).sort(), [debtors]);
+  const tiposPlan = useMemo(() => Array.from(new Set(debtors.map(d => d.tipo_plan).filter(Boolean))).sort(), [debtors]);
   const conceptos = useMemo(() => Array.from(new Set(debtors.map(d => d.concepto).filter(Boolean))).sort(), [debtors]);
   const fechas = useMemo(() => Array.from(new Set(debtors.map(d => formatDate(d.fecha_limite)).filter(Boolean) as string[])).sort((a: string, b: string) => {
       const parseDate = (dStr: string) => {
@@ -159,9 +163,10 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
     const matchLic = filterLicenciaturas.length === 0 || filterLicenciaturas.includes(d.licenciatura);
     const matchGrado = filterGrados.length === 0 || filterGrados.includes(d.grado);
     const matchTurno = filterTurnos.length === 0 || filterTurnos.includes(d.turno);
+    const matchTipoPlan = filterTiposPlan.length === 0 || filterTiposPlan.includes(d.tipo_plan);
     const matchConcepto = filterConceptos.length === 0 || filterConceptos.includes(d.concepto);
     const matchFecha = filterFechas.length === 0 || filterFechas.includes(formatDate(d.fecha_limite));
-    return matchSearch && matchLic && matchGrado && matchTurno && matchConcepto && matchFecha;
+    return matchSearch && matchLic && matchGrado && matchTurno && matchTipoPlan && matchConcepto && matchFecha;
   });
 
   const sortedDebtors = useMemo(() => {
@@ -209,6 +214,7 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
     setFilterLicenciaturas([]);
     setFilterGrados([]);
     setFilterTurnos([]);
+    setFilterTiposPlan([]);
     setFilterConceptos([]);
     setFilterFechas([]);
   };
@@ -225,6 +231,7 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
     filterLicenciaturas.length > 0 && `Lic.: ${filterLicenciaturas.length}`,
     filterGrados.length > 0 && `Grado: ${filterGrados.length}`,
     filterTurnos.length > 0 && `Turno: ${filterTurnos.length}`,
+    filterTiposPlan.length > 0 && `Tipo de Plan: ${filterTiposPlan.length}`,
     filterConceptos.length > 0 && `Concepto: ${filterConceptos.length}`,
     filterFechas.length > 0 && `Fecha: ${filterFechas.length}`,
   ].filter(Boolean) as string[];
@@ -303,6 +310,11 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
                 {v} <button onClick={() => setFilterTurnos(p => p.filter(x => x !== v))}><X size={11} /></button>
               </span>
             ))}
+            {filterTiposPlan.map(v => (
+              <span key={v} className="flex items-center gap-1 bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                {v} <button onClick={() => setFilterTiposPlan(p => p.filter(x => x !== v))}><X size={11} /></button>
+              </span>
+            ))}
             {filterConceptos.map(v => (
               <span key={v} className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
                 {v} <button onClick={() => setFilterConceptos(p => p.filter(x => x !== v))}><X size={11} /></button>
@@ -353,6 +365,12 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
                     onChange={setFilterTurnos}
                   />
                   <MultiSelectFilter
+                    label="Tipo de Plan"
+                    options={tiposPlan}
+                    selected={filterTiposPlan}
+                    onChange={setFilterTiposPlan}
+                  />
+                  <MultiSelectFilter
                     label="Concepto"
                     options={conceptos}
                     selected={filterConceptos}
@@ -391,6 +409,11 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
                     {filterTurnos.map(v => (
                       <span key={v} className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
                         {v} <button onClick={() => setFilterTurnos(p => p.filter(x => x !== v))}><X size={11} /></button>
+                      </span>
+                    ))}
+                    {filterTiposPlan.map(v => (
+                      <span key={v} className="flex items-center gap-1 bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                        {v} <button onClick={() => setFilterTiposPlan(p => p.filter(x => x !== v))}><X size={11} /></button>
                       </span>
                     ))}
                     {filterConceptos.map(v => (
@@ -454,6 +477,9 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
                   <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onClick={() => requestSort('concepto')}>
                      <div className="flex items-center gap-2">Concepto Adeudado {getSortIcon('concepto')}</div>
                   </th>
+                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors w-32" onClick={() => requestSort('tipo_plan')}>
+                     <div className="flex items-center gap-2">Tipo Plan {getSortIcon('tipo_plan')}</div>
+                  </th>
                   <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onClick={() => requestSort('fecha_limite')}>
                      <div className="flex items-center gap-2">Fecha Límite {getSortIcon('fecha_limite')}</div>
                   </th>
@@ -485,8 +511,17 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
                       </td>
                       <td className="py-3 px-4 text-gray-600 dark:text-gray-400 text-sm max-w-[150px] truncate" title={record.licenciatura}>{record.licenciatura}</td>
                       <td className="py-3 px-4 text-indigo-700 dark:text-indigo-400 font-medium text-sm">{record.grado}</td>
-                      <td className="py-3 px-4 text-gray-600 dark:text-gray-400 text-sm">{record.turno}</td>
+                      <td className="py-3 px-4 text-cyan-700 dark:text-cyan-400 font-medium text-sm">{record.turno}</td>
                       <td className="py-3 px-4 text-gray-800 dark:text-gray-200 font-medium">{record.concepto}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                          record.tipo_plan === 'Titulación' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
+                          record.tipo_plan === 'Especialidad Completa' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                          'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                        }`}>
+                          {record.tipo_plan}
+                        </span>
+                      </td>
                       <td className="py-3 px-4 text-gray-500 dark:text-gray-400 text-sm">{formatDate(record.fecha_limite)}</td>
                       <td className="py-3 px-4 text-right font-bold text-red-600 dark:text-red-400">${record.monto.toLocaleString()}</td>
                     </motion.tr>
@@ -613,6 +648,7 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
                        filterLicenciaturas.length > 0 && `Lic: ${filterLicenciaturas.join(', ')}`,
                        filterGrados.length > 0 && `Grado: ${filterGrados.join(', ')}`,
                        filterTurnos.length > 0 && `Turno: ${filterTurnos.join(', ')}`,
+                       filterTiposPlan.length > 0 && `Tipo: ${filterTiposPlan.join(', ')}`,
                        filterConceptos.length > 0 && `Concepto: ${filterConceptos.join(', ')}`,
                        filterFechas.length > 0 && `Fecha Lím.: ${filterFechas.join(', ')}`
                     ].filter(Boolean).join(' • ')
@@ -629,13 +665,14 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', tableLayout: 'fixed' }}>
                <thead>
                   <tr style={{ borderBottom: '2px solid #1f2937', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '26%', textAlign: 'left' }}>Alumno</th>
-                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '16%', textAlign: 'left' }}>Licenciatura</th>
-                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '7%', textAlign: 'center' }}>Grado</th>
-                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '6%', textAlign: 'center' }}>Trn</th>
-                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '20%', textAlign: 'left' }}>Concepto</th>
-                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '12%', textAlign: 'center' }}>Fecha Lím.</th>
-                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '13%', textAlign: 'right' }}>Monto</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '22%', textAlign: 'left' }}>Alumno</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '14%', textAlign: 'left' }}>Licenciatura</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '6%', textAlign: 'center' }}>Grado</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '5%', textAlign: 'center' }}>Trn</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '18%', textAlign: 'left' }}>Concepto</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '12%', textAlign: 'center' }}>Tipo Plan</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '11%', textAlign: 'center' }}>Fecha Lím.</th>
+                     <th style={{ padding: '4px 3px', fontWeight: 'bold', width: '12%', textAlign: 'right' }}>Monto</th>
                   </tr>
                </thead>
                <tbody>
@@ -646,6 +683,7 @@ export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }:
                         <td style={{ padding: '3px', textAlign: 'center' }}>{record.grado}</td>
                         <td style={{ padding: '3px', textAlign: 'center' }}>{record.turno.substring(0,3)}</td>
                         <td style={{ padding: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.concepto}</td>
+                        <td style={{ padding: '3px', textAlign: 'center', fontSize: '8px' }}>{record.tipo_plan}</td>
                         <td style={{ padding: '3px', textAlign: 'center' }}>{formatDate(record.fecha_limite)}</td>
                         <td style={{ padding: '3px', textAlign: 'right', fontWeight: 'bold', color: '#111827' }}>${record.monto.toLocaleString()}</td>
                      </tr>
