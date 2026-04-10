@@ -30,8 +30,19 @@ export const toDBPlan = (plan: PaymentPlan) => ({
   concepto_7: plan.concepto_7 ?? null, fecha_7: plan.fecha_7 ?? null, cantidad_7: plan.cantidad_7 ?? null, estatus_7: plan.estatus_7 ?? null,
   concepto_8: plan.concepto_8 ?? null, fecha_8: plan.fecha_8 ?? null, cantidad_8: plan.cantidad_8 ?? null, estatus_8: plan.estatus_8 ?? null,
   concepto_9: plan.concepto_9 ?? null, fecha_9: plan.fecha_9 ?? null, cantidad_9: plan.cantidad_9 ?? null, estatus_9: plan.estatus_9 ?? null,
+  concepto_10: (plan as any).concepto_10 ?? null, fecha_10: (plan as any).fecha_10 ?? null, cantidad_10: (plan as any).cantidad_10 ?? null, estatus_10: (plan as any).estatus_10 ?? null,
+  concepto_11: (plan as any).concepto_11 ?? null, fecha_11: (plan as any).fecha_11 ?? null, cantidad_11: (plan as any).cantidad_11 ?? null, estatus_11: (plan as any).estatus_11 ?? null,
+  concepto_12: (plan as any).concepto_12 ?? null, fecha_12: (plan as any).fecha_12 ?? null, cantidad_12: (plan as any).cantidad_12 ?? null, estatus_12: (plan as any).estatus_12 ?? null,
+  concepto_13: (plan as any).concepto_13 ?? null, fecha_13: (plan as any).fecha_13 ?? null, cantidad_13: (plan as any).cantidad_13 ?? null, estatus_13: (plan as any).estatus_13 ?? null,
+  concepto_14: (plan as any).concepto_14 ?? null, fecha_14: (plan as any).fecha_14 ?? null, cantidad_14: (plan as any).cantidad_14 ?? null, estatus_14: (plan as any).estatus_14 ?? null,
+  concepto_15: (plan as any).concepto_15 ?? null, fecha_15: (plan as any).fecha_15 ?? null, cantidad_15: (plan as any).cantidad_15 ?? null, estatus_15: (plan as any).estatus_15 ?? null,
+  
+  desglose_conceptos: plan.desglose_conceptos ?? '[]',
+  desglose_total_bruto: plan.desglose_total_bruto ?? 0,
+  desglose_descuento_porcentaje: plan.desglose_descuento_porcentaje ?? 0,
+  desglose_descuento_monto: plan.desglose_descuento_monto ?? 0,
+  desglose_total_neto: plan.desglose_total_neto ?? 0,
 });
-
 // ── CRUD Helpers ─────────────────────────────────────────────────────────────
 
 /** Helper para hacer fetch iterativo y obtener todos los registros, evadiendo el límite de 1000 de PostgREST */

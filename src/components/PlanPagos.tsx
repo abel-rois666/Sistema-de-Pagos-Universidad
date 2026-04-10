@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle, Trash2 } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid, getMaxFolioCounter, getCyclePrefix } from '../utils';
 import { supabase } from '../lib/supabase';
@@ -38,6 +38,187 @@ const generateFolioForPlan = (alumnoId: string, tipoPlan: string, cicloNombre: s
   }
 
   return `${prefix}-${folioNum}${suffix}`;
+};
+
+export const DEFAULT_ESPECIALIDAD_DESGLOSE = [
+  { cantidad: 3, concepto: 'INSCRIPCIONES', costo_unitario: 1900 },
+  { cantidad: 3, concepto: 'GASTOS ADMINISTRATIVOS', costo_unitario: 1200 },
+  { cantidad: 9, concepto: 'MÓDULOS QUE CONSTA LA ESPECIALIDAD', costo_unitario: 2444 },
+  { cantidad: 1, concepto: 'CERTIFICADO TOTAL DE LICENCIATURA', costo_unitario: 2572 },
+  { cantidad: 1, concepto: 'CERTIFICADO TOTAL DE ESPECIALIDAD', costo_unitario: 2282 },
+  { cantidad: 1, concepto: 'TÍTULO', costo_unitario: 3763 },
+  { cantidad: 1, concepto: 'DIPLOMA DE ESPECIALIDAD', costo_unitario: 3763 },
+  { cantidad: 1, concepto: 'CEREMONIA DE GRADO', costo_unitario: 4826 },
+].map(item => ({...item, costo_total: item.cantidad * item.costo_unitario }));
+
+const EspecialidadDesgloseTable = ({ form, setForm }: { form: Partial<PaymentPlan>, setForm: (val: Partial<PaymentPlan>) => void }) => {
+  const desglose = Array.isArray(form.desglose_conceptos) && form.desglose_conceptos.length > 0 
+      ? form.desglose_conceptos 
+      : DEFAULT_ESPECIALIDAD_DESGLOSE;
+      
+  const dtb = form.desglose_total_bruto ?? desglose.reduce((acc: number, item: any) => acc + item.costo_total, 0);
+  const dp = form.desglose_descuento_porcentaje ?? 0;
+  const dm = form.desglose_descuento_monto ?? (dtb * (dp / 100));
+  const dtn = form.desglose_total_neto ?? (dtb - dm);
+
+  // Initialize if empty or update if beca_porcentaje changes
+  React.useEffect(() => {
+    const defaultDesglose = (!form.desglose_conceptos || form.desglose_conceptos.length === 0) ? DEFAULT_ESPECIALIDAD_DESGLOSE : desglose;
+    const match = form.beca_porcentaje?.match(/(\d+(\.\d+)?)/);
+    const becaPct = match ? parseFloat(match[0]) : dp;
+    
+    // Only update if there are changes we need to propagate
+    if ((!form.desglose_conceptos || form.desglose_conceptos.length === 0) || (becaPct !== dp)) {
+      const b = form.desglose_total_bruto ?? defaultDesglose.reduce((acc: number, item: any) => acc + item.costo_total, 0);
+      const m = b * (becaPct / 100);
+      const n = b - m;
+      setForm({ ...form, desglose_conceptos: defaultDesglose, desglose_total_bruto: b, desglose_descuento_porcentaje: becaPct, desglose_descuento_monto: m, desglose_total_neto: n });
+    }
+  }, [form.beca_porcentaje]);
+
+  const updateItem = (index: number, field: string, value: number | string) => {
+    const newDesglose = [...desglose];
+    newDesglose[index] = { ...newDesglose[index], [field]: value };
+    if (field === 'cantidad' || field === 'costo_unitario') {
+       newDesglose[index].costo_total = Number(newDesglose[index].cantidad) * Number(newDesglose[index].costo_unitario);
+    }
+    recalculate(newDesglose, form.desglose_descuento_porcentaje || 0);
+  };
+  
+  const removeItem = (index: number) => {
+    const newDesglose = desglose.filter((_: any, i: number) => i !== index);
+    recalculate(newDesglose, form.desglose_descuento_porcentaje || 0);
+  };
+  
+  const addItem = () => {
+    const newDesglose = [...desglose, { cantidad: 1, concepto: '', costo_unitario: 0, costo_total: 0 }];
+    recalculate(newDesglose, form.desglose_descuento_porcentaje || 0);
+  };
+
+  const updateDescuento = (pct: number) => {
+    recalculate(desglose, pct);
+  };
+
+  const recalculate = (currentDesglose: any[], pct: number) => {
+    const bruto = currentDesglose.reduce((acc: number, item: any) => acc + Number(item.costo_total), 0);
+    const monto = bruto * (pct / 100);
+    const neto = bruto - monto;
+    setForm({ 
+      ...form, 
+      beca_porcentaje: pct > 0 ? `${pct}%` : '0%', // Sync with external 
+      desglose_conceptos: currentDesglose,
+      desglose_total_bruto: bruto,
+      desglose_descuento_porcentaje: pct,
+      desglose_descuento_monto: monto,
+      desglose_total_neto: neto
+    });
+  };
+
+  const [pagosADividir, setPagosADividir] = React.useState(15);
+
+  const distribuir = () => {
+    if (pagosADividir < 1 || pagosADividir > 15) return;
+    const montoPorPago = Number((dtn / pagosADividir).toFixed(2));
+    
+    const updates: any = {};
+    for (let i = 1; i <= 15; i++) {
+       if (i <= pagosADividir) {
+          updates[`concepto_${i}`] = `${i}ER PAGO`.replace('1ER', '1ER').replace('2ER', '2DO').replace('3ER', '3ER').replace('4ER', '4TO').replace('5ER', '5TO').replace('6ER', '6TO').replace('7ER', '7MO').replace('8ER', '8VO').replace('9ER', '9NO') + (i >= 10 ? ' PAGO' : '');
+          if (i > 9) updates[`concepto_${i}`] = `${i}VO PAGO`; // just rough ordinal fix, maybe just PAGO N
+          updates[`concepto_${i}`] = i === 1 ? '1ER PAGO' : i === 2 ? '2DO PAGO' : i === 3 ? '3ER PAGO' : i === 4 ? '4TO PAGO' : i === 5 ? '5TO PAGO' : i === 6 ? '6TO PAGO' : i === 7 ? '7MO PAGO' : i === 8 ? '8VO PAGO' : i === 9 ? '9NO PAGO' : `${i}VO PAGO`;
+          updates[`cantidad_${i}`] = montoPorPago;
+          const estatusKey = `estatus_${i}` as keyof typeof form;
+          updates[`estatus_${i}`] = form[estatusKey] || 'PENDIENTE';
+       } else {
+          updates[`concepto_${i}`] = '';
+          updates[`cantidad_${i}`] = null;
+          updates[`estatus_${i}`] = '';
+          updates[`fecha_${i}`] = '';
+       }
+    }
+    setForm({ ...form, ...updates });
+  };
+
+  return (
+    <div className="mt-6 mb-6 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 dark:from-indigo-900/10 dark:to-blue-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-800/30 overflow-hidden shadow-inner">
+      <div className="p-4 bg-indigo-100/50 dark:bg-indigo-900/30 border-b border-indigo-100 dark:border-indigo-800/30 flex justify-between items-center">
+        <h3 className="font-bold text-indigo-800 dark:text-indigo-300">Desglose de Servicios (Especialidad)</h3>
+        <button onClick={addItem} type="button" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 font-semibold transition-colors">
+          <Plus size={14} /> Añadir Concepto
+        </button>
+      </div>
+      <div className="p-4 overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead>
+            <tr className="text-indigo-900/60 dark:text-indigo-200/60 border-b border-indigo-100 dark:border-indigo-800/30 uppercase text-[10px] tracking-wider">
+              <th className="pb-2">Cant.</th>
+              <th className="pb-2">Concepto</th>
+              <th className="pb-2 text-right">Costo Unitario</th>
+              <th className="pb-2 text-right">Costo Total</th>
+              <th className="pb-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-indigo-50 dark:divide-indigo-900/20">
+            {desglose.map((item: any, idx: number) => (
+              <tr key={idx} className="hover:bg-white/40 dark:hover:bg-black/10 transition-colors">
+                <td className="py-2 pr-2">
+                  <input type="number" min="1" className="w-16 p-1.5 border border-indigo-200 rounded text-center bg-white dark:bg-gray-800 outline-none focus:border-indigo-500" value={item.cantidad} onChange={e => updateItem(idx, 'cantidad', Number(e.target.value))} />
+                </td>
+                <td className="py-2 pr-2">
+                  <input type="text" className="w-full p-1.5 border border-indigo-200 rounded px-2 bg-white dark:bg-gray-800 outline-none focus:border-indigo-500" value={item.concepto} onChange={e => updateItem(idx, 'concepto', e.target.value)} />
+                </td>
+                <td className="py-2 pr-2">
+                  <div className="relative">
+                    <span className="absolute left-2 top-1.5 text-gray-500">$</span>
+                    <input type="number" step="0.01" className="w-28 p-1.5 pl-6 border border-indigo-200 rounded text-right bg-white dark:bg-gray-800 outline-none focus:border-indigo-500" value={item.costo_unitario} onChange={e => updateItem(idx, 'costo_unitario', Number(e.target.value))} />
+                  </div>
+                </td>
+                <td className="py-2 text-right font-bold text-gray-700 dark:text-gray-300">
+                  ${Number(item.costo_total).toLocaleString('en-US', {minimumFractionDigits: 2})}
+                </td>
+                <td className="py-2 pl-2 text-right">
+                  <button onClick={() => removeItem(idx)} type="button" className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-colors"><Trash2 size={14}/></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="bg-white/60 dark:bg-gray-900/40 p-4 border-t border-indigo-100 dark:border-indigo-800/30 grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Total Bruto</p>
+          <p className="text-lg font-bold text-gray-800 dark:text-gray-200">${Number(dtb).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Descuento (%)</p>
+          <div className="flex items-center gap-2">
+             <input type="number" step="0.1" className="w-20 p-1.5 border border-indigo-200 rounded bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500" value={dp} onChange={e => updateDescuento(Number(e.target.value))} />
+             <span className="text-gray-500 font-bold">%</span>
+          </div>
+        </div>
+        <div>
+           <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Descuento ($)</p>
+           <p className="text-lg font-bold text-orange-600 dark:text-orange-400">-${Number(dm).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+        </div>
+        <div>
+           <p className="text-xs text-indigo-600 uppercase font-extrabold mb-1">Total Neto (A Diferir)</p>
+           <p className="text-2xl font-black text-indigo-700 dark:text-indigo-400">${Number(dtn).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+        </div>
+      </div>
+      <div className="bg-indigo-50 dark:bg-indigo-900/40 p-4 flex flex-wrap gap-4 items-center justify-between border-t border-indigo-100 dark:border-indigo-800/30">
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">Dividir Neto en:</label>
+          <div className="flex items-center gap-2">
+            <input type="number" min="1" max="15" className="w-16 p-1.5 border border-indigo-300 rounded-lg text-center bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700" value={pagosADividir} onChange={e => setPagosADividir(Number(e.target.value))}/>
+            <span className="text-sm font-medium text-indigo-800/60 dark:text-indigo-200/60">pagos</span>
+          </div>
+        </div>
+        <button onClick={distribuir} type="button" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+          Calculadora Mágica (Auto-Rellenar Abajo)
+        </button>
+      </div>
+    </div>
+  );
 };
 
 interface PlanPagosProps {
@@ -206,6 +387,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
   // PDF Generation State
   const printRef = useRef<HTMLDivElement>(null);
+  const cotizacionRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const handleGeneratePDF = async () => {
@@ -265,6 +447,36 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       }
 
       pdf.addImage(dataUrl, 'PNG', xOffset, margin, finalWidth, finalHeight);
+
+      // --- SEGUNDA PÁGINA: COTIZACIÓN DE ESPECIALIDAD ---
+      if (selectedPlan.tipo_plan === 'Especialidad Completa' && cotizacionRef.current) {
+        cotizacionRef.current.style.width = '816px';
+        const cDataUrl = await toPng(cotizacionRef.current, {
+           quality: 1.0,
+           pixelRatio: 2,
+           backgroundColor: '#ffffff',
+           width: 816,
+           height: cotizacionRef.current.scrollHeight,
+           style: { transform: 'scale(1)', margin: '0' }
+        });
+
+        pdf.addPage();
+        const cPdfHeight = (cotizacionRef.current.scrollHeight * printWidth) / 816;
+        let cH = cPdfHeight;
+        let cW = printWidth;
+        let cx = margin;
+        
+        if (cPdfHeight > (pdfMaxHeight - margin * 2)) {
+           const ratio = (pdfMaxHeight - margin * 2) / cPdfHeight;
+           cH = cPdfHeight * ratio;
+           cW = printWidth * ratio;
+           cx = margin + (printWidth - cW) / 2;
+        }
+
+        pdf.addImage(cDataUrl, 'PNG', cx, margin, cW, cH);
+      }
+      // ----------------------------------------------------
+
       pdf.save(`Plan_Pagos_${selectedPlan.nombre_alumno.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error('Error generating PDF', error);
@@ -416,13 +628,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Programa / Licenciatura</label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      value={newPlanForm.licenciatura || ''}
-                      placeholder="Ej. Especialidad en Derecho..."
-                      onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
-                    />
+                    {catalogos?.licenciaturas?.length ? (
+                      <select
+                        className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        value={newPlanForm.licenciatura || ''}
+                        onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
+                      >
+                        <option value="">-- Seleccione --</option>
+                        {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        value={newPlanForm.licenciatura || ''}
+                        placeholder="Ej. Especialidad en Derecho..."
+                        onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
+                      />
+                    )}
                   </div>
                 </div>
                 {newPlanForm.tipo_plan !== 'Titulación' && (
@@ -1301,13 +1524,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Programa / Licenciatura</label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    value={editForm.licenciatura || ''}
-                    placeholder="Ej. Especialidad en Cirugía..."
-                    onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
-                  />
+                  {catalogos?.licenciaturas?.length ? (
+                    <select
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={editForm.licenciatura || ''}
+                      onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
+                    >
+                      <option value="">-- Seleccione --</option>
+                      {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={editForm.licenciatura || ''}
+                      placeholder="Ej. Especialidad en Cirugía..."
+                      onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fecha del Plan</label>
@@ -1355,6 +1589,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   </>
                 )}
               </div>
+
+              {editForm.tipo_plan === 'Especialidad Completa' && (
+                <EspecialidadDesgloseTable form={editForm} setForm={setEditForm as any} />
+              )}
 
               <h4 className="font-bold text-gray-800 mb-4 border-b pb-2">Pagos Programados</h4>
 
@@ -1490,7 +1728,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       {/* New Plan Modal */}
       {isNewPlanModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-6 border-b border-gray-100">
               <h3 className="text-lg font-bold text-gray-800">
                 Crear Nuevo Plan de Pagos
@@ -1595,13 +1833,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Programa / Licenciatura</label>
-                  <input
-                    type="text"
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    value={newPlanForm.licenciatura || ''}
-                    placeholder="Ej. Especialidad en Cirugía..."
-                    onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
-                  />
+                  {catalogos?.licenciaturas?.length ? (
+                    <select
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={newPlanForm.licenciatura || ''}
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
+                    >
+                      <option value="">-- Seleccione --</option>
+                      {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={newPlanForm.licenciatura || ''}
+                      placeholder="Ej. Especialidad en Cirugía..."
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1640,6 +1889,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                       )}
                     </div>
                   </div>
+                )}
+                
+                {newPlanForm.tipo_plan === 'Especialidad Completa' && (
+                  <EspecialidadDesgloseTable form={newPlanForm} setForm={setNewPlanForm as any} />
                 )}
             </div>
 
@@ -1726,6 +1979,59 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
           </div>
         </div>
       )}
+
+      {/* --- HIDDEN COTIZACIÓN PARA IMPRESIÓN PDF --- */}
+      <div className="fixed top-[-10000px] left-[-10000px]">
+        <div ref={cotizacionRef} className="bg-white text-black w-[816px] min-h-[1056px] p-12 relative flex flex-col">
+          <div className="text-center mb-10 border-b-2 border-indigo-900 pb-6">
+            <h1 className="text-3xl font-black tracking-widest text-indigo-900 mb-2">COTIZACIÓN DE SERVICIOS</h1>
+            <h2 className="text-xl font-semibold text-gray-700">{selectedPlan?.licenciatura || selectedPlan?.tipo_plan}</h2>
+            <p className="text-gray-500 mt-2 uppercase">Alumno: <span className="font-bold text-gray-800">{selectedPlan?.nombre_alumno}</span></p>
+          </div>
+
+          <table className="w-full text-left border-collapse mb-10">
+            <thead>
+              <tr className="bg-indigo-900 text-white text-sm uppercase tracking-wider">
+                <th className="p-3 border border-indigo-900">Cant.</th>
+                <th className="p-3 border border-indigo-900">Concepto</th>
+                <th className="p-3 border border-indigo-900 text-right">Unitario</th>
+                <th className="p-3 border border-indigo-900 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-800 bg-white">
+              {selectedPlan?.desglose_conceptos?.map((item: any, idx: number) => (
+                <tr key={idx} className="border-b border-gray-200">
+                  <td className="p-3 font-medium text-center">{item.cantidad}</td>
+                  <td className="p-3">{item.concepto}</td>
+                  <td className="p-3 text-right">${Number(item.costo_unitario).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                  <td className="p-3 text-right font-bold">${Number(item.costo_total).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="flex justify-end flex-grow">
+            <div className="w-1/2 bg-gray-50 p-6 rounded-lg border border-gray-200 h-fit">
+              <div className="flex justify-between mb-3 border-b border-gray-200 pb-2">
+                <span className="font-semibold text-gray-600">Subtotal Bruto:</span>
+                <span className="font-bold">${Number(selectedPlan?.desglose_total_bruto || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+              </div>
+              <div className="flex justify-between mb-3 border-b border-gray-200 pb-2 text-indigo-700">
+                <span className="font-semibold">Descuento ({selectedPlan?.desglose_descuento_porcentaje || 0}%):</span>
+                <span className="font-bold">-${Number(selectedPlan?.desglose_descuento_monto || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+              </div>
+              <div className="flex justify-between text-xl text-indigo-900">
+                <span className="font-black">TOTAL NETO:</span>
+                <span className="font-black">${Number(selectedPlan?.desglose_total_neto || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-8 text-center text-gray-400 text-xs border-t border-gray-100 pt-4 pb-4 w-full">
+             Documento anexo generado automáticamente mediante el Sistema de Pagos Universitario - {new Date().toLocaleDateString('es-MX')}
+          </div>
+        </div>
+      </div>
 
     </div>
   );

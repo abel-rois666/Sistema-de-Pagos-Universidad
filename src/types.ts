@@ -122,6 +122,13 @@ export interface PaymentPlan {
   grado?: string;       // grado separado (columna planes_pago.grado)
   turno?: string;       // turno separado (columna planes_pago.turno)
   tipo_plan?: 'Cuatrimestral' | 'Semestral' | 'Titulación' | 'Especialidad Completa' | 'Especialidad Cuatrimestral';
+  
+  // Desglose Dinámico de Costos (Especialidades u otros)
+  desglose_conceptos?: any; // JSONB Array de {cantidad, concepto, costo_unitario, costo_total}
+  desglose_total_bruto?: number;
+  desglose_descuento_porcentaje?: number;
+  desglose_descuento_monto?: number;
+  desglose_total_neto?: number;
 }
 
 export interface AppConfig {
