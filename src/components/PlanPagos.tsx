@@ -653,6 +653,17 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                       />
                     )}
                   </div>
+                  <div className="col-span-2 md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Grado y Turno (Opcional)</label>
+                    <input
+                      type="text"
+                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={newPlanForm.grado_turno || ''}
+                      placeholder="Ej. 1er Cuatrimestre / Sabatino"
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, grado_turno: e.target.value })}
+                    />
+                    <p className="text-[10px] text-gray-400 leading-tight mt-1">Si lo dejas en blanco, el plan siempre mostrará el grado/turno actual del alumno en tiempo real. Si escribes algo, el plan quedará sellado con este texto permanentemente.</p>
+                  </div>
                 </div>
                 {newPlanForm.tipo_plan !== 'Titulación' && (
                   <div className="grid grid-cols-2 gap-4 mt-4">
@@ -1558,6 +1569,17 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                       onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
                     />
                   )}
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Grado y Turno</label>
+                  <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    value={editForm.grado_turno || ''}
+                    placeholder="Ej. 6to Cuatrimestre / Sabatino"
+                    onChange={(e) => setEditForm({ ...editForm, grado_turno: e.target.value })}
+                  />
+                  <p className="text-[10px] text-gray-400 leading-tight mt-1">Si lo borras/dejas en blanco, el plan se sincronizará automáticamente para mostrar el grado y turno que tenga el alumno actualmente en su perfil principal.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fecha del Plan</label>
