@@ -400,7 +400,7 @@ export default function App() {
     }} />;
   }
 
-  const isCoordinador = currentUser.rol === 'COORDINADOR';
+  const isRestrictedRole = currentUser.rol === 'COORDINADOR' || currentUser.rol === 'CAJERO';
 
 
     const handleExportCSV = () => {
@@ -579,7 +579,7 @@ export default function App() {
                 )}
               </button>
 
-              {!isCoordinador && (
+              {!isRestrictedRole && (
                 <>
                   {/* Separador */}
                   <div className="w-px h-5 bg-gray-300 dark:bg-gray-700 mx-1" />
@@ -700,37 +700,41 @@ export default function App() {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{dateStr} · Ciclo: <span className="font-semibold text-gray-700 dark:text-gray-200">{activeCiclo?.nombre || '—'}</span></p>
                   </div>
 
-                  {/* Divisor */}
-                  <div className="border-t border-gray-100 dark:border-gray-800 mb-5" />
+                  {currentUser.rol !== 'CAJERO' && (
+                    <>
+                      {/* Divisor */}
+                      <div className="border-t border-gray-100 dark:border-gray-800 mb-5" />
 
-                  {/* Stat Cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 relative">
-                    {statCards.map((card, idx) => (
-                      <div
-                        key={card.label}
-                        className={`card-interactive group relative flex flex-col gap-2 p-4 rounded-2xl border ${card.bg} ${card.border} shadow-sm hover:shadow-xl ${card.glow} hover:-translate-y-0.5 transition-all duration-300`}
-                        onMouseMove={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-                          e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-                        }}
-                        style={{ animationDelay: `${idx * 80}ms` }}
-                      >
-                        {/* Decorative glow blob */}
-                        <div className={`absolute -right-4 -top-4 w-20 h-20 bg-gradient-to-br ${card.from} ${card.to} opacity-10 rounded-full blur-2xl group-hover:opacity-25 transition-opacity duration-500`} />
-                        {/* Icon */}
-                        <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.from} ${card.to} flex items-center justify-center text-white shadow-md group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
-                          {card.icon}
-                        </div>
-                        {/* Value */}
-                        <div>
-                          <div className={`text-xl font-extrabold ${card.textColor} leading-tight stat-value-enter`} style={{ animationDelay: `${idx * 80 + 100}ms` }}>{card.value}</div>
-                          <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mt-0.5">{card.label}</div>
-                          <div className="text-[10px] text-gray-400 dark:text-gray-500">{card.sub}</div>
-                        </div>
+                      {/* Stat Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 relative">
+                        {statCards.map((card, idx) => (
+                          <div
+                            key={card.label}
+                            className={`card-interactive group relative flex flex-col gap-2 p-4 rounded-2xl border ${card.bg} ${card.border} shadow-sm hover:shadow-xl ${card.glow} hover:-translate-y-0.5 transition-all duration-300`}
+                            onMouseMove={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+                              e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+                            }}
+                            style={{ animationDelay: `${idx * 80}ms` }}
+                          >
+                            {/* Decorative glow blob */}
+                            <div className={`absolute -right-4 -top-4 w-20 h-20 bg-gradient-to-br ${card.from} ${card.to} opacity-10 rounded-full blur-2xl group-hover:opacity-25 transition-opacity duration-500`} />
+                            {/* Icon */}
+                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.from} ${card.to} flex items-center justify-center text-white shadow-md group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
+                              {card.icon}
+                            </div>
+                            {/* Value */}
+                            <div>
+                              <div className={`text-xl font-extrabold ${card.textColor} leading-tight stat-value-enter`} style={{ animationDelay: `${idx * 80 + 100}ms` }}>{card.value}</div>
+                              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mt-0.5">{card.label}</div>
+                              <div className="text-[10px] text-gray-400 dark:text-gray-500">{card.sub}</div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -795,8 +799,12 @@ export default function App() {
                           <div className="bg-gradient-to-br from-emerald-400 to-teal-600 p-4 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-emerald-500/50 shadow-lg transition-all duration-300">
                             <Wallet size={28} />
                           </div>
-                          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Control de Ingresos</h2>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Registra cobros, emite comprobantes y consulta el historial de pagos.</p>
+                          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            {currentUser.rol === 'CAJERO' ? 'Registrar Cobro' : 'Control de Ingresos'}
+                          </h2>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {currentUser.rol === 'CAJERO' ? 'Registra cobros y emite comprobantes adicionales.' : 'Registra cobros, emite comprobantes y consulta el historial de pagos.'}
+                          </p>
                         </button>
                       </div>
                     </div>
@@ -852,42 +860,46 @@ export default function App() {
                           <p className="text-xs text-gray-500 dark:text-gray-400">Resumen compacto del estado financiero y becas.</p>
                         </button>
 
-                        <button
-                          onClick={() => navigate('/estadisticas')}
-                          onMouseMove={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-                          }}
-                          className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-purple-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5 relative"
-                        >
-                          <div className="bg-gradient-to-br from-fuchsia-500 to-purple-600 p-3 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-purple-500/50 shadow-lg transition-all duration-300">
-                            <BarChart3 size={24} />
-                          </div>
-                          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Estadísticas</h2>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Análisis mensual de ingresos y deudas totales por ciclo.</p>
-                        </button>
-
-                        <button
-                          onClick={() => navigate('/deudores')}
-                          onMouseMove={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-                          }}
-                          className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-rose-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5 relative"
-                        >
-                          <div className="bg-gradient-to-br from-rose-500 to-red-600 p-3 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-rose-500/50 shadow-lg transition-all duration-300">
-                            <Users size={24} />
-                          </div>
-                          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Deudores</h2>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Directorio de alumnos con pagos pendientes y retrasos.</p>
-                          {totalDeudores > 0 && (
-                            <div className="absolute top-4 right-4 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 text-xs font-bold px-2 py-1 rounded-lg border border-red-200 dark:border-red-800/50 flex items-center gap-1">
-                               <AlertCircle size={10} /> {totalDeudores}
+                        {currentUser.rol !== 'CAJERO' && (
+                          <button
+                            onClick={() => navigate('/estadisticas')}
+                            onMouseMove={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+                              e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+                            }}
+                            className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-purple-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5 relative"
+                          >
+                            <div className="bg-gradient-to-br from-fuchsia-500 to-purple-600 p-3 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-purple-500/50 shadow-lg transition-all duration-300">
+                              <BarChart3 size={24} />
                             </div>
-                          )}
-                        </button>
+                            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Estadísticas</h2>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Análisis mensual de ingresos y deudas totales por ciclo.</p>
+                          </button>
+                        )}
+
+                        {currentUser.rol !== 'CAJERO' && (
+                          <button
+                            onClick={() => navigate('/deudores')}
+                            onMouseMove={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+                              e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+                            }}
+                            className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-rose-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5 relative"
+                          >
+                            <div className="bg-gradient-to-br from-rose-500 to-red-600 p-3 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-rose-500/50 shadow-lg transition-all duration-300">
+                              <Users size={24} />
+                            </div>
+                            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Deudores</h2>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Directorio de alumnos con pagos pendientes y retrasos.</p>
+                            {totalDeudores > 0 && (
+                              <div className="absolute top-4 right-4 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 text-xs font-bold px-2 py-1 rounded-lg border border-red-200 dark:border-red-800/50 flex items-center gap-1">
+                                 <AlertCircle size={10} /> {totalDeudores}
+                              </div>
+                            )}
+                          </button>
+                        )}
 
                       </div>
                     </div>

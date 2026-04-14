@@ -34,7 +34,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    rol: 'COORDINADOR' as 'ADMINISTRADOR' | 'COORDINADOR',
+    rol: 'CAJERO' as 'ADMINISTRADOR' | 'COORDINADOR' | 'CAJERO',
   });
 
   // ── Confirmación desactivar (inline) ──────────────────────────────────────
@@ -102,7 +102,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
   const handleOpenCreate = () => {
     setFormMode('create');
     setEditingUser(null);
-    setFormData({ username: '', password: '', rol: 'COORDINADOR' });
+    setFormData({ username: '', password: '', rol: 'CAJERO' });
     setErrorInput('');
     setShowPassword(false);
     setShowModal(true);
@@ -129,7 +129,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
   const closeModal = () => {
     setShowModal(false);
     setEditingUser(null);
-    setFormData({ username: '', password: '', rol: 'COORDINADOR' });
+    setFormData({ username: '', password: '', rol: 'CAJERO' });
     setErrorInput('');
   };
 
@@ -314,7 +314,9 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                           u.rol === 'ADMINISTRADOR'
                             ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                            : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            : u.rol === 'COORDINADOR'
+                            ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
                         }`}>
                           {u.rol}
                         </span>
@@ -455,9 +457,10 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Rol</label>
                   <select
                     value={formData.rol}
-                    onChange={(e) => setFormData({ ...formData, rol: e.target.value as 'ADMINISTRADOR' | 'COORDINADOR' })}
+                    onChange={(e) => setFormData({ ...formData, rol: e.target.value as 'ADMINISTRADOR' | 'COORDINADOR' | 'CAJERO' })}
                     className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl outline-none bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 cursor-pointer text-sm font-semibold"
                   >
+                    <option value="CAJERO">Cajero — Solo crear/editar planes y cobrar</option>
                     <option value="COORDINADOR">Coordinador — Acceso Limitado</option>
                     <option value="ADMINISTRADOR">Administrador — Acceso Total</option>
                   </select>

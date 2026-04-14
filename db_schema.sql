@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS public.usuarios (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
-    rol TEXT NOT NULL CHECK (rol IN ('ADMINISTRADOR', 'COORDINADOR')),
+    rol TEXT NOT NULL CHECK (rol IN ('ADMINISTRADOR', 'COORDINADOR', 'CAJERO')),
     ultimo_ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE SET NULL,
     preferencia_tema TEXT DEFAULT 'light',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL

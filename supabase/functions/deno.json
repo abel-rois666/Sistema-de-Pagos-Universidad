@@ -1,10 +1,5 @@
 {
-  "tasks": [
-    {
-      "name": "deno",
-      "command": "deno",
-      "args": ["run", "-A", "test.ts"],
-      "type": "shell"
-    }
-  ]
+  "tasks": {
+    "deno": "deno run -A test.ts"
+  }
 }

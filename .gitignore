@@ -17,3 +17,4 @@ test_*.js
 hashes_generados.sql
 generar-hashes.cjs
 patch_*.py
+db_schema.sql
