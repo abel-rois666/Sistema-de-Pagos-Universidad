@@ -112,13 +112,29 @@ Deno.serve(async (req) => {
         return json({ error: 'authId es requerido.' }, 400);
       }
 
-      // Actualizar contraseña en Supabase Auth
+      // Actualizar contraseña y forzar resincronización de username/email en Supabase Auth
       if (password) {
         if (password.length < 8) {
           return json({ error: 'La contraseña debe tener al menos 8 caracteres.' }, 400);
         }
-        const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUser(authId, { password });
+        
+        // Obtener username maestro por si se desincronizó
+        const { data: dbUser } = await supabaseAdmin.from('usuarios').select('username').eq('auth_id', authId).single();
+        const secureEmail = dbUser ? `${dbUser.username}@cuom.sistema` : undefined;
+
+        const attributes: any = { password };
+        if (secureEmail) {
+            attributes.email = secureEmail;
+            attributes.email_confirm = true;
+        }
+
+        const { error: updateAuthError, data: updateData } = await supabaseAdmin.auth.admin.updateUserById(authId, attributes);
         if (updateAuthError) throw updateAuthError;
+        
+        // Extra verificación: si data es null, la librería falló silenciosamente
+        if (!updateData || !updateData.user) {
+            return json({ error: 'Fallo silencioso en Auth: El usuario no existe o no pudo ser editado.' }, 500);
+        }
       }
 
       // Actualizar rol en public.usuarios
@@ -143,7 +159,7 @@ Deno.serve(async (req) => {
       }
 
       // Banear en Supabase Auth (efectivamente permanente: 100 años)
-      const { error: banError } = await supabaseAdmin.auth.admin.updateUser(authId, {
+      const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(authId, {
         ban_duration: '876000h',
       });
       if (banError) throw banError;
@@ -165,7 +181,7 @@ Deno.serve(async (req) => {
       }
 
       // Eliminar el ban en Supabase Auth
-      const { error: unbanError } = await supabaseAdmin.auth.admin.updateUser(authId, {
+      const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(authId, {
         ban_duration: 'none',
       });
       if (unbanError) throw unbanError;

@@ -27,8 +27,7 @@ interface Props {
 }
 
 export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, catalogos, appConfig, onBack, onBackToPlan, initialAlumnoId, initialConceptIndex, initialPlanId, initialView, initialSearchTerm, currentUser, onPaymentSaved, onCatalogoAdded, onNavigateToPlan }: Props) {
-  const forceRegistrar = currentUser?.rol === 'CAJERO';
-  const resolvedInitialView = forceRegistrar && initialView === 'consultar' ? 'registrar' : (initialView || 'registrar');
+  const resolvedInitialView = initialView || 'registrar';
   const [activeTab, setActiveTab] = useState<'registrar' | 'consultar'>(resolvedInitialView);
 
   return (
@@ -59,14 +58,12 @@ export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, c
             >
               <ReceiptText size={18} /> Registrar Pago
             </button>
-            {currentUser?.rol !== 'CAJERO' && (
-              <button
-                onClick={() => setActiveTab('consultar')}
-                className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all text-sm w-full md:w-auto ${activeTab === 'consultar' ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-blue-900/40' : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
-              >
-                <List size={18} /> Consultar Registros
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('consultar')}
+              className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all text-sm w-full md:w-auto ${activeTab === 'consultar' ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-blue-900/40' : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
+            >
+              <List size={18} /> Consultar Registros
+            </button>
           </div>
         </header>
 

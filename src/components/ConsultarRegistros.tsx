@@ -532,7 +532,8 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       // Descargar detalles por separado
       const { data: detData, error: detError } = await fetchAllSupabase(() => supabase
         .from('recibos_detalles')
-        .select('*'));
+        .select('*')
+        .order('id'));
 
       if (detError) throw detError;
 
@@ -879,22 +880,26 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                 <FileText size={13} className="shrink-0" />
                 <span className="hidden sm:inline text-xs">Facturas</span>
               </button>
-              <button
-                onClick={() => setImportarVisible(true)}
-                className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1.5 rounded-lg transition-colors border border-blue-200 dark:border-blue-800 text-xs font-bold bg-white dark:bg-gray-800"
-                title="Importar desde CSV"
-              >
-                <Upload size={13} className="shrink-0" />
-                <span className="hidden sm:inline text-xs">Importar</span>
-              </button>
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 px-2 py-1.5 rounded-lg transition-colors border border-emerald-200 dark:border-emerald-800 text-xs font-bold bg-white dark:bg-gray-800"
-                title="Exportar a Excel"
-              >
-                <Download size={13} className="shrink-0" />
-                <span className="hidden sm:inline text-xs">Exportar</span>
-              </button>
+              {currentUser?.rol !== 'CAJERO' && (
+                <>
+                  <button
+                    onClick={() => setImportarVisible(true)}
+                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1.5 rounded-lg transition-colors border border-blue-200 dark:border-blue-800 text-xs font-bold bg-white dark:bg-gray-800"
+                    title="Importar desde CSV"
+                  >
+                    <Upload size={13} className="shrink-0" />
+                    <span className="hidden sm:inline text-xs">Importar</span>
+                  </button>
+                  <button
+                    onClick={handleExportCSV}
+                    className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 px-2 py-1.5 rounded-lg transition-colors border border-emerald-200 dark:border-emerald-800 text-xs font-bold bg-white dark:bg-gray-800"
+                    title="Exportar a Excel"
+                  >
+                    <Download size={13} className="shrink-0" />
+                    <span className="hidden sm:inline text-xs">Exportar</span>
+                  </button>
+                </>
+              )}
               <button onClick={cargarRecibos} className="text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded-lg transition-colors flex items-center gap-1" title="Actualizar">
                 <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -989,9 +994,11 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     <Trash2 size={13} />
                  </button>
                )}
-               <button onClick={executeMassExportZIP} className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded border border-blue-200 flex items-center gap-1 font-bold transition-colors" title="Exportar ZIP Múltiple">
-                  <Archive size={13} /> ({selectedReceiptIds.size})
-               </button>
+               {currentUser?.rol !== 'CAJERO' && (
+                 <button onClick={executeMassExportZIP} className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded border border-blue-200 flex items-center gap-1 font-bold transition-colors" title="Exportar ZIP Múltiple">
+                    <Archive size={13} /> ({selectedReceiptIds.size})
+                 </button>
+               )}
              </div>
            )}
         </div>
@@ -1141,14 +1148,16 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap shrink-0">
-                  <button
-                    onClick={handleImprimir}
-                    disabled={isGeneratingPDF}
-                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-white/30 shadow-sm disabled:opacity-50"
-                  >
-                    {isGeneratingPDF ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
-                    Imprimir
-                  </button>
+                  {currentUser?.rol !== 'CAJERO' && (
+                    <button
+                      onClick={handleImprimir}
+                      disabled={isGeneratingPDF}
+                      className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-white/30 shadow-sm disabled:opacity-50"
+                    >
+                      {isGeneratingPDF ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
+                      Imprimir
+                    </button>
+                  )}
                   {reciboSeleccionado.estatus === 'ACTIVO' && (
                     <button
                       onClick={() => handleCancelar(reciboSeleccionado.id)}

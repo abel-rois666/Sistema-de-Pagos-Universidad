@@ -18,3 +18,9 @@ hashes_generados.sql
 generar-hashes.cjs
 patch_*.py
 db_schema.sql
+t3.js
+t4.js
+ver_usuarios.js
+
+# Supabase CLI temp files
+/supabase/.temp/

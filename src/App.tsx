@@ -190,12 +190,12 @@ export default function App() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const { data: planesData, error: planesError } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*'));
+      const { data: planesData, error: planesError } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*').order('id'));
       if (!planesError && planesData) {
         setPlans(planesData.length > 0 ? planesData as PaymentPlan[] : []);
       }
 
-      const { data: ciclosData, error: ciclosError } = await fetchAllSupabase(() => supabase.from('ciclos_escolares').select('*'));
+      const { data: ciclosData, error: ciclosError } = await fetchAllSupabase(() => supabase.from('ciclos_escolares').select('*').order('id'));
       if (!ciclosError && ciclosData) {
         if (ciclosData.length > 0) {
           setCiclos(ciclosData as CicloEscolar[]);
@@ -211,7 +211,7 @@ export default function App() {
         }
       }
 
-      const { data: alumnosData, error: alumnosError } = await fetchAllSupabase(() => supabase.from('alumnos').select('*'));
+      const { data: alumnosData, error: alumnosError } = await fetchAllSupabase(() => supabase.from('alumnos').select('*').order('id'));
       if (!alumnosError && alumnosData) {
         setAlumnos(alumnosData.length > 0 ? alumnosData as Alumno[] : []);
       }
@@ -219,7 +219,7 @@ export default function App() {
       const { data: catalogosData, error: catalogosError } = await fetchAllSupabase(() => supabase.from('catalogos').select('*').order('orden', { ascending: true }));
       if (!catalogosError && catalogosData && catalogosData.length > 0) setCatalogoItems(catalogosData as CatalogoItem[]);
 
-      const { data: plantillasData, error: plantillasError } = await fetchAllSupabase(() => supabase.from('plantillas_plan').select('*'));
+      const { data: plantillasData, error: plantillasError } = await fetchAllSupabase(() => supabase.from('plantillas_plan').select('*').order('id'));
       if (!plantillasError && plantillasData) setPlantillas(plantillasData as PlantillaPlan[]);
 
       const config = await getAppConfig();
@@ -236,7 +236,7 @@ export default function App() {
   /** Recarga ligera: solo planes (no pone loading=true para no destruir la UI) */
   const refreshPlans = async () => {
     try {
-      const { data, error } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*'));
+      const { data, error } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*').order('id'));
       if (!error && data) setPlans(data.length > 0 ? data as PaymentPlan[] : []);
     } catch { /* silenciar */ }
   };
@@ -244,7 +244,7 @@ export default function App() {
   /** Recarga ligera: solo alumnos — para actualizar saldo_a_favor tras un cobro */
   const refreshAlumnos = async () => {
     try {
-      const { data, error } = await fetchAllSupabase(() => supabase.from('alumnos').select('*'));
+      const { data, error } = await fetchAllSupabase(() => supabase.from('alumnos').select('*').order('id'));
       if (!error && data) setAlumnos(data.length > 0 ? data as Alumno[] : []);
     } catch { /* silenciar */ }
   };
