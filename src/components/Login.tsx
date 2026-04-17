@@ -78,13 +78,12 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-slate-950">
+    <div className="relative min-h-screen flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 overflow-hidden transition-colors duration-300 bg-white dark:bg-[#181e25]"
+         style={{ fontFamily: 'var(--font-ui)' }}>
 
-      {/* Background Decorators */}
-      <div className="absolute inset-0 grid-bg pointer-events-none opacity-50 dark:opacity-20 z-0" />
-      <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-indigo-100/50 dark:from-indigo-900/20 to-transparent pointer-events-none z-0" />
-      <div className="absolute -left-40 top-1/4 w-96 h-96 bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl pointer-events-none z-0" />
-      <div className="absolute -right-40 bottom-1/4 w-96 h-96 bg-purple-400/20 dark:bg-purple-600/10 rounded-full blur-3xl pointer-events-none z-0" />
+      {/* Background Decorators — conservamos blobs pero con tintes MiniMax blue */}
+      <div className="absolute -left-40 top-1/4 w-96 h-96 bg-[#3b82f6]/10 dark:bg-[#3b82f6]/5 rounded-full blur-3xl pointer-events-none z-0" />
+      <div className="absolute -right-40 bottom-1/4 w-96 h-96 bg-[#1456f0]/10 dark:bg-[#1456f0]/5 rounded-full blur-3xl pointer-events-none z-0" />
 
       {/* Main Content Container */}
       <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
@@ -95,7 +94,7 @@ export default function Login({ onLogin }: LoginProps) {
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="flex justify-center mb-8 relative"
         >
-          <div className="absolute inset-0 bg-indigo-500/20 dark:bg-indigo-400/20 blur-xl rounded-full scale-110 animate-pulse pointer-events-none" />
+          <div className="absolute inset-0 bg-[#1456f0]/15 dark:bg-[#3b82f6]/15 blur-xl rounded-full scale-110 animate-pulse pointer-events-none" />
           
           {logoUrl ? (
             <div className="animate-float relative z-10 flex items-center justify-center">
@@ -106,8 +105,8 @@ export default function Login({ onLogin }: LoginProps) {
               />
             </div>
           ) : (
-            <div className="animate-float w-20 h-20 bg-gradient-to-br from-indigo-700 to-blue-900 dark:from-indigo-600 dark:to-blue-800 rounded-2xl flex items-center justify-center shadow-2xl border border-indigo-400/30 relative z-10">
-              <span className="text-white font-black text-4xl tracking-tighter">U</span>
+            <div className="animate-float w-20 h-20 bg-[#181e25] dark:bg-[#1456f0] rounded-[20px] flex items-center justify-center shadow-[var(--shadow-brand)] relative z-10">
+              <span className="text-white font-semibold text-4xl tracking-tighter" style={{ fontFamily: 'var(--font-display)' }}>U</span>
             </div>
           )}
         </motion.div>
@@ -117,10 +116,11 @@ export default function Login({ onLogin }: LoginProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
         >
-          <h2 className="text-center text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
-            Bienvenido al Sistema de Pagos CUOM
+          <h2 className="text-center text-[32px] font-semibold text-[#222222] dark:text-white tracking-tight leading-[1.10]"
+              style={{ fontFamily: 'var(--font-display)' }}>
+            Bienvenido al Sistema de Pagos
           </h2>
-          <p className="mt-2 text-center text-sm font-medium text-slate-600 dark:text-slate-400 max-w-sm mx-auto">
+          <p className="mt-3 text-center text-base font-normal text-[#45515e] dark:text-[#8e8e93] max-w-sm mx-auto leading-[1.50]">
             Inicia sesión para gestionar alumnos y pagos
           </p>
         </motion.div>
@@ -132,15 +132,15 @@ export default function Login({ onLogin }: LoginProps) {
         transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
       >
-        <div className="glass-card py-8 px-4 sm:rounded-3xl sm:px-10 transition-colors duration-300">
+        <div className="glass-card py-8 px-4 sm:rounded-[24px] sm:px-10 transition-colors duration-300">
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="username" className="block text-[13px] font-semibold text-[#45515e] dark:text-[#8e8e93] uppercase tracking-wider mb-1.5">
                 Nombre de Usuario
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
-                  <User size={18} />
+              <div className="relative rounded-[8px]">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8e8e93]">
+                  <User size={17} />
                 </div>
                 <input
                   id="username"
@@ -150,19 +150,19 @@ export default function Login({ onLogin }: LoginProps) {
                   autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-800 py-3 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                  className="block w-full pl-10 sm:text-base rounded-[8px] bg-white dark:bg-[#181e25] py-3 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] text-[#222222] dark:text-gray-100 placeholder-[#8e8e93] outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent transition-all"
                   placeholder="usuario"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="password" className="block text-[13px] font-semibold text-[#45515e] dark:text-[#8e8e93] uppercase tracking-wider mb-1.5">
                 Contraseña
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
-                  <Lock size={18} />
+              <div className="relative rounded-[8px]">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8e8e93]">
+                  <Lock size={17} />
                 </div>
                 <input
                   id="password"
@@ -172,17 +172,17 @@ export default function Login({ onLogin }: LoginProps) {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-800 py-3 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                  className="block w-full pl-10 sm:text-base rounded-[8px] bg-white dark:bg-[#181e25] py-3 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] text-[#222222] dark:text-gray-100 placeholder-[#8e8e93] outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-transparent transition-all"
                   placeholder="••••••••"
                 />
               </div>
             </div>
 
             {error && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="rounded-xl bg-rose-50 dark:bg-rose-900/30 p-4 border border-rose-200 dark:border-rose-800/50">
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="rounded-[8px] bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800/40">
                 <div className="flex items-center gap-3">
-                  <AlertCircle className="text-rose-600 dark:text-rose-400 shrink-0" size={18} />
-                  <h3 className="text-sm font-semibold text-rose-800 dark:text-rose-300">{error}</h3>
+                  <AlertCircle className="text-red-500 dark:text-red-400 shrink-0" size={17} />
+                  <h3 className="text-sm font-medium text-red-700 dark:text-red-300">{error}</h3>
                 </div>
               </motion.div>
             )}
@@ -191,7 +191,7 @@ export default function Login({ onLogin }: LoginProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-900 transition-colors disabled:opacity-70"
+                className="w-full flex justify-center items-center gap-2.5 py-3 px-5 border border-transparent rounded-[8px] text-base font-medium text-white bg-[#181e25] hover:bg-[#222222] dark:bg-[#3b82f6] dark:hover:bg-[#2563eb] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#3b82f6] dark:focus:ring-offset-[#181e25] transition-colors disabled:opacity-70 shadow-[var(--shadow-subtle)]"
               >
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
                 {loading ? 'Verificando...' : 'Iniciar Sesión'}

@@ -4,6 +4,7 @@ import type { Alumno, CicloEscolar, PaymentPlan, Catalogos, CatalogoItem, Usuari
 import { saveReciboCompleto, saveCatalogoItem } from '../lib/supabase';
 import { ReciboPlantillaPDF } from './ReciboPlantillaPDF';
 import { printElement, downloadElementAsPDF } from '../lib/printUtils';
+import { toTitleCase } from '../utils';
 
 interface ConceptoRow {
   localId: string;
@@ -466,7 +467,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
   return (
     <div className="p-8">
       {mensaje && mensaje.tipo === 'error' && (
-        <div className="mb-6 p-4 rounded-xl flex items-center gap-3 font-semibold bg-red-100 text-red-800">
+        <div className="mb-6 p-4 rounded-[13px] flex items-center gap-3 font-semibold bg-red-100 text-red-800">
           <AlertCircle />
           {mensaje.texto}
         </div>
@@ -474,7 +475,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
 
       {/* Banner: sin plan activo */}
       {alumnoSeleccionado && pupilPlans.length === 0 && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 text-blue-800 text-sm">
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-[13px] flex items-start gap-3 text-blue-800 text-sm">
           <Info size={18} className="shrink-0 mt-0.5 text-blue-500" />
           <span>
             <strong>Sin plan en el ciclo activo.</strong> Este alumno no tiene plan de pagos registrado para <em>{activeCiclo?.nombre || 'este ciclo'}</em>. El recibo se guardará suelto (no afectará ningún plan).
@@ -484,7 +485,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
 
       {/* Banner: múltiples planes detectados (informativo si no está bloqueado por initialPlanId) */}
       {alumnoSeleccionado && pupilPlans.length > 1 && !initialPlanId && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3 text-green-800 text-sm">
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-[13px] flex items-start gap-3 text-green-800 text-sm">
           <Info size={18} className="shrink-0 mt-0.5 text-green-600" />
           <span>
             <strong>Múltiples planes detectados.</strong> Este alumno tiene {pupilPlans.length} planes activos en este ciclo escolar. Se han agregado todos los conceptos al catálogo de busqueda. <em>Nota: Haz recibos separados si vas a pagar conceptos de diferentes planes.</em>
@@ -493,12 +494,12 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       )}
 
       {/* Recibo Header */}
-      <div className="border border-gray-900 rounded-lg overflow-hidden bg-white shadow-sm font-sans mb-8">
+      <div className="border border-gray-900 rounded-[8px] overflow-hidden bg-white shadow-[var(--shadow-subtle)] font-sans mb-8">
         
         {/* Fila 1: Centro Universitario y Folio/Fecha */}
         <div className="flex flex-col md:flex-row border-b border-gray-900">
-          <div className="md:w-3/4 p-4 flex items-center justify-center border-b md:border-b-0 md:border-r border-gray-900 bg-gray-50">
-            <h2 className="text-xl md:text-2xl font-black text-center tracking-wide uppercase text-gray-800">
+          <div className="md:w-3/4 p-4 flex items-center justify-center border-b md:border-b-0 md:border-r border-gray-900 bg-[#f2f3f5]">
+            <h2 className="text-xl md:text-2xl font-black text-center tracking-wide uppercase text-[#222222]">
               Centro Universitario Oriente de México
             </h2>
           </div>
@@ -509,7 +510,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
             </div>
             <div className="flex">
               <div className="w-1/2 p-2 bg-gray-200 font-bold flex items-center justify-center text-sm border-r border-gray-900">Fecha:</div>
-              <div className="w-1/2 p-2 flex items-center justify-center font-semibold text-gray-700">{fechaRecibo}</div>
+              <div className="w-1/2 p-2 flex items-center justify-center font-semibold text-[#45515e]">{fechaRecibo}</div>
             </div>
           </div>
         </div>
@@ -520,7 +521,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
           <div className="md:w-1/2 p-2 border-r border-gray-900 relative">
             <input
               type="text"
-              className="w-full bg-transparent outline-none font-semibold text-gray-800 p-1"
+              className="w-full bg-transparent outline-none font-semibold text-[#222222] p-1"
               placeholder="🔍 Buscar alumno por nombre..."
               value={searchAlumnoTerm}
               onChange={(e) => {
@@ -532,16 +533,16 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
               onBlur={() => setTimeout(() => setShowAlumnoSuggestions(false), 200)}
             />
             {alumnoData && (alumnoData.saldo_a_favor || 0) > 0 && (
-              <div className="absolute top-2 right-2 bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded flex items-center gap-1 font-black shadow-sm border border-emerald-300 pointer-events-none">
+              <div className="absolute top-2 right-2 bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded flex items-center gap-1 font-black shadow-[var(--shadow-subtle)] border border-emerald-300 pointer-events-none">
                 💰 Monedero: ${(alumnoData.saldo_a_favor || 0).toFixed(2)}
               </div>
             )}
             {showAlumnoSuggestions && (
-              <div className="absolute top-full left-0 w-full z-10 bg-white border border-gray-900 shadow-2xl max-h-60 overflow-y-auto">
+              <div className="absolute top-full left-0 w-full z-10 bg-white border border-gray-900 shadow-[var(--shadow-brand)] max-h-60 overflow-y-auto">
                 {filteredAlumnos.map(a => (
                   <div
                     key={a.id}
-                    className="p-3 border-b border-gray-200 text-sm cursor-pointer hover:bg-blue-50 text-gray-800 font-medium transition-colors"
+                    className="p-3 border-b border-[#e5e7eb] text-sm cursor-pointer hover:bg-[rgba(0,0,0,0.03)] text-[#222222] font-medium transition-colors"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       setAlumnoSeleccionado(a.id);
@@ -549,7 +550,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                       setShowAlumnoSuggestions(false);
                     }}
                   >
-                    <span>{a.nombre_completo}</span>
+                    <span>{toTitleCase(a.nombre_completo)}</span>
                     {a.estatus && a.estatus !== 'ACTIVO' && (
                       <span className={`ml-2 text-xs font-bold px-1.5 py-0.5 rounded ${
                         a.estatus === 'EGRESADO' || a.estatus === 'EGRESADO TITULADO'
@@ -560,10 +561,10 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                   </div>
                 ))}
                 {filteredAlumnos.length === 0 && (
-                  <div className="p-3 text-sm text-gray-500 text-center italic">No se encontraron coincidencias</div>
+                  <div className="p-3 text-sm text-[#8e8e93] text-center italic">No se encontraron coincidencias</div>
                 )}
                 {filteredAlumnos.length >= 50 && (
-                  <div className="p-2 text-xs text-center text-gray-500 bg-gray-50 font-semibold border-t">Sigue escribiendo para ver más...</div>
+                  <div className="p-2 text-xs text-center text-[#8e8e93] bg-[#eef2ff] font-semibold border-t">Sigue escribiendo para ver más...</div>
                 )}
               </div>
             )}
@@ -585,14 +586,14 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
             <span>ALUMNO (A)</span>
             <span>DEL</span>
           </div>
-          <div className="md:w-1/3 p-2 flex items-center justify-center border-r border-gray-900 font-semibold text-gray-700">
+          <div className="md:w-1/3 p-2 flex items-center justify-center border-r border-gray-900 font-semibold text-[#45515e]">
              {alumnoData ? `${alumnoData.grado_actual || ''}` : ''}
           </div>
           <div className="md:w-1/6 p-2 bg-gray-200 font-bold flex flex-col items-center justify-center text-xs text-center border-r border-gray-900">
             <span>DE LA</span>
             <span>LICENCIATURA/ESPECIALIDAD EN</span>
           </div>
-          <div className="md:w-1/3 p-2 flex items-center justify-center font-bold text-gray-800">
+          <div className="md:w-1/3 p-2 flex items-center justify-center font-bold text-[#222222]">
             {alumnoData?.licenciatura || ''}
           </div>
         </div>
@@ -600,7 +601,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
         {/* Fila 4: Turno */}
         <div className="flex border-b border-gray-900">
           <div className="w-1/6 p-2 bg-gray-200 font-bold flex items-center justify-center text-sm border-r border-gray-900">TURNO</div>
-          <div className="w-5/6 p-2 flex items-center justify-center font-semibold text-gray-700">
+          <div className="w-5/6 p-2 flex items-center justify-center font-semibold text-[#45515e]">
              {alumnoData?.turno || ''}
           </div>
         </div>
@@ -644,15 +645,15 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                   onBlur={() => setTimeout(() => setFilas(prev => prev.map(f => f.localId === fila.localId ? { ...f, showConceptoSuggestions: false } : f)), 200)}
                 />
                 {fila.showConceptoSuggestions && (
-                  <div className="absolute top-full left-0 w-72 z-20 bg-white border border-gray-300 shadow-xl rounded-lg max-h-56 overflow-y-auto">
+                  <div className="absolute top-full left-0 w-72 z-20 bg-white border border-gray-300 shadow-xl rounded-[8px] max-h-56 overflow-y-auto">
                     {opcionesConceptos
                       .filter(op => !fila.searchConceptoTerm || op.label.toLowerCase().includes(fila.searchConceptoTerm.toLowerCase()))
                       .slice(0, 30)
                       .map(op => (
                         <div
                           key={op.value}
-                          className={`px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 border-b border-gray-100 ${
-                            op.value.startsWith('PLAN_') ? 'text-indigo-700 font-semibold' : 'text-gray-800'
+                          className={`px-3 py-2 text-xs cursor-pointer hover:bg-[rgba(0,0,0,0.03)] border-b border-[#f2f3f5] ${
+                            op.value.startsWith('PLAN_') ? 'text-[#1456f0] font-semibold' : 'text-[#222222]'
                           }`}
                           onMouseDown={(e) => { e.preventDefault(); selectConcepto(fila.localId, op.value); }}
                         >
@@ -661,7 +662,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                       ))
                     }
                     {opcionesConceptos.filter(op => !fila.searchConceptoTerm || op.label.toLowerCase().includes(fila.searchConceptoTerm.toLowerCase())).length === 0 && (
-                      <div className="px-3 py-2 text-xs text-gray-400 italic">Sin resultados</div>
+                      <div className="px-3 py-2 text-xs text-[#8e8e93] italic">Sin resultados</div>
                     )}
                   </div>
                 )}
@@ -679,7 +680,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
               )}
             </div>
             <div className="w-2/12 p-1 border-r border-gray-900 flex items-center justify-center relative">
-              <span className="absolute left-2 text-gray-500">$</span>
+              <span className="absolute left-2 text-[#8e8e93]">$</span>
               <input 
                 type="number" 
                 min="0"
@@ -709,7 +710,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
            <div className="w-full p-0">
              <button 
                onClick={agregarFila}
-               className="w-full py-2 bg-gray-50 hover:bg-gray-100 flex items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition-colors"
+               className="w-full py-2 bg-[#eef2ff] hover:bg-gray-100 flex items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition-colors"
              >
                <Plus size={16} /> Agregar Fila
              </button>
@@ -726,9 +727,9 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
           </div>
 
           <div className="w-full md:w-1/2 flex flex-col md:order-2 order-1 border-b md:border-b-0 border-gray-900">
-            <div className="flex border-b border-gray-900 bg-gray-50">
+            <div className="flex border-b border-gray-900 bg-[#f2f3f5]">
               <div className="w-1/2 p-2 bg-gray-200 font-bold flex items-center justify-center text-sm border-r border-gray-900 text-center">SUBTOTAL</div>
-              <div className="w-1/2 p-2 flex items-center justify-end font-bold text-lg text-gray-800">
+              <div className="w-1/2 p-2 flex items-center justify-end font-bold text-lg text-[#222222]">
                  ${totales.toFixed(2)}
               </div>
             </div>
@@ -744,7 +745,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                     <span className="text-[10px] text-emerald-600/80 font-bold">Disp: ${(alumnoData.saldo_a_favor || 0).toFixed(2)}</span>
                   </div>
                   <div className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 shadow-inner ${usarMonedero ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                    <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 shadow-sm transition-all ${usarMonedero ? 'left-5' : 'left-0.5'}`} />
+                    <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 shadow-[var(--shadow-subtle)] transition-all ${usarMonedero ? 'left-5' : 'left-0.5'}`} />
                   </div>
                 </div>
                 <div className="w-1/2 p-2 flex items-center justify-end font-bold text-lg text-emerald-600">
@@ -768,7 +769,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                    <select 
                       value={formaPago} 
                       onChange={(e) => setFormaPago(e.target.value)}
-                      className="w-full text-xs font-semibold bg-gray-50 p-1 outline-none border border-gray-300 rounded disabled:opacity-50"
+                      className="w-full text-xs font-semibold bg-[#f2f3f5] p-1 outline-none border border-gray-300 rounded disabled:opacity-50"
                       disabled={(totales - (usarMonedero ? Math.min(alumnoData?.saldo_a_favor || 0, totales) : 0)) === 0}
                     >
                      {FORMAS_PAGO.map(fp => <option key={fp} value={fp}>{fp}</option>)}
@@ -782,7 +783,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                    <select 
                       value={banco} 
                       onChange={(e) => setBanco(e.target.value)}
-                      className="w-full text-xs font-semibold bg-gray-50 p-1 outline-none border border-gray-300 rounded disabled:opacity-50"
+                      className="w-full text-xs font-semibold bg-[#f2f3f5] p-1 outline-none border border-gray-300 rounded disabled:opacity-50"
                       disabled={formaPago === 'Efectivo' || (totales - (usarMonedero ? Math.min(alumnoData?.saldo_a_favor || 0, totales) : 0)) === 0}
                     >
                      {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
@@ -791,17 +792,17 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
             </div>
 
             {/* Toggle Requiere Factura */}
-            <div className="flex border-t-2 border-gray-900 bg-gray-50">
+            <div className="flex border-t-2 border-gray-900 bg-[#f2f3f5]">
               <div
                 className="w-full p-2.5 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors px-4 group"
                 onClick={() => setRequiereFactura(!requiereFactura)}
               >
                 <div className="flex flex-col">
-                  <span className="text-xs font-black text-gray-800 leading-tight tracking-wide group-hover:text-amber-700 transition-colors">¿REQUIERE FACTURA?</span>
-                  <span className="text-[10px] text-gray-500 font-bold">Marcar para el área de Contabilidad</span>
+                  <span className="text-xs font-black text-[#222222] leading-tight tracking-wide group-hover:text-amber-700 transition-colors">¿REQUIERE FACTURA?</span>
+                  <span className="text-[10px] text-[#8e8e93] font-bold">Marcar para el área de Contabilidad</span>
                 </div>
                 <div className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 shadow-inner ${requiereFactura ? 'bg-amber-500' : 'bg-gray-300'}`}>
-                  <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 shadow-sm transition-all ${requiereFactura ? 'left-6' : 'left-1'}`} />
+                  <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 shadow-[var(--shadow-subtle)] transition-all ${requiereFactura ? 'left-6' : 'left-1'}`} />
                 </div>
               </div>
             </div>
@@ -812,19 +813,19 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
       {/* ---- Print Receipt Modal ---- */}
       {reciboGuardado && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-[20px] shadow-[var(--shadow-brand)] w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
             {/* Modal header */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-emerald-50">
+            <div className="flex items-center justify-between p-5 border-b border-[#f2f3f5] bg-emerald-50">
               <div className="flex items-center gap-3">
                 <div className="bg-emerald-100 p-2 rounded-full">
                   <Printer className="text-emerald-600" size={22} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-800">Recibo R-{reciboGuardado.recibo.folio} guardado</h2>
+                  <h2 className="text-lg font-bold text-[#222222]">Recibo R-{reciboGuardado.recibo.folio} guardado</h2>
                   <p className="text-xs text-emerald-700 font-medium">El pago fue registrado correctamente. Puedes imprimir el comprobante o cerrar.</p>
                 </div>
               </div>
-              <button onClick={handleCerrarModal} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors">
+              <button onClick={handleCerrarModal} className="p-2 hover:bg-gray-100 rounded-full text-[#8e8e93] hover:text-[#45515e] transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -843,10 +844,10 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
               </div>
             </div>
             {/* Modal footer */}
-            <div className="p-4 border-t border-gray-100 flex justify-between items-center bg-white gap-3">
+            <div className="p-4 border-t border-[#f2f3f5] flex justify-between items-center bg-white gap-3">
               <button
                 onClick={handleCerrarModal}
-                className="px-5 py-2.5 border border-gray-300 rounded-xl font-semibold text-gray-600 hover:bg-gray-50 transition-colors text-sm"
+                className="px-5 py-2.5 border border-gray-300 rounded-[13px] font-semibold text-[#45515e] hover:bg-[#f2f3f5] transition-colors text-sm"
               >
                 Nuevo Pago
               </button>
@@ -855,14 +856,14 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                   onClick={handleDescargarPDF}
                   disabled={generandoPDF}
                   title="Descarga el recibo directamente como archivo PDF"
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl font-bold transition-colors shadow-sm text-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-[13px] font-bold transition-colors shadow-[var(--shadow-subtle)] text-sm"
                 >
                   {generandoPDF ? <><Loader2 size={17} className="animate-spin" /> Generando...</> : <><FileDown size={17} /> Descargar PDF</>}
                 </button>
                 <button
                   onClick={handleImprimir}
                   disabled={generandoPDF}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl font-bold transition-colors shadow-sm text-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-[13px] font-bold transition-colors shadow-[var(--shadow-subtle)] text-sm"
                 >
                   <Printer size={17} /> Imprimir
                 </button>
@@ -874,32 +875,32 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
 
       {showAddConceptoModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-gray-100">
+          <div className="bg-white rounded-[13px] shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b border-[#f2f3f5]">
               <div>
-                <h3 className="text-base font-bold text-gray-800">Nuevo Concepto</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Se guardará en el catálogo global de conceptos</p>
+                <h3 className="text-base font-bold text-[#222222]">Nuevo Concepto</h3>
+                <p className="text-xs text-[#8e8e93] mt-0.5">Se guardará en el catálogo global de conceptos</p>
               </div>
-              <button onClick={() => setShowAddConceptoModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowAddConceptoModal(false)} className="text-[#8e8e93] hover:text-[#45515e]">
                 ✕
               </button>
             </div>
             <div className="p-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nombre del concepto</label>
+              <label className="block text-sm font-medium text-[#45515e] mb-2">Nombre del concepto</label>
               <input
                 type="text"
                 autoFocus
-                className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                className="w-full border border-gray-300 rounded-[8px] p-3 outline-none focus:ring-2 focus:ring-[#3b82f6] uppercase"
                 placeholder="Ej. TITULACIÓN"
                 value={newConceptoName}
                 onChange={(e) => setNewConceptoName(e.target.value.toUpperCase())}
                 onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
               />
             </div>
-            <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+            <div className="p-5 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-end gap-3">
               <button
                 onClick={() => setShowAddConceptoModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
               >Cancelar</button>
               <button
                 disabled={!newConceptoName.trim() || savingConcepto}
@@ -923,7 +924,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                   setSavingConcepto(false);
                   setShowAddConceptoModal(false);
                 }}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2 disabled:opacity-40"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[8px] font-semibold transition-colors flex items-center gap-2 disabled:opacity-40"
               >
                 {savingConcepto ? 'Guardando...' : <><Plus size={15} /> Guardar Concepto</>}
               </button>
@@ -936,7 +937,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
         <button 
           onClick={guardar}
           disabled={guardando}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50"
+          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-[13px] font-bold transition-colors shadow-[var(--shadow-subtle)] disabled:opacity-50"
         >
           {guardando ? (
             <span className="animate-pulse">Guardando...</span>

@@ -214,7 +214,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-4 md:p-8 font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-[#f2f3f5] dark:bg-gray-950 p-4 md:p-8 font-sans transition-colors duration-300">
       <div className="max-w-4xl mx-auto">
 
         {/* Header */}
@@ -222,22 +222,22 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
           <div className="flex items-center gap-3">
             <button
               onClick={onBack}
-              className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-full transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:shadow-sm shrink-0"
+              className="p-2 hover:bg-white dark:hover:bg-[#1c2228] rounded-full transition-colors text-[#45515e] dark:text-[#8e8e93] hover:text-gray-900 dark:hover:text-white hover:shadow-[var(--shadow-subtle)] shrink-0"
             >
               <ArrowLeft size={24} />
             </button>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
                 <Shield className="text-amber-500" size={28} />
                 Gestión de Usuarios
               </h1>
-              <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Administra los accesos y roles del sistema</p>
+              <p className="text-[#8e8e93] dark:text-[#8e8e93] mt-1 text-sm">Administra los accesos y roles del sistema</p>
             </div>
           </div>
 
           <button
             onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-semibold transition-all shadow-sm hover:shadow-md w-full sm:w-auto justify-center"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#1456f0] text-white hover:bg-[#1d4ed8] rounded-[13px] font-semibold transition-all shadow-[var(--shadow-subtle)] hover:shadow-md w-full sm:w-auto justify-center"
           >
             <Plus size={20} />
             Nuevo Usuario
@@ -246,12 +246,12 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
 
         {/* Barra de filtros */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <div className="flex-1 bg-white dark:bg-gray-900 p-3 sm:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-3 transition-colors">
-            <Search className="text-gray-400 dark:text-gray-500 shrink-0" size={20} />
+          <div className="flex-1 bg-white dark:bg-gray-900 p-3 sm:p-4 rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#f2f3f5] dark:border-gray-800 flex items-center gap-3 transition-colors">
+            <Search className="text-[#8e8e93] dark:text-[#8e8e93] shrink-0" size={20} />
             <input
               type="text"
               placeholder="Buscar usuario..."
-              className="w-full text-gray-700 dark:text-gray-200 outline-none bg-transparent placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full text-[#45515e] dark:text-gray-200 outline-none bg-transparent placeholder-gray-400 dark:placeholder-gray-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -261,10 +261,10 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
               <button
                 key={f}
                 onClick={() => setFilterStatus(f)}
-                className={`px-3 sm:px-4 py-2 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap flex-1 sm:flex-none ${
+                className={`px-3 sm:px-4 py-2 rounded-[13px] text-sm font-semibold transition-colors whitespace-nowrap flex-1 sm:flex-none ${
                   filterStatus === f
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    ? 'bg-[#1456f0] text-white shadow-[var(--shadow-subtle)]'
+                    : 'bg-white dark:bg-gray-900 text-[#45515e] dark:text-[#8e8e93] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#f2f3f5] dark:hover:bg-[#1c2228]'
                 }`}
               >
                 {f === 'active' ? 'Activos' : f === 'inactive' ? 'Inactivos' : 'Todos'}
@@ -274,19 +274,19 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
         </div>
 
         {/* Lista de usuarios */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors">
+        <div className="bg-white dark:bg-gray-900 rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#f2f3f5] dark:border-gray-800 overflow-hidden transition-colors">
           {loading ? (
             <LoadingSkeleton type="list" text="Cargando usuarios..." />
           ) : filteredUsuarios.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-600">
-              <Shield size={48} className="mb-4 text-gray-300 dark:text-gray-700" />
+            <div className="flex flex-col items-center justify-center py-20 text-[#8e8e93] dark:text-[#45515e]">
+              <Shield size={48} className="mb-4 text-gray-300 dark:text-[#45515e]" />
               <p className="text-lg">No se encontraron usuarios</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[500px]">
                 <thead>
-                  <tr className="bg-gray-50/80 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800 uppercase text-xs font-bold text-gray-500 dark:text-gray-400 tracking-wider">
+                  <tr className="bg-gray-50/80 dark:bg-gray-800/60 border-b border-[#f2f3f5] dark:border-gray-800 uppercase text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] tracking-wider">
                     <th className="p-4 pl-5">Usuario</th>
                     <th className="p-4">Rol</th>
                     <th className="p-4">Estado</th>
@@ -300,10 +300,10 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                       className={`hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition-colors ${u.activo === false ? 'opacity-60' : ''}`}
                     >
                       {/* Username */}
-                      <td className="p-4 pl-5 font-semibold text-gray-800 dark:text-gray-100">
+                      <td className="p-4 pl-5 font-semibold text-[#222222] dark:text-gray-100">
                         {u.username}
                         {u.id === currentUser.id && (
-                          <span className="ml-3 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300">
+                          <span className="ml-3 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#bfdbfe] dark:bg-indigo-900/50 text-[#1456f0] dark:text-indigo-300">
                             Tú
                           </span>
                         )}
@@ -344,13 +344,13 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                             <span className="text-xs text-red-700 dark:text-red-400 font-medium whitespace-nowrap">¿Desactivar?</span>
                             <button
                               onClick={() => handleDeactivate(u)}
-                              className="px-3 py-1 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors"
+                              className="px-3 py-1 bg-red-600 text-white rounded-[8px] text-xs font-bold hover:bg-red-700 transition-colors"
                             >
                               Sí
                             </button>
                             <button
                               onClick={() => setConfirmDeactivateId(null)}
-                              className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                              className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-[#45515e] dark:text-gray-300 rounded-[8px] text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                             >
                               No
                             </button>
@@ -360,7 +360,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                           <div className="flex justify-end">
                             <button
                               onClick={() => handleReactivate(u)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg text-xs font-semibold transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-[8px] text-xs font-semibold transition-colors"
                               title="Reactivar usuario"
                             >
                               <UserCheck size={14} />
@@ -372,14 +372,14 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                           <div className="flex justify-end gap-1">
                             <button
                               onClick={() => handleOpenEdit(u)}
-                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-blue-900/30 rounded-[8px] transition-colors"
                               title="Editar rol"
                             >
                               <Edit2 size={17} />
                             </button>
                             <button
                               onClick={() => handleOpenPassword(u)}
-                              className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                              className="p-2 text-[#1456f0] dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-[8px] transition-colors"
                               title="Cambiar contraseña"
                             >
                               <KeyRound size={17} />
@@ -387,7 +387,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                             <button
                               onClick={() => u.id !== currentUser.id && setConfirmDeactivateId(u.id)}
                               disabled={u.id === currentUser.id}
-                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-[8px] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                               title={u.id === currentUser.id ? 'No puedes desactivar tu propia cuenta' : 'Desactivar usuario'}
                             >
                               <UserX size={17} />
@@ -407,18 +407,18 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
       {/* ── Modal CRUD ───────────────────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] border border-gray-200 dark:border-gray-700 transition-colors">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-[var(--shadow-brand)] w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] transition-colors">
 
             {/* Header modal */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-              <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                <Shield className="text-indigo-600 dark:text-indigo-400" />
+            <div className="p-6 border-b border-[#f2f3f5] dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+              <h3 className="text-xl font-bold flex items-center gap-2 text-[#222222] dark:text-gray-100">
+                <Shield className="text-[#1456f0] dark:text-indigo-400" />
                 {formMode === 'create' ? 'Nuevo Usuario'
                   : formMode === 'edit' ? 'Editar Rol'
                   : 'Cambiar Contraseña'}
               </h3>
               {formMode !== 'create' && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 font-mono">{editingUser?.username}</p>
+                <p className="text-sm text-[#8e8e93] dark:text-[#8e8e93] mt-1 font-mono">{editingUser?.username}</p>
               )}
             </div>
 
@@ -426,7 +426,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
 
               {/* Error */}
               {errorInput && (
-                <div className="p-3 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 rounded-xl text-sm border border-red-100 dark:border-red-900/60 font-medium">
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 rounded-[13px] text-sm border border-red-100 dark:border-red-900/60 font-medium">
                   {errorInput}
                 </div>
               )}
@@ -434,7 +434,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
               {/* Username — solo en creación */}
               {formMode === 'create' && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-bold text-[#45515e] dark:text-gray-300 mb-1">
                     Nombre de Usuario
                   </label>
                   <input
@@ -443,9 +443,9 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                     placeholder="ej. carlos_recepcion"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s/g, '_') })}
-                    className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono placeholder-gray-400 dark:placeholder-gray-500"
+                    className="w-full p-3 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[13px] outline-none focus:ring-2 focus:ring-[#3b82f6] transition-shadow bg-[#f2f3f5] dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 font-mono placeholder-gray-400 dark:placeholder-gray-500"
                   />
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  <p className="text-xs text-[#8e8e93] dark:text-[#8e8e93] mt-1">
                     Solo minúsculas y guiones bajos. El email interno será <span className="font-mono">{formData.username || 'usuario'}@cuom.sistema</span>
                   </p>
                 </div>
@@ -454,11 +454,11 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
               {/* Rol — en creación y edición de rol */}
               {(formMode === 'create' || formMode === 'edit') && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Rol</label>
+                  <label className="block text-sm font-bold text-[#45515e] dark:text-gray-300 mb-1">Rol</label>
                   <select
                     value={formData.rol}
                     onChange={(e) => setFormData({ ...formData, rol: e.target.value as 'ADMINISTRADOR' | 'COORDINADOR' | 'CAJERO' })}
-                    className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl outline-none bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 cursor-pointer text-sm font-semibold"
+                    className="w-full p-3 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[13px] outline-none bg-[#eef2ff] dark:bg-[#1c2228] text-[#45515e] dark:text-gray-200 focus:ring-2 focus:ring-[#3b82f6] cursor-pointer text-sm font-semibold"
                   >
                     <option value="CAJERO">Cajero — Solo crear/editar planes y cobrar</option>
                     <option value="COORDINADOR">Coordinador — Acceso Limitado</option>
@@ -470,7 +470,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
               {/* Contraseña — en creación y cambio de contraseña */}
               {(formMode === 'create' || formMode === 'password') && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-bold text-[#45515e] dark:text-gray-300 mb-1">
                     {formMode === 'create' ? 'Contraseña' : 'Nueva Contraseña'}
                   </label>
                   <div className="relative">
@@ -480,17 +480,17 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                       placeholder="Mínimo 8 caracteres"
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 pr-12 placeholder-gray-400 dark:placeholder-gray-500"
+                      className="w-full p-3 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[13px] outline-none focus:ring-2 focus:ring-[#3b82f6] transition-shadow bg-[#f2f3f5] dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 pr-12 placeholder-gray-400 dark:placeholder-gray-500"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#8e8e93] dark:text-[#8e8e93] hover:text-[#45515e] dark:hover:text-gray-300 focus:outline-none"
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Mínimo 8 caracteres.</p>
+                  <p className="text-xs text-[#8e8e93] dark:text-[#8e8e93] mt-1">Mínimo 8 caracteres.</p>
                 </div>
               )}
 
@@ -499,14 +499,14 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="px-5 py-2.5 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl font-semibold transition-colors text-sm"
+                  className="px-5 py-2.5 text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-[#1c2228] hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[13px] font-semibold transition-colors text-sm"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-bold transition-all text-sm shadow-sm flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="px-5 py-2.5 bg-[#1456f0] text-white hover:bg-[#1d4ed8] rounded-[13px] font-bold transition-all text-sm shadow-[var(--shadow-subtle)] flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {isSaving && <Loader2 size={16} className="animate-spin" />}
                   {isSaving ? 'Guardando...' : 'Guardar'}

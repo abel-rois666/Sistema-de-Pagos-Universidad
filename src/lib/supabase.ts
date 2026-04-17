@@ -529,6 +529,10 @@ export const vincularReciboDetalleAMultiplesPlan = async (
         .single();
       if (fetchErr || !planData) throw new Error('No se pudo leer el plan: ' + fetchErr?.message);
 
+      if (!alumnoIdForWallet && planData.alumno_id) {
+        alumnoIdForWallet = planData.alumno_id;
+      }
+
       const updatePayload: Record<string, string> = {};
       
       for (const idx of indices) {
@@ -565,7 +569,8 @@ export const vincularReciboDetalleAMultiplesPlan = async (
 
         let nuevoEstatus = '';
         if (restaFinal <= 0.005) {
-            nuevoEstatus = `${foliosPrevios}R-${reciboFolio} (Pagado $${totalPagadoAcumulado.toFixed(2)})`;
+            const topePagado = Math.min(totalPagadoAcumulado, montoPlaneado);
+            nuevoEstatus = `${foliosPrevios}R-${reciboFolio} (Pagado $${topePagado.toFixed(2)})`;
             if (abonoInicialDelRecibo < montoPlaneado - 0.005 || estatusPrevio.includes('Abono')) {
                  observacionesAbiertas.push(`Abono final liquidado`);
             }

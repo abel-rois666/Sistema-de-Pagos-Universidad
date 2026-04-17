@@ -440,7 +440,7 @@ export default function App() {
     };
 
     const homePageContent = (
-      <PageWrapper keyStr="home" className="min-h-screen bg-gray-50 dark:bg-gray-950 p-4 sm:p-8 font-sans transition-colors duration-300">
+      <PageWrapper keyStr="home" className="min-h-screen bg-white dark:bg-[#0f1318] p-4 sm:p-8 font-sans transition-colors duration-300">
         <div className="max-w-6xl mx-auto">
           <AnimatePresence>
             {showImport && (
@@ -458,22 +458,22 @@ export default function App() {
           </AnimatePresence>
 
           {/* Header & Ciclo Selector */}
-          <div className="sticky top-4 z-40 w-full max-w-7xl mx-auto rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-gray-200/50 dark:border-gray-700/50 header-glass mb-8 transition-all duration-300">
+          <div className="sticky top-4 z-40 w-full max-w-7xl mx-auto rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] header-glass mb-8 transition-all duration-300">
             
             {/* TOP ROW: White BG */}
-            <div className="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-t-xl">
+            <div className="px-6 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-t-[20px] bg-[#eef2ff] dark:bg-[rgba(255,255,255,0.03)]">
               
               {/* Left: Logo, Title, Cycle */}
               <div className="flex flex-wrap items-center gap-4">
                 {appConfig?.logoUrl ? (
                   <img src={appConfig.logoUrl} alt="App Logo" className="h-10 sm:h-12 w-auto object-contain" />
                 ) : (
-                  <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-br from-[#1c2c54] to-[#263e77] rounded-xl flex items-center justify-center shadow-inner shrink-0 text-white font-extrabold text-lg sm:text-xl border border-[#2b4482]">
+                  <div className="h-10 w-10 sm:h-12 sm:w-12 bg-[#181e25] dark:bg-[#1456f0] rounded-[13px] flex items-center justify-center shadow-[var(--shadow-subtle)] shrink-0 text-white font-semibold text-lg sm:text-xl" style={{ fontFamily: 'var(--font-display)' }}>
                     U
                   </div>
                 )}
                 
-                <h1 className="text-lg sm:text-[22px] font-extrabold text-[#11192b] dark:text-white tracking-tight leading-none whitespace-nowrap">
+                <h1 className="text-lg sm:text-[22px] font-semibold text-[#222222] dark:text-white tracking-tight leading-[1.10] whitespace-nowrap" style={{ fontFamily: 'var(--font-display)' }}>
                   {appConfig?.title || 'Sistema de Control de Pagos'}
                 </h1>
 
@@ -482,12 +482,12 @@ export default function App() {
 
                 {/* Dropdown Ciclo con Glow Custom */}
                 <div className="relative shrink-0" ref={cicloMenuRef}>
-                  <div className="absolute -inset-1 bg-[#244287] rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-200"></div>
+                  <div className="absolute -inset-1 bg-[#1456f0] rounded-[9999px] blur opacity-20 group-hover:opacity-40 transition duration-200"></div>
                   <button
                     onClick={() => setShowCicloMenu(prev => !prev)}
-                    className="relative flex items-center gap-2 px-3 py-1.5 bg-[#183168] border border-[#264287] text-white rounded-lg shadow-sm font-semibold text-sm transition-all duration-200 min-w-max hover:bg-[#1e3b7d]"
+                    className="relative flex items-center gap-2 px-4 py-1.5 bg-[#1456f0] border border-[#1456f0] text-white rounded-[9999px] shadow-[var(--shadow-subtle)] font-medium text-[14px] transition-all duration-200 min-w-max hover:bg-[#2563eb]"
                   >
-                    <Calendar size={14} className="text-[#a4c5ff]" />
+                    <Calendar size={14} className="text-white/70" />
                     <span className="truncate max-w-[120px]">{activeCiclo?.nombre || 'Seleccionar Ciclo'}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${showCicloMenu ? 'rotate-180' : ''} text-white/70`} />
                   </button>
@@ -545,18 +545,18 @@ export default function App() {
                 
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="flex flex-col items-end leading-none min-w-0 hidden xs:flex">
-                    <span className="text-[14px] font-extrabold text-[#0a152d] dark:text-gray-200 truncate max-w-[100px]">{currentUser.username}</span>
-                    <span className="text-[10px] font-bold text-[#3d2793] dark:text-indigo-400 uppercase tracking-widest mt-1">{currentUser.rol}</span>
+                    <span className="text-[14px] font-medium text-[#222222] dark:text-gray-200 truncate max-w-[100px]">{currentUser.username}</span>
+                    <span className="text-[10px] font-semibold text-[#1456f0] dark:text-[#60a5fa] uppercase tracking-widest mt-1">{currentUser.rol}</span>
                   </div>
                   
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#d0cedd] border border-[#c0bdd0] dark:bg-gray-700 flex items-center justify-center text-[#1c1836] dark:text-white font-extrabold text-sm shadow-inner shrink-0">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#bfdbfe] border border-[#e5e7eb] dark:bg-[#1d4ed8] dark:border-[#1d4ed8] flex items-center justify-center text-[#1456f0] dark:text-white font-semibold text-sm shrink-0">
                     {currentUser.username.charAt(0).toUpperCase()}
                   </div>
                 </div>
 
                 <button onClick={() => supabase.auth.signOut()} className="relative ml-1 group shrink-0">
-                  <div className="absolute -inset-1 bg-red-500 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-200"></div>
-                  <div className="relative px-3 py-1.5 border border-[#fcb5b5] bg-[#ffeaea] dark:bg-red-900/40 text-[#ce2121] dark:text-red-300 dark:border-red-800 rounded-lg text-xs font-bold tracking-wide hover:bg-[#ffd9d9] dark:hover:bg-red-900/60 transition-colors">
+                  <div className="absolute -inset-1 bg-[#222222] rounded-[8px] blur opacity-10 group-hover:opacity-20 transition duration-200"></div>
+                  <div className="relative px-3 py-1.5 border border-[#e5e7eb] bg-[#f0f0f0] dark:bg-[rgba(255,255,255,0.08)] text-[#222222] dark:text-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[8px] text-xs font-semibold tracking-wide hover:bg-[#e5e7eb] dark:hover:bg-[rgba(255,255,255,0.15)] transition-colors">
                     SALIR
                   </div>
                 </button>
@@ -564,16 +564,16 @@ export default function App() {
             </div>
 
             {/* BOTTOM ROW: Nav bar refinada */}
-            <div className="bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm border-t border-gray-200/80 dark:border-gray-700/60 px-4 py-2 flex flex-wrap items-center gap-2 rounded-b-xl">
+            <div className="bg-white/60 dark:bg-[rgba(24,30,37,0.5)] backdrop-blur-sm border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] px-4 py-2.5 flex flex-wrap items-center gap-2 rounded-b-[20px]">
 
               {/* Alumnos */}
               <button
                 onClick={() => navigate('/alumnos')}
-                className="relative flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 dark:bg-violet-900/30 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700/50 rounded-lg font-semibold text-sm transition-all duration-200 shrink-0 group"
+                className="relative flex items-center gap-1.5 px-4 py-1.5 bg-[rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.08)] dark:hover:bg-[rgba(255,255,255,0.12)] text-[#18181b] dark:text-gray-200 rounded-[9999px] font-medium text-[14px] transition-all duration-200 shrink-0 group"
               >
                 <GraduationCap size={15} className="group-hover:scale-110 transition-transform" /> Alumnos
                 {totalActivos > 0 && (
-                  <span className="bg-violet-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ml-0.5">
+                  <span className="bg-[#1456f0] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ml-0.5">
                     {totalActivos}
                   </span>
                 )}
@@ -588,10 +588,10 @@ export default function App() {
                   <div className="relative shrink-0" ref={configMenuRef}>
                     <button
                       onClick={() => setShowConfigMenu(prev => !prev)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-sm transition-all duration-200 border group
+                      className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[9999px] font-medium text-[14px] transition-all duration-200 border-none group
                         ${ showConfigMenu
-                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600'
-                          : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/40 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/50'
+                          ? 'bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.12)] text-[#18181b] dark:text-gray-200'
+                          : 'bg-[rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.08)] dark:hover:bg-[rgba(255,255,255,0.12)] text-[#45515e] dark:text-gray-300'
                         }`}
                     >
                       <Settings size={15} className={`transition-all duration-300 ${showConfigMenu ? 'rotate-45' : 'group-hover:rotate-12'}`} />
@@ -599,28 +599,28 @@ export default function App() {
                       <ChevronDown size={13} className={`transition-transform duration-200 ${showConfigMenu ? 'rotate-180' : ''}`} />
                     </button>
                     {showConfigMenu && (
-                      <div className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-50 min-w-[210px]">
-                        <button onClick={() => { navigate('/catalogos'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:text-violet-700 dark:hover:text-violet-300 transition-colors">
+                      <div className="absolute top-full left-0 mt-2 bg-white dark:bg-[#1c2228] rounded-[13px] shadow-[var(--shadow-elevated)] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] py-1 z-50 min-w-[210px]">
+                        <button onClick={() => { navigate('/catalogos'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
                           <BookOpen size={16} /> Catálogos
                         </button>
-                        <button onClick={() => { navigate('/plantillas'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-pink-50 dark:hover:bg-pink-900/30 hover:text-pink-700 dark:hover:text-pink-300 transition-colors">
+                        <button onClick={() => { navigate('/plantillas'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
                           <FileText size={16} /> Plantillas
                         </button>
-                        <button onClick={() => { navigate('/ciclos'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors">
+                        <button onClick={() => { navigate('/ciclos'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
                           <Calendar size={16} /> Ciclos Escolares
                         </button>
                         <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
-                        <button onClick={() => { navigate('/configuracion-app'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">
+                        <button onClick={() => { navigate('/configuracion-app'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
                           <Settings size={16} /> Generales
                         </button>
-                        <button onClick={() => { navigate('/usuarios'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-300 transition-colors">
+                        <button onClick={() => { navigate('/usuarios'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
                           <Shield size={16} /> Módulo de Usuarios
                         </button>
                         <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
-                        <button onClick={() => { setShowImport(true); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors">
+                        <button onClick={() => { setShowImport(true); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
                           <Upload size={16} /> Importar CSV
                         </button>
-                        <button onClick={() => { handleExportCSV(); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition-colors">
+                        <button onClick={() => { handleExportCSV(); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
                           <Download size={16} /> Exportar CSV
                         </button>
                       </div>
@@ -687,30 +687,26 @@ export default function App() {
             return (
               <div className="max-w-6xl mx-auto mb-10">
                 {/* Saludo + Stat Cards dentro de una tarjeta */}
-                <div className="relative bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden p-5 sm:p-6">
-                  {/* Decoración de fondo */}
-                  <div className="absolute -right-16 -top-16 w-48 h-48 bg-gradient-to-br from-blue-400/10 to-indigo-400/5 rounded-full blur-3xl pointer-events-none" />
-                  <div className="absolute -left-10 bottom-0 w-36 h-36 bg-gradient-to-tr from-emerald-400/5 to-teal-400/5 rounded-full blur-2xl pointer-events-none" />
-
-                  {/* Saludo */}
-                  <div className="mb-5 relative">
-                    <h2 className="text-xl sm:text-2xl font-extrabold text-gray-800 dark:text-gray-100">
+                <div className="relative bg-white dark:bg-[#181e25] rounded-[20px] border border-[#d1d5db] dark:border-[rgba(255,255,255,0.12)] shadow-lg dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] overflow-hidden">
+                  
+                  {/* Card Header */}
+                  <div className="px-5 sm:px-6 py-4 sm:py-5 bg-transparent border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] relative overflow-hidden">
+                    <h2 className="text-lg sm:text-[22px] font-semibold text-[#222222] dark:text-gray-100 leading-[1.10] tracking-tight relative z-10" style={{ fontFamily: 'var(--font-display)' }}>
                       👋 ¡Hola, {currentUser.username}!
                     </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{dateStr} · Ciclo: <span className="font-semibold text-gray-700 dark:text-gray-200">{activeCiclo?.nombre || '—'}</span></p>
+                    <p className="text-[14px] text-[#45515e] dark:text-[#8e8e93] mt-1.5 leading-[1.50] relative z-10">
+                      {dateStr} · Ciclo: <span className="font-medium text-[#222222] dark:text-gray-200">{activeCiclo?.nombre || '—'}</span>
+                    </p>
                   </div>
 
+                  {/* Card Content (Stat Cards en fondo blanco puro) */}
                   {currentUser.rol !== 'CAJERO' && (
-                    <>
-                      {/* Divisor */}
-                      <div className="border-t border-gray-100 dark:border-gray-800 mb-5" />
-
-                      {/* Stat Cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 relative">
+                    <div className="px-5 sm:px-6 py-5 sm:py-6 relative">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 relative z-10">
                         {statCards.map((card, idx) => (
                           <div
                             key={card.label}
-                            className={`card-interactive group relative flex flex-col gap-2 p-4 rounded-2xl border ${card.bg} ${card.border} shadow-sm hover:shadow-xl ${card.glow} hover:-translate-y-0.5 transition-all duration-300`}
+                            className={`card-interactive group relative flex flex-col gap-2 p-4 rounded-[20px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] bg-white dark:bg-[#1c2228] shadow-[var(--shadow-subtle)] hover:shadow-[var(--shadow-brand)] hover:-translate-y-1 transition-all duration-300`}
                             onMouseMove={(e) => {
                               const rect = e.currentTarget.getBoundingClientRect();
                               e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
@@ -718,22 +714,19 @@ export default function App() {
                             }}
                             style={{ animationDelay: `${idx * 80}ms` }}
                           >
-                            {/* Decorative glow blob */}
-                            <div className={`absolute -right-4 -top-4 w-20 h-20 bg-gradient-to-br ${card.from} ${card.to} opacity-10 rounded-full blur-2xl group-hover:opacity-25 transition-opacity duration-500`} />
-                            {/* Icon */}
-                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.from} ${card.to} flex items-center justify-center text-white shadow-md group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
+                            <div className={`absolute -right-4 -top-4 w-20 h-20 bg-[#3b82f6] opacity-[0.06] rounded-full blur-2xl group-hover:opacity-[0.15] transition-opacity duration-500`} />
+                            <div className={`w-9 h-9 rounded-[13px] bg-[#1456f0] dark:bg-[#3b82f6] flex items-center justify-center text-white shadow-[var(--shadow-subtle)] group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
                               {card.icon}
                             </div>
-                            {/* Value */}
                             <div>
-                              <div className={`text-xl font-extrabold ${card.textColor} leading-tight stat-value-enter`} style={{ animationDelay: `${idx * 80 + 100}ms` }}>{card.value}</div>
-                              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mt-0.5">{card.label}</div>
-                              <div className="text-[10px] text-gray-400 dark:text-gray-500">{card.sub}</div>
+                              <div className="text-xl font-semibold text-[#222222] dark:text-gray-100 leading-tight stat-value-enter" style={{ animationDelay: `${idx * 80 + 100}ms` }}>{card.value}</div>
+                              <div className="text-[13px] font-medium text-[#45515e] dark:text-gray-300 mt-0.5">{card.label}</div>
+                              <div className="text-[10px] text-[#8e8e93] dark:text-gray-500 line-clamp-1">{card.sub}</div>
                             </div>
                           </div>
                         ))}
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -742,14 +735,14 @@ export default function App() {
 
           {/* Sección 1: Operaciones Financieras */}
           <div className="max-w-6xl mx-auto mb-6">
-            <div className="relative bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            <div className="relative bg-white dark:bg-[#181e25] rounded-[20px] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] shadow-[var(--shadow-subtle)] overflow-hidden">
               {/* Card Header — clickeable para colapsar */}
               <button
                 onClick={() => setSectionOperaciones(p => !p)}
-                className="w-full flex items-center justify-between px-5 sm:px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 bg-[#eef2ff] dark:bg-[rgba(255,255,255,0.04)] hover:bg-[#e8eeff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors ${sectionOperaciones ? 'border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]' : ''}`}
               >
-                <span className="flex items-center gap-2.5 text-base font-bold text-gray-800 dark:text-gray-100">
-                  <Wallet size={18} className="text-blue-500" /> Operaciones Financieras
+                <span className="flex items-center gap-2.5 text-base font-semibold text-[#222222] dark:text-gray-100" style={{ fontFamily: 'var(--font-mid)' }}>
+                  <Wallet size={18} className="text-[#1456f0]" /> Operaciones Financieras
                 </span>
                 <ChevronDown
                   size={18}
@@ -767,7 +760,7 @@ export default function App() {
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
                     className="overflow-hidden"
                   >
-                    <div className="border-t border-gray-100 dark:border-gray-800 px-5 sm:px-6 pb-5 pt-4">
+                    <div className="border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] px-5 sm:px-6 pb-5 pt-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Tarjeta 1: Plan de Pagos */}
                         <button
@@ -777,13 +770,13 @@ export default function App() {
                             e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
                             e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
                           }}
-                          className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-blue-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5 relative"
+                          className="card-interactive bg-white dark:bg-[#1c2228] p-6 rounded-[20px] shadow-[var(--shadow-subtle)] hover:shadow-[var(--shadow-brand)] hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] relative"
                         >
-                          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-blue-500/50 shadow-lg transition-all duration-300">
+                          <div className="bg-[#1456f0] p-4 rounded-[13px] text-white mb-4 group-hover:scale-110 group-hover:rotate-2 shadow-[var(--shadow-subtle)] group-hover:shadow-[var(--shadow-brand)] transition-all duration-300">
                             <FileText size={28} />
                           </div>
-                          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Plan de Pagos</h2>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Visualiza y edita el plan detallado por alumno para el ciclo en curso.</p>
+                          <h2 className="text-[20px] font-semibold text-[#18181b] dark:text-gray-100 mb-2 group-hover:text-[#1456f0] dark:group-hover:text-[#60a5fa] transition-colors" style={{ fontFamily: 'var(--font-display)' }}>Plan de Pagos</h2>
+                          <p className="text-[14px] text-[#45515e] dark:text-[#8e8e93] leading-[1.50]">Visualiza y edita el plan detallado por alumno para el ciclo en curso.</p>
                         </button>
 
                         {/* Tarjeta 2: Control de Ingresos */}
@@ -794,15 +787,15 @@ export default function App() {
                             e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
                             e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
                           }}
-                          className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-emerald-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 border-l-4 border-l-emerald-500 dark:border-gray-800 dark:border-l-emerald-500 ring-1 ring-black/5 dark:ring-white/5 relative"
+                          className="card-interactive bg-white dark:bg-[#1c2228] p-6 rounded-[20px] shadow-[var(--shadow-subtle)] hover:shadow-[var(--shadow-brand)] hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] relative"
                         >
-                          <div className="bg-gradient-to-br from-emerald-400 to-teal-600 p-4 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-emerald-500/50 shadow-lg transition-all duration-300">
+                          <div className="bg-[#2563eb] p-4 rounded-[13px] text-white mb-4 group-hover:scale-110 group-hover:rotate-2 shadow-[var(--shadow-subtle)] group-hover:shadow-[var(--shadow-brand)] transition-all duration-300">
                             <Wallet size={28} />
                           </div>
-                          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                          <h2 className="text-[20px] font-semibold text-[#18181b] dark:text-gray-100 mb-2 group-hover:text-[#1456f0] dark:group-hover:text-[#60a5fa] transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
                             {currentUser.rol === 'CAJERO' ? 'Registrar Cobro' : 'Control de Ingresos'}
                           </h2>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <p className="text-[14px] text-[#45515e] dark:text-[#8e8e93] leading-[1.50]">
                             {currentUser.rol === 'CAJERO' ? 'Registra cobros y emite comprobantes adicionales.' : 'Registra cobros, emite comprobantes y consulta el historial de pagos.'}
                           </p>
                         </button>
@@ -816,14 +809,14 @@ export default function App() {
 
           {/* Sección 2: Consultas y Reportes */}
           <div className="max-w-6xl mx-auto mb-6">
-            <div className="relative bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            <div className="relative bg-white dark:bg-[#181e25] rounded-[20px] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] shadow-[var(--shadow-subtle)] overflow-hidden">
               {/* Card Header — clickeable para colapsar */}
               <button
                 onClick={() => setSectionReportes(p => !p)}
-                className="w-full flex items-center justify-between px-5 sm:px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 bg-[#eef2ff] dark:bg-[rgba(255,255,255,0.04)] hover:bg-[#e8eeff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors ${sectionReportes ? 'border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]' : ''}`}
               >
-                <span className="flex items-center gap-2.5 text-base font-bold text-gray-800 dark:text-gray-100">
-                  <BarChart3 size={18} className="text-indigo-500" /> Consultas y Reportes
+                <span className="flex items-center gap-2.5 text-base font-semibold text-[#222222] dark:text-gray-100" style={{ fontFamily: 'var(--font-mid)' }}>
+                  <BarChart3 size={18} className="text-[#1456f0]" /> Consultas y Reportes
                 </span>
                 <ChevronDown
                   size={18}
@@ -841,7 +834,7 @@ export default function App() {
                     transition={{ duration: 0.25, ease: 'easeInOut' }}
                     className="overflow-hidden"
                   >
-                    <div className="border-t border-gray-100 dark:border-gray-800 px-5 sm:px-6 pb-5 pt-4">
+                    <div className="border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] px-5 sm:px-6 pb-5 pt-4">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
                         <button
@@ -851,13 +844,13 @@ export default function App() {
                             e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
                             e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
                           }}
-                          className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-indigo-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5 relative"
+                          className="card-interactive bg-white dark:bg-[#1c2228] p-6 rounded-[20px] shadow-[var(--shadow-subtle)] hover:shadow-[var(--shadow-brand)] hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] relative"
                         >
-                          <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-3 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-indigo-500/50 shadow-lg transition-all duration-300">
+                          <div className="bg-[#1456f0] p-3 rounded-[13px] text-white mb-4 group-hover:scale-110 group-hover:rotate-2 shadow-[var(--shadow-subtle)] group-hover:shadow-[var(--shadow-brand)] transition-all duration-300">
                             <User size={24} />
                           </div>
-                          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Ficha del Alumno</h2>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Resumen compacto del estado financiero y becas.</p>
+                          <h2 className="text-[18px] font-semibold text-[#18181b] dark:text-gray-100 mb-1" style={{ fontFamily: 'var(--font-display)' }}>Ficha del Alumno</h2>
+                          <p className="text-[13px] text-[#45515e] dark:text-[#8e8e93] leading-[1.50]">Resumen compacto del estado financiero y becas.</p>
                         </button>
 
                         {currentUser.rol !== 'CAJERO' && (
@@ -868,13 +861,13 @@ export default function App() {
                               e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
                               e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
                             }}
-                            className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-purple-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5 relative"
+                            className="card-interactive bg-white dark:bg-[#1c2228] p-6 rounded-[20px] shadow-[var(--shadow-subtle)] hover:shadow-[var(--shadow-brand)] hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] relative"
                           >
-                            <div className="bg-gradient-to-br from-fuchsia-500 to-purple-600 p-3 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-purple-500/50 shadow-lg transition-all duration-300">
+                            <div className="bg-[#3b82f6] p-3 rounded-[13px] text-white mb-4 group-hover:scale-110 group-hover:rotate-2 shadow-[var(--shadow-subtle)] group-hover:shadow-[var(--shadow-brand)] transition-all duration-300">
                               <BarChart3 size={24} />
                             </div>
-                            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Estadísticas</h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Análisis mensual de ingresos y deudas totales por ciclo.</p>
+                            <h2 className="text-[18px] font-semibold text-[#18181b] dark:text-gray-100 mb-1" style={{ fontFamily: 'var(--font-display)' }}>Estadísticas</h2>
+                            <p className="text-[13px] text-[#45515e] dark:text-[#8e8e93] leading-[1.50]">Análisis mensual de ingresos y deudas totales por ciclo.</p>
                           </button>
                         )}
 
@@ -886,15 +879,15 @@ export default function App() {
                               e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
                               e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
                             }}
-                            className="card-interactive bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm hover:shadow-2xl hover:shadow-rose-500/15 hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-gray-200 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5 relative"
+                            className="card-interactive bg-white dark:bg-[#1c2228] p-6 rounded-[20px] shadow-[var(--shadow-subtle)] hover:shadow-[var(--shadow-brand)] hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] relative"
                           >
-                            <div className="bg-gradient-to-br from-rose-500 to-red-600 p-3 rounded-xl text-white mb-4 group-hover:scale-110 group-hover:rotate-2 group-hover:shadow-rose-500/50 shadow-lg transition-all duration-300">
+                            <div className="bg-[#1d4ed8] p-3 rounded-[13px] text-white mb-4 group-hover:scale-110 group-hover:rotate-2 shadow-[var(--shadow-subtle)] group-hover:shadow-[var(--shadow-brand)] transition-all duration-300">
                               <Users size={24} />
                             </div>
-                            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Deudores</h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Directorio de alumnos con pagos pendientes y retrasos.</p>
+                            <h2 className="text-[18px] font-semibold text-[#18181b] dark:text-gray-100 mb-1" style={{ fontFamily: 'var(--font-display)' }}>Deudores</h2>
+                            <p className="text-[13px] text-[#45515e] dark:text-[#8e8e93] leading-[1.50]">Directorio de alumnos con pagos pendientes y retrasos.</p>
                             {totalDeudores > 0 && (
-                              <div className="absolute top-4 right-4 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 text-xs font-bold px-2 py-1 rounded-lg border border-red-200 dark:border-red-800/50 flex items-center gap-1">
+                              <div className="absolute top-4 right-4 bg-[#bfdbfe] text-[#1456f0] dark:bg-[#1d4ed8]/30 dark:text-[#60a5fa] text-xs font-semibold px-2 py-1 rounded-[9999px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] flex items-center gap-1">
                                  <AlertCircle size={10} /> {totalDeudores}
                               </div>
                             )}
@@ -910,28 +903,28 @@ export default function App() {
           </div>
 
           {/* ── FOOTER ── */}
-          <footer className="max-w-6xl mx-auto mt-10 pt-6 pb-4 border-t border-gray-200/70 dark:border-gray-800">
+          <footer className="max-w-6xl mx-auto mt-10 pt-6 pb-4 border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               {/* Logo + Nombre */}
               <div className="flex items-center gap-2.5 opacity-40 hover:opacity-60 transition-opacity cursor-default">
                 {appConfig?.logoUrl ? (
                   <img src={appConfig.logoUrl} alt="" className="h-5 w-auto grayscale" />
                 ) : (
-                  <div className="w-5 h-5 bg-gradient-to-br from-[#1c2c54] to-[#263e77] rounded flex items-center justify-center text-white text-[10px] font-extrabold">U</div>
+                  <div className="w-5 h-5 bg-[#181e25] dark:bg-[#3b82f6] rounded-[4px] flex items-center justify-center text-white text-[10px] font-semibold">U</div>
                 )}
-                <span className="text-xs font-semibold text-gray-500 dark:text-gray-500">
+                <span className="text-[12px] font-medium text-[#8e8e93] dark:text-[#8e8e93]">
                   {appConfig?.title || 'Sistema de Control de Pagos'}
                 </span>
               </div>
 
               {/* Centro: ciclo activo */}
-              <div className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-600">
+              <div className="flex items-center gap-1.5 text-[11px] text-[#8e8e93] dark:text-[#8e8e93]">
                 <Calendar size={11} />
                 <span>Ciclo activo: <span className="font-semibold">{activeCiclo?.nombre || '—'}</span></span>
               </div>
 
               {/* Versión + Año */}
-              <div className="text-[11px] text-gray-400 dark:text-gray-600 font-medium">
+              <div className="text-[11px] text-[#8e8e93] dark:text-[#8e8e93] font-medium">
                 v1.0.0 &nbsp;&middot;&nbsp; &copy; {new Date().getFullYear()}
               </div>
             </div>
@@ -982,7 +975,7 @@ export default function App() {
             />
           </PageWrapper>
         } />
-        <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas plans={filteredPlans} alumnos={alumnos} activeCiclo={activeCiclo} onBack={() => navigate('/')} /></PageWrapper>} />
+        <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas plans={plans} ciclos={ciclos} alumnos={alumnos} activeCiclo={activeCiclo} onBack={() => navigate('/')} /></PageWrapper>} />
         <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores plans={filteredPlans} alumnos={alumnos} onBack={() => navigate('/')} onNavigateToAlumno={(alumnoId) => { setSelectedAlumnoId(alumnoId); navigate('/ficha-alumno', { state: { alumnoId } }); }} /></PageWrapper>} />
         <Route path="/ciclos" element={<PageWrapper keyStr="ciclos"><CiclosConfig ciclos={ciclos} onSave={setCiclos} onBack={() => navigate('/')} /></PageWrapper>} />
         <Route path="/alumnos" element={

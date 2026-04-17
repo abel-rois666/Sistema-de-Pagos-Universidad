@@ -146,7 +146,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
           onChange={e => setEditForm({ ...editForm, meses_abarca: `${e.target.value} - ${end}` })}>
           {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
-        <span className="text-gray-400 font-bold">-</span>
+        <span className="text-[#8e8e93] font-bold">-</span>
         <select className="flex-1 w-full border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-blue-500" 
           value={end} 
           onChange={e => setEditForm({ ...editForm, meses_abarca: `${start} - ${e.target.value}` })}>
@@ -159,16 +159,16 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
     <div className="flex items-center gap-1">
       <input
         type="number"
-        className="w-20 border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-20 border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6]"
         placeholder="Inicio"
         value={editForm.anio || ''}
         onChange={e => setEditForm({ ...editForm, anio: Number(e.target.value) })}
         title="Año de inicio"
       />
-      <span className="text-gray-400 text-xs font-bold">–</span>
+      <span className="text-[#8e8e93] text-xs font-bold">–</span>
       <input
         type="number"
-        className="w-20 border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-20 border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6]"
         placeholder="Fin"
         value={editForm.anio_fin || ''}
         onChange={e => setEditForm({ ...editForm, anio_fin: e.target.value ? Number(e.target.value) : null })}
@@ -178,36 +178,36 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-8 font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-[#f2f3f5] dark:bg-gray-950 p-8 font-sans transition-colors duration-300">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white font-bold transition-colors">
+          <button onClick={onBack} className="flex items-center gap-2 text-[#45515e] dark:text-[#8e8e93] hover:text-black dark:hover:text-white font-bold transition-colors">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
           <button onClick={handleAddNew} disabled={editingId !== null || saving}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50">
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-[8px] font-medium disabled:opacity-50">
             {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} Nuevo Ciclo
           </button>
         </div>
 
         {notification && (
-          <div className={`mb-4 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold shadow-sm
+          <div className={`mb-4 flex items-center gap-2 px-4 py-3 rounded-[13px] text-sm font-semibold shadow-[var(--shadow-subtle)]
             ${notification.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
             {notification.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
             {notification.msg}
           </div>
         )}
 
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors">
-          <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Configuración de Ciclos Escolares</h1>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Administra los periodos escolares y define cuál es el ciclo activo.</p>
+        <div className="bg-white dark:bg-gray-900 rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#e5e7eb] dark:border-gray-800 overflow-hidden transition-colors">
+          <div className="p-6 border-b border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50">
+            <h1 className="text-2xl font-bold text-[#222222] dark:text-gray-100">Configuración de Ciclos Escolares</h1>
+            <p className="text-[#8e8e93] dark:text-[#8e8e93] text-sm mt-1">Administra los periodos escolares y define cuál es el ciclo activo.</p>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
-                <tr className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm uppercase tracking-wider">
+                <tr className="bg-gray-100 dark:bg-[#1c2228] text-[#45515e] dark:text-[#8e8e93] text-sm uppercase tracking-wider">
                   <th className="py-3 px-6 font-semibold">Nombre del Ciclo</th>
                   <th className="py-3 px-6 font-semibold min-w-[220px]">Meses que Abarca</th>
                   <th className="py-3 px-6 font-semibold min-w-[140px]">Año(s)</th>
@@ -219,7 +219,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                 {editingId === 'new' && (
                   <tr className="bg-blue-50/50 dark:bg-blue-900/20">
                     <td className="py-3 px-6">
-                      <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="Ej. 26/1"
+                      <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] uppercase" placeholder="Ej. 26/1"
                         title="Formato Libre"
                         value={editForm.nombre || ''} onChange={e => setEditForm({ ...editForm, nombre: e.target.value.toUpperCase() })} />
                     </td>
@@ -229,7 +229,7 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                     <td className="py-3 px-6">
                       {renderYearFields()}
                     </td>
-                    <td className="py-3 px-6 text-center text-sm text-gray-500 font-medium">Nuevo</td>
+                    <td className="py-3 px-6 text-center text-sm text-[#8e8e93] font-medium">Nuevo</td>
                     <td className="py-3 px-6 text-right">
                       <div className="flex justify-end gap-2">
                         <button onClick={handleSave} disabled={saving} className="text-green-600 hover:bg-green-100 p-1 rounded" title="Guardar"><Save size={18} /></button>
@@ -239,11 +239,11 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                   </tr>
                 )}
                 {ciclos.map(ciclo => (
-                  <tr key={ciclo.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <tr key={ciclo.id} className="hover:bg-[#f2f3f5] dark:hover:bg-gray-800/50 transition-colors">
                     {editingId === ciclo.id ? (
                       <>
                         <td className="py-3 px-6">
-                          <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                          <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] uppercase"
                             placeholder="Ej. 26/1"
                             value={editForm.nombre || ''} onChange={e => setEditForm({ ...editForm, nombre: e.target.value.toUpperCase() })} />
                         </td>
@@ -265,13 +265,13 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                       </>
                     ) : (
                       <>
-                        <td className="py-4 px-6 font-bold text-gray-800 dark:text-gray-100">{ciclo.nombre}</td>
-                        <td className="py-4 px-6 text-gray-600 dark:text-gray-400 font-medium">
-                          <span className="bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-700 dark:text-gray-300 inline-block shadow-sm">
+                        <td className="py-4 px-6 font-bold text-[#222222] dark:text-gray-100">{ciclo.nombre}</td>
+                        <td className="py-4 px-6 text-[#45515e] dark:text-[#8e8e93] font-medium">
+                          <span className="bg-gray-100 dark:bg-[#1c2228] px-3 py-1 rounded-full text-xs text-[#45515e] dark:text-gray-300 inline-block shadow-[var(--shadow-subtle)]">
                             {ciclo.meses_abarca}
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-gray-600 dark:text-gray-400 font-semibold">
+                        <td className="py-4 px-6 text-[#45515e] dark:text-[#8e8e93] font-semibold">
                           {ciclo.anio_fin && ciclo.anio_fin !== ciclo.anio
                             ? <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{ciclo.anio} – {ciclo.anio_fin}</span>
                             : ciclo.anio
@@ -279,20 +279,20 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
                         </td>
                         <td className="py-4 px-6 text-center">
                           {ciclo.activo ? (
-                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm">ACTIVO</span>
+                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold shadow-[var(--shadow-subtle)]">ACTIVO</span>
                           ) : (
                             <button onClick={() => handleSetActivo(ciclo.id)} disabled={saving}
-                              className="text-xs text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-full font-bold transition-colors disabled:opacity-40 border border-transparent hover:border-blue-200">
+                              className="text-xs text-blue-600 hover:bg-[rgba(0,0,0,0.03)] px-3 py-1 rounded-full font-bold transition-colors disabled:opacity-40 border border-transparent hover:border-blue-200">
                               Hacer Activo
                             </button>
                           )}
                         </td>
                         <td className="py-4 px-6 text-right">
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => handleEdit(ciclo)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-100" title="Editar">
+                            <button onClick={() => handleEdit(ciclo)} className="text-blue-500 hover:bg-[rgba(0,0,0,0.03)] p-1.5 rounded-[8px] transition-colors border border-transparent hover:border-blue-100" title="Editar">
                               <Edit2 size={16} />
                             </button>
-                            <button onClick={() => handleDelete(ciclo)} disabled={saving} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors border border-transparent hover:border-red-100 disabled:opacity-40" title="Eliminar">
+                            <button onClick={() => handleDelete(ciclo)} disabled={saving} className="text-red-500 hover:bg-red-50 p-1.5 rounded-[8px] transition-colors border border-transparent hover:border-red-100 disabled:opacity-40" title="Eliminar">
                               <Trash2 size={16} />
                             </button>
                           </div>

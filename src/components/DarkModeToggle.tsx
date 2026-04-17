@@ -45,12 +45,12 @@ export default function DarkModeToggle({ initialTheme, onChange }: Props) {
       aria-label="Alternar Modo Oscuro"
     >
       <div className="absolute w-full left-0 px-2.5 flex justify-between items-center pointer-events-none">
-        <Moon size={14} className="text-[#3d2793] dark:text-gray-400" />
+        <Moon size={14} className="text-[#3d2793] dark:text-[#8e8e93]" />
         <Sun size={15} className="text-amber-500" />
       </div>
 
       <div 
-        className={`w-6 h-6 bg-white dark:bg-gray-800 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.15)] dark:shadow-black/40 transition-transform duration-300 flex items-center justify-center z-10 ${
+        className={`w-6 h-6 bg-white dark:bg-[#1c2228] rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.15)] dark:shadow-black/40 transition-transform duration-300 flex items-center justify-center z-10 ${
           isDark ? 'translate-x-[30px]' : 'translate-x-0'
         }`}
       >

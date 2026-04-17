@@ -6,7 +6,7 @@ import ReciboPlantillaPDF from './ReciboPlantillaPDF';
 import LoadingSkeleton from './LoadingSkeleton';
 import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig, Usuario } from '../types';
 import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAllSupabase, updateReciboFactura } from '../lib/supabase';
-import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV } from '../utils';
+import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV , toTitleCase} from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
 
 interface Props {
@@ -857,24 +857,24 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       {/* Lista lateral — en móvil ocupa el 100% y se oculta si hay recibo seleccionado */}
       <div className={`
         flex flex-col transition-all duration-300
-        w-full md:w-1/3
+        w-full md:w-[400px] shrink-0
         absolute md:relative inset-0
         ${reciboSeleccionado ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}
-        border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900
+        border-r border-[#e5e7eb] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-900
         z-10
       `}>
-        <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col gap-2">
+        <div className="p-3 border-b border-[#e5e7eb] dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col gap-2">
           {/* Fila 1: título + botones de acción */}
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-bold text-gray-700 dark:text-gray-200 text-sm shrink-0">Historial</h2>
-            <div className="flex gap-1 items-center shrink-0 flex-wrap justify-end">
-              <button onClick={() => setShowFilters(!showFilters)} className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1 ${showFilters ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`} title="Filtros Avanzados">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-bold text-[#45515e] dark:text-gray-200 text-sm shrink-0">Historial</h2>
+            <div className="flex gap-1 items-center flex-wrap justify-end">
+              <button onClick={() => setShowFilters(!showFilters)} className={`px-2 py-1.5 rounded-[8px] transition-colors border text-xs font-bold flex items-center gap-1 ${showFilters ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-[#1456f0] dark:text-indigo-300' : 'bg-white dark:bg-[#1c2228] border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-[#45515e] dark:text-gray-300 hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`} title="Filtros Avanzados">
                 <Filter size={13} className="shrink-0" />
                 <span className="hidden sm:inline text-xs">Filtros</span>
               </button>
               <button
                 onClick={() => setFilterFactura(!filterFactura)}
-                className={`px-2 py-1.5 rounded-lg transition-colors border text-xs font-bold flex items-center gap-1 ${filterFactura ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'}`}
+                className={`px-2 py-1.5 rounded-[8px] transition-colors border text-xs font-bold flex items-center gap-1 ${filterFactura ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300' : 'bg-white dark:bg-[#1c2228] border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'}`}
                 title="Mostrar solo Pendientes de Factura"
               >
                 <FileText size={13} className="shrink-0" />
@@ -884,7 +884,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                 <>
                   <button
                     onClick={() => setImportarVisible(true)}
-                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1.5 rounded-lg transition-colors border border-blue-200 dark:border-blue-800 text-xs font-bold bg-white dark:bg-gray-800"
+                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-blue-900/30 px-2 py-1.5 rounded-[8px] transition-colors border border-blue-200 dark:border-blue-800 text-xs font-bold bg-white dark:bg-[#1c2228]"
                     title="Importar desde CSV"
                   >
                     <Upload size={13} className="shrink-0" />
@@ -892,7 +892,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   </button>
                   <button
                     onClick={handleExportCSV}
-                    className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 px-2 py-1.5 rounded-lg transition-colors border border-emerald-200 dark:border-emerald-800 text-xs font-bold bg-white dark:bg-gray-800"
+                    className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 px-2 py-1.5 rounded-[8px] transition-colors border border-emerald-200 dark:border-emerald-800 text-xs font-bold bg-white dark:bg-[#1c2228]"
                     title="Exportar a Excel"
                   >
                     <Download size={13} className="shrink-0" />
@@ -900,7 +900,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   </button>
                 </>
               )}
-              <button onClick={cargarRecibos} className="text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1.5 rounded-lg transition-colors flex items-center gap-1" title="Actualizar">
+              <button onClick={cargarRecibos} className="text-blue-600 dark:text-blue-400 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-blue-900/30 p-1.5 rounded-[8px] transition-colors flex items-center gap-1" title="Actualizar">
                 <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               </button>
             </div>
@@ -911,41 +911,41 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
              </div>
           )}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={15} />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8e8e93] dark:text-[#8e8e93]" size={15} />
             <input
               type="text"
               placeholder="Buscar por folio, nombre o fecha..."
-              className="w-full pl-8 pr-3 py-1.5 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full pl-8 pr-3 py-1.5 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-blue-500 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           
           {showFilters && (
-            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm flex flex-col gap-2">
+            <div className="mt-2 p-3 bg-[#f2f3f5] dark:bg-[#1c2228] rounded-[8px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-sm flex flex-col gap-2">
               <div className="flex gap-2">
                  <div className="flex-1">
-                   <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Fecha Inicio</label>
-                   <input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200" />
+                   <label className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] block mb-0.5">Fecha Inicio</label>
+                   <input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="w-full p-1.5 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-[#222222] dark:text-gray-200" />
                  </div>
                  <div className="flex-1">
-                   <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Fecha Fin</label>
-                   <input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200" />
+                   <label className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] block mb-0.5">Fecha Fin</label>
+                   <input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="w-full p-1.5 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-[#222222] dark:text-gray-200" />
                  </div>
               </div>
               <div className="flex gap-2">
                  <div className="flex-1">
-                   <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Folio Inicio</label>
-                   <input type="number" value={filterStartFolio} onChange={e => setFilterStartFolio(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200" min="1" />
+                   <label className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] block mb-0.5">Folio Inicio</label>
+                   <input type="number" value={filterStartFolio} onChange={e => setFilterStartFolio(e.target.value)} className="w-full p-1.5 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-[#222222] dark:text-gray-200" min="1" />
                  </div>
                  <div className="flex-1">
-                   <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Folio Fin</label>
-                   <input type="number" value={filterEndFolio} onChange={e => setFilterEndFolio(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200" min="1" />
+                   <label className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] block mb-0.5">Folio Fin</label>
+                   <input type="number" value={filterEndFolio} onChange={e => setFilterEndFolio(e.target.value)} className="w-full p-1.5 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-[#222222] dark:text-gray-200" min="1" />
                  </div>
               </div>
               <div>
-                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 block mb-0.5">Forma de Pago</label>
-                 <select value={filterMetodoPago} onChange={e => setFilterMetodoPago(e.target.value)} className="w-full p-1.5 border border-gray-200 dark:border-gray-700 rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+                 <label className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] block mb-0.5">Forma de Pago</label>
+                 <select value={filterMetodoPago} onChange={e => setFilterMetodoPago(e.target.value)} className="w-full p-1.5 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded text-xs focus:ring-1 focus:border-blue-400 outline-none bg-white dark:bg-gray-900 text-[#222222] dark:text-gray-200">
                    <option value="">Cualquiera</option>
                    <option value="Depósito Bancario">Depósito Bancario</option>
                    <option value="Transferencia bancaria">Transferencia bancaria</option>
@@ -964,7 +964,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
         </div>
         
         {/* Acciones Masivas */}
-        <div className="bg-white dark:bg-gray-900 px-3 py-2 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between text-xs sticky top-0 z-10 shadow-sm">
+        <div className="bg-white dark:bg-gray-900 px-3 py-2 border-b border-[#e5e7eb] dark:border-gray-800 flex items-center justify-between text-xs sticky top-0 z-10 shadow-[var(--shadow-subtle)]">
            <div className="flex items-center gap-2">
               <input type="checkbox" className="w-4 h-4 rounded text-blue-600 cursor-pointer" 
                      checked={paginatedRecibos.length > 0 && selectedReceiptIds.size > 0 && paginatedRecibos.every(r => selectedReceiptIds.has(r.id))}
@@ -981,7 +981,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                        }
                      }} />
               <div className="flex items-center gap-1 group relative">
-                 <button onClick={() => handleSelectAllFilters(recibosFiltrados.map(r => r.id))} className="text-gray-500 dark:text-gray-400 font-bold hover:text-blue-600 text-xs flex items-center gap-1">
+                 <button onClick={() => handleSelectAllFilters(recibosFiltrados.map(r => r.id))} className="text-[#8e8e93] dark:text-[#8e8e93] font-bold hover:text-blue-600 text-xs flex items-center gap-1">
                     Sel. Todos ({recibosFiltrados.length})
                  </button>
               </div>
@@ -1007,25 +1007,25 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
           {loading ? (
             <LoadingSkeleton type="list" text="Cargando recibos..." />
           ) : recibosFiltrados.length === 0 ? (
-            <div className="text-center p-4 text-gray-500 text-sm">No se encontraron recibos.</div>
+            <div className="text-center p-4 text-[#8e8e93] text-sm">No se encontraron recibos.</div>
           ) : (
             paginatedRecibos.map(r => (
               <div 
                 key={r.id} 
-          className={`p-3 border-b border-gray-100 dark:border-gray-800 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-colors mb-1 ${reciboSeleccionado?.id === r.id ? 'bg-white dark:bg-gray-800 shadow-sm border-blue-200 dark:border-blue-700 ring-1 ring-blue-500' : ''}`}
+                className={`py-2.5 px-3 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.04)] odd:bg-white even:bg-[#f8faff] dark:odd:bg-[#181e25] dark:even:bg-[#1c2228] hover:bg-[#eef2ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors cursor-pointer ${reciboSeleccionado?.id === r.id ? '!bg-[#e0e7ff] dark:!bg-indigo-900/40 shadow-inner border-l-4 !border-l-[#1456f0]' : 'border-l-4 border-l-transparent'}`}
                 onClick={() => setReciboSeleccionado(r)}
               >
-                <div className="flex gap-2">
-                   <div className="flex items-start pt-1" onClick={e => e.stopPropagation()}>
-                     <input type="checkbox" className="w-4 h-4 rounded text-blue-600 cursor-pointer border-gray-300" 
+                <div className="flex gap-2.5">
+                   <div className="flex items-start pt-[3px]" onClick={e => e.stopPropagation()}>
+                     <input type="checkbox" className="w-3.5 h-3.5 rounded text-blue-600 cursor-pointer border-gray-300" 
                             checked={selectedReceiptIds.has(r.id)} 
                             onChange={(e) => toggleSelection(r.id, e as any)} />
                    </div>
                    <div className="flex-1 overflow-hidden cursor-pointer">
-                       <div className="flex flex-wrap justify-between items-start gap-1 mb-1">
-                         <span className="font-bold text-blue-600 dark:text-blue-400 text-sm">Folio: {r.folio}</span>
+                       <div className="flex flex-wrap justify-between items-center gap-1 mb-0.5">
+                         <span className="font-bold text-[#1456f0] dark:text-blue-400 text-[13px] leading-tight">Folio: {r.folio}</span>
                          <div className="flex items-center gap-1 flex-wrap">
-                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.estatus === 'ACTIVO' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'}`}>
+                           <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded shadow-[var(--shadow-subtle)] border tracking-wider ${r.estatus === 'ACTIVO' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/50' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/50'}`}>
                              {r.estatus}
                            </span>
                            {r.requiere_factura && (
@@ -1047,15 +1047,15 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                            )}
                          </div>
                        </div>
-                      <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 line-clamp-1">{r.nombre_alumno}</div>
-                      <div className="flex justify-between items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                       <div className="text-[13px] font-semibold text-[#222222] dark:text-gray-100 leading-tight break-words">{toTitleCase(r.nombre_alumno)}</div>
+                      <div className="flex justify-between items-center mt-1 text-[11px] text-[#8e8e93] dark:text-[#8e8e93]">
                         <div className="flex flex-col items-end w-full">
                           {(r.uso_saldo_a_favor || 0) > 0 && (
-                            <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 mb-0.5">
+                            <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1 py-0.5 rounded border border-emerald-100 mb-0.5">
                               Monedero: -${r.uso_saldo_a_favor!.toFixed(2)}
                             </span>
                           )}
-                          <span className="font-bold text-gray-700 dark:text-gray-200">Caja: ${(r.total - (r.uso_saldo_a_favor || 0)).toFixed(2)}</span>
+                          <span className="font-bold text-[#45515e] dark:text-gray-200">Caja: ${(r.total - (r.uso_saldo_a_favor || 0)).toFixed(2)}</span>
                         </div>
                       </div>
                    </div>
@@ -1066,11 +1066,11 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
         </div>
 
         {recibosFiltrados.length > 0 && (
-          <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col gap-2">
-            <div className="flex justify-between items-center text-xs text-gray-500 font-medium">
-              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">{startIndex + 1}-{endIndex} de {recibosFiltrados.length}</span>
+          <div className="p-3 border-t border-[#e5e7eb] dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col gap-2">
+            <div className="flex justify-between items-center text-xs text-[#8e8e93] font-medium">
+              <span className="text-xs text-[#8e8e93] dark:text-[#8e8e93] font-medium">{startIndex + 1}-{endIndex} de {recibosFiltrados.length}</span>
               <select 
-                className="border border-gray-300 dark:border-gray-700 rounded p-1 outline-none focus:border-blue-500 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 cursor-pointer"
+                className="border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded p-1 outline-none focus:border-blue-500 bg-[#f2f3f5] dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 cursor-pointer"
                 value={itemsPerPage}
                 onChange={(e) => setItemsPerPage(Number(e.target.value))}
               >
@@ -1084,14 +1084,14 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               <button 
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => p - 1)}
-                className="flex-1 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 text-xs font-bold text-gray-700 dark:text-gray-300 transition-colors shadow-sm active:scale-95"
+                className="flex-1 py-1.5 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded bg-[#eef2ff] dark:bg-[#1c2228] hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 text-xs font-bold text-[#45515e] dark:text-gray-300 transition-colors shadow-[var(--shadow-subtle)] active:scale-95"
               >
                 Anterior
               </button>
               <button 
                 disabled={currentPage === totalPages || totalPages === 0}
                 onClick={() => setCurrentPage(p => p + 1)}
-                className="flex-1 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 text-xs font-bold text-gray-700 dark:text-gray-300 transition-colors shadow-sm active:scale-95"
+                className="flex-1 py-1.5 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded bg-[#eef2ff] dark:bg-[#1c2228] hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 text-xs font-bold text-[#45515e] dark:text-gray-300 transition-colors shadow-[var(--shadow-subtle)] active:scale-95"
               >
                 Siguiente
               </button>
@@ -1102,8 +1102,8 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
 
       {/* Detalle del recibo — en móvil ocupa pantalla completa cuando hay recibo seleccionado */}
       <div className={`
-        bg-gray-50 dark:bg-gray-950 overflow-y-auto
-        w-full md:w-2/3
+        bg-[#f2f3f5] dark:bg-gray-950 overflow-y-auto
+        w-full md:flex-1
         absolute md:relative inset-0
         transition-transform duration-300
         ${reciboSeleccionado ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
@@ -1111,7 +1111,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       `}>
         {/* Barra de navegación móvil — solo visible en pantallas pequeñas */}
         {reciboSeleccionado && (
-          <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
+          <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-[#e5e7eb] dark:border-gray-800 sticky top-0 z-10">
             <button
               onClick={() => setReciboSeleccionado(null)}
               className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-sm hover:text-blue-800 transition-colors"
@@ -1119,14 +1119,14 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               <ArrowLeft size={18} />
               <span>Volver a lista</span>
             </button>
-            <span className="text-gray-400 dark:text-gray-600 text-xs">|</span>
-            <span className="text-gray-600 dark:text-gray-300 text-sm font-semibold truncate">Folio #{reciboSeleccionado.folio}</span>
+            <span className="text-[#8e8e93] dark:text-[#45515e] text-xs">|</span>
+            <span className="text-[#45515e] dark:text-gray-300 text-sm font-semibold truncate">Folio #{reciboSeleccionado.folio}</span>
           </div>
         )}
         {reciboSeleccionado ? (
           <div className="max-w-2xl mx-auto p-6">
             {/* Cabecera del recibo */}
-            <div className="bg-gradient-to-br from-[#1a2f66] to-[#2a4d9e] rounded-2xl p-5 text-white mb-5 shadow-xl relative overflow-hidden">
+            <div className="bg-gradient-to-br from-[#1a2f66] to-[#2a4d9e] rounded-[20px] p-5 text-white mb-5 shadow-xl relative overflow-hidden">
               <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/5 rounded-full blur-3xl" />
               <div className="relative flex items-start justify-between gap-3 flex-wrap">
                 <div>
@@ -1141,7 +1141,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     </span>
                     <span className="text-blue-200 text-xs mt-0.5">{reciboSeleccionado.fecha_recibo}</span>
                     {reciboSeleccionado.estatus_factura === 'FACTURADO' && (
-                        <span className="text-amber-200 text-[11px] font-mono bg-amber-500/20 px-2 py-0.5 mt-0.5 rounded border border-amber-400/30 shadow-sm" title="Folio Fiscal Asentado">
+                        <span className="text-amber-200 text-[11px] font-mono bg-amber-500/20 px-2 py-0.5 mt-0.5 rounded border border-amber-400/30 shadow-[var(--shadow-subtle)]" title="Folio Fiscal Asentado">
                           FAC: {reciboSeleccionado.folio_fiscal}
                         </span>
                     )}
@@ -1152,7 +1152,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     <button
                       onClick={handleImprimir}
                       disabled={isGeneratingPDF}
-                      className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-white/30 shadow-sm disabled:opacity-50"
+                      className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-[13px] text-sm font-semibold transition-colors border border-white/30 shadow-[var(--shadow-subtle)] disabled:opacity-50"
                     >
                       {isGeneratingPDF ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
                       Imprimir
@@ -1161,7 +1161,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   {reciboSeleccionado.estatus === 'ACTIVO' && (
                     <button
                       onClick={() => handleCancelar(reciboSeleccionado.id)}
-                      className="flex items-center gap-2 bg-red-500/30 hover:bg-red-500/50 text-red-100 px-3 py-2 rounded-xl text-sm font-semibold transition-colors border border-red-400/50"
+                      className="flex items-center gap-2 bg-red-500/30 hover:bg-red-500/50 text-red-100 px-3 py-2 rounded-[13px] text-sm font-semibold transition-colors border border-red-400/50"
                     >
                       <XCircle size={15} /> Cancelar
                     </button>
@@ -1171,7 +1171,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             </div>
 
             {reciboSeleccionado.estatus === 'CANCELADO' && (
-              <div className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 p-3 rounded-xl font-bold mb-5 text-center border border-red-200 dark:border-red-800 text-sm">
+              <div className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 p-3 rounded-[13px] font-bold mb-5 text-center border border-red-200 dark:border-red-800 text-sm">
                 ⚠️ ESTE RECIBO ESTÁ CANCELADO
               </div>
             )}
@@ -1181,7 +1181,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               <div className="mb-5 flex justify-center">
                 <button
                   onClick={() => onNavigateToPlan(reciboSeleccionado.alumno_id, String(reciboSeleccionado.folio))}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-[13px] text-sm font-bold bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors shadow-[var(--shadow-subtle)]"
                 >
                   Ver Plan de Pagos Asociado
                 </button>
@@ -1190,23 +1190,23 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
 
             {/* Info cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-              <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Alumno</p>
-                <p className="font-bold text-gray-900 dark:text-white text-sm leading-snug">{reciboSeleccionado.nombre_alumno}</p>
+              <div className="bg-white dark:bg-gray-900 rounded-[13px] p-4 border border-[#e5e7eb] dark:border-gray-800 shadow-[var(--shadow-subtle)]">
+                <p className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-widest mb-2">Alumno</p>
+                <p className="font-bold text-gray-900 dark:text-white text-sm leading-snug">{toTitleCase(reciboSeleccionado.nombre_alumno)}</p>
                 {reciboSeleccionado.licenciatura && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{reciboSeleccionado.licenciatura}</p>
+                  <p className="text-xs text-[#8e8e93] dark:text-[#8e8e93] mt-0.5">{toTitleCase(reciboSeleccionado.licenciatura)}</p>
                 )}
               </div>
-              <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Información de Pago</p>
-                <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+              <div className="bg-white dark:bg-gray-900 rounded-[13px] p-4 border border-[#e5e7eb] dark:border-gray-800 shadow-[var(--shadow-subtle)]">
+                <p className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-widest mb-2">Información de Pago</p>
+                <div className="space-y-1 text-xs text-[#45515e] dark:text-[#8e8e93]">
                   <div className="flex items-center justify-between">
                     <span>Fecha Recibo:</span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">{reciboSeleccionado.fecha_recibo}</span>
+                    <span className="font-semibold text-[#222222] dark:text-gray-200">{reciboSeleccionado.fecha_recibo}</span>
                   </div>
                   <div className="flex items-center justify-between group">
                     <span>Fecha Pago:</span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
+                    <span className="font-semibold text-[#222222] dark:text-gray-200 flex items-center gap-1">
                       {reciboSeleccionado.fecha_pago}
                       {currentUser?.rol === 'ADMINISTRADOR' && (
                          <button onClick={() => { setEditingFechaPago(reciboSeleccionado); setFechaPagoInput(reciboSeleccionado.fecha_pago || ''); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Modificar Fecha de Pago">✎</button>
@@ -1215,7 +1215,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   </div>
                   <div className="flex items-center justify-between group">
                     <span>Forma de Pago:</span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
+                    <span className="font-semibold text-[#222222] dark:text-gray-200 flex items-center gap-1">
                       {reciboSeleccionado.forma_pago}
                       {currentUser?.rol === 'ADMINISTRADOR' && (
                          <button onClick={() => { setEditingFormaPago(reciboSeleccionado); setFormaPagoInput(reciboSeleccionado.forma_pago || ''); setBancoInput(reciboSeleccionado.banco || ''); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Modificar Forma de Pago">✎</button>
@@ -1225,7 +1225,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   {reciboSeleccionado.banco && reciboSeleccionado.banco !== 'NO APLICA' && (
                     <div className="flex items-center justify-between group">
                       <span>Banco:</span>
-                      <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
+                      <span className="font-semibold text-[#222222] dark:text-gray-200 flex items-center gap-1">
                          {reciboSeleccionado.banco}
                          {currentUser?.rol === 'ADMINISTRADOR' && (
                             <button onClick={() => { setEditingFormaPago(reciboSeleccionado); setFormaPagoInput(reciboSeleccionado.forma_pago || ''); setBancoInput(reciboSeleccionado.banco || ''); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Modificar Banco">✎</button>
@@ -1234,7 +1234,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center justify-between pt-2 mt-2 border-t border-[#f2f3f5] dark:border-gray-800">
                     <span>Requiere Factura:</span>
                     {currentUser?.rol === 'ADMINISTRADOR' ? (
                       <button
@@ -1242,7 +1242,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                         className={`font-semibold px-2.5 py-0.5 rounded transition-colors text-xs ${
                           reciboSeleccionado.requiere_factura 
                             ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300' 
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                            : 'bg-gray-100 text-[#45515e] hover:bg-gray-200 dark:bg-[#1c2228] dark:text-gray-300 dark:hover:bg-gray-700'
                         }`}
                         title={reciboSeleccionado.requiere_factura ? 'Clic para desactivar' : 'Clic para activar'}
                       >
@@ -1252,7 +1252,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                       <span className={`font-semibold px-2.5 py-0.5 rounded text-xs ${
                         reciboSeleccionado.requiere_factura 
                           ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border border-amber-200 dark:border-amber-800' 
-                          : 'bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                          : 'bg-[#eef2ff] text-[#45515e] dark:bg-[#1c2228] dark:text-[#8e8e93] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]'
                       }`}>
                         {reciboSeleccionado.requiere_factura ? 'SÍ (Facturable)' : 'NO'}
                       </span>
@@ -1263,19 +1263,19 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             </div>
 
             {/* Tabla de conceptos */}
-            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm mb-5">
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Conceptos Cobrados</h3>
+            <div className="bg-white dark:bg-gray-900 rounded-[13px] border border-[#e5e7eb] dark:border-gray-800 overflow-hidden shadow-[var(--shadow-subtle)] mb-5">
+              <div className="px-4 py-3 border-b border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50">
+                <h3 className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-widest">Conceptos Cobrados</h3>
               </div>
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {(reciboSeleccionado.recibos_detalles || []).map(d => (
-                  <div key={d.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <div className="shrink-0 w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                  <div key={d.id} className="flex items-start gap-3 px-4 py-3 hover:bg-[#f2f3f5] dark:hover:bg-gray-800/50 transition-colors">
+                    <div className="shrink-0 w-7 h-7 rounded-[8px] bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
                       <span className="text-xs font-black text-blue-600 dark:text-blue-400">{d.cantidad}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 group">
-                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{d.concepto}</p>
+                        <p className="text-sm font-semibold text-[#222222] dark:text-gray-200">{d.concepto}</p>
                         {currentUser?.rol === 'ADMINISTRADOR' && editandoConceptoId !== d.id && (
                           <button onClick={() => { setEditandoConceptoId(d.id); setTempConceptoText(d.concepto || ''); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Editar Concepto">✎</button>
                         )}
@@ -1283,10 +1283,10 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                       {editandoConceptoId === d.id && (
                         <div className="mt-1 flex items-center gap-2 bg-blue-50/50 p-1.5 rounded border border-blue-200 shadow-inner mb-1">
                           <input type="text" className="text-xs w-full p-1.5 border border-blue-200 rounded outline-none focus:ring-1 focus:ring-blue-400 bg-white" autoFocus value={tempConceptoText} onChange={e => setTempConceptoText(e.target.value)} placeholder="Nombre del concepto..." />
-                          <button disabled={guardandoConcepto} onClick={() => handleUpdateConcepto(d.id)} className="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded font-bold hover:bg-blue-700 ml-auto transition-colors shadow-sm">
+                          <button disabled={guardandoConcepto} onClick={() => handleUpdateConcepto(d.id)} className="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded font-bold hover:bg-blue-700 ml-auto transition-colors shadow-[var(--shadow-subtle)]">
                             Guardar
                           </button>
-                          <button disabled={guardandoConcepto} onClick={() => setEditandoConceptoId(null)} className="text-[10px] bg-gray-200 text-gray-700 px-3 py-1.5 rounded font-bold hover:bg-gray-300 transition-colors">
+                          <button disabled={guardandoConcepto} onClick={() => setEditandoConceptoId(null)} className="text-[10px] bg-gray-200 text-[#45515e] px-3 py-1.5 rounded font-bold hover:bg-gray-300 transition-colors">
                             Cancelar
                           </button>
                         </div>
@@ -1297,22 +1297,22 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                             ⚠ {d.observaciones}
                           </span>
                           {currentUser?.rol === 'ADMINISTRADOR' && (
-                            <button onClick={() => { setEditandoObsId(d.id); setTempObsText(d.observaciones || ''); }} className="text-gray-400 hover:text-blue-600 transition-colors p-1" title="Editar Nota">✎</button>
+                            <button onClick={() => { setEditandoObsId(d.id); setTempObsText(d.observaciones || ''); }} className="text-[#8e8e93] hover:text-blue-600 transition-colors p-1" title="Editar Nota">✎</button>
                           )}
                         </div>
                       )}
                       {!d.observaciones && editandoObsId !== d.id && currentUser?.rol === 'ADMINISTRADOR' && (
-                        <button onClick={() => { setEditandoObsId(d.id); setTempObsText(''); }} className="mt-1 text-[10px] text-gray-400 hover:text-blue-600 underline">
+                        <button onClick={() => { setEditandoObsId(d.id); setTempObsText(''); }} className="mt-1 text-[10px] text-[#8e8e93] hover:text-blue-600 underline">
                           + Agregar nota a concepto
                         </button>
                       )}
                       {editandoObsId === d.id && (
                         <div className="mt-1 flex items-center gap-2 bg-blue-50/50 p-1.5 rounded border border-blue-200 shadow-inner">
                           <input type="text" className="text-xs w-full p-1.5 border border-blue-200 rounded outline-none focus:ring-1 focus:ring-blue-400 bg-white" autoFocus value={tempObsText} onChange={e => setTempObsText(e.target.value)} placeholder="Ej: Pago ajustado manual..." />
-                          <button disabled={guardandoObs} onClick={() => handleUpdateObs(d.id)} className="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded font-bold hover:bg-blue-700 ml-auto transition-colors shadow-sm">
+                          <button disabled={guardandoObs} onClick={() => handleUpdateObs(d.id)} className="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded font-bold hover:bg-blue-700 ml-auto transition-colors shadow-[var(--shadow-subtle)]">
                             Guardar
                           </button>
-                          <button disabled={guardandoObs} onClick={() => setEditandoObsId(null)} className="text-[10px] bg-gray-200 text-gray-700 px-3 py-1.5 rounded font-bold hover:bg-gray-300 transition-colors">
+                          <button disabled={guardandoObs} onClick={() => setEditandoObsId(null)} className="text-[10px] bg-gray-200 text-[#45515e] px-3 py-1.5 rounded font-bold hover:bg-gray-300 transition-colors">
                             Cancelar
                           </button>
                         </div>
@@ -1331,30 +1331,30 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                           </button>
                         </div>
                       ) : reciboSeleccionado.estatus === 'ACTIVO' ? (
-                        <button onClick={() => setVincularDetalle(d)} className="mt-0.5 text-[10px] text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 px-2 py-0.5 border border-amber-200 dark:border-amber-800 rounded-full font-bold transition-colors shadow-sm">
+                        <button onClick={() => setVincularDetalle(d)} className="mt-0.5 text-[10px] text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 px-2 py-0.5 border border-amber-200 dark:border-amber-800 rounded-full font-bold transition-colors shadow-[var(--shadow-subtle)]">
                           + Vincular
                         </button>
                       ) : null}
                     </div>
                     <div className="text-right shrink-0 group">
-                      <p className="text-[11px] text-gray-400">${d.costo_unitario.toFixed(2)}</p>
+                      <p className="text-[11px] text-[#8e8e93]">${d.costo_unitario.toFixed(2)}</p>
                       <div className="flex items-center justify-end gap-1">
                         {currentUser?.rol === 'ADMINISTRADOR' && editandoSubtotalId !== d.id && (
                           <button onClick={() => { setEditandoSubtotalId(d.id); setTempSubtotalMonto(d.subtotal); }} className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity" title="Editar Monto">✎</button>
                         )}
-                        <p className="text-sm font-extrabold text-gray-800 dark:text-white">${d.subtotal.toFixed(2)}</p>
+                        <p className="text-sm font-semibold text-[#222222] dark:text-white">${d.subtotal.toFixed(2)}</p>
                       </div>
                       {editandoSubtotalId === d.id && (
                         <div className="mt-1 flex flex-col items-end gap-1 bg-blue-50/50 p-1.5 rounded border border-blue-200 shadow-inner min-w-[120px]">
                           <div className="flex items-center gap-1 w-full justify-end">
-                            <span className="text-gray-500 font-bold text-xs">$</span>
+                            <span className="text-[#8e8e93] font-bold text-xs">$</span>
                             <input type="number" className="text-xs w-full p-1 border border-blue-200 rounded outline-none focus:ring-1 focus:ring-blue-400 bg-white font-mono text-right" autoFocus value={tempSubtotalMonto} onChange={e => setTempSubtotalMonto(Number(e.target.value))} step="0.01" />
                           </div>
                           <div className="flex gap-1 justify-end w-full">
-                            <button disabled={guardandoSubtotal} onClick={() => handleUpdateSubtotal(d.id, reciboSeleccionado!.id)} className="flex-1 text-[10px] bg-blue-600 text-white py-1 rounded font-bold hover:bg-blue-700 transition-colors shadow-sm">
+                            <button disabled={guardandoSubtotal} onClick={() => handleUpdateSubtotal(d.id, reciboSeleccionado!.id)} className="flex-1 text-[10px] bg-blue-600 text-white py-1 rounded font-bold hover:bg-blue-700 transition-colors shadow-[var(--shadow-subtle)]">
                               Guardar
                             </button>
-                            <button disabled={guardandoSubtotal} onClick={() => setEditandoSubtotalId(null)} className="flex-1 text-[10px] bg-gray-200 text-gray-700 py-1 rounded font-bold hover:bg-gray-300 transition-colors">
+                            <button disabled={guardandoSubtotal} onClick={() => setEditandoSubtotalId(null)} className="flex-1 text-[10px] bg-gray-200 text-[#45515e] py-1 rounded font-bold hover:bg-gray-300 transition-colors">
                               Cancelar
                             </button>
                           </div>
@@ -1367,28 +1367,28 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               
               {/* Botón de añadir concepto extra */}
               {currentUser?.rol === 'ADMINISTRADOR' && reciboSeleccionado.estatus === 'ACTIVO' && (
-                <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 p-3 flex justify-center">
+                <div className="border-t border-[#f2f3f5] dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 p-3 flex justify-center">
                   {!isAddingConcept ? (
                     <button
                       onClick={() => setIsAddingConcept(true)}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-lg border border-blue-100 dark:border-blue-900 shadow-sm hover:shadow"
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-[8px] border border-blue-100 dark:border-blue-900 shadow-[var(--shadow-subtle)] hover:shadow"
                     >
                       + Añadir Concepto Extra
                     </button>
                   ) : (
-                    <div className="w-full bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm flex flex-col gap-2">
+                    <div className="w-full bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-[13px] border border-blue-200 dark:border-blue-800 shadow-[var(--shadow-subtle)] flex flex-col gap-2">
                        <p className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase px-1 tracking-wider">Registrar Nuevo Concepto</p>
                        <div className="flex flex-col sm:flex-row gap-2">
                          <input 
                            type="text" 
                            autoFocus
-                           className="flex-[2] text-xs p-2 border border-blue-200 dark:border-blue-700 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-900 dark:text-white" 
+                           className="flex-[2] text-xs p-2 border border-blue-200 dark:border-blue-700 rounded-[8px] outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-900 dark:text-white" 
                            placeholder="Ej. Constancia de Estudio" 
                            value={newConceptoText} 
                            onChange={e => setNewConceptoText(e.target.value)} 
                          />
-                         <div className="flex-1 flex items-center bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-700 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
-                           <span className="text-gray-500 dark:text-gray-400 font-bold text-xs pl-3">$</span>
+                         <div className="flex-1 flex items-center bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-700 rounded-[8px] overflow-hidden focus-within:ring-2 focus-within:ring-blue-400">
+                           <span className="text-[#8e8e93] dark:text-[#8e8e93] font-bold text-xs pl-3">$</span>
                            <input 
                              type="number" 
                              className="text-xs w-full p-2 outline-none bg-transparent dark:text-white" 
@@ -1400,10 +1400,10 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                          </div>
                        </div>
                        <div className="flex gap-2 justify-end mt-2">
-                         <button disabled={guardandoNewConcept} onClick={() => setIsAddingConcept(false)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-1.5 rounded-lg font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                         <button disabled={guardandoNewConcept} onClick={() => setIsAddingConcept(false)} className="text-xs bg-gray-200 dark:bg-gray-700 text-[#45515e] dark:text-gray-300 px-4 py-1.5 rounded-[8px] font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
                            Cancelar
                          </button>
-                         <button disabled={guardandoNewConcept} onClick={() => handleAddConcepto(reciboSeleccionado.id)} className="text-xs bg-blue-600 text-white px-5 py-1.5 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-1">
+                         <button disabled={guardandoNewConcept} onClick={() => handleAddConcepto(reciboSeleccionado.id)} className="text-xs bg-blue-600 text-white px-5 py-1.5 rounded-[8px] font-bold hover:bg-blue-700 transition-colors shadow-[var(--shadow-subtle)] flex items-center gap-1">
                            {guardandoNewConcept ? 'Guardando...' : 'Guardar y Recalcular'}
                          </button>
                        </div>
@@ -1414,13 +1414,13 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             </div>
 
             {/* Total */}
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900/50 px-5 py-4">
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-[13px] border border-emerald-200 dark:border-emerald-900/50 px-5 py-4">
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Valor Conceptos</p>
                   <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">{(reciboSeleccionado.recibos_detalles || []).length} items</p>
                 </div>
-                <p className="text-xl font-bold text-gray-700 dark:text-gray-300">${reciboSeleccionado.total.toFixed(2)}</p>
+                <p className="text-xl font-bold text-[#45515e] dark:text-gray-300">${reciboSeleccionado.total.toFixed(2)}</p>
               </div>
 
               {(reciboSeleccionado.uso_saldo_a_favor || 0) > 0 && (
@@ -1437,12 +1437,12 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             </div>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400 min-h-96">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mb-4">
+          <div className="h-full flex flex-col items-center justify-center text-[#8e8e93] min-h-96">
+            <div className="w-16 h-16 bg-gray-100 dark:bg-[#1c2228] rounded-[20px] flex items-center justify-center mb-4">
               <Eye size={28} className="opacity-50" />
             </div>
             <p className="font-semibold text-sm">Selecciona un recibo</p>
-            <p className="text-xs text-gray-400 mt-1">para ver sus detalles aquí</p>
+            <p className="text-xs text-[#8e8e93] mt-1">para ver sus detalles aquí</p>
           </div>
         )}
       </div>
@@ -1476,17 +1476,17 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
 
       {massStatus.isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-            <div className="p-5 border-b border-gray-100 bg-blue-50/50 flex flex-col items-center justify-center text-center">
+          <div className="bg-white rounded-[20px] shadow-[var(--shadow-brand)] w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-[#f2f3f5] bg-blue-50/50 flex flex-col items-center justify-center text-center">
                {isProcessingMass ? <Loader2 size={36} className="text-blue-600 animate-spin mb-3" /> : <CheckSquare size={36} className="text-emerald-600 mb-3" />}
-               <h3 className="font-bold text-gray-800 text-lg">Procesamiento Masivo</h3>
+               <h3 className="font-bold text-[#222222] text-lg">Procesamiento Masivo</h3>
                <p className="text-sm font-semibold text-blue-800 mt-1">{massStatus.msg}</p>
             </div>
             {massStatus.results.length > 0 && !isProcessingMass && (
-              <div className="p-4 overflow-y-auto max-h-60 bg-gray-50 border-b border-gray-100 divide-y divide-gray-200 text-sm">
+              <div className="p-4 overflow-y-auto max-h-60 bg-[#f2f3f5] border-b border-[#f2f3f5] divide-y divide-gray-200 text-sm">
                  {massStatus.results.map((res, i) => (
                     <div key={i} className="py-2 flex justify-between items-center pr-2">
-                       <div><span className="font-bold text-gray-700 block">Folio #{res.folio}</span><span className="text-xs text-gray-500">{res.note}</span></div>
+                       <div><span className="font-bold text-[#45515e] block">Folio #{res.folio}</span><span className="text-xs text-[#8e8e93]">{res.note}</span></div>
                        <span className={`px-2 py-1 rounded text-xs font-bold ${res.status === 'Éxito' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{res.status}</span>
                     </div>
                  ))}
@@ -1494,7 +1494,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
             )}
             {!isProcessingMass && (
               <div className="p-4 bg-white flex justify-end">
-                 <button onClick={() => setMassStatus({ ...massStatus, isOpen: false, results: [] })} className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-xl transition-colors">
+                 <button onClick={() => setMassStatus({ ...massStatus, isOpen: false, results: [] })} className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-[#222222] font-bold rounded-[13px] transition-colors">
                    Cerrar Reporte
                  </button>
               </div>
@@ -1520,28 +1520,28 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       {/* Modal Vincular Múltiple */}
       {vincularDetalle && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
-              <h3 className="font-bold text-gray-800">Vincular a Plan de Pagos</h3>
-              <button onClick={() => { setVincularDetalle(null); setVincularSeleccion([]); }} className="p-1 hover:bg-gray-200 rounded-lg"><XCircle size={18} className="text-gray-500" /></button>
+          <div className="bg-white rounded-[13px] shadow-xl w-full max-w-md flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-[#f2f3f5] bg-[#f2f3f5]">
+              <h3 className="font-bold text-[#222222]">Vincular a Plan de Pagos</h3>
+              <button onClick={() => { setVincularDetalle(null); setVincularSeleccion([]); }} className="p-1 hover:bg-gray-200 rounded-[8px]"><XCircle size={18} className="text-[#8e8e93]" /></button>
             </div>
 
             {/* Cabecera informativa */}
             <div className="px-6 pt-5 pb-3">
-              <p className="text-sm text-gray-600 mb-1">
-                Concepto del recibo: <strong className="text-gray-800">{vincularDetalle.concepto}</strong>
+              <p className="text-sm text-[#45515e] mb-1">
+                Concepto del recibo: <strong className="text-[#222222]">{vincularDetalle.concepto}</strong>
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[#45515e]">
                 Monto: <strong className="text-emerald-700">${vincularDetalle.subtotal.toFixed(2)}</strong>
               </p>
-              <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg p-2 mt-3">
+              <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-[8px] p-2 mt-3">
                 Selecciona uno o más conceptos del plan a liquidar con este recibo.
               </p>
             </div>
 
             <div className="px-6 pb-4 overflow-y-auto max-h-72">
               {planesAlumno.length === 0 ? (
-                <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm text-amber-800 text-center">
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-[8px] text-sm text-amber-800 text-center">
                   El alumno no tiene un plan de pagos activo en este ciclo escolar.
                 </div>
               ) : (
@@ -1557,9 +1557,9 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     }
                     return (
                       <div key={plan.id}>
-                        <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">Plan: {plan.no_plan_pagos}</div>
+                        <div className="text-xs font-bold text-[#8e8e93] mb-2 uppercase tracking-wide">Plan: {plan.no_plan_pagos}</div>
                         {pendientes.length === 0 ? (
-                          <div className="text-sm text-gray-400 italic">No hay conceptos PENDIENTES.</div>
+                          <div className="text-sm text-[#8e8e93] italic">No hay conceptos PENDIENTES.</div>
                         ) : (
                           <div className="flex flex-col gap-2">
                             {pendientes.map(p => {
@@ -1567,19 +1567,19 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                               return (
                                 <label
                                   key={p.idx}
-                                  className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                                  className={`flex items-center gap-3 p-2.5 rounded-[8px] border cursor-pointer transition-colors ${
                                     isSelected
                                       ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-300'
-                                      : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50/40'
+                                      : 'bg-white border-[#e5e7eb] hover:border-blue-300 hover:bg-[rgba(0,0,0,0.03)]/40'
                                   }`}
                                 >
                                   <input
                                     type="checkbox"
-                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                                    className="w-4 h-4 rounded text-blue-600 focus:ring-[#3b82f6] border-gray-300 cursor-pointer"
                                     checked={isSelected}
                                     onChange={() => toggleSeleccion(plan.id, p.idx)}
                                   />
-                                  <span className="font-semibold text-gray-700 text-sm">{p.idx}. {p.concepto}</span>
+                                  <span className="font-semibold text-[#45515e] text-sm">{p.idx}. {p.concepto}</span>
                                 </label>
                               );
                             })}
@@ -1592,18 +1592,18 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               )}
             </div>
 
-            <div className="p-4 border-t border-gray-100 flex items-center justify-between gap-3">
+            <div className="p-4 border-t border-[#f2f3f5] flex items-center justify-between gap-3">
               <button
                 disabled={linking}
                 onClick={() => { setVincularDetalle(null); setVincularSeleccion([]); }}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-2 text-sm font-semibold text-[#45515e] hover:bg-gray-100 rounded-[8px]"
               >
                 Cancelar
               </button>
               <button
                 disabled={linking || vincularSeleccion.length === 0}
                 onClick={handleConfirmarVinculacion}
-                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[8px] text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-[var(--shadow-subtle)]"
               >
                 {linking ? <Loader2 size={15} className="animate-spin" /> : null}
                 {linking
@@ -1621,19 +1621,19 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       {/* Modal Confirmación Custom */}
       {confirmModal.isOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-200/50 dark:border-gray-800 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-[var(--shadow-brand)] w-full max-w-sm overflow-hidden border border-[#e5e7eb]/50 dark:border-gray-800 animate-in fade-in zoom-in duration-200">
             <div className="p-6">
               <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
                 <AlertCircle size={24} />
               </div>
               <h3 className="text-lg font-black text-gray-900 dark:text-white mb-2">{confirmModal.title}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+              <p className="text-sm text-[#8e8e93] dark:text-[#8e8e93] mb-6 leading-relaxed">
                 {confirmModal.message}
               </p>
               <div className="flex items-center justify-end gap-3 font-semibold">
                 <button 
                   onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })} 
-                  className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl transition-colors"
+                  className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-[#1c2228] text-[#45515e] dark:text-gray-300 rounded-[13px] transition-colors"
                 >
                   Regresar
                 </button>
@@ -1641,7 +1641,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                   onClick={() => {
                     if (confirmModal.onConfirm) confirmModal.onConfirm();
                   }} 
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[13px] shadow-lg shadow-blue-600/20 transition-all active:scale-95"
                 >
                   Sí, actualizar nota
                 </button>
@@ -1654,19 +1654,19 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       {/* Modal Facturación */}
       {facturarRecibo && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl shadow-[var(--shadow-brand)] w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6">
               <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
                 <FileText size={24} />
               </div>
               <h3 className="text-lg font-black text-gray-900 mb-2">Asentar Factura</h3>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-[#8e8e93] mb-4">
                 Ingresa el folio fiscal o el identificador de la factura emitida para el folio <strong>{facturarRecibo.folio}</strong>.
               </p>
               <input
                 type="text"
                 autoFocus
-                className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-amber-500 font-mono text-sm uppercase mb-6"
+                className="w-full border border-gray-300 rounded-[8px] p-2.5 outline-none focus:ring-2 focus:ring-amber-500 font-mono text-sm uppercase mb-6"
                 placeholder="Ej. ABC123XYZ, FAC-001..."
                 value={folioFiscalInput}
                 onChange={e => setFolioFiscalInput(e.target.value)}
@@ -1674,7 +1674,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
               <div className="flex items-center justify-end gap-3 font-semibold">
                 <button 
                   onClick={() => { setFacturarRecibo(null); setFolioFiscalInput(''); }} 
-                  className="px-4 py-2 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors"
+                  className="px-4 py-2 hover:bg-gray-100 text-[#45515e] rounded-[13px] transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1699,7 +1699,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                         if (onDataRefresh) onDataRefresh();
                      }
                   }} 
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg shadow-amber-600/20 transition-all active:scale-95 disabled:opacity-50"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-[13px] shadow-lg shadow-amber-600/20 transition-all active:scale-95 disabled:opacity-50"
                 >
                   Guardar Factura
                 </button>
@@ -1712,17 +1712,17 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       {/* Modal Forma de Pago */}
       {editingFormaPago && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl shadow-[var(--shadow-brand)] w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6">
               <h3 className="text-lg font-black text-gray-900 mb-2">Modificar Forma de Pago</h3>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-[#8e8e93] mb-4">
                 Recibo: <strong>{editingFormaPago.folio}</strong>
               </p>
               
               <div className="space-y-3 mb-6">
                  <div>
-                    <label className="text-xs font-bold text-gray-500 block mb-1">Método</label>
-                    <select className="w-full border border-gray-300 rounded-lg p-2.5 outline-none text-sm focus:ring-2 focus:ring-blue-500 bg-white" value={formaPagoInput} onChange={e => setFormaPagoInput(e.target.value)}>
+                    <label className="text-xs font-bold text-[#8e8e93] block mb-1">Método</label>
+                    <select className="w-full border border-gray-300 rounded-[8px] p-2.5 outline-none text-sm focus:ring-2 focus:ring-[#3b82f6] bg-white" value={formaPagoInput} onChange={e => setFormaPagoInput(e.target.value)}>
                        <option value="">Seleccione...</option>
                        <option value="Depósito Bancario">Depósito Bancario</option>
                        <option value="Transferencia bancaria">Transferencia bancaria</option>
@@ -1732,15 +1732,15 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                     </select>
                  </div>
                  <div>
-                    <label className="text-xs font-bold text-gray-500 block mb-1">Banco (Opcional)</label>
-                    <input type="text" className="w-full border border-gray-300 rounded-lg p-2.5 outline-none text-sm focus:ring-2 focus:ring-blue-500 bg-white" placeholder="Ej. BBVA, NO APLICA" value={bancoInput} onChange={e => setBancoInput(e.target.value)} />
+                    <label className="text-xs font-bold text-[#8e8e93] block mb-1">Banco (Opcional)</label>
+                    <input type="text" className="w-full border border-gray-300 rounded-[8px] p-2.5 outline-none text-sm focus:ring-2 focus:ring-[#3b82f6] bg-white" placeholder="Ej. BBVA, NO APLICA" value={bancoInput} onChange={e => setBancoInput(e.target.value)} />
                  </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 font-semibold">
                 <button 
                   onClick={() => { setEditingFormaPago(null); }} 
-                  className="px-4 py-2 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors"
+                  className="px-4 py-2 hover:bg-gray-100 text-[#45515e] rounded-[13px] transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1759,7 +1759,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                      }
                      setEditingFormaPago(null);
                   }}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-colors"
+                  className="px-5 py-2 bg-blue-600 text-white rounded-[13px] shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-colors"
                 >
                   Guardar
                 </button>
@@ -1772,24 +1772,24 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
       {/* Modal Fecha de Pago */}
       {editingFechaPago && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl shadow-[var(--shadow-brand)] w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6">
               <h3 className="text-lg font-black text-gray-900 mb-2">Modificar Fecha de Pago</h3>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-[#8e8e93] mb-4">
                 Recibo: <strong>{editingFechaPago.folio}</strong>
               </p>
               
               <div className="space-y-3 mb-6">
                  <div>
-                    <label className="text-xs font-bold text-gray-500 block mb-1">Fecha de Pago</label>
-                    <input type="date" className="w-full border border-gray-300 rounded-lg p-2.5 outline-none text-sm focus:ring-2 focus:ring-blue-500 bg-white" value={fechaPagoInput} onChange={e => setFechaPagoInput(e.target.value)} />
+                    <label className="text-xs font-bold text-[#8e8e93] block mb-1">Fecha de Pago</label>
+                    <input type="date" className="w-full border border-gray-300 rounded-[8px] p-2.5 outline-none text-sm focus:ring-2 focus:ring-[#3b82f6] bg-white" value={fechaPagoInput} onChange={e => setFechaPagoInput(e.target.value)} />
                  </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 font-semibold">
                 <button 
                   onClick={() => { setEditingFechaPago(null); }} 
-                  className="px-4 py-2 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors"
+                  className="px-4 py-2 hover:bg-gray-100 text-[#45515e] rounded-[13px] transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1807,7 +1807,7 @@ export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catal
                      }
                      setEditingFechaPago(null);
                   }}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-colors"
+                  className="px-5 py-2 bg-blue-600 text-white rounded-[13px] shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-colors"
                 >
                   Guardar
                 </button>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle, Trash2 } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
-import { isPaid, getMaxFolioCounter, getCyclePrefix } from '../utils';
+import { isPaid, getMaxFolioCounter, getCyclePrefix , toTitleCase} from '../utils';
 import { supabase } from '../lib/supabase';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -141,10 +141,10 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
   };
 
   return (
-    <div className="mt-6 mb-6 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 dark:from-indigo-900/10 dark:to-blue-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-800/30 overflow-hidden shadow-inner">
-      <div className="p-4 bg-indigo-100/50 dark:bg-indigo-900/30 border-b border-indigo-100 dark:border-indigo-800/30 flex justify-between items-center">
-        <h3 className="font-bold text-indigo-800 dark:text-indigo-300">Desglose de Servicios (Especialidad)</h3>
-        <button onClick={addItem} type="button" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 font-semibold transition-colors">
+    <div className="mt-6 mb-6 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 dark:from-indigo-900/10 dark:to-blue-900/10 rounded-[20px] border border-indigo-100 dark:border-indigo-800/30 overflow-hidden shadow-inner">
+      <div className="p-4 bg-[#bfdbfe]/50 dark:bg-indigo-900/30 border-b border-indigo-100 dark:border-indigo-800/30 flex justify-between items-center">
+        <h3 className="font-bold text-[#1456f0] dark:text-indigo-300">Desglose de Servicios (Especialidad)</h3>
+        <button onClick={addItem} type="button" className="text-xs bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-3 py-1.5 rounded-[8px] flex items-center gap-1 font-semibold transition-colors">
           <Plus size={14} /> Añadir Concepto
         </button>
       </div>
@@ -163,22 +163,22 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
             {desglose.map((item: any, idx: number) => (
               <tr key={idx} className="hover:bg-white/40 dark:hover:bg-black/10 transition-colors">
                 <td className="py-2 pr-2">
-                  <input type="number" min="1" className="w-16 p-1.5 border border-indigo-200 rounded text-center bg-white dark:bg-gray-800 outline-none focus:border-indigo-500" value={item.cantidad} onChange={e => updateItem(idx, 'cantidad', Number(e.target.value))} />
+                  <input type="number" min="1" className="w-16 p-1.5 border border-indigo-200 rounded text-center bg-white dark:bg-[#1c2228] outline-none focus:border-[#3b82f6]" value={item.cantidad} onChange={e => updateItem(idx, 'cantidad', Number(e.target.value))} />
                 </td>
                 <td className="py-2 pr-2">
-                  <input type="text" className="w-full p-1.5 border border-indigo-200 rounded px-2 bg-white dark:bg-gray-800 outline-none focus:border-indigo-500" value={item.concepto} onChange={e => updateItem(idx, 'concepto', e.target.value)} />
+                  <input type="text" className="w-full p-1.5 border border-indigo-200 rounded px-2 bg-white dark:bg-[#1c2228] outline-none focus:border-[#3b82f6]" value={item.concepto} onChange={e => updateItem(idx, 'concepto', e.target.value)} />
                 </td>
                 <td className="py-2 pr-2">
                   <div className="relative">
-                    <span className="absolute left-2 top-1.5 text-gray-500">$</span>
-                    <input type="number" step="0.01" className="w-28 p-1.5 pl-6 border border-indigo-200 rounded text-right bg-white dark:bg-gray-800 outline-none focus:border-indigo-500" value={item.costo_unitario} onChange={e => updateItem(idx, 'costo_unitario', Number(e.target.value))} />
+                    <span className="absolute left-2 top-1.5 text-[#8e8e93]">$</span>
+                    <input type="number" step="0.01" className="w-28 p-1.5 pl-6 border border-indigo-200 rounded text-right bg-white dark:bg-[#1c2228] outline-none focus:border-[#3b82f6]" value={item.costo_unitario} onChange={e => updateItem(idx, 'costo_unitario', Number(e.target.value))} />
                   </div>
                 </td>
-                <td className="py-2 text-right font-bold text-gray-700 dark:text-gray-300">
+                <td className="py-2 text-right font-bold text-[#45515e] dark:text-gray-300">
                   ${Number(item.costo_total).toLocaleString('en-US', {minimumFractionDigits: 2})}
                 </td>
                 <td className="py-2 pl-2 text-right">
-                  <button onClick={() => removeItem(idx)} type="button" className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-colors"><Trash2 size={14}/></button>
+                  <button onClick={() => removeItem(idx)} type="button" className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-[8px] transition-colors"><Trash2 size={14}/></button>
                 </td>
               </tr>
             ))}
@@ -187,23 +187,23 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
       </div>
       <div className="bg-white/60 dark:bg-gray-900/40 p-4 border-t border-indigo-100 dark:border-indigo-800/30 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
-          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Total Bruto</p>
-          <p className="text-lg font-bold text-gray-800 dark:text-gray-200">${Number(dtb).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+          <p className="text-xs text-[#8e8e93] uppercase font-semibold mb-1">Total Bruto</p>
+          <p className="text-lg font-bold text-[#222222] dark:text-gray-200">${Number(dtb).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Descuento (%)</p>
+          <p className="text-xs text-[#8e8e93] uppercase font-semibold mb-1">Descuento (%)</p>
           <div className="flex items-center gap-2">
-             <input type="number" step="0.1" className="w-20 p-1.5 border border-indigo-200 rounded bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500" value={dp} onChange={e => updateDescuento(Number(e.target.value))} />
-             <span className="text-gray-500 font-bold">%</span>
+             <input type="number" step="0.1" className="w-20 p-1.5 border border-indigo-200 rounded bg-white dark:bg-[#1c2228] outline-none focus:ring-2 focus:ring-[#3b82f6]" value={dp} onChange={e => updateDescuento(Number(e.target.value))} />
+             <span className="text-[#8e8e93] font-bold">%</span>
           </div>
         </div>
         <div>
-           <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Descuento ($)</p>
+           <p className="text-xs text-[#8e8e93] uppercase font-semibold mb-1">Descuento ($)</p>
            <p className="text-lg font-bold text-orange-600 dark:text-orange-400">-${Number(dm).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
         </div>
         <div>
-           <p className="text-xs text-indigo-600 uppercase font-extrabold mb-1">Total Neto (A Diferir)</p>
-           <p className="text-2xl font-black text-indigo-700 dark:text-indigo-400">${Number(dtn).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+           <p className="text-xs text-[#1456f0] uppercase font-semibold mb-1">Total Neto (A Diferir)</p>
+           <p className="text-2xl font-black text-[#1456f0] dark:text-indigo-400">${Number(dtn).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
         </div>
       </div>
       {isEditing && (
@@ -211,11 +211,11 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">Dividir Neto en:</label>
             <div className="flex items-center gap-2">
-              <input type="number" min="1" max="15" className="w-16 p-1.5 border border-indigo-300 rounded-lg text-center bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700" value={pagosADividir} onChange={e => setPagosADividir(Number(e.target.value))}/>
-              <span className="text-sm font-medium text-indigo-800/60 dark:text-indigo-200/60">pagos</span>
+              <input type="number" min="1" max="15" className="w-16 p-1.5 border border-indigo-300 rounded-[8px] text-center bg-white dark:bg-[#1c2228] outline-none focus:ring-2 focus:ring-[#3b82f6] font-bold text-[#1456f0]" value={pagosADividir} onChange={e => setPagosADividir(Number(e.target.value))}/>
+              <span className="text-sm font-medium text-[#1456f0]/60 dark:text-indigo-200/60">pagos</span>
             </div>
           </div>
-          <button onClick={distribuir} type="button" className={`px-5 py-2 rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 ${isDistributed ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+          <button onClick={distribuir} type="button" className={`px-5 py-2 rounded-[8px] font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 ${isDistributed ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-[#1456f0] hover:bg-[#1d4ed8] text-white'}`}>
             {isDistributed ? '¡Pagos Distribuidos!' : 'Calculadora Mágica (Auto-Rellenar)'}
           </button>
         </div>
@@ -502,24 +502,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   if (plans.length === 0) {
     return (
       <div className="w-full p-8 font-sans flex flex-col items-center justify-center">
-        <div className="bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 text-center max-w-md w-full">
+        <div className="bg-white dark:bg-[#1c2228] p-10 rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-center max-w-md w-full">
           <div className="bg-blue-50 dark:bg-blue-900/40 text-blue-500 dark:text-blue-400 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Inbox size={40} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">Sin Planes de Pago</h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-8">No hay planes de pago registrados para este ciclo escolar. Por favor, selecciona otro ciclo o inscribe alumnos.</p>
+          <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 mb-3">Sin Planes de Pago</h2>
+          <p className="text-[#8e8e93] dark:text-[#8e8e93] mb-8">No hay planes de pago registrados para este ciclo escolar. Por favor, selecciona otro ciclo o inscribe alumnos.</p>
           <div className="flex flex-col gap-3">
             {!isCoordinador && (
               <button
                 onClick={() => setIsNewPlanModalOpen(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
+                className="bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-6 py-3 rounded-[13px] font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
               >
                 <Plus size={20} /> Crear Nuevo Plan
               </button>
             )}
             <button
               onClick={onBack}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
+              className="bg-gray-100 hover:bg-gray-200 text-[#45515e] px-6 py-3 rounded-[13px] font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
             >
               <ArrowLeft size={20} /> Volver al Inicio
             </button>
@@ -529,24 +529,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         {/* New Plan Modal (Empty State) */}
         {isNewPlanModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col text-left">
-              <div className="flex justify-between items-center p-6 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
+            <div className="bg-white dark:bg-[#1c2228] rounded-[13px] shadow-xl w-full max-w-lg overflow-hidden flex flex-col text-left">
+              <div className="flex justify-between items-center p-6 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)]">
+                <h3 className="text-lg font-bold text-[#222222] dark:text-gray-100">
                   Crear Nuevo Plan de Pagos
                 </h3>
-                <button onClick={() => setIsNewPlanModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setIsNewPlanModalOpen(false)} className="text-[#8e8e93] hover:text-[#45515e]">
                   <X size={20} />
                 </button>
               </div>
 
               <div className="p-6 overflow-y-auto flex-grow space-y-4">
                 <div className="relative" ref={newPlanAlumnoRef}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Alumno</label>
+                  <label className="block text-sm font-medium text-[#45515e] mb-1">Alumno</label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]" size={16} />
                     <input
                       type="text"
-                      className="w-full border border-gray-300 rounded-lg pl-10 pr-10 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-semibold"
+                      className="w-full border border-gray-300 rounded-[8px] pl-10 pr-10 py-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white text-sm font-semibold"
                       placeholder="Buscar alumno para nuevo plan..."
                       value={newPlanSearchTerm}
                       onChange={(e) => {
@@ -559,7 +559,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     {newPlanSearchTerm && (
                       <button
                         onClick={() => { setNewPlanSearchTerm(''); setShowNewAlumnoSuggestions(true); }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#45515e]"
                       >
                         <X size={14} />
                       </button>
@@ -567,12 +567,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   </div>
 
                   {showNewAlumnoSuggestions && newPlanSearchTerm && (
-                    <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
+                    <div className="absolute top-full left-0 w-full bg-white border border-[#e5e7eb] rounded-[8px] shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
                       {filteredNewAlumnoSuggestions.length > 0 ? (
                         filteredNewAlumnoSuggestions.map(alumno => (
                           <button
                             key={alumno.id}
-                            className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-none transition-colors"
+                            className="w-full text-left px-4 py-3 hover:bg-[rgba(0,0,0,0.03)] border-b border-gray-50 last:border-none transition-colors"
                             onClick={() => {
                               setNewPlanForm({
                                 ...newPlanForm,
@@ -585,12 +585,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                               setShowNewAlumnoSuggestions(false);
                             }}
                           >
-                            <p className="font-bold text-gray-800 text-sm">{alumno.nombre_completo}</p>
-                            <p className="text-xs text-gray-500">{alumno.licenciatura} · {alumno.grado_actual}º {alumno.turno}</p>
+                            <p className="font-bold text-[#222222] text-sm">{toTitleCase(alumno.nombre_completo)}</p>
+                            <p className="text-xs text-[#8e8e93]">{toTitleCase(alumno.licenciatura)} · {alumno.grado_actual}º {alumno.turno}</p>
                           </button>
                         ))
                       ) : (
-                        <div className="p-4 text-center text-sm text-gray-500">
+                        <div className="p-4 text-center text-sm text-[#8e8e93]">
                           No se encontraron alumnos disponibles
                         </div>
                       )}
@@ -603,9 +603,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
                 {plantillas.filter(p => p.activo).length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Usar Plantilla de Plan</label>
+                    <label className="block text-sm font-medium text-[#45515e] mb-1">Usar Plantilla de Plan</label>
                     <select
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                       value={selectedTemplateId}
                       onChange={(e) => applyTemplate(e.target.value)}
                     >
@@ -619,9 +619,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
+                    <label className="block text-sm font-medium text-[#45515e] mb-1">Tipo de Plan</label>
                     <select
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                       value={newPlanForm.tipo_plan || 'Cuatrimestral'}
                       onChange={(e) => setNewPlanForm({ ...newPlanForm, tipo_plan: e.target.value as any })}
                     >
@@ -633,10 +633,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Programa / Licenciatura</label>
+                    <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
                     {catalogos?.licenciaturas?.length ? (
                       <select
-                        className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                         value={newPlanForm.licenciatura || ''}
                         onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
                       >
@@ -646,7 +646,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     ) : (
                       <input
                         type="text"
-                        className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                         value={newPlanForm.licenciatura || ''}
                         placeholder="Ej. Especialidad en Derecho..."
                         onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
@@ -654,47 +654,47 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     )}
                   </div>
                   <div className="col-span-2 md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Grado y Turno (Opcional)</label>
+                    <label className="block text-sm font-medium text-[#45515e] mb-1">Grado y Turno (Opcional)</label>
                     <input
                       type="text"
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                       value={newPlanForm.grado_turno || ''}
                       placeholder="Ej. 1er Cuatrimestre / Sabatino"
                       onChange={(e) => setNewPlanForm({ ...newPlanForm, grado_turno: e.target.value })}
                     />
-                    <p className="text-[10px] text-gray-400 leading-tight mt-1">Si lo dejas en blanco, el plan siempre mostrará el grado/turno actual del alumno en tiempo real. Si escribes algo, el plan quedará sellado con este texto permanentemente.</p>
+                    <p className="text-[10px] text-[#8e8e93] leading-tight mt-1">Si lo dejas en blanco, el plan siempre mostrará el grado/turno actual del alumno en tiempo real. Si escribes algo, el plan quedará sellado con este texto permanentemente.</p>
                   </div>
                 </div>
                 {newPlanForm.tipo_plan !== 'Titulación' && (
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
+                      <label className="block text-sm font-medium text-[#45515e] mb-1">Porcentaje de Beca</label>
                       {catalogos?.beca_porcentajes?.length ? (
                         <select
-                          className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                           value={newPlanForm.beca_porcentaje || '0%'}
                           onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })}
                         >
                           {catalogos.beca_porcentajes.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       ) : (
-                        <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        <input type="text" className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6]"
                           value={newPlanForm.beca_porcentaje || ''} placeholder="Ej. 0%"
                           onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })} />
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
+                      <label className="block text-sm font-medium text-[#45515e] mb-1">Tipo de Beca</label>
                       {catalogos?.beca_tipos?.length ? (
                         <select
-                          className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                           value={newPlanForm.beca_tipo || 'NINGUNA'}
                           onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })}
                         >
                           {catalogos.beca_tipos.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       ) : (
-                        <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        <input type="text" className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6]"
                           value={newPlanForm.beca_tipo || ''} placeholder="Ej. NINGUNA"
                           onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })} />
                       )}
@@ -703,10 +703,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 )}
               </div>
 
-              <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <div className="p-6 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-end gap-3">
                 <button
                   onClick={() => { setIsNewPlanModalOpen(false); setNewPlanSearchTerm(''); }}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
                 >
                   Cancelar
                 </button>
@@ -758,7 +758,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     setSelectedTemplateId('');
                   }}
                   disabled={!newPlanForm.alumno_id}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                  className="px-6 py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white rounded-[8px] font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                   <Save size={18} /> Crear Plan
                 </button>
@@ -934,6 +934,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
     const updatedPlan = { ...selectedPlan, [`estatus_${selectedPaymentIndex}`]: statusToWrite };
     onSavePlan(updatedPlan);
+    setCandidateDetalles([]); // Purgar la caché para que re-consulte si se vuelve a abrir la pestaña
     setIsPaymentModalOpen(false);
   };
 
@@ -1033,7 +1034,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               </span>
               <button
                 onClick={() => openPaymentModal(index)}
-                className="text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
+                className="text-[#8e8e93] hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
                 title="Editar recibo"
                 data-html2canvas-ignore="true"
               >
@@ -1074,7 +1075,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 </button>
                 <button
                   onClick={() => openPaymentModal(index)}
-                  className="bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200 px-2 py-1 rounded transition-colors"
+                  className="bg-[#eef2ff] text-[#8e8e93] hover:bg-gray-100 border border-[#e5e7eb] px-2 py-1 rounded transition-colors"
                   title="Edición manual de estatus"
                 >
                   <Edit size={14} />
@@ -1121,7 +1122,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-gray-700 dark:text-gray-200 hover:text-black dark:hover:text-white font-bold transition-colors shrink-0"
+              className="flex items-center gap-2 text-[#45515e] dark:text-gray-200 hover:text-black dark:hover:text-white font-bold transition-colors shrink-0"
             >
               <ArrowLeft size={18} /> <span className="text-sm">Volver al Inicio</span>
             </button>
@@ -1131,7 +1132,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 <div className="hidden sm:block w-px h-5 bg-gray-300"></div>
                 <button
                   onClick={() => onBackToFicha(selectedPlan.alumno_id!)}
-                  className="flex items-center gap-2 text-indigo-700 hover:text-indigo-900 font-bold transition-colors shrink-0"
+                  className="flex items-center gap-2 text-[#1456f0] hover:text-indigo-900 font-bold transition-colors shrink-0"
                 >
                   <User size={16} /> <span className="text-sm">Regresar a Ficha</span>
                 </button>
@@ -1143,7 +1144,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 <div className="hidden sm:block w-px h-5 bg-gray-300"></div>
                 <button
                   onClick={onBackToReceipt}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 transition-colors shrink-0"
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-[8px] bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 transition-colors shrink-0"
                 >
                   <ArrowLeft size={13} /> Volver al Recibo
                 </button>
@@ -1155,21 +1156,21 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             {!isCoordinador && (
               <button 
                 onClick={() => setIsNewPlanModalOpen(true)} 
-                className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm gap-2 transition-colors font-medium"
+                className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white rounded-[8px] shadow-[var(--shadow-subtle)] gap-2 transition-colors font-medium"
               >
                 <Plus size={18} /> <span className="hidden xl:inline">Nuevo Plan</span>
               </button>
             )}
             <button 
               onClick={openEditPlanModal} 
-              className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-white hover:bg-gray-50 text-gray-800 border border-gray-300 rounded-lg shadow-sm gap-2 transition-all font-bold text-sm"
+              className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-white hover:bg-[#f2f3f5] text-[#222222] border border-gray-300 rounded-[8px] shadow-[var(--shadow-subtle)] gap-2 transition-all font-bold text-sm"
             >
               <Edit size={18} /> <span className="hidden xl:inline">Editar</span>
             </button>
             <button 
               onClick={handleGeneratePDF} 
               disabled={isGeneratingPDF} 
-              className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-sm disabled:opacity-50 gap-2 transition-all font-bold text-sm"
+              className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-[8px] shadow-[var(--shadow-subtle)] disabled:opacity-50 gap-2 transition-all font-bold text-sm"
             >
               {isGeneratingPDF ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
               <span className="hidden xl:inline">{isGeneratingPDF ? 'Generando...' : 'PDF / Imprimir'}</span>
@@ -1185,24 +1186,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             <button
               onClick={() => prevPlan && jumpToPlan(prevPlan)}
               disabled={!prevPlan}
-              className="flex items-center justify-center py-2 px-3 bg-white dark:bg-gray-800 hover:bg-gray-50 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm disabled:opacity-40 transition-colors w-full gap-1 active:scale-95"
+              className="flex items-center justify-center py-2 px-3 bg-white dark:bg-[#1c2228] hover:bg-[#eef2ff] text-[#45515e] dark:text-gray-300 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] shadow-[var(--shadow-subtle)] disabled:opacity-40 transition-colors w-full gap-1 active:scale-95"
             >
               <ChevronLeft size={16} /> <span className="text-sm font-semibold truncate max-w-[90px]">{prevPlan ? getAlumnoName(prevPlan).split(' ')[0] : 'Inicio'}</span>
             </button>
-            <span className="text-xs font-bold text-gray-400 min-w-fit px-2 whitespace-nowrap">
+            <span className="text-xs font-bold text-[#8e8e93] min-w-fit px-2 whitespace-nowrap">
                {safeCurrentIndex + 1} de {sortedActivePlans.length}
             </span>
             <button
               onClick={() => nextPlan && jumpToPlan(nextPlan)}
               disabled={!nextPlan}
-              className="flex items-center justify-center py-2 px-3 bg-white dark:bg-gray-800 hover:bg-gray-50 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm disabled:opacity-40 transition-colors w-full gap-1 active:scale-95"
+              className="flex items-center justify-center py-2 px-3 bg-white dark:bg-[#1c2228] hover:bg-[#eef2ff] text-[#45515e] dark:text-gray-300 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] shadow-[var(--shadow-subtle)] disabled:opacity-40 transition-colors w-full gap-1 active:scale-95"
             >
               <span className="text-sm font-semibold truncate max-w-[90px]">{nextPlan ? getAlumnoName(nextPlan).split(' ')[0] : 'Fin'}</span> <ChevronRight size={16} />
             </button>
           </div>
 
-          <div className="bg-white border border-gray-400 p-2.5 rounded-lg flex items-center shadow-sm w-full transition-shadow focus-within:ring-2 focus-within:ring-indigo-500/50">
-            <Search size={18} className="text-gray-400 mr-2 shrink-0" />
+          <div className="bg-white border border-gray-400 p-2.5 rounded-[8px] flex items-center shadow-[var(--shadow-subtle)] w-full transition-shadow focus-within:ring-2 focus-within:ring-indigo-500/50">
+            <Search size={18} className="text-[#8e8e93] mr-2 shrink-0" />
             <input
               type="text"
               className="w-full bg-transparent outline-none text-sm font-bold min-w-0"
@@ -1219,7 +1220,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   setSearchTerm('');
                   setShowSuggestions(true);
                 }}
-                className="text-gray-500 hover:text-gray-800 ml-2"
+                className="text-[#8e8e93] hover:text-[#222222] ml-2"
                 title="Limpiar búsqueda"
               >
                 <X size={16} />
@@ -1227,19 +1228,19 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             )}
           </div>
           {showSuggestions && (
-            <div className="absolute top-[105%] left-0 w-full bg-white border border-gray-400 rounded-lg max-h-60 overflow-y-auto shadow-2xl z-50">
+            <div className="absolute top-[105%] left-0 w-full bg-white border border-gray-400 rounded-[8px] max-h-60 overflow-y-auto shadow-[var(--shadow-brand)] z-50">
               {filteredPlans.length > 0 ? (
                 filteredPlans.slice(0, 10).map(p => (
                   <div
                     key={p.id}
-                    className="p-3 hover:bg-indigo-50 cursor-pointer text-sm border-b border-gray-100 last:border-none font-medium text-gray-700 transition-colors"
+                    className="p-3 hover:bg-indigo-50 cursor-pointer text-sm border-b border-[#f2f3f5] last:border-none font-medium text-[#45515e] transition-colors"
                     onClick={() => handleSuggestionClick(p)}
                   >
                     {getAlumnoName(p)}
                   </div>
                 ))
               ) : (
-                <div className="p-3 text-sm text-gray-500 text-center">No hay coincidencias</div>
+                <div className="p-3 text-sm text-[#8e8e93] text-center">No hay coincidencias</div>
               )}
             </div>
           )}
@@ -1252,7 +1253,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
           onClick={() => prevPlan && jumpToPlan(prevPlan)}
           disabled={!prevPlan}
           title={prevPlan ? `Anterior: ${getAlumnoName(prevPlan)}` : 'Primer plan'}
-          className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-2xl shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
+          className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-[var(--shadow-brand)] shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-[#45515e] dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-[#1456f0] dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
         >
           <ChevronLeft size={36} className="group-hover:-translate-x-1 transition-transform" />
         </button>
@@ -1263,7 +1264,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
           onClick={() => nextPlan && jumpToPlan(nextPlan)}
           disabled={!nextPlan}
           title={nextPlan ? `Siguiente: ${getAlumnoName(nextPlan)}` : 'Último plan'}
-          className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-2xl shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
+          className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-[var(--shadow-brand)] shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-[#45515e] dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-[#1456f0] dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
         >
           <ChevronRight size={36} className="group-hover:translate-x-1 transition-transform" />
         </button>
@@ -1272,19 +1273,19 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       <div className="w-full max-w-[816px] overflow-x-auto mx-auto pb-4 custom-scrollbar relative z-10">
         <div
           ref={printRef}
-          className="bg-white text-black shadow-none sm:shadow-xl sm:rounded-lg w-full min-w-[650px] mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0 print:min-w-0"
+          className="bg-white text-black shadow-none sm:shadow-xl sm:rounded-[8px] w-full min-w-[650px] mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0 print:min-w-0"
         >
 
         {studentAllPlans.length > 1 && (
-          <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-200 w-full overflow-x-auto print:hidden">
+          <div className="flex flex-wrap gap-2 mb-6 border-b border-[#e5e7eb] w-full overflow-x-auto print:hidden">
             {studentAllPlans.map(plan => (
               <button 
                 key={plan.id}
                 onClick={() => setSelectedPlanId(plan.id)}
                 className={`px-4 py-3 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${
                   plan.id === selectedPlan.id 
-                    ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                    ? 'border-indigo-600 text-[#1456f0] bg-indigo-50/50' 
+                    : 'border-transparent text-[#8e8e93] hover:text-[#45515e] hover:border-gray-300 hover:bg-[#f2f3f5]'
                 }`}
               >
                 Plan {plan.tipo_plan || 'Cuatrimestral'}
@@ -1353,7 +1354,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   </tr>
                   <tr>
                     <td className="border border-black p-2 text-sm font-bold bg-gray-300 text-center">LICENCIATURA:</td>
-                    <td className="border border-black p-2 text-sm text-center">{studentData.licenciatura}</td>
+                    <td className="border border-black p-2 text-sm text-center">{toTitleCase(studentData.licenciatura)}</td>
                   </tr>
                   <tr>
                     <td className="border border-black p-2 text-sm font-bold bg-gray-300 text-center">GRADO Y TURNO:</td>
@@ -1386,29 +1387,29 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       {/* Payment Modal */}
       {isPaymentModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-gray-100">
+          <div className="bg-white rounded-[13px] shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b border-[#f2f3f5]">
               <div>
-                <h3 className="text-base font-bold text-gray-800">
+                <h3 className="text-base font-bold text-[#222222]">
                   Estatus de Pago
                 </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {selectedPlan[`concepto_${selectedPaymentIndex}` as keyof PaymentPlan] as string} · {selectedPlan.nombre_alumno}
+                <p className="text-xs text-[#8e8e93] mt-0.5">
+                  {selectedPlan[`concepto_${selectedPaymentIndex}` as keyof PaymentPlan] as string} · {toTitleCase(selectedPlan.nombre_alumno)}
                 </p>
               </div>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setIsPaymentModalOpen(false)} className="text-[#8e8e93] hover:text-[#45515e]">
                 <X size={20} />
               </button>
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-gray-200">
+            <div className="flex border-b border-[#e5e7eb]">
               <button
                 onClick={() => setPaymentModalTab('manual')}
                 className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
                   paymentModalTab === 'manual'
                     ? 'border-blue-600 text-blue-700'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    : 'border-transparent text-[#8e8e93] hover:text-[#45515e]'
                 }`}
               >
                 <Edit size={15} /> Manual
@@ -1418,7 +1419,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
                   paymentModalTab === 'vincular'
                     ? 'border-emerald-600 text-emerald-700'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    : 'border-transparent text-[#8e8e93] hover:text-[#45515e]'
                 }`}
               >
                 <Link2 size={15} /> Vincular Recibo
@@ -1428,18 +1429,18 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             {/* Tab: Manual */}
             {paymentModalTab === 'manual' && (
               <div className="p-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-[#45515e] mb-2">
                   Número de Recibo / Estatus
                 </label>
                 <input
                   type="text"
-                  className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 rounded-[8px] p-3 outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-blue-500"
                   placeholder="Ej. R-123 (Pagado)"
                   value={paymentInput}
                   onChange={(e) => setPaymentInput(e.target.value)}
                   autoFocus
                 />
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-[#8e8e93] mt-2">
                   Deja en blanco para marcar como pendiente. Puedes escribir cualquier texto libre.
                 </p>
               </div>
@@ -1449,24 +1450,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             {paymentModalTab === 'vincular' && (
               <div className="p-4">
                 {loadingRecibos ? (
-                  <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
+                  <div className="flex items-center justify-center py-8 text-[#8e8e93] gap-2">
                     <Loader2 size={20} className="animate-spin" /> Buscando recibos...
                   </div>
                 ) : candidateDetalles.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400">
+                  <div className="text-center py-8 text-[#8e8e93]">
                     <FileText size={32} className="mx-auto mb-2 opacity-40" />
                     <p className="text-sm">No hay detalles de recibos sueltos para este alumno.</p>
-                    <p className="text-xs mt-1 text-gray-400">Sólo aparecen conceptos que no se hayan vinculado previamente.</p>
+                    <p className="text-xs mt-1 text-[#8e8e93]">Sólo aparecen conceptos que no se hayan vinculado previamente.</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {candidateDetalles.map(d => (
                       <label
                         key={d.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                        className={`flex items-center gap-3 p-3 rounded-[8px] border cursor-pointer transition-all ${
                           selectedDetalleId === d.id
                             ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400'
-                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            : 'border-[#e5e7eb] hover:border-gray-300 hover:bg-[#f2f3f5]'
                         }`}
                       >
                         <input
@@ -1479,10 +1480,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-sm text-emerald-700">R-{d._recibo?.folio ?? '—'}: {d.concepto}</span>
-                            <span className="text-xs text-gray-500">{d._recibo?.fecha_pago}</span>
-                            <span className="text-xs font-semibold text-gray-700 ml-auto">${Number(d.subtotal || 0).toFixed(2)}</span>
+                            <span className="text-xs text-[#8e8e93]">{d._recibo?.fecha_pago}</span>
+                            <span className="text-xs font-semibold text-[#45515e] ml-auto">${Number(d.subtotal || 0).toFixed(2)}</span>
                           </div>
-                          <p className="text-xs text-gray-400 truncate">{d._recibo?.forma_pago} · {d._recibo?.banco}</p>
+                          <p className="text-xs text-[#8e8e93] truncate">{d._recibo?.forma_pago} · {d._recibo?.banco}</p>
                         </div>
                       </label>
                     ))}
@@ -1496,10 +1497,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               </div>
             )}
 
-            <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-between items-center gap-3">
+            <div className="p-5 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-between items-center gap-3">
               <button
                 onClick={() => setIsPaymentModalOpen(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
               >
                 Cancelar
               </button>
@@ -1510,7 +1511,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 <button
                   onClick={handleSavePayment}
                   disabled={paymentModalTab === 'vincular' && !selectedDetalleId}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[8px] font-medium transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Save size={16} /> Guardar
                 </button>
@@ -1523,12 +1524,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       {/* Edit Plan Modal */}
       {isEditPlanModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800">
-                Editar Estructura del Plan - {selectedPlan.nombre_alumno}
+          <div className="bg-white rounded-[13px] shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-[#f2f3f5]">
+              <h3 className="text-lg font-bold text-[#222222]">
+                Editar Estructura del Plan - {toTitleCase(selectedPlan.nombre_alumno)}
               </h3>
-              <button onClick={() => setIsEditPlanModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setIsEditPlanModalOpen(false)} className="text-[#8e8e93] hover:text-[#45515e]">
                 <X size={20} />
               </button>
             </div>
@@ -1536,9 +1537,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             <div className="p-6 overflow-y-auto flex-grow">
               <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
+                  <label className="block text-sm font-medium text-[#45515e] mb-1">Tipo de Plan</label>
                   <select
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                     value={editForm.tipo_plan || 'Cuatrimestral'}
                     onChange={(e) => setEditForm({ ...editForm, tipo_plan: e.target.value as any })}
                   >
@@ -1550,10 +1551,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Programa / Licenciatura</label>
+                  <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
                   {catalogos?.licenciaturas?.length ? (
                     <select
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                       value={editForm.licenciatura || ''}
                       onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
                     >
@@ -1563,7 +1564,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   ) : (
                     <input
                       type="text"
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                       value={editForm.licenciatura || ''}
                       placeholder="Ej. Especialidad en Cirugía..."
                       onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
@@ -1571,21 +1572,21 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   )}
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Grado y Turno</label>
+                  <label className="block text-sm font-medium text-[#45515e] mb-1">Grado y Turno</label>
                   <input
                     type="text"
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                     value={editForm.grado_turno || ''}
                     placeholder="Ej. 6to Cuatrimestre / Sabatino"
                     onChange={(e) => setEditForm({ ...editForm, grado_turno: e.target.value })}
                   />
-                  <p className="text-[10px] text-gray-400 leading-tight mt-1">Si lo borras/dejas en blanco, el plan se sincronizará automáticamente para mostrar el grado y turno que tenga el alumno actualmente en su perfil principal.</p>
+                  <p className="text-[10px] text-[#8e8e93] leading-tight mt-1">Si lo borras/dejas en blanco, el plan se sincronizará automáticamente para mostrar el grado y turno que tenga el alumno actualmente en su perfil principal.</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha del Plan</label>
+                  <label className="block text-sm font-medium text-[#45515e] mb-1">Fecha del Plan</label>
                   <input
                     type="date"
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6]"
                     value={toInputDate(editForm.fecha_plan)}
                     onChange={(e) => setEditForm({ ...editForm, fecha_plan: e.target.value })}
                   />
@@ -1593,33 +1594,33 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 {editForm.tipo_plan !== 'Titulación' && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
+                      <label className="block text-sm font-medium text-[#45515e] mb-1">Porcentaje de Beca</label>
                       {catalogos?.beca_porcentajes?.length ? (
                         <select
-                          className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                           value={editForm.beca_porcentaje || ''}
                           onChange={(e) => setEditForm({ ...editForm, beca_porcentaje: e.target.value })}
                         >
                           {catalogos.beca_porcentajes.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       ) : (
-                        <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        <input type="text" className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6]"
                           value={editForm.beca_porcentaje || ''}
                           onChange={(e) => setEditForm({ ...editForm, beca_porcentaje: e.target.value })} />
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
+                      <label className="block text-sm font-medium text-[#45515e] mb-1">Tipo de Beca</label>
                       {catalogos?.beca_tipos?.length ? (
                         <select
-                          className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                           value={editForm.beca_tipo || ''}
                           onChange={(e) => setEditForm({ ...editForm, beca_tipo: e.target.value })}
                         >
                           {catalogos.beca_tipos.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       ) : (
-                        <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        <input type="text" className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6]"
                           value={editForm.beca_tipo || ''}
                           onChange={(e) => setEditForm({ ...editForm, beca_tipo: e.target.value })} />
                       )}
@@ -1632,17 +1633,17 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 <EspecialidadDesgloseTable form={editForm} setForm={setEditForm as any} />
               )}
 
-              <h4 className="font-bold text-gray-800 mb-4 border-b pb-2">Pagos Programados</h4>
+              <h4 className="font-bold text-[#222222] mb-4 border-b pb-2">Pagos Programados</h4>
 
               <div className="space-y-4">
                 {Array.from({ length: editForm.tipo_plan === 'Titulación' || editForm.tipo_plan?.includes('Especialidad') ? 15 : editForm.tipo_plan === 'Semestral' ? 9 : 7 }, (_, i) => i + 1).map(i => {
                   return (
-                    <div key={i} className="flex gap-4 items-end bg-gray-50 p-4 rounded-lg border border-gray-100">
-                      <div className="w-12 text-center font-bold text-gray-400 pt-2">#{i}</div>
+                    <div key={i} className="flex gap-4 items-end bg-[#f2f3f5] p-4 rounded-[8px] border border-[#f2f3f5]">
+                      <div className="w-12 text-center font-bold text-[#8e8e93] pt-2">#{i}</div>
                       <div className="flex-grow">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Concepto</label>
+                        <label className="block text-xs font-medium text-[#8e8e93] mb-1">Concepto</label>
                         <select
-                          className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                           value={editForm[`concepto_${i}` as keyof PaymentPlan] as string || ''}
                           onChange={(e) => setEditForm({ ...editForm, [`concepto_${i}`]: e.target.value })}
                         >
@@ -1653,19 +1654,19 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                         </select>
                       </div>
                       <div className="w-1/4">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Fecha Límite</label>
+                        <label className="block text-xs font-medium text-[#8e8e93] mb-1">Fecha Límite</label>
                         <input
                           type="date"
-                          className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6]"
                           value={toInputDate(editForm[`fecha_${i}` as keyof PaymentPlan] as string)}
                           onChange={(e) => setEditForm({ ...editForm, [`fecha_${i}`]: e.target.value })}
                         />
                       </div>
                       <div className="w-1/4">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Cantidad ($)</label>
+                        <label className="block text-xs font-medium text-[#8e8e93] mb-1">Cantidad ($)</label>
                         <input
                           type="number"
-                          className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6]"
                           value={editForm[`cantidad_${i}` as keyof PaymentPlan] as number || ''}
                           onChange={(e) => setEditForm({ ...editForm, [`cantidad_${i}`]: Number(e.target.value) })}
                         />
@@ -1676,11 +1677,11 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               </div>
             </div>
 
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-between items-center gap-3">
+            <div className="p-6 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-between items-center gap-3">
               {currentUser?.rol === 'ADMINISTRADOR' ? (
                 <button
                   onClick={() => setDeleteConfirmPlanId(editForm.id!)}
-                  className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-semibold transition-colors border border-transparent hover:border-red-200 text-sm"
+                  className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-[8px] font-semibold transition-colors border border-transparent hover:border-red-200 text-sm"
                 >
                   Eliminar Plan
                 </button>
@@ -1691,13 +1692,13 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsEditPlanModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSavePlanStructure}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[8px] font-medium transition-colors flex items-center gap-2"
                 >
                   <Save size={18} /> Guardar Cambios
                 </button>
@@ -1710,20 +1711,20 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       {/* Delete Plan Confirmation Modal */}
       {deleteConfirmPlanId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+          <div className="bg-white rounded-[20px] shadow-[var(--shadow-brand)] w-full max-w-md overflow-hidden transform transition-all">
             <div className="p-6">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
                 <AlertCircle className="text-red-600" size={24} />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Eliminar Plan de Pagos</h3>
-              <p className="text-sm text-gray-600 mb-6 font-medium">
-                ¿Estás seguro de que deseas eliminar permanentemente este plan de pagos? Toda la información y recibos vinculados perderán la referencia principal. <span className="font-bold text-gray-800">Esta acción no se puede deshacer.</span>
+              <p className="text-sm text-[#45515e] mb-6 font-medium">
+                ¿Estás seguro de que deseas eliminar permanentemente este plan de pagos? Toda la información y recibos vinculados perderán la referencia principal. <span className="font-bold text-[#222222]">Esta acción no se puede deshacer.</span>
               </p>
               
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setDeleteConfirmPlanId(null)}
-                  className="flex-1 px-4 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 hover:text-gray-900 rounded-xl font-semibold transition-colors"
+                  className="flex-1 px-4 py-2.5 text-[#45515e] bg-gray-100 hover:bg-gray-200 hover:text-gray-900 rounded-[13px] font-semibold transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1753,7 +1754,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                       showAlert('Error', 'Hubo un error al intentar eliminar el plan. Por favor, intenta de nuevo.');
                     }
                   }}
-                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold shadow-lg shadow-red-500/30 transition-all hover:-translate-y-0.5 active:scale-95"
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-[13px] font-semibold shadow-lg shadow-red-500/30 transition-all hover:-translate-y-0.5 active:scale-95"
                 >
                   Sí, eliminar plan
                 </button>
@@ -1766,24 +1767,24 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       {/* New Plan Modal */}
       {isNewPlanModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800">
+          <div className="bg-white rounded-[13px] shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-[#f2f3f5]">
+              <h3 className="text-lg font-bold text-[#222222]">
                 Crear Nuevo Plan de Pagos
               </h3>
-              <button onClick={() => setIsNewPlanModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setIsNewPlanModalOpen(false)} className="text-[#8e8e93] hover:text-[#45515e]">
                 <X size={20} />
               </button>
             </div>
 
             <div className="p-6 overflow-y-auto flex-grow space-y-4">
               <div className="relative" ref={newPlanAlumnoRef}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Alumno</label>
+                <label className="block text-sm font-medium text-[#45515e] mb-1">Alumno</label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8e8e93]" size={16} />
                   <input
                     type="text"
-                    className="w-full border border-gray-300 rounded-lg pl-10 pr-10 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-semibold"
+                    className="w-full border border-gray-300 rounded-[8px] pl-10 pr-10 py-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white text-sm font-semibold"
                     placeholder="Buscar alumno para nuevo plan..."
                     value={newPlanSearchTerm}
                     onChange={(e) => {
@@ -1796,7 +1797,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   {newPlanSearchTerm && (
                     <button
                       onClick={() => { setNewPlanSearchTerm(''); setShowNewAlumnoSuggestions(true); }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#45515e]"
                     >
                       <X size={14} />
                     </button>
@@ -1804,12 +1805,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 </div>
 
                 {showNewAlumnoSuggestions && newPlanSearchTerm && (
-                  <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
+                  <div className="absolute top-full left-0 w-full bg-white border border-[#e5e7eb] rounded-[8px] shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
                     {filteredNewAlumnoSuggestions.length > 0 ? (
                       filteredNewAlumnoSuggestions.map(alumno => (
                         <button
                           key={alumno.id}
-                          className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-none transition-colors"
+                          className="w-full text-left px-4 py-3 hover:bg-[rgba(0,0,0,0.03)] border-b border-gray-50 last:border-none transition-colors"
                           onClick={() => {
                             setNewPlanForm({
                               ...newPlanForm,
@@ -1822,12 +1823,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                             setShowNewAlumnoSuggestions(false);
                           }}
                         >
-                          <p className="font-bold text-gray-800 text-sm">{alumno.nombre_completo}</p>
-                          <p className="text-xs text-gray-500">{alumno.licenciatura} · {alumno.grado_actual}º {alumno.turno}</p>
+                          <p className="font-bold text-[#222222] text-sm">{toTitleCase(alumno.nombre_completo)}</p>
+                          <p className="text-xs text-[#8e8e93]">{toTitleCase(alumno.licenciatura)} · {alumno.grado_actual}º {alumno.turno}</p>
                         </button>
                       ))
                     ) : (
-                      <div className="p-4 text-center text-sm text-gray-500">
+                      <div className="p-4 text-center text-sm text-[#8e8e93]">
                         No se encontraron alumnos disponibles
                       </div>
                     )}
@@ -1840,9 +1841,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
               {plantillas.filter(p => p.activo).length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Usar Plantilla de Plan</label>
+                  <label className="block text-sm font-medium text-[#45515e] mb-1">Usar Plantilla de Plan</label>
                   <select
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                     value={selectedTemplateId}
                     onChange={(e) => applyTemplate(e.target.value)}
                   >
@@ -1856,9 +1857,9 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
 
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Plan</label>
+                  <label className="block text-sm font-medium text-[#45515e] mb-1">Tipo de Plan</label>
                   <select
-                    className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                     value={newPlanForm.tipo_plan || 'Cuatrimestral'}
                     onChange={(e) => setNewPlanForm({ ...newPlanForm, tipo_plan: e.target.value as any })}
                   >
@@ -1870,10 +1871,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Programa / Licenciatura</label>
+                  <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
                   {catalogos?.licenciaturas?.length ? (
                     <select
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                       value={newPlanForm.licenciatura || ''}
                       onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
                     >
@@ -1883,7 +1884,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   ) : (
                     <input
                       type="text"
-                      className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                       value={newPlanForm.licenciatura || ''}
                       placeholder="Ej. Especialidad en Cirugía..."
                       onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
@@ -1895,33 +1896,33 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 {newPlanForm.tipo_plan !== 'Titulación' && (
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Porcentaje de Beca</label>
+                      <label className="block text-sm font-medium text-[#45515e] mb-1">Porcentaje de Beca</label>
                       {catalogos?.beca_porcentajes?.length ? (
                         <select
-                          className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                           value={newPlanForm.beca_porcentaje || '0%'}
                           onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })}
                         >
                           {catalogos.beca_porcentajes.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       ) : (
-                        <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        <input type="text" className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6]"
                           value={newPlanForm.beca_porcentaje || ''} placeholder="Ej. 0%"
                           onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_porcentaje: e.target.value })} />
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Beca</label>
+                      <label className="block text-sm font-medium text-[#45515e] mb-1">Tipo de Beca</label>
                       {catalogos?.beca_tipos?.length ? (
                         <select
-                          className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                           value={newPlanForm.beca_tipo || 'NINGUNA'}
                           onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })}
                         >
                           {catalogos.beca_tipos.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       ) : (
-                        <input type="text" className="w-full border border-gray-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        <input type="text" className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6]"
                           value={newPlanForm.beca_tipo || ''} placeholder="Ej. NINGUNA"
                           onChange={(e) => setNewPlanForm({ ...newPlanForm, beca_tipo: e.target.value })} />
                       )}
@@ -1934,10 +1935,10 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 )}
             </div>
 
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+            <div className="p-6 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-end gap-3">
               <button
                 onClick={() => setIsNewPlanModalOpen(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
               >
                 Cancelar
               </button>
@@ -1989,7 +1990,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   setSelectedTemplateId('');
                 }}
                 disabled={!newPlanForm.alumno_id}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="px-6 py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white rounded-[8px] font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
               >
                 <Save size={18} /> Crear Plan
               </button>
@@ -2001,15 +2002,15 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       {/* Modal */}
       {modalState.isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+          <div className="bg-white rounded-[13px] shadow-xl w-full max-w-md overflow-hidden flex flex-col">
             <div className="p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-2">{modalState.title}</h3>
-              <p className="text-gray-600">{modalState.message}</p>
+              <h3 className="text-lg font-bold text-[#222222] mb-2">{modalState.title}</h3>
+              <p className="text-[#45515e]">{modalState.message}</p>
             </div>
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+            <div className="p-4 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-end">
               <button
                 onClick={() => setModalState({ ...modalState, isOpen: false })}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+                className="px-6 py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white rounded-[8px] font-medium transition-colors"
               >
                 Aceptar
               </button>
@@ -2021,23 +2022,23 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
       {/* Post-Create Prompt Modal */}
       {postCreatePrompt && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-[13px] shadow-[var(--shadow-brand)] w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95">
             <div className="p-6">
               <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
                 <Save className="text-emerald-600" size={24} />
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">¡Plan Creado Exitosamente!</h3>
-              <p className="text-gray-600 mb-4">
+              <h3 className="text-xl font-bold text-[#222222] mb-2">¡Plan Creado Exitosamente!</h3>
+              <p className="text-[#45515e] mb-4">
                 La carátula del plan ha sido guardada. Sin embargo, antes de imprimirlo o cobrarlo, es <b>altamente recomendable configurar las fechas de vencimiento y montos</b> de los pagos programados.
               </p>
             </div>
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+            <div className="p-4 bg-[#f2f3f5] border-t border-[#f2f3f5] flex gap-3 justify-end">
               <button
                 onClick={() => {
                   setSelectedPlanId(postCreatePrompt.id);
                   setPostCreatePrompt(null);
                 }}
-                className="px-4 py-2 border border-gray-300 hover:bg-gray-100 text-gray-700 rounded-lg font-medium transition-colors"
+                className="px-4 py-2 border border-gray-300 hover:bg-gray-100 text-[#45515e] rounded-[8px] font-medium transition-colors"
               >
                 Hacerlo Más Tarde
               </button>
@@ -2048,7 +2049,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                   setIsEditPlanModalOpen(true);
                   setPostCreatePrompt(null);
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors border border-transparent shadow-sm"
+                className="px-4 py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white rounded-[8px] font-medium transition-colors border border-transparent shadow-[var(--shadow-subtle)]"
               >
                 Editar Plan Ahora
               </button>
@@ -2062,8 +2063,8 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         <div ref={cotizacionRef} className="bg-white text-black w-[816px] min-h-[1056px] p-12 relative flex flex-col">
           <div className="text-center mb-10 border-b-2 border-indigo-900 pb-6">
             <h1 className="text-3xl font-black tracking-widest text-indigo-900 mb-2">COTIZACIÓN DE SERVICIOS</h1>
-            <h2 className="text-xl font-semibold text-gray-700">{selectedPlan?.licenciatura || selectedPlan?.tipo_plan}</h2>
-            <p className="text-gray-500 mt-2 uppercase">Alumno: <span className="font-bold text-gray-800">{selectedPlan?.nombre_alumno}</span></p>
+            <h2 className="text-xl font-semibold text-[#45515e]">{selectedPlan?.licenciatura || selectedPlan?.tipo_plan}</h2>
+            <p className="text-[#8e8e93] mt-2 uppercase">Alumno: <span className="font-bold text-[#222222]">{toTitleCase(selectedPlan?.nombre_alumno)}</span></p>
           </div>
 
           <table className="w-full text-left border-collapse mb-10">
@@ -2075,12 +2076,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                 <th className="p-3 border border-indigo-900 text-right">Total</th>
               </tr>
             </thead>
-            <tbody className="text-gray-800 bg-white">
+            <tbody className="text-[#222222] bg-white">
               {(Array.isArray(selectedPlan?.desglose_conceptos) ? selectedPlan.desglose_conceptos : 
                  (typeof selectedPlan?.desglose_conceptos === 'string' && selectedPlan.desglose_conceptos.trim().startsWith('[') 
                  ? JSON.parse(selectedPlan.desglose_conceptos) : [])
               ).map((item: any, idx: number) => (
-                <tr key={idx} className="border-b border-gray-200">
+                <tr key={idx} className="border-b border-[#e5e7eb]">
                   <td className="p-3 font-medium text-center">{item?.cantidad || 0}</td>
                   <td className="p-3">{item?.concepto || ''}</td>
                   <td className="p-3 text-right">${Number(item?.costo_unitario || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
@@ -2091,12 +2092,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
           </table>
 
           <div className="flex justify-end flex-grow">
-            <div className="w-1/2 bg-gray-50 p-6 rounded-lg border border-gray-200 h-fit">
-              <div className="flex justify-between mb-3 border-b border-gray-200 pb-2">
-                <span className="font-semibold text-gray-600">Subtotal Bruto:</span>
+            <div className="w-1/2 bg-[#f2f3f5] p-6 rounded-[8px] border border-[#e5e7eb] h-fit">
+              <div className="flex justify-between mb-3 border-b border-[#e5e7eb] pb-2">
+                <span className="font-semibold text-[#45515e]">Subtotal Bruto:</span>
                 <span className="font-bold">${Number(selectedPlan?.desglose_total_bruto || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
               </div>
-              <div className="flex justify-between mb-3 border-b border-gray-200 pb-2 text-indigo-700">
+              <div className="flex justify-between mb-3 border-b border-[#e5e7eb] pb-2 text-[#1456f0]">
                 <span className="font-semibold">Descuento ({selectedPlan?.desglose_descuento_porcentaje || 0}%):</span>
                 <span className="font-bold">-${Number(selectedPlan?.desglose_descuento_monto || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
               </div>
@@ -2107,7 +2108,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             </div>
           </div>
           
-          <div className="mt-8 text-center text-gray-400 text-xs border-t border-gray-100 pt-4 pb-4 w-full">
+          <div className="mt-8 text-center text-[#8e8e93] text-xs border-t border-[#f2f3f5] pt-4 pb-4 w-full">
              Documento anexo generado automáticamente mediante el Sistema de Pagos Universitario - {new Date().toLocaleDateString('es-MX')}
           </div>
         </div>

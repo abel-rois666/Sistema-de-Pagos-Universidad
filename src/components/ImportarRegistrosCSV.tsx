@@ -418,35 +418,35 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-gray-200 dark:border-gray-800">
+        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white dark:bg-gray-900 rounded-[20px] shadow-[var(--shadow-brand)] w-full max-w-5xl max-h-[90vh] flex flex-col border border-[#e5e7eb] dark:border-gray-800">
 
-                <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+                <div className="flex items-center justify-between p-6 border-b border-[#f2f3f5] dark:border-gray-800">
                     <div className="flex items-center gap-3">
-                        <div className="bg-emerald-100 dark:bg-emerald-900/40 p-2 rounded-lg">
+                        <div className="bg-emerald-100 dark:bg-emerald-900/40 p-2 rounded-[8px]">
                             <Upload size={20} className="text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Importar Registros de Pago</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Ciclo activo: <span className="font-semibold text-blue-600 dark:text-blue-400">{activeCiclo?.nombre || 'Ninguno'}</span></p>
+                            <p className="text-sm text-[#8e8e93] dark:text-[#8e8e93]">Ciclo activo: <span className="font-semibold text-blue-600 dark:text-blue-400">{activeCiclo?.nombre || 'Ninguno'}</span></p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
-                        <X size={20} className="text-gray-500 dark:text-gray-400" />
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-[#1c2228] rounded-[8px] transition-colors">
+                        <X size={20} className="text-[#8e8e93] dark:text-[#8e8e93]" />
                     </button>
                 </div>
 
-                <div className="flex items-center gap-2 px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                <div className="flex items-center gap-2 px-6 py-4 bg-[#f2f3f5] dark:bg-gray-800/50 border-b border-[#f2f3f5] dark:border-gray-800">
                     {[
                         { n: 1, label: 'Subir CSV' },
                         { n: 2, label: 'Previsualizar' },
                         { n: 3, label: 'Resultado' },
                     ].map((s, i) => (
                         <React.Fragment key={s.n}>
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${step === s.n ? 'bg-blue-600 text-white' : step > s.n ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-[8px] text-sm font-medium transition-colors ${step === s.n ? 'bg-blue-600 text-white' : step > s.n ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-gray-200 dark:bg-gray-700 text-[#8e8e93] dark:text-[#8e8e93]'}`}>
                                 {step > s.n ? <CheckCircle size={14} /> : <span className="w-4 h-4 flex items-center justify-center text-xs">{s.n}</span>}
                                 {s.label}
                             </div>
-                            {i < 2 && <ChevronRight size={14} className="text-gray-400 dark:text-gray-600" />}
+                            {i < 2 && <ChevronRight size={14} className="text-[#8e8e93] dark:text-[#45515e]" />}
                         </React.Fragment>
                     ))}
                 </div>
@@ -455,7 +455,7 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                 <div className="flex-1 overflow-y-auto w-full">
                     {step === 1 && (
                         <div className="p-6 space-y-6">
-                            <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-start gap-4">
+                            <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-[13px] p-4 flex items-start gap-4">
                                 <FileText size={20} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
                                     <p className="font-semibold text-blue-900 dark:text-blue-200 mb-1">Descarga la plantilla oficial</p>
@@ -464,7 +464,7 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                                     </p>
                                     <button
                                         onClick={handleDownloadTemplate}
-                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold"
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-[8px] hover:bg-blue-700 transition-colors text-sm font-semibold"
                                     >
                                         <Download size={16} />
                                         Descargar Plantilla
@@ -477,11 +477,11 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                                 onDragLeave={() => setDragOver(false)}
                                 onClick={() => fileInputRef.current?.click()}
-                                className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
+                                className={`border-2 border-dashed rounded-[13px] p-12 text-center cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-[rgba(255,255,255,0.08)] hover:border-gray-400 dark:hover:border-gray-600 hover:bg-[#eef2ff] dark:hover:bg-gray-800/50'}`}
                             >
-                                <Upload size={40} className={`mx-auto mb-4 ${dragOver ? 'text-blue-500' : 'text-gray-400 dark:text-gray-600'}`} />
-                                <p className="text-gray-700 dark:text-gray-200 font-semibold text-lg mb-1">Arrastra el CSV de Pagos aquí</p>
-                                <p className="text-gray-500 dark:text-gray-400 text-sm">o haz clic para seleccionar el archivo</p>
+                                <Upload size={40} className={`mx-auto mb-4 ${dragOver ? 'text-blue-500' : 'text-[#8e8e93] dark:text-[#45515e]'}`} />
+                                <p className="text-[#45515e] dark:text-gray-200 font-semibold text-lg mb-1">Arrastra el CSV de Pagos aquí</p>
+                                <p className="text-[#8e8e93] dark:text-[#8e8e93] text-sm">o haz clic para seleccionar el archivo</p>
                                 <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
                             </div>
                         </div>
@@ -490,37 +490,37 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                     {step === 2 && (
                         <div className="p-6 space-y-4">
                             <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                                    <p className="text-3xl font-extrabold text-blue-700">{parsedRows.length}</p>
+                                <div className="bg-blue-50 border border-blue-200 rounded-[13px] p-4 text-center">
+                                    <p className="text-3xl font-semibold text-blue-700">{parsedRows.length}</p>
                                     <p className="text-sm text-blue-600 font-medium">Recibos encontrados</p>
                                 </div>
-                                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-                                    <p className="text-3xl font-extrabold text-emerald-700">{validCount}</p>
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-[13px] p-4 text-center">
+                                    <p className="text-3xl font-semibold text-emerald-700">{validCount}</p>
                                     <p className="text-sm text-emerald-600 font-medium">Válidos para importar</p>
                                 </div>
-                                <div className={`border rounded-xl p-4 text-center ${errorCount > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
-                                    <p className={`text-3xl font-extrabold ${errorCount > 0 ? 'text-red-700' : 'text-gray-400'}`}>{errorCount}</p>
-                                    <p className={`text-sm font-medium ${errorCount > 0 ? 'text-red-600' : 'text-gray-400'}`}>Con errores</p>
+                                <div className={`border rounded-[13px] p-4 text-center ${errorCount > 0 ? 'bg-red-50 border-red-200' : 'bg-[#eef2ff] border-[#e5e7eb]'}`}>
+                                    <p className={`text-3xl font-semibold ${errorCount > 0 ? 'text-red-700' : 'text-[#8e8e93]'}`}>{errorCount}</p>
+                                    <p className={`text-sm font-medium ${errorCount > 0 ? 'text-red-600' : 'text-[#8e8e93]'}`}>Con errores</p>
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <div className="overflow-x-auto rounded-[13px] border border-[#e5e7eb]">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Fila</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Alumno</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Cobro Total</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Conceptos</th>
-                                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Estado</th>
+                                        <tr className="bg-[#f2f3f5] dark:bg-[#1c2228] border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]">
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase">Fila</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase">Alumno</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase">Cobro Total</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase">Conceptos</th>
+                                            <th className="px-4 py-3 text-left text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase">Estado</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                         {parsedRows.map(row => (
-                                            <tr key={row.rowIndex} className={row.errors.length > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}>
-                                                <td className="px-4 py-3 text-gray-400 dark:text-gray-500 font-mono text-xs">{row.rowIndex}</td>
-                                                <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-100">{row.nombre_alumno || '—'}</td>
-                                                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">${row.total_final.toFixed(2)}</td>
+                                            <tr key={row.rowIndex} className={row.errors.length > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'hover:bg-[#f2f3f5] dark:hover:bg-gray-800/40'}>
+                                                <td className="px-4 py-3 text-[#8e8e93] dark:text-[#8e8e93] font-mono text-xs">{row.rowIndex}</td>
+                                                <td className="px-4 py-3 font-semibold text-[#222222] dark:text-gray-100">{row.nombre_alumno || '—'}</td>
+                                                <td className="px-4 py-3 text-[#45515e] dark:text-gray-300">${row.total_final.toFixed(2)}</td>
                                                 <td className="px-4 py-3">
                                                     <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full text-xs font-bold">
                                                         {row.detalles.length} detalle(s)
@@ -551,21 +551,21 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                                 <CheckCircle size={40} className="text-emerald-600" />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 mb-1">¡Importación completada!</h3>
-                                <p className="text-gray-500 dark:text-gray-400">Los recibos han sido registrados en la base de datos.</p>
+                                <h3 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-1">¡Importación completada!</h3>
+                                <p className="text-[#8e8e93] dark:text-[#8e8e93]">Los recibos han sido registrados en la base de datos.</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
-                                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                                    <p className="text-3xl font-extrabold text-emerald-700">{importResult.added}</p>
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-[13px] p-4">
+                                    <p className="text-3xl font-semibold text-emerald-700">{importResult.added}</p>
                                     <p className="text-xs text-emerald-600 font-medium">Agregados</p>
                                 </div>
-                                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                                    <p className="text-3xl font-extrabold text-red-700">{importResult.errors}</p>
+                                <div className="bg-red-50 border border-red-200 rounded-[13px] p-4">
+                                    <p className="text-3xl font-semibold text-red-700">{importResult.errors}</p>
                                     <p className="text-xs text-red-600 font-medium">Errores</p>
                                 </div>
                             </div>
                             {importResult.log.length > 0 && (
-                                <div className="text-left bg-gray-50 p-4 max-w-lg mx-auto rounded-lg overflow-y-auto max-h-40 border border-gray-200 text-sm text-red-600">
+                                <div className="text-left bg-[#f2f3f5] p-4 max-w-lg mx-auto rounded-[8px] overflow-y-auto max-h-40 border border-[#e5e7eb] text-sm text-red-600">
                                     {importResult.log.map((lg, i) => <div key={i}>{lg}</div>)}
                                 </div>
                             )}
@@ -585,11 +585,11 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                     )}
                 </div>
 
-                <div className="flex items-center justify-between p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
+                <div className="flex items-center justify-between p-6 border-t border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50 rounded-b-2xl">
                     <button
                         onClick={step === 1 ? onClose : () => setStep(prev => (prev - 1) as 1 | 2)}
                         disabled={step === 3}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors disabled:opacity-40"
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] text-[#45515e] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-[8px] font-medium transition-colors disabled:opacity-40"
                     >
                         <ChevronLeft size={16} />
                         {step === 1 ? 'Cancelar' : 'Volver'}
@@ -599,7 +599,7 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                         <button
                             onClick={handleConfirm}
                             disabled={validCount === 0 || importing}
-                            className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-[8px] font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
                         >
                             {importing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
                             {importing ? 'Importando...' : `Importar ${validCount} recibo(s)`}
@@ -607,7 +607,7 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                     )}
 
                     {step === 3 && (
-                        <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                        <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white rounded-[8px] font-semibold hover:bg-blue-700 transition-colors">
                             Finalizar
                         </button>
                     )}

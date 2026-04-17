@@ -54,7 +54,7 @@ const SingleReceipt = ({ recibo, detalles, alumno, copyName, logoUrl, licenciatu
                 crossOrigin="anonymous"
               />
             ) : (
-              <div className="w-12 h-12 bg-blue-100 flex items-center justify-center text-xs font-bold text-gray-400">LOGO</div>
+              <div className="w-12 h-12 bg-blue-100 flex items-center justify-center text-xs font-bold text-[#8e8e93]">LOGO</div>
             )}
           </div>
           <div className="w-4/6 p-2 flex items-center justify-center border-r border-black">
@@ -136,7 +136,7 @@ const SingleReceipt = ({ recibo, detalles, alumno, copyName, logoUrl, licenciatu
           <div className="w-[15%] bg-gray-200 border-r border-black font-bold flex items-center justify-center text-[9px] text-center uppercase px-1 leading-tight">
              {Number(recibo.uso_saldo_a_favor) > 0 ? 'TOTAL REAL CAJA' : 'TOTAL'}
           </div>
-          <div className="w-[15%] font-bold flex items-center justify-center text-[11px] border-r border-black bg-gray-50">
+          <div className="w-[15%] font-bold flex items-center justify-center text-[11px] border-r border-black bg-[#f2f3f5]">
              ${(Number(recibo.total) - Number(recibo.uso_saldo_a_favor || 0)).toFixed(2)}
           </div>
           <div className="w-[20%]"></div>

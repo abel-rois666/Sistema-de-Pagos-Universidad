@@ -60,19 +60,32 @@ export const calculateStudentTotals = (plan: PaymentPlan, studentEstatus?: strin
 export const extractMonth = (dateStr: string) => {
   if (!dateStr) return 'DESCONOCIDO';
   const upper = dateStr.toUpperCase();
-  if (upper.includes('ENERO') || upper.includes('/01/') || upper.includes('-01-')) return 'ENERO';
-  if (upper.includes('FEBRERO') || upper.includes('/02/') || upper.includes('-02-')) return 'FEBRERO';
-  if (upper.includes('MARZO') || upper.includes('/03/') || upper.includes('-03-')) return 'MARZO';
-  if (upper.includes('ABRIL') || upper.includes('/04/') || upper.includes('-04-')) return 'ABRIL';
-  if (upper.includes('MAYO') || upper.includes('/05/') || upper.includes('-05-')) return 'MAYO';
-  if (upper.includes('JUNIO') || upper.includes('/06/') || upper.includes('-06-')) return 'JUNIO';
-  if (upper.includes('JULIO') || upper.includes('/07/') || upper.includes('-07-')) return 'JULIO';
-  if (upper.includes('AGOSTO') || upper.includes('/08/') || upper.includes('-08-')) return 'AGOSTO';
-  if (upper.includes('SEPTIEMBRE') || upper.includes('/09/') || upper.includes('-09-')) return 'SEPTIEMBRE';
-  if (upper.includes('OCTUBRE') || upper.includes('/10/') || upper.includes('-10-')) return 'OCTUBRE';
-  if (upper.includes('NOVIEMBRE') || upper.includes('/11/') || upper.includes('-11-')) return 'NOVIEMBRE';
-  if (upper.includes('DICIEMBRE') || upper.includes('/12/') || upper.includes('-12-')) return 'DICIEMBRE';
-  return 'OTROS';
+  
+  let yearStr = '';
+  // match YYYY-MM-DD
+  const yyyyMatch = dateStr.match(/^(\d{4})-\d{2}-\d{2}/);
+  // match DD/MM/YYYY
+  const ddmmMatch = dateStr.match(/^\d{2}\/\d{2}\/(\d{4})/);
+  if (yyyyMatch) yearStr = ` ${yyyyMatch[1]}`;
+  else if (ddmmMatch) yearStr = ` ${ddmmMatch[1]}`;
+  // if format is "ENERO 2024" or something else, it might already have the year, but we'll stick to extracting from standard dates.
+
+  let baseMonth = 'OTROS';
+  if (upper.includes('ENERO') || upper.includes('/01/') || upper.includes('-01-')) baseMonth = 'ENERO';
+  else if (upper.includes('FEBRERO') || upper.includes('/02/') || upper.includes('-02-')) baseMonth = 'FEBRERO';
+  else if (upper.includes('MARZO') || upper.includes('/03/') || upper.includes('-03-')) baseMonth = 'MARZO';
+  else if (upper.includes('ABRIL') || upper.includes('/04/') || upper.includes('-04-')) baseMonth = 'ABRIL';
+  else if (upper.includes('MAYO') || upper.includes('/05/') || upper.includes('-05-')) baseMonth = 'MAYO';
+  else if (upper.includes('JUNIO') || upper.includes('/06/') || upper.includes('-06-')) baseMonth = 'JUNIO';
+  else if (upper.includes('JULIO') || upper.includes('/07/') || upper.includes('-07-')) baseMonth = 'JULIO';
+  else if (upper.includes('AGOSTO') || upper.includes('/08/') || upper.includes('-08-')) baseMonth = 'AGOSTO';
+  else if (upper.includes('SEPTIEMBRE') || upper.includes('/09/') || upper.includes('-09-')) baseMonth = 'SEPTIEMBRE';
+  else if (upper.includes('OCTUBRE') || upper.includes('/10/') || upper.includes('-10-')) baseMonth = 'OCTUBRE';
+  else if (upper.includes('NOVIEMBRE') || upper.includes('/11/') || upper.includes('-11-')) baseMonth = 'NOVIEMBRE';
+  else if (upper.includes('DICIEMBRE') || upper.includes('/12/') || upper.includes('-12-')) baseMonth = 'DICIEMBRE';
+  
+  if (baseMonth === 'OTROS' || baseMonth === 'DESCONOCIDO') return baseMonth;
+  return `${baseMonth}${yearStr}`;
 };
 
 /** Formatea una fecha a DD/MM/YYYY para mostrar en pantalla */
@@ -172,4 +185,16 @@ export const CSV_HEADERS_RECIBOS = [
   'CANTIDAD 4', 'CONCEPTO 4', 'COSTO UNITARIO 4', 'COSTO TOTAL 4', 'FORMA DE PAGO 4', 'BANCO4',
   'CANTIDAD 5', 'CONCEPTO 5', 'COSTO UNITARIO 5', 'COSTO TOTAL 5', 'FORMA DE PAGO 5', 'BANCO5'
 ];
+
+
+/** Capitaliza nombres y oraciones respetando conectores en español */
+export const toTitleCase = (str: string | undefined | null): string => {
+  if (!str) return '';
+  const lowercaseWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'e', 'en', 'por', 'a', 'con']);
+  return str.toLowerCase().split(' ').map((word, index) => {
+    if (word.length === 0) return '';
+    if (index > 0 && lowercaseWords.has(word)) return word;
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(' ');
+};
 

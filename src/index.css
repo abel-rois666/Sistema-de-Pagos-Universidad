@@ -1,35 +1,83 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ── Tipografía Global: Nunito ─────────────────────────────────────────── */
+/* ── MiniMax Design System Tokens ──────────────────────────────────────── */
 :root {
-  --font-sans: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Fonts — 4-font system with purpose */
+  --font-ui: 'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-display: 'Outfit', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mid: 'Poppins', sans-serif;
+  --font-data: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 
-  /* Escala tipográfica */
-  --text-display:   2.25rem;   /* 36px  — Títulos de página principales      */
-  --text-heading:   1.5rem;    /* 24px  — Encabezados de sección              */
-  --text-subhead:   1.125rem;  /* 18px  — Subtítulos, nombres de tarjeta      */
-  --text-body:      0.9375rem; /* 15px  — Texto corriente                     */
-  --text-small:     0.8125rem; /* 13px  — Metas, etiquetas, descripciones     */
-  --text-caption:   0.6875rem; /* 11px  — Pills, badges, timestamps           */
+  /* Brand Blue Scale */
+  --brand-6: #1456f0;
+  --primary-200: #bfdbfe;
+  --primary-light: #60a5fa;
+  --primary-500: #3b82f6;
+  --primary-600: #2563eb;
+  --primary-700: #1d4ed8;
 
-  /* Pesos */
+  /* Text */
+  --text-primary: #222222;
+  --text-dark: #18181b;
+  --text-secondary: #45515e;
+  --text-muted: #8e8e93;
+
+  /* Surfaces */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f0f0f0;
+  --bg-dark: #181e25;
+  --border-light: #f2f3f5;
+  --border-gray: #e5e7eb;
+
+  /* Shadows — MiniMax 5-level system */
+  --shadow-subtle: 0px 4px 6px rgba(0, 0, 0, 0.08);
+  --shadow-ambient: 0px 0px 22.576px rgba(0, 0, 0, 0.08);
+  --shadow-brand: 0px 0px 15px rgba(44, 30, 116, 0.16);
+  --shadow-brand-offset: 6.5px 2px 17.5px rgba(44, 30, 116, 0.11);
+  --shadow-elevated: 0px 12px 16px -4px rgba(36, 36, 36, 0.08);
+
+  /* Radii — MiniMax scale */
+  --radius-micro: 4px;
+  --radius-standard: 8px;
+  --radius-comfortable: 13px;
+  --radius-generous: 20px;
+  --radius-large: 24px;
+  --radius-pill: 9999px;
+
+  /* Typography Scale */
+  --text-display:   5.00rem;   /* 80px — Hero headlines (Outfit)        */
+  --text-section:   1.94rem;   /* 31px — Section headings (Outfit)      */
+  --text-card:      1.75rem;   /* 28px — Card titles (Outfit)           */
+  --text-subhead:   1.50rem;   /* 24px — Sub-headings (Poppins)         */
+  --text-body-lg:   1.25rem;   /* 20px — Emphasized body (DM Sans)      */
+  --text-body:      1.00rem;   /* 16px — Body text (DM Sans)            */
+  --text-nav:       0.875rem;  /* 14px — Nav/links (DM Sans)            */
+  --text-btn-sm:    0.8125rem; /* 13px — Small buttons/captions         */
+  --text-label:     0.75rem;   /* 12px — Small labels/tags              */
+  --text-micro:     0.625rem;  /* 10px — Tiny annotations               */
+
+  /* Weights */
   --fw-regular: 400;
-  --fw-medium:  600;
+  --fw-medium:  500;
+  --fw-semibold: 600;
   --fw-bold:    700;
-  --fw-black:   800;
 }
 
 html, body, #root {
-  font-family: var(--font-sans);
+  font-family: var(--font-ui);
   font-size: var(--text-body);
   font-weight: var(--fw-regular);
+  line-height: 1.50;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ajuste Tailwind: font-sans usa Nunito */
-.font-sans { font-family: var(--font-sans) !important; }
+/* Utility classes for the 4-font system */
+.font-sans   { font-family: var(--font-ui) !important; }
+.font-display { font-family: var(--font-display) !important; }
+.font-mid    { font-family: var(--font-mid) !important; }
+.font-data   { font-family: var(--font-data) !important; }
 
 
 /* Custom scrollbar to be subtle */
@@ -60,7 +108,7 @@ html, body, #root {
   inset: 0;
   background: radial-gradient(
     500px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(255, 255, 255, 0.15),
+    rgba(59, 130, 246, 0.08),
     transparent 60%
   );
   opacity: 0;
@@ -72,17 +120,17 @@ html, body, #root {
   opacity: 1;
 }
 
-/* ── Glassmorphism header ────────────────────────────────────────────────── */
+/* ── Glassmorphism header (MiniMax: white clean, adapted for dark) ──────── */
 .header-glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border-light);
 }
 .dark .header-glass {
-  background: rgba(17, 24, 39, 0.80);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(24, 30, 37, 0.88);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -125,29 +173,30 @@ html, body, #root {
 
 /* ── UI Enhancements ─────────────────────────────────────────────────────── */
 .glass-card {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-brand);
 }
 .dark .glass-card {
-  background: rgba(17, 24, 39, 0.6);
+  background: rgba(24, 30, 37, 0.75);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-brand);
 }
 
 .grid-bg {
   background-image: 
-    linear-gradient(to right, rgba(0,0,0, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0,0,0, 0.05) 1px, transparent 1px);
+    linear-gradient(to right, rgba(0,0,0, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0,0,0, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 .dark .grid-bg {
   background-image: 
-    linear-gradient(to right, rgba(255,255,255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255,255,255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255, 0.02) 1px, transparent 1px);
 }
 
 @keyframes float {
@@ -157,4 +206,36 @@ html, body, #root {
 }
 .animate-float {
   animation: float 4s ease-in-out infinite;
+}
+
+/* ── MiniMax Purple Glow Shadow Utility ─────────────────────────────────── */
+.shadow-brand {
+  box-shadow: var(--shadow-brand);
+}
+.shadow-brand-offset {
+  box-shadow: var(--shadow-brand-offset);
+}
+.shadow-subtle-mm {
+  box-shadow: var(--shadow-subtle);
+}
+.shadow-elevated-mm {
+  box-shadow: var(--shadow-elevated);
+}
+
+/* ── MiniMax Pill Button Base ───────────────────────────────────────────── */
+.btn-pill {
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-nav);
+  line-height: 1.50;
+  transition: all 0.2s ease;
+}
+.btn-pill-active {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-dark);
+}
+.dark .btn-pill-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
 }

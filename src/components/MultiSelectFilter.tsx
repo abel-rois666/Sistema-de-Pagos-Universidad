@@ -40,14 +40,14 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all whitespace-nowrap
+        className={`flex items-center gap-2 px-3 py-2 rounded-[8px] border text-sm font-medium transition-all whitespace-nowrap
           ${isActive
-            ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-600 dark:text-indigo-300'
-            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200'}`}
+            ? 'bg-indigo-50 border-indigo-300 text-[#1456f0] dark:bg-indigo-900/40 dark:border-indigo-600 dark:text-indigo-300'
+            : 'bg-white border-gray-300 text-[#45515e] hover:bg-[#f2f3f5] dark:bg-[#1c2228] dark:border-gray-600 dark:text-gray-200'}`}
       >
         <span>{label}</span>
         {isActive && (
-          <span className="bg-indigo-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+          <span className="bg-[#1456f0] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
             {selected.length}
           </span>
         )}
@@ -61,16 +61,16 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.12 }}
-            className="absolute z-50 top-full left-0 mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl min-w-[180px] max-h-64 overflow-y-auto"
+            className="absolute z-50 top-full left-0 mt-1.5 bg-white dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[13px] shadow-xl min-w-[180px] max-h-64 overflow-y-auto"
           >
             <button
               type="button"
               onClick={toggleAll}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-gray-100 dark:border-gray-700 transition-colors
-                ${isAll ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] transition-colors
+                ${isAll ? 'bg-indigo-50 text-[#1456f0] dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-[#8e8e93] dark:text-[#8e8e93] hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`}
             >
               <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all
-                ${isAll ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 dark:border-gray-500'}`}>
+                ${isAll ? 'bg-[#1456f0] border-indigo-600' : 'border-gray-300 dark:border-gray-500'}`}>
                 {isAll && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
               </span>
               Todos
@@ -85,10 +85,10 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
                   className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors
                     ${isSel
                       ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                      : 'text-[#45515e] dark:text-gray-300 hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`}
                 >
                   <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all
-                    ${isSel ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 dark:border-gray-500'}`}>
+                    ${isSel ? 'bg-[#1456f0] border-indigo-600' : 'border-gray-300 dark:border-gray-500'}`}>
                     {isSel && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                   </span>
                   <span className="truncate text-left">{formatLabel ? formatLabel(opt) : opt}</span>
