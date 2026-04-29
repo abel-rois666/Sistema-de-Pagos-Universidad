@@ -148,6 +148,8 @@ CREATE TABLE IF NOT EXISTS public.planes_pago (
     desglose_descuento_monto NUMERIC(15,2),
     desglose_total_neto NUMERIC(15,2),
     
+    observaciones JSONB,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     UNIQUE(alumno_id, ciclo_id, no_plan_pagos)
 );
@@ -192,6 +194,8 @@ SELECT
     p.desglose_descuento_porcentaje,
     p.desglose_descuento_monto,
     p.desglose_total_neto,
+
+    p.observaciones,
 
     COALESCE(p.licenciatura, a.licenciatura) AS licenciatura,
     (COALESCE(p.grado, a.grado_actual) || ' - ' || COALESCE(p.turno, a.turno)) AS grado_turno,

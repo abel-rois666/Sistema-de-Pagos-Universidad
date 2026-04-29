@@ -28,7 +28,7 @@ export const getRestanteFromEstatus = (
   return cantidadOriginal; // sin abono previo → debe el total
 };
 
-export const calculateStudentTotals = (plan: PaymentPlan, studentEstatus?: string) => {
+export const calculateStudentTotals = (plan: PaymentPlan, studentEstatus?: string, monthFilter?: string) => {
   let paid = 0;
   let owed = 0;
   const isBaja = studentEstatus === 'BAJA';
@@ -48,9 +48,18 @@ export const calculateStudentTotals = (plan: PaymentPlan, studentEstatus?: strin
     }
   };
 
-  for (let i = 1; i <= 9; i++) {
+  for (let i = 1; i <= 15; i++) {
     const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
     const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
+    const fecha = plan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
+    
+    if (monthFilter) {
+      const monthStr = extractMonth(fecha || '');
+      if (monthStr !== monthFilter) {
+        continue;
+      }
+    }
+    
     check(cantidad, estatus);
   }
 

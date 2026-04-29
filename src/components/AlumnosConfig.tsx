@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { toTitleCase } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText } from 'lucide-react';
 import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } from '../types';
 import { MultiSelectFilter } from './MultiSelectFilter';
+import ModalReporteAlumnos from './modals/ModalReporteAlumnos';
 import { supabase, toDBPlan } from '../lib/supabase';
 // Helper para generar folios con base en el ciclo y un consecutivo, ej: 261-1002
 const generateFolio = (cicloNombre: string, counter: number) => {
@@ -74,6 +75,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
 
   // ── Estado Bulk Promotion ──
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkCopyConcepts, setBulkCopyConcepts] = useState(false);
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -602,6 +604,11 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
             <Users size={18} /> Promoción Masiva
           </button>
 
+          <button onClick={() => setShowReportModal(true)} disabled={alumnos.length === 0}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
+            <FileText size={18} /> Reporte Financiero
+          </button>
+
           <button onClick={handleAddNew} disabled={editingId !== null || saving}
             className="flex items-center gap-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
             {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} Nuevo Alumno
@@ -912,6 +919,17 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showReportModal && (
+          <ModalReporteAlumnos
+            alumnos={filteredAlumnos.length > 0 ? filteredAlumnos : alumnos}
+            activeCyclePlans={activeCyclePlans}
+            cicloNombre={ciclos.find(c => c.id === activeCicloId)?.nombre || 'Desconocido'}
+            onClose={() => setShowReportModal(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Modal Unificado Crear / Editar Alumno ── */}
       <AnimatePresence>

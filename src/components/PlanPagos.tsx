@@ -290,7 +290,8 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
     tipo_plan: 'Cuatrimestral',
     beca_porcentaje: '0%',
     beca_tipo: 'NINGUNA',
-    fecha_plan: new Date().toLocaleDateString('es-MX')
+    fecha_plan: new Date().toLocaleDateString('es-MX'),
+    observaciones: []
   });
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   
@@ -298,12 +299,16 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
   const [newPlanSearchTerm, setNewPlanSearchTerm] = useState('');
   const [showNewAlumnoSuggestions, setShowNewAlumnoSuggestions] = useState(false);
   const newPlanAlumnoRef = useRef<HTMLDivElement>(null);
+  const mainSearchRef = useRef<HTMLDivElement>(null);
 
   // Close suggestions on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (newPlanAlumnoRef.current && !newPlanAlumnoRef.current.contains(event.target as Node)) {
         setShowNewAlumnoSuggestions(false);
+      }
+      if (mainSearchRef.current && !mainSearchRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -701,6 +706,31 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                     </div>
                   </div>
                 )}
+
+                {['Cuatrimestral', 'Semestral'].includes(newPlanForm.tipo_plan || 'Cuatrimestral') && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-[#45515e] mb-2">Observaciones del Plan</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['Titulación', 'Constancias de renovación de beca', 'Pago de RVOE', '6 Certificaciones', '4 Diplomados'].map(obs => (
+                        <label key={obs} className="flex items-center gap-2 text-sm text-[#45515e]">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300 text-[#1456f0] focus:ring-[#3b82f6]"
+                            checked={(newPlanForm.observaciones || []).includes(obs)}
+                            onChange={(e) => {
+                              const current = newPlanForm.observaciones || [];
+                              setNewPlanForm({
+                                ...newPlanForm,
+                                observaciones: e.target.checked ? [...current, obs] : current.filter(o => o !== obs)
+                              });
+                            }}
+                          />
+                          {obs}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-6 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-end gap-3">
@@ -728,6 +758,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                       ciclo_escolar: activeCiclo?.nombre || '',
                       tipo_plan: newPlanForm.tipo_plan || 'Cuatrimestral',
                       licenciatura: newPlanForm.licenciatura || '',
+                      observaciones: newPlanForm.observaciones || [],
                       grado_turno: newPlanForm.grado_turno || '',
                       concepto_1: newPlanForm.concepto_1, fecha_1: newPlanForm.fecha_1, cantidad_1: newPlanForm.cantidad_1,
                       concepto_2: newPlanForm.concepto_2, fecha_2: newPlanForm.fecha_2, cantidad_2: newPlanForm.cantidad_2,
@@ -753,7 +784,8 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                       tipo_plan: 'Cuatrimestral',
                       beca_porcentaje: '0%',
                       beca_tipo: 'NINGUNA',
-                      fecha_plan: new Date().toLocaleDateString('es-MX')
+                      fecha_plan: new Date().toLocaleDateString('es-MX'),
+                      observaciones: []
                     });
                     setSelectedTemplateId('');
                   }}
@@ -1179,7 +1211,7 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
         </div>
 
         {/* Row 2: Navegación Móvil y Búsqueda */}
-        <div className="relative z-20 w-full xl:max-w-md mx-auto xl:mx-0 flex flex-col gap-3">
+        <div className="relative z-20 w-full xl:max-w-md mx-auto xl:mx-0 flex flex-col gap-3" ref={mainSearchRef}>
           
           {/* Navegación Móvil/Tablet */}
           <div className="flex xl:hidden justify-between items-center gap-2 w-full mt-2">
@@ -1210,7 +1242,6 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
               value={searchTerm}
               onChange={handleSearchChange}
               onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="Buscar plan mediante nombre del alumno..."
             />
             {searchTerm && (
@@ -1344,6 +1375,12 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
             <div className="mt-4 border border-black bg-white p-2 text-[10px] leading-tight text-justify">
               ESTE PLAN CUENTA CON 5 DÍAS NATURALES POSTERIORES A LA FECHA DE VENCIMIENTO DE CADA PAGO PARA REALIZAR ESTE, DE LO CONTRARIO, A PARTIR DEL DÍA 6 AUMENTARÁ UN 10% POR MORA (EN CASO DE CONTAR CON BECA, EL RECARGO SE APLICA SOBRE EL MONTO SIN ELLA). EN CASO DE ESTAR BECADO TAMBIÉN SE PERDERÁ EL PORCENTAJE DE BECA ASIGNADO, POR FALTA AL REGLAMENTO INTERNO INSTITUCIONAL, DONDE INDICA QUE UNO DE LOS REQUISITOS PARA CONSERVAR UNA BECA ES ESTAR AL CORRIENTE EN PAGOS.
             </div>
+
+            {selectedPlan.observaciones && selectedPlan.observaciones.length > 0 && ['Cuatrimestral', 'Semestral'].includes(selectedPlan.tipo_plan || 'Cuatrimestral') && (
+              <div className="mt-4 border border-black bg-white p-2 text-[10px] font-bold leading-tight text-justify">
+                EL PRESENTE PLAN DE PAGOS, ADEMÁS DE LAS PARCIALIDADES POR CUATRIMESTRE/SEMESTRE, INCLUYE EL PAGO PARCIAL DE LO SIGUIENTE, LO CUAL SE ACABARÁ DE CUBRIR EL ÚLTIMO CICLO ESCOLAR DE LA CARRERA: {selectedPlan.observaciones.join(', ').toUpperCase()}
+              </div>
+            )}
 
             <div className="mt-6">
               <table className="w-full border-collapse border border-black bg-white">
@@ -1626,6 +1663,31 @@ export default function PlanPagos({ currentUser, plans, alumnos = [], activeCicl
                       )}
                     </div>
                   </>
+                )}
+
+                {['Cuatrimestral', 'Semestral'].includes(editForm.tipo_plan || 'Cuatrimestral') && (
+                  <div className="md:col-span-2 lg:col-span-5 mt-4">
+                    <label className="block text-sm font-medium text-[#45515e] mb-2">Observaciones del Plan</label>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                      {['Titulación', 'Constancias de renovación de beca', 'Pago de RVOE', '6 Certificaciones', '4 Diplomados'].map(obs => (
+                        <label key={obs} className="flex items-center gap-2 text-sm text-[#45515e]">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300 text-[#1456f0] focus:ring-[#3b82f6]"
+                            checked={(editForm.observaciones || []).includes(obs)}
+                            onChange={(e) => {
+                              const current = editForm.observaciones || [];
+                              setEditForm({
+                                ...editForm,
+                                observaciones: e.target.checked ? [...current, obs] : current.filter(o => o !== obs)
+                              });
+                            }}
+                          />
+                          {obs}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 

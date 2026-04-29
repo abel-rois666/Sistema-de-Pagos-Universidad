@@ -140,7 +140,7 @@ export default function Estadisticas({ plans, alumnos, activeCiclo, ciclos = [],
 
       const alumno = alumnos.find(a => a.id === plan.alumno_id || a.nombre_completo === plan.nombre_alumno);
       const isBaja = alumno?.estatus === 'BAJA';
-      for (let i = 1; i <= 9; i++) {
+      for (let i = 1; i <= 15; i++) {
         const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
         const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
         const fecha = plan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;

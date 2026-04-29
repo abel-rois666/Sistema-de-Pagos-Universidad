@@ -129,6 +129,7 @@ export interface PaymentPlan {
   desglose_descuento_porcentaje?: number;
   desglose_descuento_monto?: number;
   desglose_total_neto?: number;
+  observaciones?: string[];
 }
 
 export interface AppConfig {
@@ -136,7 +137,7 @@ export interface AppConfig {
   logoUrl: string;
 }
 
-export type CatalogoTipo = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno';
+export type CatalogoTipo = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno' | 'empresa_ss' | 'modalidad_titulacion';
 
 export interface CatalogoItem {
   id: string;
@@ -159,6 +160,8 @@ export interface Catalogos {
   grados: string[];
   turnos: string[];
   estatus_alumnos: string[];
+  empresas_ss: string[];
+  modalidades_titulacion: string[];
   /** Mapa nombre-licenciatura -> metadata (tipo académico y periodo) */
   licenciaturasMetadata: Record<string, { tipo_academico?: string; tipo_periodo?: string }>;
 }
@@ -223,4 +226,96 @@ export interface ReciboDetalle {
   observaciones?: string | null; // Nota de abono/restante para pagos parciales
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// FICHA DE TITULACIÓN
+// ──────────────────────────────────────────────────────────────────────
+export type EstatusTresOpciones = 'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
+export type EstatusDocumental   = 'SIN_INICIAR' | 'APROBADO' | 'RECHAZADO';
 
+export interface FichaTitulacion {
+  id: string;
+  alumno_id: string;
+  modalidad: string | null;
+
+  pago_titulacion:      'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
+  certificado_estudios: 'SIN_INICIAR' | 'EN_TRAMITE' | 'TRAMITADO';
+  ingles:               'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
+  servicio_social_req:  'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
+  fotografias:          'PENDIENTES' | 'ENTREGADAS';
+  promedio_alto_rendimiento?: 'SIN_INICIAR' | 'NO_APLICA' | 'APLICA' | null;
+
+  doc_antecedente:             EstatusDocumental;
+  doc_antecedente_nota:        string | null;
+  doc_acta_nacimiento:         EstatusDocumental;
+  doc_acta_nacimiento_nota:    string | null;
+  doc_curp:                    EstatusDocumental;
+  doc_curp_nota:               string | null;
+
+  doc_titulo_profesional:      EstatusDocumental;
+  doc_titulo_profesional_nota: string | null;
+  doc_cedula_profesional:      EstatusDocumental;
+  doc_cedula_profesional_nota: string | null;
+
+  // Inicio de trámite
+  fecha_inicio_tramite?:         string | null;
+  fecha_estimada_culminacion?:   string | null;
+  tramite_completado?:           boolean;
+  fecha_completado?:             string | null;
+  enlace_drive?:                 string | null;
+
+  created_at?: string;
+  updated_at?: string;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// SERVICIO SOCIAL
+// ──────────────────────────────────────────────────────────────────────
+// FICHA DE CERTIFICACIÓN
+// ──────────────────────────────────────────────────────────────────────
+export interface FichaCertificacion {
+  id: string;
+  alumno_id: string;
+
+  pago_certificado:            'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
+
+  doc_acta_nacimiento:         EstatusDocumental;
+  doc_acta_nacimiento_nota:    string | null;
+  doc_curp:                    EstatusDocumental;
+  doc_curp_nota:               string | null;
+  doc_antecedente:             EstatusDocumental;
+  doc_antecedente_nota:        string | null;
+
+  // Solo Especialidad
+  doc_titulo_profesional:      EstatusDocumental;
+  doc_titulo_profesional_nota: string | null;
+  doc_cedula_profesional:      EstatusDocumental;
+  doc_cedula_profesional_nota: string | null;
+
+  tipo_certificado:            'TOTAL' | 'PARCIAL' | null;
+
+  fecha_inicio_tramite?:       string | null;
+  fecha_termino_tramite?:      string | null;
+  tramite_completado?:         boolean;
+  fecha_completado?:           string | null;
+  enlace_drive?:               string | null;
+
+  created_at?: string;
+  updated_at?: string;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+export interface ServicioSocial {
+
+  id: string;
+  alumno_id: string;
+  nombre_empresa: string;
+  tipo_empresa: 'PRIVADA' | 'PUBLICA';
+  fecha_registro: string;
+  fecha_inicio: string;
+  fecha_termino: string;
+  horas_cubrir: number;
+  estatus: 'EN_CURSO' | 'LIBERADO';
+  nombre_programa?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}

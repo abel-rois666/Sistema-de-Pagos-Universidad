@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
     ArrowLeft, Plus, Edit2, Save, X, Trash2,
-    Tag, GraduationCap, Award, Percent, CheckCircle, XCircle, Loader2, Clock, Activity
+    Tag, GraduationCap, Award, Percent, CheckCircle, XCircle, Loader2, Clock, Activity, Briefcase
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { CatalogoItem, CatalogoTipo, Catalogos } from '../types';
@@ -14,7 +14,7 @@ interface CatalogosConfigProps {
     onUpdate: (items: CatalogoItem[]) => void;
 }
 
-type TabKey = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno';
+type TabKey = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno' | 'empresa_ss' | 'modalidad_titulacion';
 
 const TAB_CONFIG: { key: TabKey; label: string; icon: React.ReactNode; color: string; bgColor: string; borderColor: string }[] = [
     { key: 'concepto', label: 'Conceptos', icon: <Tag size={16} />, color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
@@ -24,6 +24,8 @@ const TAB_CONFIG: { key: TabKey; label: string; icon: React.ReactNode; color: st
     { key: 'estatus_alumno', label: 'Estatus Alumno', icon: <Activity size={16} />, color: 'text-rose-700', bgColor: 'bg-rose-50', borderColor: 'border-rose-200' },
     { key: 'beca_tipo', label: 'Tipos Beca', icon: <Award size={16} />, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
     { key: 'beca_porcentaje', label: '% Beca', icon: <Percent size={16} />, color: 'text-violet-700', bgColor: 'bg-violet-50', borderColor: 'border-violet-200' },
+    { key: 'empresa_ss', label: 'Empresas SS', icon: <Briefcase size={16} />, color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
+    { key: 'modalidad_titulacion', label: 'Modalidades Titulación', icon: <GraduationCap size={16} />, color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200' },
 ];
 
 export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBack, onUpdate }: CatalogosConfigProps) {

@@ -52,6 +52,8 @@ const buildCatalogos = (items: CatalogoItem[]): Catalogos => ({
   grados: Array.from(new Set(items.filter(i => i.tipo === 'grado' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   turnos: Array.from(new Set(items.filter(i => i.tipo === 'turno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   estatus_alumnos: Array.from(new Set(items.filter(i => i.tipo === 'estatus_alumno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
+  empresas_ss: Array.from(new Set(items.filter(i => i.tipo === 'empresa_ss' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
+  modalidades_titulacion: Array.from(new Set(items.filter(i => i.tipo === 'modalidad_titulacion' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   licenciaturasMetadata: Object.fromEntries(
     items
       .filter(i => i.tipo === 'licenciatura' && i.activo && i.metadata)
@@ -968,6 +970,7 @@ export default function App() {
           <PageWrapper keyStr="ficha_alumno">
             <FichaAlumno plans={filteredPlans} alumnos={alumnos} initialAlumnoId={selectedAlumnoId || navState.alumnoId}
               currentUser={currentUser}
+              catalogos={catalogos}
               onRefreshAlumnos={refreshAfterPayment}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
               onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
