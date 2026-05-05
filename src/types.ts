@@ -304,8 +304,9 @@ export interface FichaCertificacion {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-export interface ServicioSocial {
+export type VarianteSS = 'ART_55' | 'ART_52' | 'ART_91';
 
+export interface ServicioSocial {
   id: string;
   alumno_id: string;
   nombre_empresa: string;
@@ -316,6 +317,20 @@ export interface ServicioSocial {
   horas_cubrir: number;
   estatus: 'EN_CURSO' | 'LIBERADO';
   nombre_programa?: string | null;
+
+  // Variante legal
+  variante_legal?: VarianteSS;
+
+  // ART. 52 — Exención por condición personal
+  art52_motivo?: 'EDAD' | 'ENFERMEDAD' | null;
+  art52_doc_acta?: 'PENDIENTE' | 'ENTREGADO';
+  art52_doc_expediente?: 'PENDIENTE' | 'ENTREGADO';
+
+  // ART. 91 — Experiencia laboral
+  art91_req_constancia?: boolean;
+  art91_req_comprobantes?: boolean;
+  art91_req_informe?: boolean;
+
   created_at?: string;
   updated_at?: string;
 }

@@ -270,36 +270,67 @@ export default function TabServicioSocial({
               <thead>
                 <tr className="bg-purple-50 dark:bg-[#1c2228] text-[#45515e] dark:text-[#8e8e93] text-xs uppercase tracking-wider border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]">
                   <th className="py-3 px-4 font-semibold">Empresa / Institución</th>
+                  <th className="py-3 px-4 font-semibold">Fundamento</th>
                   <th className="py-3 px-4 font-semibold">Tipo</th>
                   <th className="py-3 px-4 font-semibold">Registro</th>
                   <th className="py-3 px-4 font-semibold">Inicio</th>
-                  <th className="py-3 px-4 font-semibold">Término</th>
-                  <th className="py-3 px-4 font-semibold">Horas</th>
+                  <th className="py-3 px-4 font-semibold">Detalles</th>
                   <th className="py-3 px-4 font-semibold">Estatus</th>
                   <th className="py-3 px-4 font-semibold text-center">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f2f3f5] dark:divide-[rgba(255,255,255,0.06)] bg-white dark:bg-[#181e25]">
-                {registros.map(ss => (
+                {registros.map(ss => {
+                  const variante = ss.variante_legal ?? 'ART_55';
+                  const varianteLabel: Record<string, string> = { ART_55: 'ART. 55', ART_52: 'ART. 52', ART_91: 'ART. 91' };
+                  const varianteColor: Record<string, string> = {
+                    ART_55: 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800',
+                    ART_52: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800',
+                    ART_91: 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800',
+                  };
+                  const art91Reqs = variante === 'ART_91' ? [ss.art91_req_constancia, ss.art91_req_comprobantes, ss.art91_req_informe].filter(Boolean).length : 0;
+                  return (
                   <tr key={ss.id} className="hover:bg-purple-50/40 dark:hover:bg-[rgba(147,51,234,0.06)] transition-colors">
-                    <td className="py-3 px-4 font-semibold text-[#222222] dark:text-gray-100">{toTitleCase(ss.nombre_empresa)}</td>
+                    <td className="py-3 px-4 font-semibold text-[#222222] dark:text-gray-100">
+                      {variante === 'ART_52' ? (
+                        <span className="text-amber-700 dark:text-amber-300 italic text-xs">{ss.art52_motivo === 'EDAD' ? 'Exención por edad (+60)' : ss.art52_motivo === 'ENFERMEDAD' ? 'Exención por enfermedad' : '—'}</span>
+                      ) : toTitleCase(ss.nombre_empresa)}
+                    </td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        ss.tipo_empresa === 'PRIVADA'
-                          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-                          : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                      }`}>
-                        {ss.tipo_empresa === 'PRIVADA' ? 'Privada' : 'Pública'}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${varianteColor[variante]}`}>
+                        {varianteLabel[variante]}
                       </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      {variante !== 'ART_52' && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          ss.tipo_empresa === 'PRIVADA'
+                            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                            : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                        }`}>
+                          {ss.tipo_empresa === 'PRIVADA' ? 'Privada' : 'Pública'}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-[#45515e] dark:text-gray-300 whitespace-nowrap">{formatDate(ss.fecha_registro)}</td>
                     <td className="py-3 px-4 text-[#45515e] dark:text-gray-300 whitespace-nowrap">
-                      <span className="flex items-center gap-1"><Calendar size={12} />{formatDate(ss.fecha_inicio)}</span>
+                      {ss.fecha_inicio ? <span className="flex items-center gap-1"><Calendar size={12} />{formatDate(ss.fecha_inicio)}</span> : <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="py-3 px-4 text-[#45515e] dark:text-gray-300 whitespace-nowrap">
-                      <span className="flex items-center gap-1"><Calendar size={12} />{formatDate(ss.fecha_termino)}</span>
+                    <td className="py-3 px-4">
+                      {variante === 'ART_91' && (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          art91Reqs === 3 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700' : 'bg-gray-50 text-gray-600 border border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                        }`}>
+                          {art91Reqs}/3 requisitos
+                        </span>
+                      )}
+                      {variante === 'ART_55' && <span className="text-xs text-[#8e8e93]">{ss.horas_cubrir?.toLocaleString()} hrs</span>}
+                      {variante === 'ART_52' && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                          {ss.art52_motivo === 'EDAD' ? (ss.art52_doc_acta === 'ENTREGADO' ? 'Acta ✓' : 'Acta pendiente') : ss.art52_motivo === 'ENFERMEDAD' ? (ss.art52_doc_expediente === 'ENTREGADO' ? 'Exp. médico ✓' : 'Exp. pendiente') : '—'}
+                        </span>
+                      )}
                     </td>
-                    <td className="py-3 px-4 font-semibold text-[#222222] dark:text-gray-100">{ss.horas_cubrir.toLocaleString()} hrs</td>
                     <td className="py-3 px-4">
                       {ss.estatus === 'LIBERADO' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700">
@@ -320,7 +351,8 @@ export default function TabServicioSocial({
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
