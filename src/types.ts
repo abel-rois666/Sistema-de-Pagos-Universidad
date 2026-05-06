@@ -132,9 +132,52 @@ export interface PaymentPlan {
   observaciones?: string[];
 }
 
+export interface ConstanciaParams {
+  fontSize: number;         // px, cuerpo del texto (default 14)
+  lineHeight: number;       // interlineado párrafos (default 2.2)
+  marginH: number;          // padding horizontal cuerpo px (default 80)
+  marginV: number;          // padding vertical cuerpo px (default 60)
+  logoSize: number;         // tamaño del logo en px (default 72)
+  watermarkOpacity: number; // opacidad marca de agua 0-1 (default 0.07)
+  watermarkSize: number;    // tamaño marca de agua px (default 400)
+  paperSize: 'carta' | 'oficio'; // carta=1056px, oficio=1346px
+  headerFontSize: number;   // fuente nombre institución (default 22)
+  showWatermark: boolean;   // mostrar/ocultar marca de agua
+  headerInstName: string;   // Nombre de la institución
+  headerAddress: string;    // Dirección
+  headerRfc: string;        // RFC / CCT
+  headerPhones: string;     // Teléfonos
+  customLogoUrl: string;    // Logo específico para constancias
+  logoObjectFit: 'contain' | 'cover' | 'fill'; // Tipo de recorte del logo
+  logoBorderRadius: number; // Redondeo del logo (para recortes circulares)
+}
+
+export const DEFAULT_CONSTANCIA_PARAMS: ConstanciaParams = {
+  fontSize: 14,
+  lineHeight: 2.2,
+  marginH: 80,
+  marginV: 60,
+  logoSize: 72,
+  watermarkOpacity: 0.07,
+  watermarkSize: 400,
+  paperSize: 'carta',
+  headerFontSize: 22,
+  showWatermark: true,
+  headerInstName: 'Centro Universitario Oriente de México',
+  headerAddress: 'AV. JAVIER ROJO GÓMEZ No. 375, COL. AGRÍCOLA ORIENTAL, C.P. 08500, IZTACALCO, CIUDAD DE MÉXICO',
+  headerRfc: 'R.F.C.: UTE010830L65  C.C.T.: 09PSU0509Q  CLAVE INSTITUCIÓN D.G.P.: 090552',
+  headerPhones: 'TELÉFONOS: 5571558440 y 5571558423',
+  customLogoUrl: '',
+  logoObjectFit: 'contain',
+  logoBorderRadius: 0,
+};
+
 export interface AppConfig {
   title: string;
   logoUrl: string;
+  directorNombre: string;
+  directorCargo: string;
+  constanciaParams: ConstanciaParams;
 }
 
 export type CatalogoTipo = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno' | 'empresa_ss' | 'modalidad_titulacion';
@@ -149,6 +192,8 @@ export interface CatalogoItem {
   metadata?: {
     tipo_academico?: 'LICENCIATURA' | 'ESPECIALIDAD';
     tipo_periodo?: 'CUATRIMESTRAL' | 'SEMESTRAL';
+    rvoe?: string;
+    rvoe_fecha?: string; // ISO: "2002-02-18"
   } | null;
 }
 

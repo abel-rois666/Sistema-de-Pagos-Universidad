@@ -1,17 +1,26 @@
 import React, { useState, useRef } from 'react';
-import { AppConfig } from '../types';
+import { AppConfig, DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { updateAppConfig } from '../lib/supabase';
-import { Save, Image as ImageIcon, Type, ArrowLeft, Upload, Trash2 } from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
+import { Save, Image as ImageIcon, Type, ArrowLeft, Upload, Trash2, UserCheck } from 'lucide-react';
 
 interface Props {
-  config: AppConfig;
-  onSave: (newConfig: AppConfig) => void;
   onBack: () => void;
 }
 
-export const AppConfigSettings: React.FC<Props> = ({ config, onSave, onBack }) => {
-  const [title, setTitle] = useState(config.title);
-  const [logoUrl, setLogoUrl] = useState(config.logoUrl);
+export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
+  const { appConfig, setAppConfig } = useAppStore();
+  const config = appConfig || {
+    title: 'Sistema de Control de Pagos',
+    logoUrl: '',
+    directorNombre: 'LIC. ARTURO RODRIGUEZ ISLAS',
+    directorCargo: 'DIRECTOR DE CONTROL ESCOLAR',
+  };
+  
+  const [title, setTitle]                   = useState(config.title);
+  const [logoUrl, setLogoUrl]               = useState(config.logoUrl);
+  const [directorNombre, setDirectorNombre] = useState(config.directorNombre);
+  const [directorCargo, setDirectorCargo]   = useState(config.directorCargo);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -19,23 +28,17 @@ export const AppConfigSettings: React.FC<Props> = ({ config, onSave, onBack }) =
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validar tipo
     if (!file.type.startsWith('image/')) {
       setError('El archivo debe ser una imagen (PNG, JPG, SVG, etc.)');
       return;
     }
-    // Validar tamaño (máximo 500KB para no saturar la BD)
     if (file.size > 500 * 1024) {
       setError('La imagen no debe superar los 500 KB. Usa una imagen más pequeña o comprimida.');
       return;
     }
-
     setError(null);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setLogoUrl(reader.result as string); // Data URL base64
-    };
+    reader.onloadend = () => { setLogoUrl(reader.result as string); };
     reader.readAsDataURL(file);
   };
 
@@ -47,17 +50,19 @@ export const AppConfigSettings: React.FC<Props> = ({ config, onSave, onBack }) =
   const handleSave = async () => {
     setLoading(true);
     setError(null);
-    const err = await updateAppConfig(title, logoUrl);
+    const err = await updateAppConfig(title, logoUrl, directorNombre, directorCargo);
     if (err) {
       setError(err);
     } else {
-      onSave({ title, logoUrl });
+      setAppConfig({ title, logoUrl, directorNombre, directorCargo, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
       onBack();
     }
     setLoading(false);
   };
 
   const isBase64 = logoUrl.startsWith('data:');
+
+  const INPUT = 'w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-4 sm:p-8 transition-colors duration-300">
@@ -72,7 +77,7 @@ export const AppConfigSettings: React.FC<Props> = ({ config, onSave, onBack }) =
           </button>
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Configuración de la Aplicación</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Personaliza el título y el logotipo del sistema.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Personaliza el título, logotipo y datos institucionales del sistema.</p>
           </div>
         </div>
 
@@ -84,27 +89,25 @@ export const AppConfigSettings: React.FC<Props> = ({ config, onSave, onBack }) =
         )}
 
         <div className="space-y-6">
-          {/* Título */}
+          {/* ── Título ── */}
           <div>
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               <Type size={18} className="text-indigo-500" /> Título de la Aplicación
             </label>
             <input
               type="text"
-              className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              className={INPUT}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ej. Sistema de Control de Pagos"
             />
           </div>
 
-          {/* Logotipo */}
+          {/* ── Logotipo ── */}
           <div>
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               <ImageIcon size={18} className="text-pink-500" /> Logotipo de la Institución
             </label>
-
-            {/* Botón para subir archivo */}
             <div className="flex flex-wrap items-center gap-3">
               <input
                 ref={fileInputRef}
@@ -134,8 +137,6 @@ export const AppConfigSettings: React.FC<Props> = ({ config, onSave, onBack }) =
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Formatos aceptados: PNG, JPG, SVG, WebP. Tamaño máximo: 500 KB. Se recomienda fondo transparente.
             </p>
-
-            {/* Vista previa */}
             {logoUrl && (
               <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 flex flex-col items-center transition-colors">
                 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">Vista Previa</span>
@@ -152,6 +153,37 @@ export const AppConfigSettings: React.FC<Props> = ({ config, onSave, onBack }) =
                 )}
               </div>
             )}
+          </div>
+
+          {/* ── Firmante / Director ── */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <UserCheck size={18} className="text-indigo-500" />
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Datos del Firmante (Director de Control Escolar)</span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
+              Estos datos aparecerán en las constancias y documentos oficiales generados por el sistema.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Nombre completo</label>
+              <input
+                type="text"
+                className={INPUT}
+                value={directorNombre}
+                onChange={(e) => setDirectorNombre(e.target.value.toUpperCase())}
+                placeholder="Ej. LIC. ARTURO RODRIGUEZ ISLAS"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Cargo</label>
+              <input
+                type="text"
+                className={INPUT}
+                value={directorCargo}
+                onChange={(e) => setDirectorCargo(e.target.value.toUpperCase())}
+                placeholder="Ej. DIRECTOR DE CONTROL ESCOLAR"
+              />
+            </div>
           </div>
 
           {/* Guardar */}

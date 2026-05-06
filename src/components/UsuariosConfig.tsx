@@ -6,16 +6,17 @@ import {
 import { supabase } from '../lib/supabase';
 import type { Usuario } from '../types';
 import LoadingSkeleton from './LoadingSkeleton';
+import { useAppStore } from '../store/useAppStore';
 
 interface UsuariosConfigProps {
-  currentUser: Usuario;
   onBack: () => void;
 }
 
 type FormMode = 'create' | 'edit' | 'password';
 type FilterStatus = 'active' | 'inactive' | 'all';
 
-export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigProps) {
+export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
+  const { currentUser } = useAppStore();
   // ── Estado principal ───────────────────────────────────────────────────────
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -302,7 +303,7 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                       {/* Username */}
                       <td className="p-4 pl-5 font-semibold text-[#222222] dark:text-gray-100">
                         {u.username}
-                        {u.id === currentUser.id && (
+                        {currentUser && u.id === currentUser.id && (
                           <span className="ml-3 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#bfdbfe] dark:bg-indigo-900/50 text-[#1456f0] dark:text-indigo-300">
                             Tú
                           </span>
@@ -385,10 +386,10 @@ export default function UsuariosConfig({ currentUser, onBack }: UsuariosConfigPr
                               <KeyRound size={17} />
                             </button>
                             <button
-                              onClick={() => u.id !== currentUser.id && setConfirmDeactivateId(u.id)}
-                              disabled={u.id === currentUser.id}
+                              onClick={() => currentUser && u.id !== currentUser.id && setConfirmDeactivateId(u.id)}
+                              disabled={currentUser && u.id === currentUser.id}
                               className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-[8px] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={u.id === currentUser.id ? 'No puedes desactivar tu propia cuenta' : 'Desactivar usuario'}
+                              title={currentUser && u.id === currentUser.id ? 'No puedes desactivar tu propia cuenta' : 'Desactivar usuario'}
                             >
                               <UserX size={17} />
                             </button>

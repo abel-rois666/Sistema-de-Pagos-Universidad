@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Award, Loader2, Save, CheckCircle2, Clock, Ban,
-  AlertCircle, ChevronDown, X, Edit3, CalendarDays, Flag, Lock,
+  AlertCircle, ChevronDown, X, Edit3, CalendarDays, Flag, Lock, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { FichaCertificacion } from '../../types';
@@ -107,12 +107,12 @@ function CustomDrop({ opciones, value, onChange, badgeMap, disabled }: {
 }
 
 // ── SelectorReq ───────────────────────────────────────────────────────────────
-function SelectorReq({ label, opciones, value, nota, conNota, onChange, onNota, badgeMap, disabled }: {
+const SelectorReq: React.FC<{
   label: string; opciones: { value: string; label: string }[];
   value: string; nota?: string | null; conNota?: boolean;
   onChange: (v: string) => void; onNota?: (v: string) => void;
   badgeMap: Record<string, string>; disabled?: boolean;
-}) {
+}> = ({ label, opciones, value, nota, conNota, onChange, onNota, badgeMap, disabled }) => {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-3">
@@ -131,14 +131,14 @@ function SelectorReq({ label, opciones, value, nota, conNota, onChange, onNota, 
 }
 
 // ── BLANK ─────────────────────────────────────────────────────────────────────
-const BLANK = {
-  pago_certificado: 'SIN_INICIAR' as const,
-  doc_acta_nacimiento: 'SIN_INICIAR' as const, doc_acta_nacimiento_nota: null as string|null,
-  doc_curp: 'SIN_INICIAR' as const,            doc_curp_nota: null as string|null,
-  doc_antecedente: 'SIN_INICIAR' as const,     doc_antecedente_nota: null as string|null,
-  doc_titulo_profesional: 'SIN_INICIAR' as const, doc_titulo_profesional_nota: null as string|null,
-  doc_cedula_profesional: 'SIN_INICIAR' as const, doc_cedula_profesional_nota: null as string|null,
-  tipo_certificado: null as 'TOTAL'|'PARCIAL'|null,
+const BLANK: Omit<FichaCertificacion, 'id' | 'alumno_id' | 'created_at' | 'updated_at'> = {
+  pago_certificado: 'SIN_INICIAR',
+  doc_acta_nacimiento: 'SIN_INICIAR', doc_acta_nacimiento_nota: null,
+  doc_curp: 'SIN_INICIAR',            doc_curp_nota: null,
+  doc_antecedente: 'SIN_INICIAR',     doc_antecedente_nota: null,
+  doc_titulo_profesional: 'SIN_INICIAR', doc_titulo_profesional_nota: null,
+  doc_cedula_profesional: 'SIN_INICIAR', doc_cedula_profesional_nota: null,
+  tipo_certificado: null,
   fecha_inicio_tramite: null as string|null,
   fecha_termino_tramite: null as string|null,
   tramite_completado: false,
@@ -161,6 +161,11 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
   const [saving, setSaving]     = useState(false);
   const [editing, setEditing]   = useState(false);
   const [saved, setSaved]       = useState(false);
+
+  // Reset total de la ficha
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetStep, setResetStep]           = useState<1|2>(1);
+  const [resetting, setResetting]           = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,6 +217,23 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
     } else setDraft({ ...BLANK });
   };
 
+  // ── Reset total ─────────────────────────────────────────────────────
+  const handleResetTotal = async () => {
+    if (!ficha) return;
+    setResetting(true);
+    const { error } = await supabase.from('ficha_certificacion').delete().eq('id', ficha.id);
+    setResetting(false);
+    if (error) {
+      alert('Error al eliminar la ficha: ' + error.message + '\n\nRevisa que tengas permisos de DELETE en la tabla ficha_certificacion en Supabase (RLS).');
+      return;
+    }
+    setFicha(null);
+    setDraft({ ...BLANK });
+    setEditing(false);
+    setShowResetModal(false);
+    setResetStep(1);
+  };
+
   // ── Derivados ──────────────────────────────────────────────────────────────
   const requisitosMet = editing
     ? checkRequisitos(draft, esEspecialidad)
@@ -253,9 +275,21 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
               </button>
             </div>
           ) : (
-            <button onClick={() => setEditing(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-[8px] shadow-sm transition-colors active:scale-95">
-              <Edit3 size={14}/> {ficha ? 'Editar' : 'Iniciar Registro'}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Botón reset — solo visible cuando existe ficha guardada */}
+              {ficha && (
+                <button
+                  onClick={() => { setShowResetModal(true); setResetStep(1); }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-[8px] transition-colors"
+                  title="Eliminar toda la ficha y regresar al estado inicial"
+                >
+                  <Trash2 size={13}/> Resetear todo
+                </button>
+              )}
+              <button onClick={() => setEditing(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-[8px] shadow-sm transition-colors active:scale-95">
+                <Edit3 size={14}/> {ficha ? 'Editar' : 'Iniciar Registro'}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -421,6 +455,71 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
           <div className="bg-sky-100 dark:bg-sky-900/30 p-4 rounded-[13px] text-sky-500 mb-4"><Award size={32}/></div>
           <p className="text-base font-semibold text-[#45515e] dark:text-gray-300">Sin proceso de certificación iniciado</p>
           <p className="text-sm text-[#8e8e93] mt-1">Usa <strong>"Iniciar Registro"</strong> para comenzar el seguimiento.</p>
+        </div>
+      )}
+
+      {/* ── Modal Reset Total ────────────────────────────────────────────── */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-2xl w-full max-w-md overflow-hidden border border-red-200 dark:border-red-900/60">
+            <div className="flex items-center gap-3 px-6 py-5 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/40">
+              <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-full text-red-600 dark:text-red-400">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-red-700 dark:text-red-400">Resetear Ficha de Certificación</p>
+                <p className="text-xs text-red-500 mt-0.5">Esta acción eliminará todo el progreso registrado</p>
+              </div>
+            </div>
+
+            {resetStep === 1 && (
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm text-[#222222] dark:text-gray-200">Se eliminará por completo la ficha de certificación de este alumno de la base de datos. Todo el progreso, fechas, documentación revisada y estatus quedarán en cero.</p>
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-[10px] px-4 py-3">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                    <AlertTriangle size={13} /> Advertencia
+                  </p>
+                  <ul className="text-xs text-amber-600 dark:text-amber-500 mt-1 space-y-1 list-disc list-inside leading-relaxed">
+                    <li>Se perderán todas las fechas de trámite registradas.</li>
+                    <li>El estatus de Certificado en Titulación se reiniciará automáticamente.</li>
+                    <li>Esta acción <strong>no se puede deshacer</strong>.</li>
+                  </ul>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button onClick={() => { setShowResetModal(false); setResetStep(1); }}
+                    className="px-4 py-2 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[10px] transition-colors">
+                    Cancelar
+                  </button>
+                  <button onClick={() => setResetStep(2)}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-[10px] transition-colors">
+                    Entendido — Continuar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {resetStep === 2 && (
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm font-semibold text-red-700 dark:text-red-400 flex items-center gap-2">
+                  <AlertTriangle size={15} /> Confirmación final
+                </p>
+                <p className="text-sm text-[#45515e] dark:text-gray-300 leading-relaxed">
+                  ¿Estás <strong>completamente seguro</strong>? Se eliminará toda la ficha de certificación y no podrá recuperarse.
+                </p>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button onClick={() => setResetStep(1)}
+                    className="px-4 py-2 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[10px] transition-colors">
+                    Atrás
+                  </button>
+                  <button onClick={handleResetTotal} disabled={resetting}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 rounded-[10px] transition-colors">
+                    {resetting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Sí, resetear todo
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

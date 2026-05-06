@@ -8,20 +8,16 @@ import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPla
 import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAllSupabase, updateReciboFactura } from '../lib/supabase';
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV , toTitleCase} from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
+import { useAppStore } from '../store/useAppStore';
 
 interface Props {
-  alumnos: Alumno[];
-  activeCiclo?: CicloEscolar;
-  ciclos: CicloEscolar[];
-  catalogos: Catalogos;
-  appConfig?: AppConfig;
   initialSearchTerm?: string;
-  onDataRefresh?: () => void;
-  currentUser?: Usuario;
   onNavigateToPlan?: (alumnoId: string, folioReciboOrigen?: string) => void;
 }
 
-export default function ConsultarRegistros({ alumnos, activeCiclo, ciclos, catalogos, appConfig, initialSearchTerm, onDataRefresh, currentUser, onNavigateToPlan }: Props) {
+export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan }: Props) {
+  const { alumnos, ciclos, activeCicloId, catalogos, appConfig, currentUser, refreshAfterPayment: onDataRefresh } = useAppStore();
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const [recibos, setRecibos] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');

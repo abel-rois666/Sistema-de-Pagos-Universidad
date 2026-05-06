@@ -45,6 +45,7 @@ export default function ModalServicioSocial({ alumnoId, registro, empresasCatalo
   const [reqComprobantes, setReqComprobantes] = useState(registro?.art91_req_comprobantes ?? false);
   const [reqInforme, setReqInforme] = useState(registro?.art91_req_informe ?? false);
   const [fechaInicioLabores, setFechaInicioLabores] = useState(registro?.fecha_inicio ?? '');
+  const [programa91, setPrograma91] = useState(registro?.nombre_programa ?? '');
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingEmpresa, setSavingEmpresa] = useState(false);
@@ -108,6 +109,11 @@ export default function ModalServicioSocial({ alumnoId, registro, empresasCatalo
     let estatusCalculado: 'EN_CURSO' | 'LIBERADO' = 'EN_CURSO';
     if (variante === 'ART_52') estatusCalculado = 'LIBERADO';
     if (variante === 'ART_91' && reqConstancia && reqComprobantes && reqInforme) estatusCalculado = 'LIBERADO';
+    // ART_55: el estatus LIBERADO lo gestiona el botón global del tab, no el modal.
+    // Al editar, si ya estaba LIBERADO se conserva; si era EN_CURSO permanece EN_CURSO.
+    if (variante === 'ART_55' && isEdit && registro?.estatus === 'LIBERADO') {
+      estatusCalculado = 'LIBERADO';
+    }
 
     const payload: any = {
       alumno_id: alumnoId,
@@ -118,11 +124,17 @@ export default function ModalServicioSocial({ alumnoId, registro, empresasCatalo
       // ART.55 / ART.91
       nombre_empresa: (variante !== 'ART_52') ? empresa.trim().toUpperCase() : (registro?.nombre_empresa ?? ''),
       tipo_empresa: (variante !== 'ART_52') ? tipoEmpresa : (registro?.tipo_empresa ?? 'PRIVADA'),
-      // ART.55 specific
-      fecha_inicio: variante === 'ART_55' ? fechaInicio : (variante === 'ART_91' ? fechaInicioLabores : (registro?.fecha_inicio ?? '')),
-      fecha_termino: variante === 'ART_55' ? fechaTermino : (registro?.fecha_termino ?? fechaRegistro),
-      horas_cubrir: variante === 'ART_55' ? parseInt(horas, 10) : 0,
-      nombre_programa: variante === 'ART_55' ? (programa.trim() || null) : null,
+      // Fechas: ART_55 usa las del formulario; ART_91 solo inicio; ART_52 usa fechaRegistro
+      // como placeholder porque la BD tiene NOT NULL — la migración SQL las hará nullable.
+      fecha_inicio:  variante === 'ART_55' ? fechaInicio
+                   : variante === 'ART_91' ? fechaInicioLabores
+                   : fechaRegistro,
+      fecha_termino: variante === 'ART_55' ? fechaTermino
+                   : (registro?.fecha_termino ?? fechaRegistro),
+      horas_cubrir:  variante === 'ART_55' ? parseInt(horas, 10) : 0,
+      nombre_programa: variante === 'ART_55' ? (programa.trim() || null)
+                     : variante === 'ART_91' ? (programa91.trim() || null)
+                     : null,
       // ART.52
       art52_motivo: variante === 'ART_52' ? (motivo52 || null) : null,
       art52_doc_acta: variante === 'ART_52' ? docActa : 'PENDIENTE',
@@ -331,6 +343,11 @@ export default function ModalServicioSocial({ alumnoId, registro, empresasCatalo
                 <label className={LABEL}>Fecha de Inicio de Labores *</label>
                 <input type="date" className={`${INPUT} ${errors.fechaInicioLabores ? 'border-red-400' : ''}`} value={fechaInicioLabores} onChange={e => setFechaInicioLabores(e.target.value)} />
                 {errors.fechaInicioLabores && <p className="text-xs text-red-500 mt-1">{errors.fechaInicioLabores}</p>}
+              </div>
+
+              <div>
+                <label className={LABEL}>Nombre del Programa o Área <span className="font-normal normal-case text-gray-400">(opcional)</span></label>
+                <input type="text" className={INPUT} placeholder="Ej. Área de Recursos Humanos" value={programa91} onChange={e => setPrograma91(e.target.value)} />
               </div>
 
               <div>

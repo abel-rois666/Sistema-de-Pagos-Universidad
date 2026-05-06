@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, AlertCircle, Info, Printer, X, FileDown, Loader2 } from 'lucide-react';
-import type { Alumno, CicloEscolar, PaymentPlan, Catalogos, CatalogoItem, Usuario, Recibo, ReciboDetalle, AppConfig } from '../types';
+import type { PaymentPlan, CatalogoItem, Recibo, ReciboDetalle, Alumno } from '../types';
 import { saveReciboCompleto, saveCatalogoItem } from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
 import { ReciboPlantillaPDF } from './ReciboPlantillaPDF';
 import { printElement, downloadElementAsPDF } from '../lib/printUtils';
 import { toTitleCase } from '../utils';
@@ -18,24 +19,18 @@ interface ConceptoRow {
 }
 
 interface Props {
-  alumnos: Alumno[];
-  activeCiclo?: CicloEscolar;
-  plans: PaymentPlan[];
-  catalogos: Catalogos;
-  appConfig?: AppConfig;
   initialAlumnoId?: string;
   initialConceptIndex?: number;
   initialPlanId?: string;
-  currentUser?: Usuario;
-  onPaymentSaved?: () => void;
-  onCatalogoAdded?: (item: CatalogoItem) => void;
 }
 
 // Bancos disponibles
 const BANCOS = ['BBVA 1', 'BBVA 2', 'MIFEL', 'BANORTE', 'NO APLICA'];
 const FORMAS_PAGO = ['Depósito Bancario', 'Transferencia bancaria', 'Tarjeta de Débito', 'Tarjeta de Crédito', 'Efectivo'];
 
-export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, appConfig, initialAlumnoId, initialConceptIndex, initialPlanId, currentUser, onPaymentSaved, onCatalogoAdded }: Props) {
+export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, initialPlanId }: Props) {
+  const { alumnos, ciclos, activeCicloId, plans, catalogos, appConfig, currentUser, refreshAfterPayment, setCatalogoItems } = useAppStore();
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<string>(initialAlumnoId || '');
   const [searchAlumnoTerm, setSearchAlumnoTerm] = useState('');
   const [showAlumnoSuggestions, setShowAlumnoSuggestions] = useState(false);
@@ -428,7 +423,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
         indice_concepto_plan: d.indice_concepto_plan ?? null,
         observaciones: d.observaciones ?? null,
       }));
-      onPaymentSaved?.();
+      refreshAfterPayment();
       setReciboGuardado({ recibo: reciboCompleto, detalles: detallesCompletos, alumno: alumnoData });
     }
   };
@@ -916,7 +911,7 @@ export default function RegistrarPago({ alumnos, activeCiclo, plans, catalogos, 
                     activo: true,
                   };
                   await saveCatalogoItem(newItem);
-                  onCatalogoAdded?.(newItem);
+                  setCatalogoItems(prev => [...prev, newItem]);
                   // auto-select in the current row
                   if (addConceptoRowId) {
                     updateFila(addConceptoRowId, 'concepto', `CAT_${name}`);

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, GraduationCap, ScrollText } from 'lucide-react';
 import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '../types';
+import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { calculateStudentTotals, toTitleCase } from '../utils';
 import { supabase } from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
 import TabPagos from './tabs/TabPagos';
 import TabServicioSocial from './tabs/TabServicioSocial';
 import TabCertificacion from './tabs/TabCertificacion';
@@ -27,12 +29,7 @@ const TABS: TabDef[] = [
 
 // ── Props ───────────────────────────────────────────────────────────────────
 interface FichaAlumnoProps {
-  plans: PaymentPlan[];
-  alumnos?: Alumno[];
   initialAlumnoId?: string | null;
-  currentUser?: Usuario | null;
-  catalogos?: Catalogos;
-  onRefreshAlumnos?: () => void;
   onBack: () => void;
   onGoToPlan?: (id: string) => void;
   onBackToAlumnos?: () => void;
@@ -40,9 +37,22 @@ interface FichaAlumnoProps {
 
 // ── Componente ──────────────────────────────────────────────────────────────
 export default function FichaAlumno({
-  plans, alumnos = [], initialAlumnoId, currentUser, catalogos,
-  onRefreshAlumnos, onBack, onGoToPlan, onBackToAlumnos,
+  initialAlumnoId, onBack, onGoToPlan, onBackToAlumnos,
 }: FichaAlumnoProps) {
+
+  const {
+    currentUser,
+    plans: allPlans,
+    alumnos,
+    catalogos,
+    catalogoItems,
+    appConfig,
+    activeCicloId,
+    refreshAfterPayment
+  } = useAppStore();
+
+  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
+  const onRefreshAlumnos = refreshAfterPayment;
 
   // Búsqueda
   const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(initialAlumnoId || null);
@@ -367,6 +377,10 @@ export default function FichaAlumno({
           {activeTab === 'servicio_social' && isAdmin && (
             <TabServicioSocial
               alumnoId={selectedAlumno.id}
+              alumno={selectedAlumno}
+              appConfig={appConfig ?? { title: '', logoUrl: '', directorNombre: 'LIC. ARTURO RODRIGUEZ ISLAS', directorCargo: 'DIRECTOR DE CONTROL ESCOLAR', constanciaParams: DEFAULT_CONSTANCIA_PARAMS }}
+              catalogoItems={catalogoItems}
+              isAdmin={isAdmin}
               empresasCatalogo={empresasLocales}
               onEmpresaAgregada={emp => setEmpresasLocales(prev => prev.includes(emp) ? prev : [...prev, emp])}
               onRegistrosChange={setSsRegistros}

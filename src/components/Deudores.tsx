@@ -4,11 +4,10 @@ import { ArrowLeft, AlertTriangle, Search, CheckCircle, ArrowUpDown, ArrowUp, Ar
 import { PaymentPlan } from '../types';
 import { isPaid, getRestanteFromEstatus , toTitleCase} from '../utils';
 import { printElement } from '../lib/printUtils';
+import { useAppStore } from '../store/useAppStore';
 import { MultiSelectFilter } from './MultiSelectFilter';
 
 interface DeudoresProps {
-  plans: PaymentPlan[];
-  alumnos: import('../types').Alumno[];
   onBack: () => void;
   onNavigateToAlumno: (alumnoId: string) => void;
 }
@@ -45,7 +44,9 @@ const parsePaymentDate = (dStr: string): Date | null => {
 };
 
 // ── Main Component ──────────────────────────────────────────────────────────
-export default function Deudores({ plans, alumnos, onBack, onNavigateToAlumno }: DeudoresProps) {
+export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) {
+  const { plans: allPlans, alumnos, activeCicloId } = useAppStore();
+  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLicenciaturas, setFilterLicenciaturas] = useState<string[]>([]);
   const [filterGrados, setFilterGrados] = useState<string[]>([]);

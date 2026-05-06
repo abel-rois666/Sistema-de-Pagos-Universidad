@@ -3,14 +3,11 @@ import { motion } from 'motion/react';
 import { ArrowLeft, TrendingUp, AlertCircle, Inbox, BarChart2, Banknote, CreditCard, ListChecks } from 'lucide-react';
 import type { PaymentPlan, Alumno, CicloEscolar } from '../types';
 import { supabase } from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
 import { extractMonth, isPaid, getRestanteFromEstatus , toTitleCase} from '../utils';
 import LoadingSkeleton from './LoadingSkeleton';
 
 interface EstadisticasProps {
-  plans: PaymentPlan[];
-  alumnos: Alumno[];
-  activeCiclo?: CicloEscolar;
-  ciclos: CicloEscolar[];
   onBack: () => void;
 }
 
@@ -26,7 +23,9 @@ interface LibreRow {
   uso_saldo_a_favor?: number;
 }
 
-export default function Estadisticas({ plans, alumnos, activeCiclo, ciclos = [], onBack }: EstadisticasProps) {
+export default function Estadisticas({ onBack }: EstadisticasProps) {
+  const { plans, alumnos, ciclos, activeCicloId } = useAppStore();
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const [activeTab, setActiveTab] = useState<'planes' | 'libres'>('planes');
   
   // -- Filtros --

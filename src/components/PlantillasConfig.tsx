@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Search, Plus, Save, X, Trash2, Copy, Loader2, CheckCircle, AlertCircle, BookOpen } from 'lucide-react';
 import { supabase, savePlantilla, deletePlantilla } from '../lib/supabase';
-import { PlantillaPlan, CicloEscolar, Catalogos } from '../types';
+import { PlantillaPlan } from '../types';
 import { toInputDate } from '../utils';
+import { useAppStore } from '../store/useAppStore';
 
 interface PlantillasConfigProps {
-  plantillas: PlantillaPlan[];
-  ciclos: CicloEscolar[];
-  catalogos: Catalogos;
-  onSave: (plantillas: PlantillaPlan[]) => void;
   onBack: () => void;
 }
 
-export default function PlantillasConfig({ plantillas, ciclos, catalogos, onSave, onBack }: PlantillasConfigProps) {
+export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
+  const { plantillas, ciclos, catalogos, setPlantillas: onSave } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<PlantillaPlan>>({});

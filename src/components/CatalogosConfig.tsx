@@ -5,13 +5,11 @@ import {
     Tag, GraduationCap, Award, Percent, CheckCircle, XCircle, Loader2, Clock, Activity, Briefcase
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { CatalogoItem, CatalogoTipo, Catalogos } from '../types';
+import { CatalogoItem, CatalogoTipo } from '../types';
+import { useAppStore } from '../store/useAppStore';
 
 interface CatalogosConfigProps {
-    catalogos: Catalogos;
-    rawItems: CatalogoItem[];
     onBack: () => void;
-    onUpdate: (items: CatalogoItem[]) => void;
 }
 
 type TabKey = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno' | 'empresa_ss' | 'modalidad_titulacion';
@@ -28,20 +26,33 @@ const TAB_CONFIG: { key: TabKey; label: string; icon: React.ReactNode; color: st
     { key: 'modalidad_titulacion', label: 'Modalidades Titulación', icon: <GraduationCap size={16} />, color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200' },
 ];
 
-export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBack, onUpdate }: CatalogosConfigProps) {
+export default function CatalogosConfig({ onBack }: CatalogosConfigProps) {
+    const { catalogoItems: items, setCatalogoItems: setItems } = useAppStore();
     const [activeTab, setActiveTab] = useState<TabKey>('concepto');
-    const [items, setItems] = useState<CatalogoItem[]>(rawItems);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
     const [editMetaTipoAcademico, setEditMetaTipoAcademico] = useState<'LICENCIATURA' | 'ESPECIALIDAD'>('LICENCIATURA');
     const [editMetaTipoPeriodo, setEditMetaTipoPeriodo] = useState<'CUATRIMESTRAL' | 'SEMESTRAL'>('CUATRIMESTRAL');
+    const [editMetaRvoe, setEditMetaRvoe] = useState('');
+    const [editMetaRvoeFecha, setEditMetaRvoeFecha] = useState('');
     const [newValue, setNewValue] = useState('');
     const [newMetaTipoAcademico, setNewMetaTipoAcademico] = useState<'LICENCIATURA' | 'ESPECIALIDAD'>('LICENCIATURA');
     const [newMetaTipoPeriodo, setNewMetaTipoPeriodo] = useState<'CUATRIMESTRAL' | 'SEMESTRAL'>('CUATRIMESTRAL');
+    const [newMetaRvoe, setNewMetaRvoe] = useState('');
+    const [newMetaRvoeFecha, setNewMetaRvoeFecha] = useState('');
     const [saving, setSaving] = useState(false);
     const [importingInfo, setImportingInfo] = useState<{ total: number; skipped: number } | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    // ── Formateador de fecha RVOE: "2002-02-18" → "18 de febrero de 2002" ──
+    const MESES_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const formatFechaRvoe = (iso: string): string => {
+        if (!iso) return '';
+        const [y, m, d] = iso.split('-').map(Number);
+        if (!y || !m || !d) return iso;
+        return `${d} de ${MESES_ES[m - 1]} de ${y}`;
+    };
 
     const showNotification = (type: 'success' | 'error' | 'info', msg: string) => {
         setNotification({ type, msg });
@@ -69,7 +80,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
 
         // Construir metadata solo para licenciaturas
         const metadata = activeTab === 'licenciatura'
-            ? { tipo_academico: newMetaTipoAcademico, tipo_periodo: newMetaTipoPeriodo }
+            ? { tipo_academico: newMetaTipoAcademico, tipo_periodo: newMetaTipoPeriodo, rvoe: newMetaRvoe.trim() || undefined, rvoe_fecha: newMetaRvoeFecha || undefined }
             : null;
 
         const newItem: CatalogoItem = {
@@ -93,13 +104,13 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
 
             const updated = [...items, saved];
             setItems(updated);
-            onUpdate(updated);
             setNewValue('');
+            setNewMetaRvoe('');
+            setNewMetaRvoeFecha('');
             showNotification('success', `"${val}" agregado correctamente.`);
         } catch {
             const updated = [...items, newItem];
             setItems(updated);
-            onUpdate(updated);
             setNewValue('');
             showNotification('success', `"${val}" agregado (modo local).`);
         } finally {
@@ -162,7 +173,6 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                 if (data && data.length > 0) {
                     const updated = [...items, ...data];
                     setItems(updated);
-                    onUpdate(updated);
                     setImportingInfo({ total: data.length, skipped });
                     showNotification('success', `Se importaron ${data.length} elementos exitosamente.`);
                 }
@@ -184,9 +194,13 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
         if (item.tipo === 'licenciatura' && item.metadata) {
             setEditMetaTipoAcademico(item.metadata.tipo_academico || 'LICENCIATURA');
             setEditMetaTipoPeriodo(item.metadata.tipo_periodo || 'CUATRIMESTRAL');
+            setEditMetaRvoe(item.metadata.rvoe || '');
+            setEditMetaRvoeFecha(item.metadata.rvoe_fecha || '');
         } else {
             setEditMetaTipoAcademico('LICENCIATURA');
             setEditMetaTipoPeriodo('CUATRIMESTRAL');
+            setEditMetaRvoe('');
+            setEditMetaRvoeFecha('');
         }
     };
 
@@ -196,7 +210,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
         setSaving(true);
 
         const metadata = item.tipo === 'licenciatura'
-            ? { tipo_academico: editMetaTipoAcademico, tipo_periodo: editMetaTipoPeriodo }
+            ? { tipo_academico: editMetaTipoAcademico, tipo_periodo: editMetaTipoPeriodo, rvoe: editMetaRvoe.trim() || undefined, rvoe_fecha: editMetaRvoeFecha || undefined }
             : item.metadata;
 
         try {
@@ -209,7 +223,6 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
 
         const updated = items.map(i => i.id === item.id ? { ...i, valor: val, metadata } : i);
         setItems(updated);
-        onUpdate(updated);
         setEditingId(null);
         setSaving(false);
         showNotification('success', 'Cambio guardado.');
@@ -227,7 +240,6 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
 
         const updated = items.map(i => i.id === item.id ? { ...i, activo: newActivo } : i);
         setItems(updated);
-        onUpdate(updated);
     };
 
     const handleDelete = async (item: CatalogoItem) => {
@@ -244,7 +256,6 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
 
         const updated = items.filter(i => i.id !== item.id);
         setItems(updated);
-        onUpdate(updated);
         setSaving(false);
         showNotification('success', `"${item.valor}" eliminado.`);
     };
@@ -356,7 +367,7 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                         </div>
                         {/* Selectores extra SOLO para Licenciaturas */}
                         {activeTab === 'licenciatura' && (
-                            <div className="flex flex-wrap gap-3 items-center pt-1 border-t border-[#e5e7eb]">
+                            <div className="flex flex-wrap gap-3 items-center pt-2 border-t border-[#e5e7eb]">
                                 <span className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider">Atributos:</span>
                                 <div className="flex items-center gap-2">
                                     <label className="text-xs text-[#45515e] font-medium">Tipo académico:</label>
@@ -379,6 +390,25 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                                         <option value="CUATRIMESTRAL">Cuatrimestral</option>
                                         <option value="SEMESTRAL">Semestral</option>
                                     </select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-[#45515e] font-medium">RVOE / No. Acuerdo:</label>
+                                    <input
+                                        type="text"
+                                        value={newMetaRvoe}
+                                        onChange={e => setNewMetaRvoe(e.target.value)}
+                                        placeholder="Ej. 20090890"
+                                        className="border border-violet-200 rounded-[8px] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-violet-400 bg-violet-50 text-violet-700 font-semibold w-32"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-[#45515e] font-medium">Fecha acuerdo:</label>
+                                    <input
+                                        type="date"
+                                        value={newMetaRvoeFecha}
+                                        onChange={e => setNewMetaRvoeFecha(e.target.value)}
+                                        className="border border-rose-200 rounded-[8px] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-rose-400 bg-rose-50 text-rose-700 font-semibold"
+                                    />
                                 </div>
                             </div>
                         )}
@@ -422,23 +452,44 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                                             className="w-full border border-blue-300 rounded-[8px] px-3 py-1.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#3b82f6] uppercase"
                                         />
                                         {item.tipo === 'licenciatura' && (
-                                            <div className="flex flex-wrap gap-2 items-center">
-                                                <select
-                                                    value={editMetaTipoAcademico}
-                                                    onChange={e => setEditMetaTipoAcademico(e.target.value as 'LICENCIATURA' | 'ESPECIALIDAD')}
-                                                    className="border border-indigo-200 rounded-[8px] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-400 bg-indigo-50 text-[#1456f0] font-semibold"
-                                                >
-                                                    <option value="LICENCIATURA">Licenciatura</option>
-                                                    <option value="ESPECIALIDAD">Especialidad</option>
-                                                </select>
-                                                <select
-                                                    value={editMetaTipoPeriodo}
-                                                    onChange={e => setEditMetaTipoPeriodo(e.target.value as 'CUATRIMESTRAL' | 'SEMESTRAL')}
-                                                    className="border border-cyan-200 rounded-[8px] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-400 bg-cyan-50 text-cyan-700 font-semibold"
-                                                >
-                                                    <option value="CUATRIMESTRAL">Cuatrimestral</option>
-                                                    <option value="SEMESTRAL">Semestral</option>
-                                                </select>
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex flex-wrap gap-2 items-center">
+                                                    <select
+                                                        value={editMetaTipoAcademico}
+                                                        onChange={e => setEditMetaTipoAcademico(e.target.value as 'LICENCIATURA' | 'ESPECIALIDAD')}
+                                                        className="border border-indigo-200 rounded-[8px] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-indigo-400 bg-indigo-50 text-[#1456f0] font-semibold"
+                                                    >
+                                                        <option value="LICENCIATURA">Licenciatura</option>
+                                                        <option value="ESPECIALIDAD">Especialidad</option>
+                                                    </select>
+                                                    <select
+                                                        value={editMetaTipoPeriodo}
+                                                        onChange={e => setEditMetaTipoPeriodo(e.target.value as 'CUATRIMESTRAL' | 'SEMESTRAL')}
+                                                        className="border border-cyan-200 rounded-[8px] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-cyan-400 bg-cyan-50 text-cyan-700 font-semibold"
+                                                    >
+                                                        <option value="CUATRIMESTRAL">Cuatrimestral</option>
+                                                        <option value="SEMESTRAL">Semestral</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-xs text-[#45515e] font-medium shrink-0">RVOE / No. Acuerdo:</label>
+                                                    <input
+                                                        type="text"
+                                                        value={editMetaRvoe}
+                                                        onChange={e => setEditMetaRvoe(e.target.value)}
+                                                        placeholder="Ej. 20090890"
+                                                        className="border border-violet-200 rounded-[8px] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-violet-400 bg-violet-50 text-violet-700 font-semibold w-36"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-xs text-[#45515e] font-medium shrink-0">Fecha acuerdo:</label>
+                                                    <input
+                                                        type="date"
+                                                        value={editMetaRvoeFecha}
+                                                        onChange={e => setEditMetaRvoeFecha(e.target.value)}
+                                                        className="border border-rose-200 rounded-[8px] px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-rose-400 bg-rose-50 text-rose-700 font-semibold"
+                                                    />
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -448,13 +499,23 @@ export default function CatalogosConfig({ catalogos: _catalogos, rawItems, onBac
                                             {item.valor}
                                         </span>
                                         {item.tipo === 'licenciatura' && item.metadata && (
-                                            <div className="flex gap-1.5">
+                                            <div className="flex flex-wrap gap-1.5">
                                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-[#1456f0] border border-indigo-100 font-semibold">
                                                     {item.metadata.tipo_academico === 'ESPECIALIDAD' ? 'Especialidad' : 'Licenciatura'}
                                                 </span>
                                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-100 font-semibold">
                                                     {item.metadata.tipo_periodo === 'SEMESTRAL' ? 'Semestral' : 'Cuatrimestral'}
                                                 </span>
+                                                {item.metadata.rvoe && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-100 font-semibold">
+                                                        RVOE: {item.metadata.rvoe}
+                                                    </span>
+                                                )}
+                                                {item.metadata.rvoe_fecha && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100 font-semibold">
+                                                        {formatFechaRvoe(item.metadata.rvoe_fecha)}
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                     </div>

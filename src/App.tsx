@@ -6,6 +6,7 @@ import { supabase, savePlan, bulkSaveAlumnos, bulkSavePlanes, saveAlumno, delete
 import { PaymentPlan, CicloEscolar, Alumno, CatalogoItem, Catalogos, PlantillaPlan, AppConfig } from './types';
 import { MOCK_DATA, MOCK_CICLOS, MOCK_ALUMNOS } from './data';
 import { CSV_HEADERS, generateCSV, downloadCSV, getMaxFolioCounter, getCyclePrefix, isPaid, getRestanteFromEstatus } from './utils';
+import { useAppStore } from './store/useAppStore';
 
 import PlanPagos from './components/PlanPagos';
 import FichaAlumno from './components/FichaAlumno';
@@ -79,16 +80,14 @@ const PageWrapper = ({ children, keyStr, className }: { children: ReactNode, key
 );
 
 export default function App() {
-  const [plans, setPlans] = useState<PaymentPlan[]>(MOCK_DATA);
-  const [ciclos, setCiclos] = useState<CicloEscolar[]>(MOCK_CICLOS);
-  const [alumnos, setAlumnos] = useState<Alumno[]>(MOCK_ALUMNOS);
-  const [plantillas, setPlantillas] = useState<PlantillaPlan[]>([]);
-  const [activeCicloId, setActiveCicloId] = useState<string>(() => {
-    return localStorage.getItem('current_ciclo_id') || MOCK_CICLOS.find(c => c.activo)?.id || MOCK_CICLOS[0].id;
-  });
-  const [catalogoItems, setCatalogoItems] = useState<CatalogoItem[]>(DEFAULT_CATALOGOS);
-  // Loading inicia en false; la pantalla vacía se evita con authChecked (ver abajo)
-  const [loading, setLoading] = useState(false);
+  const {
+    currentUser, authChecked, loading,
+    plans, ciclos, alumnos, plantillas, catalogoItems, appConfig, activeCicloId,
+    setCurrentUser, setAuthChecked, setActiveCicloId, setLoading,
+    fetchAllData, refreshAfterPayment,
+    setPlans, setAlumnos, setCiclos, setPlantillas, setCatalogoItems, setAppConfig
+  } = useAppStore();
+
   const navigate = useNavigate();
   const location = useLocation();
   const navState = (location.state || {}) as any;
@@ -98,7 +97,6 @@ export default function App() {
   const [showCicloMenu, setShowCicloMenu] = useState(false);
   const [sectionOperaciones, setSectionOperaciones] = useState(true);
   const [sectionReportes, setSectionReportes] = useState(true);
-  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const configMenuRef = useRef<HTMLDivElement>(null);
   const cicloMenuRef = useRef<HTMLDivElement>(null);
 
@@ -119,14 +117,6 @@ export default function App() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showConfigMenu, showCicloMenu]);
-
-  // Sesión gestionada por Supabase Auth (JWT real con expiración).
-  // El estado inicial es null; se llena desde getSession() al montar.
-  const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
-
-  // authChecked: se vuelve true cuando sabemos si hay sesión o no.
-  // Mientras sea false, mostramos el skeleton para evitar flash de Login.
-  const [authChecked, setAuthChecked] = useState(false);
 
   // ── Toast global ─────────────────────────────────────────────────────────
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -167,8 +157,8 @@ export default function App() {
           if (u.ultimo_ciclo_id) {
             setActiveCicloId(u.ultimo_ciclo_id);
           }
-          // Cargar datos del sistema (fetchAll pone authChecked=true al final)
-          fetchAll();
+          // Cargar datos del sistema
+          await fetchAllData();
           return;
         } else {
           // Sesión Auth válida pero sin perfil en la BD — cerrar sesión
@@ -187,74 +177,7 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchAll = async () => {
-    setLoading(true);
-    try {
-      const { data: planesData, error: planesError } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*').order('id'));
-      if (!planesError && planesData) {
-        setPlans(planesData.length > 0 ? planesData as PaymentPlan[] : []);
-      }
-
-      const { data: ciclosData, error: ciclosError } = await fetchAllSupabase(() => supabase.from('ciclos_escolares').select('*').order('id'));
-      if (!ciclosError && ciclosData) {
-        if (ciclosData.length > 0) {
-          setCiclos(ciclosData as CicloEscolar[]);
-          const savedId = localStorage.getItem('current_ciclo_id');
-          if (savedId && (ciclosData as CicloEscolar[]).some(c => c.id === savedId)) {
-            setActiveCicloId(savedId);
-          } else {
-            const active = ciclosData.find((c: CicloEscolar) => c.activo);
-            if (active) setActiveCicloId(active.id);
-          }
-        } else {
-          setCiclos([]);
-        }
-      }
-
-      const { data: alumnosData, error: alumnosError } = await fetchAllSupabase(() => supabase.from('alumnos').select('*').order('id'));
-      if (!alumnosError && alumnosData) {
-        setAlumnos(alumnosData.length > 0 ? alumnosData as Alumno[] : []);
-      }
-
-      const { data: catalogosData, error: catalogosError } = await fetchAllSupabase(() => supabase.from('catalogos').select('*').order('orden', { ascending: true }));
-      if (!catalogosError && catalogosData && catalogosData.length > 0) setCatalogoItems(catalogosData as CatalogoItem[]);
-
-      const { data: plantillasData, error: plantillasError } = await fetchAllSupabase(() => supabase.from('plantillas_plan').select('*').order('id'));
-      if (!plantillasError && plantillasData) setPlantillas(plantillasData as PlantillaPlan[]);
-
-      const config = await getAppConfig();
-      setAppConfig(config);
-
-    } catch {
-      console.log('Using mock/default data (Supabase not connected or tables missing)');
-    } finally {
-      setLoading(false);
-      setAuthChecked(true); // La carga de datos confirma que la sesión es válida
-    }
-  };
-
-  /** Recarga ligera: solo planes (no pone loading=true para no destruir la UI) */
-  const refreshPlans = async () => {
-    try {
-      const { data, error } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*').order('id'));
-      if (!error && data) setPlans(data.length > 0 ? data as PaymentPlan[] : []);
-    } catch { /* silenciar */ }
-  };
-
-  /** Recarga ligera: solo alumnos — para actualizar saldo_a_favor tras un cobro */
-  const refreshAlumnos = async () => {
-    try {
-      const { data, error } = await fetchAllSupabase(() => supabase.from('alumnos').select('*').order('id'));
-      if (!error && data) setAlumnos(data.length > 0 ? data as Alumno[] : []);
-    } catch { /* silenciar */ }
-  };
-
-  /** Refresco combinado: planes + alumnos (saldos monedero al día) */
-  const refreshAfterPayment = async () => {
-    await Promise.all([refreshPlans(), refreshAlumnos()]);
-  };
+  }, [setCurrentUser, setActiveCicloId, setAuthChecked, fetchAllData]);
 
   const catalogos = buildCatalogos(catalogoItems);
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
@@ -398,7 +321,7 @@ export default function App() {
       }
 
       // Cargar todos los datos del sistema
-      fetchAll();
+      fetchAllData();
     }} />;
   }
 
@@ -424,14 +347,14 @@ export default function App() {
           p.tipo_plan || 'Cuatrimestral',
           p.beca_tipo || 'NINGUNA',
           p.beca_porcentaje || '0%',
-          a?.saldo_a_favor || '',
+          String(a?.saldo_a_favor ?? ''),
           a?.observaciones_pago_titulacion || '',
           ...Array.from({ length: 9 }, (_, i) => {
              const id = i + 1;
              return [
                p[`concepto_${id}` as keyof PaymentPlan] as string || '',
                p[`fecha_${id}` as keyof PaymentPlan] as string || '',
-               p[`cantidad_${id}` as keyof PaymentPlan] as never || '',
+               String(p[`cantidad_${id}` as keyof PaymentPlan] || ''),
                p[`estatus_${id}` as keyof PaymentPlan] as string || ''
              ];
           }).flat()
@@ -955,7 +878,7 @@ export default function App() {
       <Routes>
         <Route path="/plan-pagos" element={
           <PageWrapper keyStr="plan_pagos">
-            <PlanPagos currentUser={currentUser} plans={filteredPlans} alumnos={alumnos} activeCiclo={activeCiclo} catalogos={catalogos} plantillas={plantillas} initialAlumnoId={selectedAlumnoId || navState.alumnoId}
+            <PlanPagos initialAlumnoId={selectedAlumnoId || navState.alumnoId}
               onSavePlan={handleSavePlan}
               onDeletePlan={(planId) => setPlans(prev => prev.filter(p => p.id !== planId))}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
@@ -968,46 +891,35 @@ export default function App() {
         } />
         <Route path="/ficha-alumno" element={
           <PageWrapper keyStr="ficha_alumno">
-            <FichaAlumno plans={filteredPlans} alumnos={alumnos} initialAlumnoId={selectedAlumnoId || navState.alumnoId}
-              currentUser={currentUser}
-              catalogos={catalogos}
-              onRefreshAlumnos={refreshAfterPayment}
+            <FichaAlumno initialAlumnoId={selectedAlumnoId || navState.alumnoId}
               onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
               onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
               onBackToAlumnos={navState.fromAlumnos ? () => { setSelectedAlumnoId(null); navigate('/alumnos'); } : undefined}
             />
           </PageWrapper>
         } />
-        <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas plans={plans} ciclos={ciclos} alumnos={alumnos} activeCiclo={activeCiclo} onBack={() => navigate('/')} /></PageWrapper>} />
-        <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores plans={filteredPlans} alumnos={alumnos} onBack={() => navigate('/')} onNavigateToAlumno={(alumnoId) => { setSelectedAlumnoId(alumnoId); navigate('/ficha-alumno', { state: { alumnoId } }); }} /></PageWrapper>} />
-        <Route path="/ciclos" element={<PageWrapper keyStr="ciclos"><CiclosConfig ciclos={ciclos} onSave={setCiclos} onBack={() => navigate('/')} /></PageWrapper>} />
+        <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas onBack={() => navigate('/')} /></PageWrapper>} />
+        <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores onBack={() => navigate('/')} onNavigateToAlumno={(alumnoId) => { setSelectedAlumnoId(alumnoId); navigate('/ficha-alumno', { state: { alumnoId } }); }} /></PageWrapper>} />
+        <Route path="/ciclos" element={<PageWrapper keyStr="ciclos"><CiclosConfig onBack={() => navigate('/')} /></PageWrapper>} />
         <Route path="/alumnos" element={
           <PageWrapper keyStr="alumnos">
-            <AlumnosConfig currentUser={currentUser} alumnos={alumnos} ciclos={ciclos} activeCicloId={activeCicloId} activeCyclePlans={filteredPlans} globalMaxCounter={getMaxFolioCounter(plans)} catalogos={catalogos} plantillas={plantillas}
-              onSave={setAlumnos}
-              onCreatePlan={handleSavePlan}
+            <AlumnosConfig 
               onViewFicha={(id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: true } }); }}
               onBack={() => navigate('/')}
             />
           </PageWrapper>
         } />
-        <Route path="/catalogos" element={<PageWrapper keyStr="catalogos"><CatalogosConfig catalogos={catalogos} rawItems={catalogoItems} onBack={() => navigate('/')} onUpdate={setCatalogoItems} /></PageWrapper>} />
-        <Route path="/plantillas" element={<PageWrapper keyStr="plantillas"><PlantillasConfig plantillas={plantillas} ciclos={ciclos} catalogos={catalogos} onSave={setPlantillas} onBack={() => navigate('/')} /></PageWrapper>} />
-        <Route path="/usuarios" element={<PageWrapper keyStr="usuarios"><UsuariosConfig currentUser={currentUser} onBack={() => navigate('/')} /></PageWrapper>} />
+        <Route path="/catalogos" element={<PageWrapper keyStr="catalogos"><CatalogosConfig onBack={() => navigate('/')} /></PageWrapper>} />
+        <Route path="/plantillas" element={<PageWrapper keyStr="plantillas"><PlantillasConfig onBack={() => navigate('/')} /></PageWrapper>} />
+        <Route path="/usuarios" element={<PageWrapper keyStr="usuarios"><UsuariosConfig onBack={() => navigate('/')} /></PageWrapper>} />
         <Route path="/configuracion-app" element={
           <PageWrapper keyStr="config_app">
-            <AppConfigSettings 
-              config={appConfig || { title: 'Sistema de Control de Pagos', logoUrl: '' }} 
-              onSave={(newC) => { setAppConfig(newC); navigate('/'); }} 
-              onBack={() => navigate('/')} 
-            />
+            <AppConfigSettings onBack={() => navigate('/')} />
           </PageWrapper>
         } />
         <Route path="/control-ingresos" element={
           <PageWrapper keyStr={`control_ingresos_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}>
             <ControlIngresos key={`ci_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}
-              alumnos={alumnos} activeCiclo={activeCiclo} ciclos={ciclos} plans={filteredPlans} catalogos={catalogos}
-              appConfig={appConfig || undefined}
               onBack={() => navigate('/')}
               onBackToPlan={navState.fromPlan && navState.alumnoId
                 ? () => navigate('/plan-pagos', { state: { alumnoId: navState.alumnoId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })
@@ -1017,9 +929,6 @@ export default function App() {
               initialPlanId={navState.initialPlanId}
               initialView={navState.view}
               initialSearchTerm={navState.searchTerm}
-              currentUser={currentUser}
-              onPaymentSaved={refreshAfterPayment}
-              onCatalogoAdded={(item) => setCatalogoItems(prev => [...prev, item])}
               onNavigateToPlan={(alumnoId, folio) => {
                 setSelectedAlumnoId(alumnoId);
                 navigate('/plan-pagos', { state: { alumnoId, returnFolio: folio } });

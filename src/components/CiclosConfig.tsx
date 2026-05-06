@@ -2,17 +2,16 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Edit2, Save, X, CheckCircle, XCircle, Loader2, Trash2 } from 'lucide-react';
 import { CicloEscolar } from '../types';
 import { supabase } from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
 
 interface CiclosConfigProps {
-  ciclos: CicloEscolar[];
   onBack: () => void;
-  onSave: (ciclos: CicloEscolar[]) => void;
 }
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: CiclosConfigProps) {
-  const [ciclos, setCiclos] = useState<CicloEscolar[]>(initialCiclos);
+export default function CiclosConfig({ onBack }: CiclosConfigProps) {
+  const { ciclos, setCiclos } = useAppStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<CicloEscolar>>({});
   const [saving, setSaving] = useState(false);
@@ -44,7 +43,6 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
       
       const updated = ciclos.filter(c => c.id !== ciclo.id);
       setCiclos(updated);
-      onSave(updated);
       showNotification('success', 'Ciclo eliminado correctamente.');
     } catch (error: any) {
       console.warn('[CiclosConfig] delete error:', error.message);
@@ -98,7 +96,6 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
     }
 
     setCiclos(updatedCiclos);
-    onSave(updatedCiclos);
     setEditingId(null);
     setSaving(false);
   };
@@ -131,7 +128,6 @@ export default function CiclosConfig({ ciclos: initialCiclos, onBack, onSave }: 
       showNotification('error', 'No se pudo conectar con la base de datos.');
     }
     setCiclos(updated);
-    onSave(updated);
     setSaving(false);
   };
 

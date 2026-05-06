@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle, Trash2 } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid, getMaxFolioCounter, getCyclePrefix , toTitleCase} from '../utils';
-import { supabase } from '../lib/supabase';
+import { supabase, toDBPlan } from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
 
@@ -225,23 +226,23 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
 };
 
 interface PlanPagosProps {
-  currentUser: Usuario;
-  plans: PaymentPlan[];
-  alumnos?: Alumno[];
-  activeCiclo?: CicloEscolar;
-  catalogos?: Catalogos;
-  plantillas?: PlantillaPlan[];
   initialAlumnoId?: string | null;
   onBack: () => void;
   onSavePlan: (plan: PaymentPlan) => void;
+  onDeletePlan?: (planId: string) => void;
   onGoToPagos?: (alumnoId: string, conceptoIdx: number, planId?: string) => void;
   onViewReceipt?: (folio: string, alumnoId: string) => void;
   onBackToFicha?: (alumnoId: string) => void;
   onBackToReceipt?: () => void;
-  onDeletePlan?: (planId: string) => void;
 }
 
-export default function PlanPagos({ currentUser, plans, alumnos = [], activeCiclo, catalogos, plantillas = [], initialAlumnoId, onBack, onSavePlan, onDeletePlan, onGoToPagos, onViewReceipt, onBackToFicha, onBackToReceipt }: PlanPagosProps) {
+export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDeletePlan, onGoToPagos, onViewReceipt, onBackToFicha, onBackToReceipt }: PlanPagosProps) {
+  const {
+    currentUser, plans: allPlans, alumnos, ciclos, activeCicloId, catalogos, plantillas, setPlans
+  } = useAppStore();
+
+  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const [selectedPlanId, setSelectedPlanId] = useState<string>(() => {
     if (initialAlumnoId) {
       const match = plans.find(p => p.alumno_id === initialAlumnoId);

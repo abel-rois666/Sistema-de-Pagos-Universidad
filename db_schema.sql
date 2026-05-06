@@ -11,10 +11,12 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE TABLE IF NOT EXISTS public.usuarios (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
+    password TEXT,
     rol TEXT NOT NULL CHECK (rol IN ('ADMINISTRADOR', 'COORDINADOR', 'CAJERO')),
     ultimo_ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE SET NULL,
     preferencia_tema TEXT DEFAULT 'light',
+    auth_id UUID,
+    activo BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -242,7 +244,94 @@ CREATE TABLE IF NOT EXISTS public.recibos_detalles (
 CREATE INDEX IF NOT EXISTS idx_recibos_detalles_recibo ON public.recibos_detalles(recibo_id);
 
 -- ==========================================
--- 11. POLÍTICAS DE SEGURIDAD (RLS)
+-- 11. TABLA: SERVICIO SOCIAL
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.servicio_social (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    alumno_id UUID REFERENCES public.alumnos(id) ON DELETE CASCADE,
+    nombre_empresa TEXT NOT NULL,
+    tipo_empresa TEXT CHECK (tipo_empresa IN ('PRIVADA', 'PUBLICA')),
+    fecha_registro DATE,
+    fecha_inicio DATE,
+    fecha_termino DATE,
+    horas_cubrir INTEGER,
+    estatus TEXT DEFAULT 'EN_CURSO' CHECK (estatus IN ('EN_CURSO', 'LIBERADO')),
+    nombre_programa TEXT,
+    variante_legal TEXT DEFAULT 'ART_55',
+    art52_motivo TEXT,
+    art52_doc_acta TEXT DEFAULT 'PENDIENTE',
+    art52_doc_expediente TEXT DEFAULT 'PENDIENTE',
+    art91_req_constancia BOOLEAN DEFAULT false,
+    art91_req_comprobantes BOOLEAN DEFAULT false,
+    art91_req_informe BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_servicio_social_alumno ON public.servicio_social(alumno_id);
+
+-- ==========================================
+-- 12. TABLA: FICHAS DE TITULACIÓN
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.fichas_titulacion (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    alumno_id UUID REFERENCES public.alumnos(id) ON DELETE CASCADE,
+    modalidad TEXT,
+    pago_titulacion TEXT DEFAULT 'SIN_INICIAR',
+    certificado_estudios TEXT DEFAULT 'SIN_INICIAR',
+    ingles TEXT DEFAULT 'SIN_INICIAR',
+    servicio_social_req TEXT DEFAULT 'SIN_INICIAR',
+    fotografias TEXT DEFAULT 'PENDIENTES',
+    promedio_alto_rendimiento TEXT,
+    doc_antecedente TEXT DEFAULT 'SIN_INICIAR',
+    doc_antecedente_nota TEXT,
+    doc_acta_nacimiento TEXT DEFAULT 'SIN_INICIAR',
+    doc_acta_nacimiento_nota TEXT,
+    doc_curp TEXT DEFAULT 'SIN_INICIAR',
+    doc_curp_nota TEXT,
+    doc_titulo_profesional TEXT DEFAULT 'SIN_INICIAR',
+    doc_titulo_profesional_nota TEXT,
+    doc_cedula_profesional TEXT DEFAULT 'SIN_INICIAR',
+    doc_cedula_profesional_nota TEXT,
+    fecha_inicio_tramite DATE,
+    fecha_estimada_culminacion DATE,
+    tramite_completado BOOLEAN DEFAULT false,
+    fecha_completado DATE,
+    enlace_drive TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_fichas_titulacion_alumno ON public.fichas_titulacion(alumno_id);
+
+-- ==========================================
+-- 13. TABLA: FICHAS DE CERTIFICACIÓN
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.fichas_certificacion (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    alumno_id UUID REFERENCES public.alumnos(id) ON DELETE CASCADE,
+    pago_certificado TEXT DEFAULT 'SIN_INICIAR',
+    doc_acta_nacimiento TEXT DEFAULT 'SIN_INICIAR',
+    doc_acta_nacimiento_nota TEXT,
+    doc_curp TEXT DEFAULT 'SIN_INICIAR',
+    doc_curp_nota TEXT,
+    doc_antecedente TEXT DEFAULT 'SIN_INICIAR',
+    doc_antecedente_nota TEXT,
+    doc_titulo_profesional TEXT DEFAULT 'SIN_INICIAR',
+    doc_titulo_profesional_nota TEXT,
+    doc_cedula_profesional TEXT DEFAULT 'SIN_INICIAR',
+    doc_cedula_profesional_nota TEXT,
+    tipo_certificado TEXT,
+    fecha_inicio_tramite DATE,
+    fecha_termino_tramite DATE,
+    tramite_completado BOOLEAN DEFAULT false,
+    fecha_completado DATE,
+    enlace_drive TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_fichas_certificacion_alumno ON public.fichas_certificacion(alumno_id);
+
+-- ==========================================
+-- 14. POLÍTICAS DE SEGURIDAD (RLS)
 -- ==========================================
 ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ciclos_escolares ENABLE ROW LEVEL SECURITY;
@@ -253,6 +342,9 @@ ALTER TABLE public.plantillas_plan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.planes_pago ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recibos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recibos_detalles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.servicio_social ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fichas_titulacion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fichas_certificacion ENABLE ROW LEVEL SECURITY;
 
 -- Nota: Como estás gestionando la sesión del usuario manualmente usando bcrypt y una consulta de login 
 -- del lado del cliente, todas las políticas están abiertas para lectura/escritura pública con Anon Key. 
@@ -266,3 +358,6 @@ CREATE POLICY "Acceso total - plantillas" ON public.plantillas_plan FOR ALL USIN
 CREATE POLICY "Acceso total - planes" ON public.planes_pago FOR ALL USING (true);
 CREATE POLICY "Acceso total - recibos" ON public.recibos FOR ALL USING (true);
 CREATE POLICY "Acceso total - recibos_detalles" ON public.recibos_detalles FOR ALL USING (true);
+CREATE POLICY "Acceso total - servicio_social" ON public.servicio_social FOR ALL USING (true);
+CREATE POLICY "Acceso total - fichas_titulacion" ON public.fichas_titulacion FOR ALL USING (true);
+CREATE POLICY "Acceso total - fichas_certificacion" ON public.fichas_certificacion FOR ALL USING (true);

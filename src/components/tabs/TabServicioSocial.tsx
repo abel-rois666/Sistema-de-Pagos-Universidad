@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
   Briefcase, Plus, Pencil, Calendar, Loader2,
-  CheckCircle2, Clock, Ban, ChevronDown,
+  CheckCircle2, Clock, Ban, ChevronDown, Trash2, AlertTriangle, FileText,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import type { ServicioSocial } from '../../types';
+import type { ServicioSocial, Alumno, AppConfig, CatalogoItem } from '../../types';
 import { formatDate, toTitleCase } from '../../utils';
 import ModalServicioSocial from '../modals/ModalServicioSocial';
+import ModalConstanciaServicioSocial from '../modals/ModalConstanciaServicioSocial';
 
 interface TabServicioSocialProps {
   alumnoId: string;
+  alumno: Alumno;
+  appConfig: AppConfig;
+  catalogoItems: CatalogoItem[];
   empresasCatalogo: string[];
+  isAdmin?: boolean;
   onEmpresaAgregada?: (empresa: string) => void;
   onRegistrosChange?: (registros: ServicioSocial[]) => void;
 }
@@ -49,7 +54,11 @@ const ESTATUS_CONFIG: Record<EstatusGlobal, {
 // ── Componente ──────────────────────────────────────────────────────────────
 export default function TabServicioSocial({
   alumnoId,
+  alumno,
+  appConfig,
+  catalogoItems,
   empresasCatalogo,
+  isAdmin = false,
   onEmpresaAgregada,
   onRegistrosChange,
 }: TabServicioSocialProps) {
@@ -62,6 +71,14 @@ export default function TabServicioSocial({
   const [showDropdown, setShowDropdown]     = useState(false);
   const [confirmando, setConfirmando]       = useState(false);
   const [marcandoLibre, setMarcandoLibre]   = useState(false);
+
+  // Estado para modal de eliminación
+  const [deleteTarget, setDeleteTarget]     = useState<ServicioSocial | null>(null);
+  const [deleteStep, setDeleteStep]         = useState<1 | 2>(1);
+  const [deleting, setDeleting]             = useState(false);
+
+  // Estado para modal de constancia PDF
+  const [constanciaTarget, setConstanciaTarget] = useState<ServicioSocial | null>(null);
 
   // ── Carga de datos ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -121,6 +138,18 @@ export default function TabServicioSocial({
       .eq('alumno_id', alumnoId);
     if (error) { alert('Error al actualizar: ' + error.message); return; }
     setRegistros(prev => prev.map(r => ({ ...r, estatus: 'EN_CURSO' as const })));
+  };
+
+  // ── Handler de eliminación ────────────────────────────────────────────────
+  const handleEliminar = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from('servicio_social').delete().eq('id', deleteTarget.id);
+    setDeleting(false);
+    if (error) { alert('Error al eliminar: ' + error.message); return; }
+    setRegistros(prev => prev.filter(r => r.id !== deleteTarget.id));
+    setDeleteTarget(null);
+    setDeleteStep(1);
   };
 
   // ── Derivados ─────────────────────────────────────────────────────────────
@@ -276,7 +305,9 @@ export default function TabServicioSocial({
                   <th className="py-3 px-4 font-semibold">Inicio</th>
                   <th className="py-3 px-4 font-semibold">Detalles</th>
                   <th className="py-3 px-4 font-semibold">Estatus</th>
-                  <th className="py-3 px-4 font-semibold text-center">Acción</th>
+                  <th className="py-3 px-4 font-semibold text-center">Editar</th>
+                  <th className="py-3 px-4 font-semibold text-center">Constancia</th>
+                  {isAdmin && <th className="py-3 px-4 font-semibold text-center text-red-500">Eliminar</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f2f3f5] dark:divide-[rgba(255,255,255,0.06)] bg-white dark:bg-[#181e25]">
@@ -350,6 +381,29 @@ export default function TabServicioSocial({
                         <Pencil size={12} /> Editar
                       </button>
                     </td>
+                    {/* Constancia PDF — siempre visible, activo solo cuando LIBERADO */}
+                    <td className="py-3 px-4 text-center">
+                      {ss.estatus === 'LIBERADO' ? (
+                        <button
+                          onClick={() => setConstanciaTarget(ss)}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-[8px] hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                        >
+                          <FileText size={12} /> Constancia
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Solo si Liberado</span>
+                      )}
+                    </td>
+                    {isAdmin && (
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          onClick={() => { setDeleteTarget(ss); setDeleteStep(1); }}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-[8px] hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                        >
+                          <Trash2 size={12} /> Eliminar
+                        </button>
+                      </td>
+                    )}
                   </tr>
                   );
                 })}
@@ -369,6 +423,108 @@ export default function TabServicioSocial({
           onSaved={handleSaved}
           onEmpresaAgregada={onEmpresaAgregada}
         />
+      )}
+
+      {/* Modal constancia PDF */}
+      {constanciaTarget && (() => {
+        const licMeta = catalogoItems.find(i => i.tipo === 'licenciatura' && i.valor === alumno.licenciatura)?.metadata;
+        return (
+          <ModalConstanciaServicioSocial
+            registro={constanciaTarget}
+            alumno={alumno}
+            appConfig={appConfig}
+            rvoe={licMeta?.rvoe ?? ''}
+            rvoeFecha={licMeta?.rvoe_fecha ?? ''}
+            isAdmin={isAdmin}
+            onClose={() => setConstanciaTarget(null)}
+          />
+        );
+      })()}
+
+
+      {/* ── Modal de Eliminación (solo admin) ──────────────────────────────── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-2xl w-full max-w-md overflow-hidden border border-red-200 dark:border-red-900/60">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-6 py-5 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/40">
+              <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-full text-red-600 dark:text-red-400">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-red-700 dark:text-red-400">Eliminar Registro de Servicio Social</p>
+                <p className="text-xs text-red-500 dark:text-red-500 mt-0.5">Esta acción solo está disponible para administradores</p>
+              </div>
+            </div>
+
+            {/* Cuerpo — Paso 1 */}
+            {deleteStep === 1 && (
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm text-[#222222] dark:text-gray-200">
+                  Estás a punto de eliminar el registro de servicio social de:
+                </p>
+                <div className="bg-gray-50 dark:bg-[#181e25] rounded-[10px] px-4 py-3 border border-gray-200 dark:border-gray-700">
+                  <p className="text-sm font-semibold text-[#222222] dark:text-gray-100">
+                    {deleteTarget.variante_legal === 'ART_52'
+                      ? `Exención ART. 52 — ${deleteTarget.art52_motivo === 'EDAD' ? 'Edad' : 'Enfermedad'}`
+                      : toTitleCase(deleteTarget.nombre_empresa ?? '')}
+                  </p>
+                  <p className="text-xs text-[#8e8e93] mt-1">Registrado el {formatDate(deleteTarget.fecha_registro)} · Estatus: {deleteTarget.estatus}</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-[10px] px-4 py-3">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                    <AlertTriangle size={13} /> Advertencia importante
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-1 leading-relaxed">
+                    Esta acción <strong>eliminará permanentemente</strong> este registro de la base de datos. Si el alumno ya tenía el Servicio Social como <strong>LIBERADO</strong>, su progreso en Titulación podría verse afectado. Esta acción <strong>no se puede deshacer</strong>.
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    onClick={() => { setDeleteTarget(null); setDeleteStep(1); }}
+                    className="px-4 py-2 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[10px] transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => setDeleteStep(2)}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-[10px] transition-colors"
+                  >
+                    Sí, entiendo los riesgos — Continuar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Cuerpo — Paso 2 (confirmación final) */}
+            {deleteStep === 2 && (
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm font-semibold text-red-700 dark:text-red-400 flex items-center gap-2">
+                  <AlertTriangle size={15} /> Confirmación final requerida
+                </p>
+                <p className="text-sm text-[#45515e] dark:text-gray-300 leading-relaxed">
+                  ¿Estás <strong>completamente seguro</strong> de eliminar este registro? Esta operación <strong>no tiene vuelta atrás</strong> y podría requerir correcciones manuales en el expediente del alumno.
+                </p>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    onClick={() => setDeleteStep(1)}
+                    className="px-4 py-2 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[10px] transition-colors"
+                  >
+                    Atrás
+                  </button>
+                  <button
+                    onClick={handleEliminar}
+                    disabled={deleting}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 rounded-[10px] transition-colors"
+                  >
+                    {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Eliminar definitivamente
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

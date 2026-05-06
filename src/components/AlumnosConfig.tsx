@@ -6,6 +6,9 @@ import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } 
 import { MultiSelectFilter } from './MultiSelectFilter';
 import ModalReporteAlumnos from './modals/ModalReporteAlumnos';
 import { supabase, toDBPlan } from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
+import { getMaxFolioCounter } from '../utils';
+
 // Helper para generar folios con base en el ciclo y un consecutivo, ej: 261-1002
 const generateFolio = (cicloNombre: string, counter: number) => {
   const nums = cicloNombre.replace(/[^0-9]/g, '');
@@ -21,26 +24,52 @@ const generateFolio = (cicloNombre: string, counter: number) => {
 };
 
 interface AlumnosConfigProps {
-  currentUser: Usuario;
-  alumnos: Alumno[];
-  ciclos: CicloEscolar[];
-  activeCicloId: string;
-  activeCyclePlans: PaymentPlan[];
-  globalMaxCounter: number;
-  catalogos?: Catalogos;
-  plantillas?: PlantillaPlan[];
   onBack: () => void;
-  onSave: (alumnos: Alumno[]) => void;
-  onCreatePlan: (plan: PaymentPlan) => void;
   onViewFicha?: (id: string) => void;
 }
 
-export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ciclos, activeCicloId, activeCyclePlans, globalMaxCounter, catalogos, plantillas, onBack, onSave, onCreatePlan, onViewFicha }: AlumnosConfigProps) {
-  const [alumnos, setAlumnos] = useState<Alumno[]>(initialAlumnos);
+export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProps) {
+  const {
+    currentUser, alumnos, ciclos, activeCicloId, plans, catalogos, plantillas,
+    setAlumnos, setPlans
+  } = useAppStore();
+
+  const activeCyclePlans = plans.filter(p => p.ciclo_id === activeCicloId);
+  const globalMaxCounter = getMaxFolioCounter(plans);
+
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Guardamos el contador mutable en un ref o variable local para iteraciones
   const localCounter = React.useRef(globalMaxCounter);
+
+  const onSave = async (alumno: Alumno) => {
+    const { data, error } = await supabase.from('alumnos').upsert([alumno]).select();
+    if (!error && data) {
+      const savedAlumno = data[0] as Alumno;
+      setAlumnos(prev => {
+        const index = prev.findIndex(a => a.id === savedAlumno.id);
+        if (index >= 0) {
+          const newAlumnos = [...prev];
+          newAlumnos[index] = savedAlumno;
+          return newAlumnos;
+        } else {
+          return [...prev, savedAlumno];
+        }
+      });
+    } else {
+      console.error("Error saving alumno:", error);
+    }
+  };
+
+  const handleCreatePlan = async (plan: PaymentPlan) => {
+    const { data, error } = await supabase.from('planes_pago').insert([toDBPlan(plan)]).select();
+    if (!error && data) {
+      // Re-fetch all or just add to store. We assume setPlans can take a function.
+      setPlans(prev => [...prev, plan]);
+    } else {
+      console.error("Error creating plan:", error);
+    }
+  };
 
   const isCoordinador = currentUser.rol === 'COORDINADOR';
   const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string }>({});
@@ -168,7 +197,11 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
             }
           }
 
-          onCreatePlan(newPlan); // App.tsx escribe el plan a Supabase vía handleSavePlan
+          setPlans((prev) => [...prev, newPlan]);
+          
+          const planToDb = toDBPlan(newPlan);
+          const { error: planErr } = await supabase.from('planes_pago').insert(planToDb);
+          if (planErr) console.warn('[AlumnosConfig] insert plan:', planErr.message);
         }
       }
       showNotification('success', `Alumno "${toTitleCase(alumnoToSave.nombre_completo)}" creado.`);
@@ -200,7 +233,6 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     }
 
     setAlumnos(updatedAlumnos);
-    onSave(updatedAlumnos);
     setEditingId(null);
     setSaving(false);
   };
@@ -259,11 +291,13 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
               licenciatura: alumno.licenciatura,
               grado_turno: `${nextGrade} / ${alumno.turno}`
             };
-            onCreatePlan(newPlan);
+            setPlans((prev) => [...prev, newPlan]);
+            const planToDb = toDBPlan(newPlan);
+            const { error: planErr } = await supabase.from('planes_pago').insert(planToDb);
+            if (planErr) console.warn('[AlumnosConfig] insert plan:', planErr.message);
           }
 
           setAlumnos(updated);
-          onSave(updated);
           setSaving(false);
           showNotification('success', `Alumno promovido a ${nextGrade}.`);
         }
@@ -291,7 +325,6 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
 
         const updated = alumnos.filter(a => a.id !== alumno.id);
         setAlumnos(updated);
-        onSave(updated);
         setSaving(false);
         showNotification('success', `Alumno eliminado exitosamente.`);
       }
@@ -420,7 +453,6 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
         } else {
           const updated = alumnos.filter(a => !mainTableSelected.has(a.id));
           setAlumnos(updated);
-          onSave(updated);
           setMainTableSelected(new Set());
           showNotification('success', `${idsToDelete.length} alumno(s) eliminado(s) exitosamente.`);
         }
@@ -439,7 +471,6 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     } else {
       const updated = alumnos.map(a => mainTableSelected.has(a.id) ? { ...a, estatus: bulkStatusTarget } : a);
       setAlumnos(updated);
-      onSave(updated);
       setMainTableSelected(new Set());
       showNotification('success', `Estatus actualizado a ${bulkStatusTarget} para ${idsToUpdate.length} alumno(s).`);
     }
@@ -578,12 +609,12 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
     if (plansErr) {
       showNotification('error', `Error al crear planes: ${plansErr.message}`);
     } else {
-      newPlans.forEach(p => onCreatePlan(p)); // update local cache
+      setPlans(prev => [...prev, ...newPlans]);
+      localCounter.current = currentBatchCounter;
       showNotification('success', `${bulkSelected.size} alumnos promovidos exitosamente.`);
     }
 
     setAlumnos(updatedAlumnos);
-    onSave(updatedAlumnos);
     setBulkSelected(new Set());
     setShowBulkModal(false);
     setBulkProcessing(false);
@@ -818,7 +849,7 @@ export default function AlumnosConfig({ currentUser, alumnos: initialAlumnos, ci
                                         licenciatura: alumno.licenciatura,
                                         grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
                                       };
-                                      onCreatePlan(newPlan);
+                                      handleCreatePlan(newPlan);
                                       showNotification('success', `Alumno inscrito en ciclo ${activeCiclo.nombre}.`);
                                     }
                                   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   GraduationCap, Loader2, Save, CheckCircle2, Clock, Ban,
-  AlertCircle, ChevronDown, FileCheck, X, Edit3, CalendarDays, Flag, Lock,
+  AlertCircle, ChevronDown, FileCheck, X, Edit3, CalendarDays, Flag, Lock, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { FichaTitulacion, ServicioSocial } from '../../types';
@@ -213,9 +213,9 @@ interface SelectorRequisitoProps {
   disabled?: boolean;
 }
 
-function SelectorRequisito({
+const SelectorRequisito: React.FC<SelectorRequisitoProps> = ({
   label, field, opciones, value, nota, conNota, onChange, onNota, badgeMap, disabled,
-}: SelectorRequisitoProps) {
+}) => {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-3">
@@ -352,6 +352,11 @@ export default function TabTitulacion({
   const [editing, setEditing]     = useState(false);
   const [saved, setSaved]         = useState(false);
   const [warnNoModal, setWarnNoModal] = useState(false);
+
+  // Reset total de la ficha
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetStep, setResetStep]           = useState<1|2>(1);
+  const [resetting, setResetting]           = useState(false);
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
   const loadFicha = useCallback(async () => {
@@ -512,6 +517,25 @@ export default function TabTitulacion({
     loadFicha();
   };
 
+  // ── Reset total (elimina la fila completa) ───────────────────────────────
+  const handleResetTotal = async () => {
+    if (!ficha) return;
+    setResetting(true);
+    // Si estaba como EGRESADO TITULADO, regresar a EGRESADO
+    await supabase.from('alumnos').update({ estatus: 'EGRESADO' }).eq('id', alumnoId);
+    const { error } = await supabase.from('ficha_titulacion').delete().eq('id', ficha.id);
+    setResetting(false);
+    if (error) {
+      alert('Error al eliminar la ficha: ' + error.message + '\n\nRevisa que tengas permisos de DELETE en la tabla ficha_titulacion en Supabase (RLS).');
+      return;
+    }
+    setFicha(null);
+    setDraft({ ...BLANK });
+    setEditing(false);
+    setShowResetModal(false);
+    setResetStep(1);
+  };
+
   // ── Derivados ──────────────────────────────────────────────────────────────
   const modalidad    = draft.modalidad;
   const skipSS       = skipInglesYSS(modalidad, esEspecialidad);
@@ -610,12 +634,24 @@ export default function TabTitulacion({
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setEditing(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-[8px] shadow-sm transition-colors active:scale-95"
-            >
-              <Edit3 size={14} /> {ficha ? 'Editar' : 'Iniciar Registro'}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Botón reset — solo visible cuando existe ficha guardada */}
+              {ficha && (
+                <button
+                  onClick={() => { setShowResetModal(true); setResetStep(1); }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-[8px] transition-colors"
+                  title="Eliminar toda la ficha y regresar al estado inicial"
+                >
+                  <Trash2 size={13} /> Resetear todo
+                </button>
+              )}
+              <button
+                onClick={() => setEditing(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-[8px] shadow-sm transition-colors active:scale-95"
+              >
+                <Edit3 size={14} /> {ficha ? 'Editar' : 'Iniciar Registro'}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -984,6 +1020,71 @@ export default function TabTitulacion({
           </div>
         )}
       </div>
+
+      {/* ── Modal Reset Total ────────────────────────────────────────────── */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-2xl w-full max-w-md overflow-hidden border border-red-200 dark:border-red-900/60">
+            <div className="flex items-center gap-3 px-6 py-5 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/40">
+              <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-full text-red-600 dark:text-red-400">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-red-700 dark:text-red-400">Resetear Ficha de Titulación</p>
+                <p className="text-xs text-red-500 mt-0.5">Esta acción eliminará todo el progreso registrado</p>
+              </div>
+            </div>
+
+            {resetStep === 1 && (
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm text-[#222222] dark:text-gray-200">Se eliminará por completo la ficha de titulación de este alumno. Todo el progreso, modalidad, fechas, documentación revisada y estatus quedarán en cero.</p>
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-[10px] px-4 py-3">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                    <AlertTriangle size={13} /> Advertencia
+                  </p>
+                  <ul className="text-xs text-amber-600 dark:text-amber-500 mt-1 space-y-1 list-disc list-inside leading-relaxed">
+                    <li>Se perderá la modalidad y todas las fechas de trámite.</li>
+                    <li>Si el alumno era <strong>EGRESADO TITULADO</strong>, su estatus regresará a <strong>EGRESADO</strong>.</li>
+                    <li>Esta acción <strong>no se puede deshacer</strong>.</li>
+                  </ul>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button onClick={() => { setShowResetModal(false); setResetStep(1); }}
+                    className="px-4 py-2 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[10px] transition-colors">
+                    Cancelar
+                  </button>
+                  <button onClick={() => setResetStep(2)}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-[10px] transition-colors">
+                    Entendido — Continuar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {resetStep === 2 && (
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm font-semibold text-red-700 dark:text-red-400 flex items-center gap-2">
+                  <AlertTriangle size={15} /> Confirmación final
+                </p>
+                <p className="text-sm text-[#45515e] dark:text-gray-300 leading-relaxed">
+                  ¿Estás <strong>completamente seguro</strong>? Se eliminará toda la ficha de titulación y no podrá recuperarse.
+                </p>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button onClick={() => setResetStep(1)}
+                    className="px-4 py-2 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[10px] transition-colors">
+                    Atrás
+                  </button>
+                  <button onClick={handleResetTotal} disabled={resetting}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 rounded-[10px] transition-colors">
+                    {resetting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Sí, resetear todo
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

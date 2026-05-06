@@ -433,28 +433,106 @@ export const cancelarRecibo = async (reciboId: string): Promise<string | null> =
 };
 
 /** Obtener configuración de la App */
-export const getAppConfig = async (): Promise<{ title: string; logoUrl: string }> => {
+export const getAppConfig = async (): Promise<import('../types').AppConfig> => {
   const { data, error } = await supabase.from('configuracion_app').select('*');
-  if (error || !data) return { title: 'Sistema de Control de Pagos', logoUrl: '' };
-  
-  const config = { title: 'Sistema de Control de Pagos', logoUrl: '' };
+
+  // Valores por defecto inline (evita imports circulares)
+  const DEFAULT_PARAMS = {
+    fontSize: 14, lineHeight: 2.2, marginH: 80, marginV: 60,
+    logoSize: 72, watermarkOpacity: 0.07, watermarkSize: 400,
+    paperSize: 'carta' as const, headerFontSize: 22, showWatermark: true,
+    headerInstName: 'Centro Universitario Oriente de México',
+    headerAddress: 'AV. JAVIER ROJO GÓMEZ No. 375, COL. AGRÍCOLA ORIENTAL, C.P. 08500, IZTACALCO, CIUDAD DE MÉXICO',
+    headerRfc: 'R.F.C.: UTE010830L65  C.C.T.: 09PSU0509Q  CLAVE INSTITUCIÓN D.G.P.: 090552',
+    headerPhones: 'TELÉFONOS: 5571558440 y 5571558423',
+    customLogoUrl: '',
+    logoObjectFit: 'contain' as const,
+    logoBorderRadius: 0,
+  };
+
+  const defaults: import('../types').AppConfig = {
+    title: 'Sistema de Control de Pagos',
+    logoUrl: '',
+    directorNombre: 'LIC. ARTURO RODRIGUEZ ISLAS',
+    directorCargo: 'DIRECTOR DE CONTROL ESCOLAR',
+    constanciaParams: { ...DEFAULT_PARAMS },
+  };
+
+
+  if (error || !data) return { ...defaults, constanciaParams: DEFAULT_PARAMS };
+
+  const config = { ...defaults, constanciaParams: { ...DEFAULT_PARAMS } };
   data.forEach(item => {
-    if (item.id === 'app_title') config.title = item.valor;
-    if (item.id === 'app_logo') config.logoUrl = item.valor;
+    if (item.id === 'app_title')          config.title           = item.valor;
+    if (item.id === 'app_logo')           config.logoUrl         = item.valor;
+    if (item.id === 'director_nombre')    config.directorNombre  = item.valor;
+    if (item.id === 'director_cargo')     config.directorCargo   = item.valor;
+    if (item.id === 'constancia_ss_params') {
+      try { config.constanciaParams = { ...DEFAULT_PARAMS, ...JSON.parse(item.valor) }; } catch {}
+    }
   });
   return config;
 };
 
-/** Actualizar configuración de la App */
-export const updateAppConfig = async (title: string, logoUrl: string): Promise<string | null> => {
-  const { error: err1 } = await supabase.from('configuracion_app').upsert({ id: 'app_title', valor: title });
+/** Actualizar configuración general de la App */
+export const updateAppConfig = async (
+  title: string,
+  logoUrl: string,
+  directorNombre: string,
+  directorCargo: string,
+): Promise<string | null> => {
+  const { error: err1 } = await supabase.from('configuracion_app').upsert({ id: 'app_title',       valor: title,          updated_at: new Date().toISOString() });
   if (err1) return err1.message;
-  
-  const { error: err2 } = await supabase.from('configuracion_app').upsert({ id: 'app_logo', valor: logoUrl });
+  const { error: err2 } = await supabase.from('configuracion_app').upsert({ id: 'app_logo',        valor: logoUrl,        updated_at: new Date().toISOString() });
   if (err2) return err2.message;
-  
+  const { error: err3 } = await supabase.from('configuracion_app').upsert({ id: 'director_nombre', valor: directorNombre, updated_at: new Date().toISOString() });
+  if (err3) return err3.message;
+  const { error: err4 } = await supabase.from('configuracion_app').upsert({ id: 'director_cargo',  valor: directorCargo,  updated_at: new Date().toISOString() });
+  if (err4) return err4.message;
   return null;
 };
+
+/** Guardar parámetros de formato de constancias SS */
+export const saveConstanciaParams = async (params: import('../types').ConstanciaParams): Promise<string | null> => {
+  const { error } = await supabase.from('configuracion_app').upsert({
+    id: 'constancia_ss_params',
+    valor: JSON.stringify(params),
+    updated_at: new Date().toISOString(),
+  });
+  return error ? error.message : null;
+};
+
+/** Subir logo alternativo para constancias al bucket de Supabase Storage */
+export const uploadConstanciaLogo = async (file: File): Promise<{ url: string | null; error: string | null }> => {
+  const BUCKET = 'constancias-logos';
+  // Nombre fijo: siempre sobreescribe el mismo archivo (solo hay un logo alternativo)
+  const fileName = `logo_constancia.${file.name.split('.').pop()}`;
+
+  // 1. Subir al bucket (upsert=true sobreescribe si ya existe)
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(fileName, file, { upsert: true, contentType: file.type });
+
+  if (uploadError) return { url: null, error: uploadError.message };
+
+  // 2. Obtener URL pública
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+  // Añadir cache-busting para forzar recarga en el navegador
+  const url = `${data.publicUrl}?t=${Date.now()}`;
+  return { url, error: null };
+};
+
+/** Eliminar logo alternativo de constancias del bucket */
+export const deleteConstanciaLogo = async (): Promise<string | null> => {
+  const BUCKET = 'constancias-logos';
+  // Intentar borrar ambas extensiones comunes
+  const extensions = ['png', 'jpg', 'jpeg', 'webp', 'svg'];
+  for (const ext of extensions) {
+    await supabase.storage.from(BUCKET).remove([`logo_constancia.${ext}`]);
+  }
+  return null;
+};
+
 
 /** Vincular manualmente un detalle de recibo a un concepto del plan */
 export const vincularReciboDetalleAPlan = async (

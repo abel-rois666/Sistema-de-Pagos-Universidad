@@ -1,17 +1,12 @@
 import { useState } from 'react';
 import { ArrowLeft, Wallet, ReceiptText, List } from 'lucide-react';
 import type { Alumno, CicloEscolar, PaymentPlan, Catalogos, CatalogoItem, Usuario, AppConfig } from '../types';
+import { useAppStore } from '../store/useAppStore';
 
 import RegistrarPago from './RegistrarPago';
 import ConsultarRegistros from './ConsultarRegistros';
 
 interface Props {
-  alumnos: Alumno[];
-  activeCiclo?: CicloEscolar;
-  ciclos: CicloEscolar[];
-  plans: PaymentPlan[];
-  catalogos: Catalogos;
-  appConfig?: AppConfig;
   onBack: () => void;
   onBackToPlan?: () => void;
   initialAlumnoId?: string;
@@ -19,14 +14,11 @@ interface Props {
   initialPlanId?: string;
   initialView?: 'registrar' | 'consultar';
   initialSearchTerm?: string;
-  currentUser?: Usuario;
-  onPaymentSaved?: () => void;
-  onCatalogoAdded?: (item: CatalogoItem) => void;
   onNavigateToPlan?: (alumnoId: string, folioReciboOrigen?: string) => void;
   key?: string;
 }
 
-export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, catalogos, appConfig, onBack, onBackToPlan, initialAlumnoId, initialConceptIndex, initialPlanId, initialView, initialSearchTerm, currentUser, onPaymentSaved, onCatalogoAdded, onNavigateToPlan }: Props) {
+export default function ControlIngresos({ onBack, onBackToPlan, initialAlumnoId, initialConceptIndex, initialPlanId, initialView, initialSearchTerm, onNavigateToPlan }: Props) {
   const resolvedInitialView = initialView || 'registrar';
   const [activeTab, setActiveTab] = useState<'registrar' | 'consultar'>(resolvedInitialView);
 
@@ -70,29 +62,14 @@ export default function ControlIngresos({ alumnos, activeCiclo, ciclos, plans, c
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden min-h-[600px]">
           {activeTab === 'registrar' ? (
             <RegistrarPago
-              alumnos={alumnos}
-              activeCiclo={activeCiclo}
-              plans={plans}
-              catalogos={catalogos}
-              appConfig={appConfig}
               initialAlumnoId={initialAlumnoId}
               initialConceptIndex={initialConceptIndex}
               initialPlanId={initialPlanId}
-              currentUser={currentUser}
-              onPaymentSaved={onPaymentSaved}
-              onCatalogoAdded={onCatalogoAdded}
             />
 
           ) : (
             <ConsultarRegistros
-              alumnos={alumnos}
-              activeCiclo={activeCiclo}
-              ciclos={ciclos}
-              catalogos={catalogos}
-              appConfig={appConfig}
               initialSearchTerm={initialSearchTerm}
-              onDataRefresh={onPaymentSaved}
-              currentUser={currentUser}
               onNavigateToPlan={onNavigateToPlan}
             />
           )}
