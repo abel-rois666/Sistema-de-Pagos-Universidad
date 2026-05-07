@@ -7,12 +7,15 @@ import { CSV_HEADERS, generateCSV, downloadCSV, getCyclePrefix } from '../utils'
 // ─── Tipos internos ──────────────────────────────────────────────────────────
 interface ParsedRow {
     rowIndex: number;
-    nombre_alumno: string;
+    nombre_alumno: string;      // nombre_completo calculado (siempre presente)
+    apellido_paterno: string;   // Nuevo
+    apellido_materno: string;   // Nuevo (opcional)
+    nombres_alumno: string;     // Nuevo — «nombres» es palabra reservada en JS
     no_plan_pagos: string;
     licenciatura: string;
-    grado: string;           
-    turno: string;           
-    estatus: string;         
+    grado: string;
+    turno: string;
+    estatus: string;
     ciclo_escolar: string;
     fecha_plan: string;
     tipo_plan: 'Cuatrimestral' | 'Semestral';
@@ -20,7 +23,7 @@ interface ParsedRow {
     beca_porcentaje: string;
     saldo_a_favor?: number;
     observaciones_pago_titulacion: string;
-    hasPlanData: boolean;    // true si alguna columna de plan tiene valor
+    hasPlanData: boolean;
     pagos: { concepto: string; fecha: string; cantidad: number; estatus: string }[];
     errors: string[];
 }
@@ -43,7 +46,8 @@ interface ImportarCSVProps {
 // Estatus de pago: PAGADO / PENDIENTE / (vacío = sin registrar)
 const SAMPLE_ROWS = [
     [
-        'CHAVEZ CORDERO SAMARA YAMIL', '00207', 'DERECHO', '5TO', 'MIXTO', 'ACTIVO',
+        'CHAVEZ CORDERO SAMARA YAMIL', 'CHAVEZ', 'CORDERO', 'SAMARA YAMIL',
+        '00207', 'DERECHO', '5TO', 'MIXTO', 'ACTIVO',
         '2026-1', '15/01/2026', 'Cuatrimestral', 'NINGUNA', '0%', '', '',
         'INSCRIPCION', '15/01/2026', '1200', 'PAGADO',
         '1ER PAGO', '15/02/2026', '1500', 'PAGADO',
@@ -53,7 +57,8 @@ const SAMPLE_ROWS = [
         '', '', '', '', '', '', '', '', '', '', '', ''
     ],
     [
-        'GARCIA MENDOZA PEDRO IVAN', '00208', 'ADMINISTRACION', '3ER', 'MATUTINO', 'ACTIVO',
+        'GARCIA MENDOZA PEDRO IVAN', 'GARCIA', 'MENDOZA', 'PEDRO IVAN',
+        '00208', 'ADMINISTRACION', '3ER', 'MATUTINO', 'ACTIVO',
         '2026-1', '15/01/2026', 'Cuatrimestral', 'BECA INSTITUCIONAL', '25%', '', '',
         'INSCRIPCION', '15/01/2026', '900', 'PAGADO',
         '1ER PAGO', '15/02/2026', '1125', 'PENDIENTE',
@@ -143,7 +148,20 @@ function parseRows(csvText: string, activeCicloId: string, activeCicloNombre: st
 
         const errors: string[] = [];
 
-        const nombre_alumno = getCol('NOMBRE_ALUMNO').toUpperCase();
+        // ── Lectura de nombre: nuevo formato tiene prioridad ──────────────
+        const apellido_paterno = getCol('APELLIDO_PATERNO').toUpperCase();
+        const apellido_materno = getCol('APELLIDO_MATERNO').toUpperCase();
+        const nombres_alumno   = getCol('NOMBRES').toUpperCase();
+
+        // Si vienen los 3 campos, construir nombre_completo; si no, usar NOMBRE_ALUMNO legado
+        const nombre_alumno_legado = getCol('NOMBRE_ALUMNO').toUpperCase();
+        const nombre_alumno = (apellido_paterno && nombres_alumno)
+          ? [apellido_paterno, apellido_materno, nombres_alumno].filter(Boolean).join(' ')
+          : nombre_alumno_legado;
+
+        // Detectar si el alumno requiere revisión (split por NOMBRE_ALUMNO legado)
+        const requiereRevision = !!nombre_alumno_legado && !apellido_paterno;
+
         const no_plan_pagos = getCol('NO_PLAN_PAGOS');
         const licenciatura = getCol('LICENCIATURA').toUpperCase();
         
@@ -175,7 +193,7 @@ function parseRows(csvText: string, activeCicloId: string, activeCicloNombre: st
         const saldo_a_favor = saldo_a_favor_raw ? parseFloat(saldo_a_favor_raw.replace(/[^0-9.]/g, '')) : undefined;
         const observaciones_pago_titulacion = getCol('OBSERVACIONES_PAGO_TITULACION');
 
-        if (!nombre_alumno) errors.push('Falta NOMBRE_ALUMNO');
+        if (!nombre_alumno) errors.push('Falta NOMBRE_ALUMNO o (APELLIDO_PATERNO + NOMBRES)');
 
         // Detectar si hay datos de plan en esta fila
         const hasPlanData = !!(
@@ -205,7 +223,8 @@ function parseRows(csvText: string, activeCicloId: string, activeCicloNombre: st
 
         return {
             rowIndex: idx + 2,
-            nombre_alumno, no_plan_pagos, licenciatura, grado, turno,
+            nombre_alumno, apellido_paterno, apellido_materno, nombres_alumno,
+            no_plan_pagos, licenciatura, grado, turno,
             estatus,
             ciclo_escolar, fecha_plan, tipo_plan, beca_tipo, beca_porcentaje,
             saldo_a_favor,
@@ -234,10 +253,25 @@ function buildAlumnoAndPlan(
     ) || null;
     let alumnoUpdated = false;
 
+    // Helper para split automático (fallback CSV legado)
+    const splitFallback = (nombreCompleto: string) => {
+      const parts = nombreCompleto.trim().split(/\s+/);
+      return {
+        apellido_paterno: parts[0] || nombreCompleto,
+        apellido_materno: parts[1] || '',
+        nombres: parts.slice(2).join(' ') || parts[0] || nombreCompleto,
+      };
+    };
+
     if (!alumno) {
+        const fallback = (!row.apellido_paterno) ? splitFallback(row.nombre_alumno) : null;
         alumno = {
             id: crypto.randomUUID(),
+            apellido_paterno: row.apellido_paterno || fallback?.apellido_paterno || row.nombre_alumno,
+            apellido_materno: row.apellido_materno || fallback?.apellido_materno || null,
+            nombres: row.nombres_alumno || fallback?.nombres || row.nombre_alumno,
             nombre_completo: row.nombre_alumno,
+            nombre_requiere_revision: !row.apellido_paterno, // marcado si viene de CSV legado
             licenciatura: row.licenciatura || 'POR DEFINIR',
             grado_actual: row.grado || 'POR DEFINIR',
             turno: row.turno || 'POR DEFINIR',

@@ -157,7 +157,11 @@ export const getMaxFolioCounter = (allPlans: import('./types').PaymentPlan[]): n
 };
 
 export const CSV_HEADERS = [
-  'NOMBRE_ALUMNO', 'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO', 'ESTATUS_ALUMNO',
+  'NOMBRE_ALUMNO',        // Retrocompatibilidad con plantillas antiguas
+  'APELLIDO_PATERNO',     // Nuevo: Apellido paterno
+  'APELLIDO_MATERNO',     // Nuevo: Apellido materno (opcional)
+  'NOMBRES',              // Nuevo: Nombre(s)
+  'NO_PLAN_PAGOS', 'LICENCIATURA', 'GRADO', 'TURNO', 'ESTATUS_ALUMNO',
   'CICLO_ESCOLAR', 'FECHA_PLAN', 'TIPO_PLAN', 'BECA_TIPO', 'BECA_PORCENTAJE',
   'SALDO_A_FAVOR', 'OBSERVACIONES_PAGO_TITULACION',
   ...Array.from({ length: 9 }, (_, i) => [

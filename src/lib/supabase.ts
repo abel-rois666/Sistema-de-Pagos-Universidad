@@ -90,7 +90,11 @@ export const saveAlumno = async (alumno: Alumno): Promise<string | null> => {
   if (alumno.id && !isUUID(alumno.id)) return null;
   const { error } = await supabase.from('alumnos').upsert({
     id: alumno.id,
+    apellido_paterno: alumno.apellido_paterno,
+    apellido_materno: alumno.apellido_materno ?? null,
+    nombres: alumno.nombres,
     nombre_completo: alumno.nombre_completo,
+    nombre_requiere_revision: alumno.nombre_requiere_revision ?? false,
     licenciatura: alumno.licenciatura,
     grado_actual: alumno.grado_actual,
     turno: alumno.turno,
@@ -131,7 +135,11 @@ export const bulkSaveAlumnos = async (alumnos: Alumno[]): Promise<string | null>
     const chunk = uniqueAlumnos.slice(i, i + CHUNK_SIZE);
     const dbPayload = chunk.map(a => ({
         id: a.id,
+        apellido_paterno: a.apellido_paterno,
+        apellido_materno: a.apellido_materno ?? null,
+        nombres: a.nombres,
         nombre_completo: a.nombre_completo,
+        nombre_requiere_revision: a.nombre_requiere_revision ?? false,
         licenciatura: a.licenciatura,
         grado_actual: a.grado_actual,
         turno: a.turno,

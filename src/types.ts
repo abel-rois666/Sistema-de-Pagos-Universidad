@@ -19,7 +19,15 @@ export interface Usuario {
 
 export interface Alumno {
   id: string;
+  // Campos normalizados (Opción B: conviven con nombre_completo)
+  apellido_paterno: string;
+  apellido_materno?: string | null;
+  nombres: string;
+  // Campo completo calculado en el frontend al guardar (UPPERCASE concatenado)
   nombre_completo: string;
+  // Bandera de revisión post-migración
+  nombre_requiere_revision?: boolean | null;
+  // Resto de campos
   licenciatura: string;
   grado_actual: string;
   turno: string;

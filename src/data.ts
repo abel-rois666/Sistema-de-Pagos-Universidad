@@ -6,8 +6,8 @@ export const MOCK_CICLOS: CicloEscolar[] = [
 ];
 
 export const MOCK_ALUMNOS: Alumno[] = [
-  { id: 'a1', nombre_completo: 'CHAVEZ CORDERO SAMARA YAMIL', licenciatura: 'ADMINISTRACIÓN', grado_actual: '7MO', turno: 'MIXTO' },
-  { id: 'a2', nombre_completo: 'AGUILAR GUT', licenciatura: 'DERECHO', grado_actual: '8VO', turno: 'MIXTO' }
+  { id: 'a1', apellido_paterno: 'CHAVEZ', apellido_materno: 'CORDERO', nombres: 'SAMARA YAMIL', nombre_completo: 'CHAVEZ CORDERO SAMARA YAMIL', licenciatura: 'ADMINISTRACIÓN', grado_actual: '7MO', turno: 'MIXTO' },
+  { id: 'a2', apellido_paterno: 'AGUILAR', apellido_materno: '', nombres: 'GUT', nombre_completo: 'AGUILAR GUT', licenciatura: 'DERECHO', grado_actual: '8VO', turno: 'MIXTO' }
 ];
 
 export const MOCK_DATA: PaymentPlan[] = [

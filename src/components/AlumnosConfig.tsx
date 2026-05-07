@@ -118,10 +118,14 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   const showConfirm = (title: string, message: string, onConfirm: () => void) =>
     setModalState({ isOpen: true, type: 'confirm', title, message, onConfirm });
 
+  /** Construye nombre_completo en UPPERCASE desde los 3 campos */
+  const buildNombreCompleto = (pat?: string, mat?: string | null, nom?: string) =>
+    [pat, mat, nom].filter(Boolean).map(s => s!.trim().toUpperCase()).join(' ');
+
   const handleEdit = (alumno: Alumno) => { setEditingId(alumno.id); setEditForm(alumno); };
 
   const handleSave = async () => {
-    if (!editForm.nombre_completo || !editForm.licenciatura || !editForm.grado_actual) return;
+    if (!editForm.apellido_paterno || !editForm.nombres || !editForm.licenciatura || !editForm.grado_actual) return;
     setSaving(true);
 
     let updatedAlumnos: Alumno[];
@@ -130,7 +134,11 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     if (editingId === 'new') {
       alumnoToSave = {
         id: crypto.randomUUID(),
-        nombre_completo: editForm.nombre_completo,
+        apellido_paterno: editForm.apellido_paterno!.toUpperCase().trim(),
+        apellido_materno: (editForm.apellido_materno || '').toUpperCase().trim() || null,
+        nombres: editForm.nombres!.toUpperCase().trim(),
+        nombre_completo: buildNombreCompleto(editForm.apellido_paterno!, editForm.apellido_materno, editForm.nombres!),
+        nombre_requiere_revision: false,
         licenciatura: editForm.licenciatura,
         grado_actual: editForm.grado_actual,
         turno: editForm.turno || 'MIXTO',
@@ -145,7 +153,11 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       // Insert alumno en Supabase
       const { error: alumnoErr } = await supabase.from('alumnos').insert({
         id: alumnoToSave.id,
+        apellido_paterno: alumnoToSave.apellido_paterno,
+        apellido_materno: alumnoToSave.apellido_materno ?? null,
+        nombres: alumnoToSave.nombres,
         nombre_completo: alumnoToSave.nombre_completo,
+        nombre_requiere_revision: false,
         licenciatura: alumnoToSave.licenciatura,
         grado_actual: alumnoToSave.grado_actual,
         turno: alumnoToSave.turno,
@@ -218,7 +230,11 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       updatedAlumnos = alumnos.map(a => a.id === editingId ? alumnoToSave : a);
 
       const { error: updateErr } = await supabase.from('alumnos').update({
+        apellido_paterno: alumnoToSave.apellido_paterno,
+        apellido_materno: alumnoToSave.apellido_materno ?? null,
+        nombres: alumnoToSave.nombres,
         nombre_completo: alumnoToSave.nombre_completo,
+        nombre_requiere_revision: false,
         licenciatura: alumnoToSave.licenciatura,
         grado_actual: alumnoToSave.grado_actual,
         turno: alumnoToSave.turno,
@@ -240,7 +256,8 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   const handleAddNew = () => {
     setEditingId('new');
     setEditForm({
-      nombre_completo: '', licenciatura: '', grado_actual: '1ER', turno: 'MIXTO',
+      apellido_paterno: '', apellido_materno: '', nombres: '', nombre_completo: '',
+      licenciatura: '', grado_actual: '1ER', turno: 'MIXTO',
       estatus: 'ACTIVO', beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
       assignPlanType: 'none', templateId: ''
     });
@@ -993,12 +1010,48 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
               {/* Body — no scroll needed */}
               <div className="p-4 md:p-5">
                 <p className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-wider mb-2">Datos del Alumno</p>
-                {/* Row 1: Nombre + Licenciatura + Grado */}
+                {/* Row 1: Apellido Paterno + Apellido Materno + Nombre(s) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
-                  <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Nombre Completo</label>
-                    <input type="text" autoFocus className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100" value={editForm.nombre_completo || ''} onChange={e => setEditForm({ ...editForm, nombre_completo: e.target.value.toUpperCase() })} />
+                  <div>
+                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Apellido Paterno <span className="text-red-500">*</span></label>
+                    <input type="text" autoFocus className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+                      placeholder="GARCÍA"
+                      value={editForm.apellido_paterno || ''}
+                      onChange={e => {
+                        const v = e.target.value.toUpperCase();
+                        setEditForm(prev => ({ ...prev, apellido_paterno: v, nombre_completo: buildNombreCompleto(v, prev.apellido_materno, prev.nombres) }));
+                      }} />
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Apellido Materno</label>
+                    <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+                      placeholder="MENDEZ (opcional)"
+                      value={editForm.apellido_materno || ''}
+                      onChange={e => {
+                        const v = e.target.value.toUpperCase();
+                        setEditForm(prev => ({ ...prev, apellido_materno: v, nombre_completo: buildNombreCompleto(prev.apellido_paterno, v, prev.nombres) }));
+                      }} />
+                  </div>
+                  <div className="col-span-2 md:col-span-2">
+                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Nombre(s) <span className="text-red-500">*</span></label>
+                    <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+                      placeholder="JUAN PABLO"
+                      value={editForm.nombres || ''}
+                      onChange={e => {
+                        const v = e.target.value.toUpperCase();
+                        setEditForm(prev => ({ ...prev, nombres: v, nombre_completo: buildNombreCompleto(prev.apellido_paterno, prev.apellido_materno, v) }));
+                      }} />
+                  </div>
+                </div>
+                {/* Preview del nombre completo */}
+                {editForm.nombre_completo && (
+                  <div className="mb-2.5 px-3 py-2 rounded-[8px] bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 flex items-center gap-2">
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">Nombre completo:</span>
+                    <span className="text-sm font-bold text-blue-800 dark:text-blue-200">{editForm.nombre_completo}</span>
+                  </div>
+                )}
+                {/* Row 2: Licenciatura + Grado */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
                   <div>
                     <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Licenciatura</label>
                     {catalogos?.licenciaturas?.length ? (
@@ -1034,7 +1087,8 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                     {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-0.5 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
                   </div>
                 </div>
-                {/* Row 2: Turno + Estatus + Tipo Beca + % Beca */}
+                {/* Row 3: Turno + Estatus + Tipo Beca + % Beca */}
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
                   <div>
                     <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Turno</label>

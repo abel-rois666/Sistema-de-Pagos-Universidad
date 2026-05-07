@@ -337,6 +337,9 @@ export default function App() {
         const a = alumnos.find(al => al.id === p.alumno_id);
         return [
           p.nombre_alumno || (a ? a.nombre_completo : ''),
+          a?.apellido_paterno || '',
+          a?.apellido_materno || '',
+          a?.nombres || '',
           p.no_plan_pagos || '',
           p.licenciatura || (a ? a.licenciatura : ''),
           p.grado || (a ? a.grado_actual : ''),
@@ -360,6 +363,7 @@ export default function App() {
           }).flat()
         ];
       });
+
       const csvContent = generateCSV(CSV_HEADERS, rows);
       downloadCSV(csvContent, `planes_${activeCiclo?.nombre || 'ciclo'}.csv`);
     };
