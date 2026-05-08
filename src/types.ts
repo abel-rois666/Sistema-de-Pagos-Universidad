@@ -37,6 +37,34 @@ export interface Alumno {
   observaciones_pago_titulacion?: string | null;
   ciclo_ultima_asignacion_grado?: string | null;
   saldo_a_favor?: number;
+
+  // ── Datos Generales (nuevos campos Supabase) ────────────────────────
+  // Identificador del sistema legado
+  matricula?: string | null;
+
+  // Dirección
+  domicilio?: string | null;
+  cp?: string | null;
+  municipio?: string | null;
+  estado?: string | null;
+
+  // Identificación y origen
+  curp?: string | null;
+  fecha_nacimiento?: string | null;  // ISO: 'YYYY-MM-DD'
+  estado_nacimiento?: string | null;
+  nacionalidad?: string | null;
+  escuela_procedencia?: string | null;
+  estado_escolaridad?: string | null;
+
+  // Contacto y género
+  telefono?: string | null;
+  celular?: string | null;
+  email?: string | null;
+  sexo?: 'H' | 'M' | null;
+
+  // Datos nuevos
+  discapacidad?: string | null;
+  lengua_indigena?: string | null;
 }
 
 export interface PaymentPlan {

@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { toTitleCase } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText, AlertCircle, Wand2, MapPin, ShieldCheck, ShieldX } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } from '../types';
 import { MultiSelectFilter } from './MultiSelectFilter';
 import ModalReporteAlumnos from './modals/ModalReporteAlumnos';
 import { supabase, toDBPlan } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import { getMaxFolioCounter } from '../utils';
+import { getStateAbbr, ESTADOS_LIST, lookupCP } from '../utils/geoUtils';
+import { calcularCURPCompleta } from '../utils/curpUtils';
 
 // Helper para generar folios con base en el ciclo y un consecutivo, ej: 261-1002
 const generateFolio = (cicloNombre: string, counter: number) => {
@@ -73,6 +76,28 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
   const isCoordinador = currentUser.rol === 'COORDINADOR';
   const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string }>({});
+
+  // Estado para los datos personales opcionales del modal de creación
+  const [newExtras, setNewExtras] = useState({
+    // Nacimiento
+    fecha_nacimiento: '', sexo: '' as '' | 'H' | 'M', estado_nacimiento: '', nacionalidad: 'MEXICANA',
+    // Identificación
+    curp: '', matricula: '',
+    // Domicilio
+    domicilio: '', cp: '', municipio: '', estado: '',
+    // Contacto
+    telefono: '', celular: '', email: '',
+    // Escolaridad
+    escuela_procedencia: '', estado_escolaridad: '',
+    // Complementarios
+    discapacidad: 'NINGUNA', lengua_indigena: 'NINGUNA',
+  });
+  const [showExtras, setShowExtras] = useState(false);
+  const [extrasErrors, setExtrasErrors] = useState<{ telefono?: string; celular?: string; email?: string }>({});
+  const [extrasCpLoading, setExtrasCpLoading] = useState(false);
+  const [extrasCpError, setExtrasCpError] = useState<string | null>(null);
+  const extrasCpAbortRef = useRef<AbortController | null>(null);
+  const [extrasCurpStatus, setExtrasCurpStatus] = useState<'idle' | 'ok' | 'error'>('idle');
   const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('alumnos_searchTerm') || '');
   const [filterLicenciaturas, setFilterLicenciaturas] = useState<string[]>(() => {
     try { return JSON.parse(sessionStorage.getItem('alumnos_fLicenciaturas') || '[]'); } catch { return []; }
@@ -165,7 +190,28 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
         beca_porcentaje: alumnoToSave.beca_porcentaje,
         beca_tipo: alumnoToSave.beca_tipo,
         observaciones_pago_titulacion: alumnoToSave.observaciones_pago_titulacion || null,
-        ciclo_ultima_asignacion_grado: alumnoToSave.ciclo_ultima_asignacion_grado
+        ciclo_ultima_asignacion_grado: alumnoToSave.ciclo_ultima_asignacion_grado,
+        // ── Datos personales opcionales ──
+        fecha_nacimiento: newExtras.fecha_nacimiento || null,
+        sexo: (newExtras.sexo === 'H' || newExtras.sexo === 'M') ? newExtras.sexo : null,
+        estado_nacimiento: newExtras.estado_nacimiento ? (getStateAbbr(newExtras.estado_nacimiento) || newExtras.estado_nacimiento) : null,
+        nacionalidad: newExtras.nacionalidad || 'MEXICANA',
+        curp: newExtras.curp ? newExtras.curp.toUpperCase() : null,
+        matricula: newExtras.matricula ? newExtras.matricula.toUpperCase() : null,
+        // Domicilio
+        domicilio: newExtras.domicilio || null,
+        cp: newExtras.cp || null,
+        municipio: newExtras.municipio || null,
+        estado: newExtras.estado ? (getStateAbbr(newExtras.estado) || newExtras.estado) : null,
+        // Contacto
+        telefono: newExtras.telefono ? newExtras.telefono.replace(/\s/g,'') !== '' ? newExtras.telefono : null : null,
+        celular: newExtras.celular ? newExtras.celular.replace(/\s/g,'') !== '' ? newExtras.celular : null : null,
+        email: newExtras.email || null,
+        // Escolaridad y complementarios
+        escuela_procedencia: newExtras.escuela_procedencia || null,
+        estado_escolaridad: newExtras.estado_escolaridad ? (getStateAbbr(newExtras.estado_escolaridad) || newExtras.estado_escolaridad) : null,
+        discapacidad: newExtras.discapacidad || null,
+        lengua_indigena: newExtras.lengua_indigena || null,
       });
       if (alumnoErr) console.warn('[AlumnosConfig] insert alumno:', alumnoErr.message);
 
@@ -261,6 +307,135 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       estatus: 'ACTIVO', beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
       assignPlanType: 'none', templateId: ''
     });
+    setNewExtras({
+      fecha_nacimiento: '', sexo: '', estado_nacimiento: '', nacionalidad: 'MEXICANA',
+      curp: '', matricula: '',
+      domicilio: '', cp: '', municipio: '', estado: '',
+      telefono: '', celular: '', email: '',
+      escuela_procedencia: '', estado_escolaridad: '',
+      discapacidad: 'NINGUNA', lengua_indigena: 'NINGUNA',
+    });
+    setShowExtras(false);
+    setExtrasErrors({});
+    setExtrasCpError(null);
+  };
+
+  /** Autocomplete de código postal para el modal de creación */
+  const extrasHandleCP = async (value: string) => {
+    setNewExtras(p => ({ ...p, cp: value }));
+    setExtrasCpError(null);
+    if (value.length !== 5 || !/^\d{5}$/.test(value)) return;
+    extrasCpAbortRef.current?.abort();
+    extrasCpAbortRef.current = new AbortController();
+    setExtrasCpLoading(true);
+    try {
+      const resultado = await lookupCP(value);
+      if (resultado) {
+        setNewExtras(p => ({ ...p, municipio: resultado.municipio, estado: resultado.estadoNombre }));
+      } else {
+        setExtrasCpError('C.P. no encontrado.');
+      }
+    } catch { /* abortado */ }
+    finally { setExtrasCpLoading(false); }
+  };
+
+  /** Calcula la CURP desde los datos del formulario de creación */
+  const extrasAutocompleteCURP = () => {
+    if (!editForm.apellido_paterno || !editForm.nombres || !newExtras.fecha_nacimiento || !newExtras.sexo || !newExtras.estado_nacimiento) return;
+    const curp = calcularCURPCompleta({
+      apellido_paterno: editForm.apellido_paterno || '',
+      apellido_materno: editForm.apellido_materno || '',
+      nombres: editForm.nombres || '',
+      fecha_nacimiento: newExtras.fecha_nacimiento,
+      sexo: newExtras.sexo,
+      estado_nacimiento: newExtras.estado_nacimiento,
+      estadoAbrev: getStateAbbr,
+    });
+    if (curp) setNewExtras(p => ({ ...p, curp }));
+  };
+
+  /** Valida la CURP del modal contra RENAPO (misma lógica que TabDatosGenerales) */
+  const extrasValidarCURP = async () => {
+    const curpInput = newExtras.curp.toUpperCase().trim();
+    if (curpInput.length !== 18) {
+      toast.error('La CURP debe tener exactamente 18 caracteres antes de validar.');
+      return;
+    }
+    const apiKey = import.meta.env.VITE_RAPIDAPI_CURP_KEY as string | undefined;
+    if (!apiKey || apiKey === 'TU_API_KEY_AQUI') {
+      toast.error('Configura VITE_RAPIDAPI_CURP_KEY en el archivo .env para usar esta función.');
+      return;
+    }
+    const normStr = (s: string) =>
+      (s ?? '').toUpperCase().replace(/Ñ/g, 'X')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^A-Z0-9]/g, '');
+
+    await toast.promise(
+      (async () => {
+        const HOST = 'curp-mexico1.p.rapidapi.com';
+        const res = await fetch(
+          `https://${HOST}/porCurp/${encodeURIComponent(curpInput)}`,
+          {
+            method: 'GET',
+            headers: { 'x-rapidapi-host': HOST, 'x-rapidapi-key': apiKey, 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(10000),
+          }
+        );
+        if (!res.ok) {
+          let body = ''; try { body = await res.text(); } catch { /* ignore */ }
+          throw new Error(`HTTP ${res.status}${body ? `: ${body.slice(0, 120)}` : ''}`);
+        }
+        const data = await res.json();
+        const esErrorRENAPO =
+          data?.error === true ||
+          (typeof data?.message === 'string' && data.message.toLowerCase().includes('no encontr')) ||
+          (typeof data?.status === 'string' && data.status.toLowerCase() === 'error');
+        if (esErrorRENAPO) throw new Error('no_encontrada');
+
+        const curpOficial: string | undefined =
+          (data?.curp ?? data?.data?.curp ?? data?.result?.curp ?? data?.CURP)?.toString().toUpperCase();
+
+        if (curpOficial && curpOficial.length === 18) {
+          const fueActualizada = curpOficial !== curpInput;
+          setNewExtras(p => ({ ...p, curp: curpOficial }));
+          setExtrasCurpStatus('ok');
+          return { _autoFilled: fueActualizada, _curpOficial: curpOficial };
+        }
+
+        // Fallback: comparación demográfica
+        const ap1API: string = data?.primerApellido ?? data?.apellidoPaterno ?? data?.primer_apellido ?? data?.data?.primerApellido ?? '';
+        const nombreAPI: string = data?.nombres ?? data?.nombre ?? data?.data?.nombres ?? '';
+        const curpAPI16 = curpOficial ? curpOficial.slice(0, 16) : '';
+        const coincideBase = !curpAPI16 || normStr(curpInput.slice(0, 16)) === normStr(curpAPI16);
+        const ap1Local  = normStr(editForm.apellido_paterno ?? '').slice(0, 5);
+        const ap1Remote = normStr(ap1API).slice(0, 5);
+        const coincideAp1 = !ap1API || ap1Local === ap1Remote;
+        const nomLocal  = normStr(editForm.nombres ?? '').slice(0, 3);
+        const nomRemote = normStr(nombreAPI).slice(0, 3);
+        const coincideNom = !nombreAPI || nomLocal === nomRemote;
+
+        if (curpAPI16 && !coincideBase) throw new Error('no_coincide');
+        if ((ap1API || nombreAPI) && !coincideAp1 && !coincideNom) throw new Error('no_coincide');
+
+        setExtrasCurpStatus('ok');
+        return { _autoFilled: false, _curpOficial: curpInput, _demografico: true };
+      })(),
+      {
+        loading: 'Consultando RENAPO…',
+        success: (result: any) => {
+          if (result?._autoFilled) return `✅ CURP oficial de RENAPO actualizada: ${result._curpOficial}`;
+          if (result?._demografico) return 'CURP verificada por datos demográficos en RENAPO ✅';
+          return 'CURP validada y certificada en RENAPO ✅';
+        },
+        error: (err: Error) => {
+          setExtrasCurpStatus('error');
+          if (err.message === 'no_encontrada') return 'La CURP no existe en los registros de RENAPO';
+          if (err.message === 'no_coincide')   return 'Los datos de RENAPO no coinciden con el alumno';
+          return `Error de red: ${err.message}`;
+        },
+      }
+    ).catch(() => setExtrasCurpStatus('error'));
   };
 
   const handlePromote = (alumno: Alumno) => {
@@ -988,7 +1163,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.2 }}
-              className="bg-white dark:bg-gray-900 rounded-[20px] shadow-xl w-full max-w-4xl flex flex-col overflow-hidden border border-[#e5e7eb] dark:border-gray-800"
+              className="bg-white dark:bg-gray-900 rounded-[20px] shadow-xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden border border-[#e5e7eb] dark:border-gray-800"
             >
               {/* Header */}
               <div className="px-5 py-3.5 border-b border-[#f2f3f5] dark:border-gray-800 flex justify-between items-center bg-[#f2f3f5] dark:bg-gray-800/50">
@@ -1007,8 +1182,8 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                 </button>
               </div>
 
-              {/* Body — no scroll needed */}
-              <div className="p-4 md:p-5">
+              {/* Body */}
+              <div className="p-4 md:p-5 overflow-y-auto">
                 <p className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-wider mb-2">Datos del Alumno</p>
                 {/* Row 1: Apellido Paterno + Apellido Materno + Nombre(s) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
@@ -1159,6 +1334,278 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                     onChange={e => setEditForm({ ...editForm, observaciones_pago_titulacion: e.target.value })}
                   />
                 </div>
+
+                {/* ── Datos Personales Opcionales (colapsable) ── */}
+                {editingId === 'new' && (
+                  <div className="mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowExtras(v => !v)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-[10px] bg-[#eef2ff] dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800/40 text-xs font-bold text-[#1456f0] dark:text-indigo-300 hover:bg-[#e0e7ff] dark:hover:bg-indigo-900/50 transition-colors"
+                    >
+                      <span>🪪 Datos Personales — Nacimiento, CURP, Domicilio y Contacto <span className="font-normal text-[#8e8e93]">(opcionales)</span></span>
+                      <ChevronDown size={14} className={showExtras ? '' : 'rotate-[-90deg]'} />
+                    </button>
+
+                    <AnimatePresence>
+                      {showExtras && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mt-2 rounded-[10px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] bg-white dark:bg-[#181e25] divide-y divide-[#f2f3f5] dark:divide-[rgba(255,255,255,0.06)]">
+
+                            {/* ── NACIMIENTO ── */}
+                            <div className="p-3 space-y-2">
+                              <p className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-wider">🍼 Nacimiento</p>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Fecha de Nacimiento</label>
+                                  <input type="date" value={newExtras.fecha_nacimiento}
+                                    onChange={e => setNewExtras(p => ({ ...p, fecha_nacimiento: e.target.value }))}
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Sexo</label>
+                                  <select value={newExtras.sexo}
+                                    onChange={e => setNewExtras(p => ({ ...p, sexo: e.target.value as '' | 'H' | 'M' }))}
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]">
+                                    <option value="">— Sel. —</option>
+                                    <option value="H">Hombre</option>
+                                    <option value="M">Mujer</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Estado de Nacimiento</label>
+                                  <select value={newExtras.estado_nacimiento}
+                                    onChange={e => setNewExtras(p => ({ ...p, estado_nacimiento: e.target.value }))}
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]">
+                                    <option value="">— Seleccionar —</option>
+                                    {ESTADOS_LIST.map(e => <option key={e.abbr} value={e.nombre}>{e.nombre}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Nacionalidad</label>
+                                  <input type="text" value={newExtras.nacionalidad}
+                                    onChange={e => setNewExtras(p => ({ ...p, nacionalidad: e.target.value.toUpperCase() }))}
+                                    placeholder="MEXICANA"
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* ── IDENTIFICACIÓN: CURP + Matrícula ── */}
+                            <div className="p-3 space-y-2">
+                              <p className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-wider">🪪 Identificación</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <div className="flex gap-1.5">
+                                  <input type="text" maxLength={18} value={newExtras.curp}
+                                    onChange={e => {
+                                      setNewExtras(p => ({ ...p, curp: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18) }));
+                                      setExtrasCurpStatus('idle');
+                                    }}
+                                    placeholder="18 CARACTERES"
+                                    className={`flex-1 border rounded-[8px] px-2 py-1.5 text-xs font-mono tracking-widest uppercase outline-none focus:ring-2 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 ${extrasCurpStatus === 'ok' ? 'border-emerald-400 focus:ring-emerald-400/30' : extrasCurpStatus === 'error' ? 'border-rose-400 focus:ring-rose-400/30' : newExtras.curp.length === 18 ? 'border-emerald-200 focus:ring-[#3b82f6]' : 'border-gray-300 dark:border-[rgba(255,255,255,0.08)] focus:ring-[#3b82f6]'}`} />
+                                  <button type="button" onClick={extrasAutocompleteCURP}
+                                    disabled={!editForm.apellido_paterno || !editForm.nombres || !newExtras.fecha_nacimiento || !newExtras.sexo || !newExtras.estado_nacimiento}
+                                    title="Calcular CURP desde los datos del alumno"
+                                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-[#1456f0] dark:text-indigo-300 border border-[#1456f0]/40 rounded-[8px] hover:bg-[#eef2ff] dark:hover:bg-indigo-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
+                                    <Wand2 size={11} /> Auto
+                                  </button>
+                                  <button type="button" onClick={extrasValidarCURP}
+                                    disabled={newExtras.curp.length !== 18}
+                                    title="Validar CURP en RENAPO vía API"
+                                    className={`flex items-center gap-1 px-2 py-1 text-[10px] font-semibold border rounded-[8px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${extrasCurpStatus === 'ok' ? 'text-emerald-700 border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400' : extrasCurpStatus === 'error' ? 'text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-900/20 dark:text-rose-400' : 'text-[#45515e] dark:text-gray-300 border-gray-300 dark:border-[rgba(255,255,255,0.15)] hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                                    {extrasCurpStatus === 'ok' ? <><ShieldCheck size={11} /> Verificada</> : extrasCurpStatus === 'error' ? <><ShieldX size={11} /> No encontrada</> : <><ShieldCheck size={11} /> RENAPO</>}
+                                  </button>
+                                </div>
+                                {newExtras.curp.length > 0 && newExtras.curp.length < 18 && (
+                                  <p className="text-[10px] text-amber-500 mt-0.5 pl-1">Faltan {18 - newExtras.curp.length} caracteres</p>
+                                )}
+                                {extrasCurpStatus === 'ok' && (
+                                  <p className="text-[10px] text-emerald-600 mt-0.5 pl-1 flex items-center gap-1"><ShieldCheck size={9} /> CURP verificada en RENAPO</p>
+                                )}
+                                {extrasCurpStatus === 'error' && (
+                                  <p className="text-[10px] text-rose-500 mt-0.5 pl-1 flex items-center gap-1"><ShieldX size={9} /> CURP no encontrada en RENAPO</p>
+                                )}
+                                {extrasCurpStatus === 'idle' && newExtras.curp.length === 18 && (
+                                  <p className="text-[10px] text-emerald-600 mt-0.5 pl-1 flex items-center gap-1"><CheckCircle size={9} /> CURP completa — pendiente de validar</p>
+                                )}
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Matrícula (sistema legado)</label>
+                                  <input type="text" maxLength={30} value={newExtras.matricula}
+                                    onChange={e => setNewExtras(p => ({ ...p, matricula: e.target.value.toUpperCase() }))}
+                                    placeholder="Ej. 2024001"
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* ── DOMICILIO ── */}
+                            <div className="p-3 space-y-2">
+                              <p className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-wider flex items-center gap-1"><MapPin size={10} /> Domicilio</p>
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                                <div className="md:col-span-2">
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Calle y Número</label>
+                                  <input type="text" value={newExtras.domicilio}
+                                    onChange={e => setNewExtras(p => ({ ...p, domicilio: e.target.value }))}
+                                    placeholder="Av. Ejemplo 123, Col. Centro"
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">C.P.</label>
+                                  <div className="relative">
+                                    <input type="text" inputMode="numeric" maxLength={5} value={newExtras.cp}
+                                      onChange={e => extrasHandleCP(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                                      placeholder="01234"
+                                      className={`w-full border rounded-[8px] px-2 py-1.5 pr-7 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] ${extrasCpError ? 'border-rose-400' : 'border-gray-300 dark:border-[rgba(255,255,255,0.08)]'}`} />
+                                    <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+                                      {extrasCpLoading ? <Loader2 size={11} className="text-[#3b82f6] animate-spin" /> : <Search size={11} className="text-[#8e8e93]" />}
+                                    </span>
+                                  </div>
+                                  {extrasCpError && <p className="text-[10px] text-rose-500 mt-0.5 pl-1">{extrasCpError}</p>}
+                                  {!extrasCpError && newExtras.cp.length === 5 && !extrasCpLoading && newExtras.municipio && (
+                                    <p className="text-[10px] text-emerald-600 mt-0.5 pl-1 flex items-center gap-1"><CheckCircle size={9} /> Autocompletado</p>
+                                  )}
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Municipio / Alcaldía <span className="font-normal">(del C.P.)</span></label>
+                                  <div className={`px-2 py-1.5 rounded-[8px] text-xs min-h-[30px] border border-dashed ${newExtras.municipio ? 'text-[#222222] dark:text-gray-100 border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]' : 'text-[#c0c0c8] italic border-[#e5e7eb]/50 dark:border-[rgba(255,255,255,0.05)]'}`}>
+                                    {newExtras.municipio || 'Se llena con el C.P.'}
+                                  </div>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Estado (del C.P.)</label>
+                                <div className={`px-2 py-1.5 rounded-[8px] text-xs min-h-[30px] border border-dashed max-w-xs ${newExtras.estado ? 'text-[#222222] dark:text-gray-100 border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]' : 'text-[#c0c0c8] italic border-[#e5e7eb]/50 dark:border-[rgba(255,255,255,0.05)]'}`}>
+                                  {newExtras.estado || 'Se llena con el C.P.'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* ── CONTACTO ── */}
+                            <div className="p-3 space-y-2">
+                              <p className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-wider">📞 Contacto</p>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                {/* Teléfono */}
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Teléfono</label>
+                                  <div className="relative">
+                                    <input type="tel" inputMode="numeric" maxLength={20} value={newExtras.telefono}
+                                      onChange={e => {
+                                        const raw = e.target.value; const digits = raw.replace(/\D/g, '');
+                                        const hasInvalid = /[^\d\s]/.test(raw);
+                                        let displayed = raw; let err: string | undefined;
+                                        if (hasInvalid) { err = 'Solo dígitos'; }
+                                        else if (digits.length <= 2) displayed = digits;
+                                        else if (digits.length <= 6) displayed = `${digits.slice(0,2)} ${digits.slice(2)}`;
+                                        else { displayed = `${digits.slice(0,2)} ${digits.slice(2,6)} ${digits.slice(6,10)}`; }
+                                        if (!hasInvalid && digits.length > 0 && digits.length < 10) err = `Faltan ${10-digits.length}`;
+                                        setNewExtras(p => ({ ...p, telefono: displayed }));
+                                        setExtrasErrors(p => { const n={...p}; if(err) n.telefono=err; else delete n.telefono; return n; });
+                                      }}
+                                      placeholder="55 1234 5678"
+                                      className={`w-full border rounded-[8px] px-2 py-1.5 pr-7 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 ${extrasErrors.telefono ? 'border-rose-400 focus:ring-rose-400/30' : newExtras.telefono && !extrasErrors.telefono ? 'border-emerald-400 focus:ring-emerald-400/30' : 'border-gray-300 dark:border-[rgba(255,255,255,0.08)] focus:ring-[#3b82f6]'}`} />
+                                    {newExtras.telefono && <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none">{extrasErrors.telefono ? <AlertCircle size={11} className="text-rose-400" /> : <CheckCircle size={11} className="text-emerald-500" />}</span>}
+                                  </div>
+                                  {extrasErrors.telefono && <p className="text-[10px] text-rose-500 mt-0.5 pl-1">{extrasErrors.telefono}</p>}
+                                </div>
+                                {/* Celular */}
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Celular</label>
+                                  <div className="relative">
+                                    <input type="tel" inputMode="numeric" maxLength={20} value={newExtras.celular}
+                                      onChange={e => {
+                                        const raw = e.target.value; const digits = raw.replace(/\D/g, '');
+                                        const hasInvalid = /[^\d\s]/.test(raw);
+                                        let displayed = raw; let err: string | undefined;
+                                        if (hasInvalid) { err = 'Solo dígitos'; }
+                                        else if (digits.length <= 2) displayed = digits;
+                                        else if (digits.length <= 6) displayed = `${digits.slice(0,2)} ${digits.slice(2)}`;
+                                        else { displayed = `${digits.slice(0,2)} ${digits.slice(2,6)} ${digits.slice(6,10)}`; }
+                                        if (!hasInvalid && digits.length > 0 && digits.length < 10) err = `Faltan ${10-digits.length}`;
+                                        setNewExtras(p => ({ ...p, celular: displayed }));
+                                        setExtrasErrors(p => { const n={...p}; if(err) n.celular=err; else delete n.celular; return n; });
+                                      }}
+                                      placeholder="55 9876 5432"
+                                      className={`w-full border rounded-[8px] px-2 py-1.5 pr-7 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 ${extrasErrors.celular ? 'border-rose-400 focus:ring-rose-400/30' : newExtras.celular && !extrasErrors.celular ? 'border-emerald-400 focus:ring-emerald-400/30' : 'border-gray-300 dark:border-[rgba(255,255,255,0.08)] focus:ring-[#3b82f6]'}`} />
+                                    {newExtras.celular && <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none">{extrasErrors.celular ? <AlertCircle size={11} className="text-rose-400" /> : <CheckCircle size={11} className="text-emerald-500" />}</span>}
+                                  </div>
+                                  {extrasErrors.celular && <p className="text-[10px] text-rose-500 mt-0.5 pl-1">{extrasErrors.celular}</p>}
+                                </div>
+                                {/* Email */}
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Correo Electrónico</label>
+                                  <div className="relative">
+                                    <input type="email" value={newExtras.email}
+                                      onChange={e => {
+                                        const v = e.target.value.trim();
+                                        setNewExtras(p => ({ ...p, email: v }));
+                                        const err = v && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? 'Correo no válido' : undefined;
+                                        setExtrasErrors(p => { const n={...p}; if(err) n.email=err; else delete n.email; return n; });
+                                      }}
+                                      placeholder="alumno@ejemplo.com"
+                                      className={`w-full border rounded-[8px] px-2 py-1.5 pr-7 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 ${extrasErrors.email ? 'border-rose-400 focus:ring-rose-400/30' : newExtras.email && !extrasErrors.email ? 'border-emerald-400 focus:ring-emerald-400/30' : 'border-gray-300 dark:border-[rgba(255,255,255,0.08)] focus:ring-[#3b82f6]'}`} />
+                                    {newExtras.email && <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none">{extrasErrors.email ? <AlertCircle size={11} className="text-rose-400" /> : <CheckCircle size={11} className="text-emerald-500" />}</span>}
+                                  </div>
+                                  {extrasErrors.email && <p className="text-[10px] text-rose-500 mt-0.5 pl-1">{extrasErrors.email}</p>}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* ── ESCOLARIDAD ── */}
+                            <div className="p-3 space-y-2">
+                              <p className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-wider">🎓 Escolaridad de Procedencia</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Escuela de Procedencia</label>
+                                  <input type="text" value={newExtras.escuela_procedencia}
+                                    onChange={e => setNewExtras(p => ({ ...p, escuela_procedencia: e.target.value }))}
+                                    placeholder="Nombre de la preparatoria / bachillerato"
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Estado de Escolaridad</label>
+                                  <select value={newExtras.estado_escolaridad}
+                                    onChange={e => setNewExtras(p => ({ ...p, estado_escolaridad: e.target.value }))}
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]">
+                                    <option value="">— Seleccionar —</option>
+                                    {ESTADOS_LIST.map(e => <option key={e.abbr} value={e.nombre}>{e.nombre}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* ── DATOS COMPLEMENTARIOS ── */}
+                            <div className="p-3 space-y-2">
+                              <p className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-wider">💙 Datos Complementarios</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Discapacidad</label>
+                                  <input type="text" value={newExtras.discapacidad}
+                                    onChange={e => setNewExtras(p => ({ ...p, discapacidad: e.target.value }))}
+                                    placeholder="Descripción o 'NINGUNA'"
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-[#8e8e93] mb-1">Lengua Indígena</label>
+                                  <input type="text" value={newExtras.lengua_indigena}
+                                    onChange={e => setNewExtras(p => ({ ...p, lengua_indigena: e.target.value }))}
+                                    placeholder="Ej. Náhuatl o 'NINGUNA'"
+                                    className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" />
+                                </div>
+                              </div>
+                            </div>
+
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
 
                 {/* Asignar plan — solo visible al crear */}
                 {editingId === 'new' && (

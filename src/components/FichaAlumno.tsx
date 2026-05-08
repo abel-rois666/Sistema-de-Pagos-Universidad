@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, GraduationCap, ScrollText } from 'lucide-react';
+import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, GraduationCap, ScrollText, ClipboardList } from 'lucide-react';
 import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '../types';
 import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { calculateStudentTotals, toTitleCase } from '../utils';
@@ -9,9 +9,10 @@ import TabPagos from './tabs/TabPagos';
 import TabServicioSocial from './tabs/TabServicioSocial';
 import TabCertificacion from './tabs/TabCertificacion';
 import TabTitulacion from './tabs/TabTitulacion';
+import TabDatosGenerales from './tabs/TabDatosGenerales';
 
 // ── Tabs disponibles ────────────────────────────────────────────────────────
-type TabId = 'pagos' | 'servicio_social' | 'certificacion' | 'titulacion';
+type TabId = 'pagos' | 'datos_generales' | 'servicio_social' | 'certificacion' | 'titulacion';
 
 interface TabDef {
   id: TabId;
@@ -21,10 +22,11 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'pagos',           label: 'Pagos',           icon: <FileText size={15} /> },
-  { id: 'servicio_social', label: 'Servicio Social', icon: <Briefcase size={15} />, adminOnly: true },
-  { id: 'certificacion',   label: 'Certificación',   icon: <ScrollText size={15} />, adminOnly: true },
-  { id: 'titulacion',      label: 'Titulación',      icon: <GraduationCap size={15} />, adminOnly: true },
+  { id: 'pagos',            label: 'Pagos',            icon: <FileText size={15} /> },
+  { id: 'datos_generales',  label: 'Datos Generales',  icon: <ClipboardList size={15} /> },
+  { id: 'servicio_social',  label: 'Servicio Social',  icon: <Briefcase size={15} />, adminOnly: true },
+  { id: 'certificacion',    label: 'Certificación',    icon: <ScrollText size={15} />, adminOnly: true },
+  { id: 'titulacion',       label: 'Titulación',       icon: <GraduationCap size={15} />, adminOnly: true },
 ];
 
 // ── Props ───────────────────────────────────────────────────────────────────
@@ -372,6 +374,13 @@ export default function FichaAlumno({
               alumno={selectedAlumno}
               activePlan={activePlan}
               onGoToPlan={onGoToPlan}
+            />
+          )}
+          {activeTab === 'datos_generales' && (
+            <TabDatosGenerales
+              alumno={selectedAlumno}
+              isAdmin={isAdmin}
+              onAlumnoUpdated={() => onRefreshAlumnos?.()}
             />
           )}
           {activeTab === 'servicio_social' && isAdmin && (
