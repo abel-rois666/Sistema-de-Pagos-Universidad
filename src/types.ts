@@ -27,6 +27,8 @@ export interface Alumno {
   nombre_completo: string;
   // Bandera de revisión post-migración
   nombre_requiere_revision?: boolean | null;
+  // Sincronización
+  sincronizado_el?: string | null;
   // Resto de campos
   licenciatura: string;
   grado_actual: string;

@@ -1,15 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { toTitleCase } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText, AlertCircle, Wand2, MapPin, ShieldCheck, ShieldX } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText, AlertCircle, Wand2, MapPin, ShieldCheck, ShieldX, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } from '../types';
 import { MultiSelectFilter } from './MultiSelectFilter';
 import ModalReporteAlumnos from './modals/ModalReporteAlumnos';
+import ModalSincronizacionGES from './modals/ModalSincronizacionGES';
 import { supabase, toDBPlan } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import { getMaxFolioCounter } from '../utils';
-import { getStateAbbr, ESTADOS_LIST, lookupCP } from '../utils/geoUtils';
+import { getStateAbbr, ESTADOS_LIST, lookupCP, mapToLegacyCode } from '../utils/geoUtils';
 import { calcularCURPCompleta } from '../utils/curpUtils';
 
 // Helper para generar folios con base en el ciclo y un consecutivo, ej: 261-1002
@@ -98,6 +99,12 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   const [extrasCpError, setExtrasCpError] = useState<string | null>(null);
   const extrasCpAbortRef = useRef<AbortController | null>(null);
   const [extrasCurpStatus, setExtrasCurpStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+
+  // Estado para el buscador GES 4
+  const [terminoBusqueda, setTerminoBusqueda] = useState('');
+  const [resultadosGes, setResultadosGes] = useState<any[]>([]);
+  const [buscandoGes, setBuscandoGes] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('alumnos_searchTerm') || '');
   const [filterLicenciaturas, setFilterLicenciaturas] = useState<string[]>(() => {
     try { return JSON.parse(sessionStorage.getItem('alumnos_fLicenciaturas') || '[]'); } catch { return []; }
@@ -130,6 +137,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   // ── Estado Bulk Promotion ──
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkCopyConcepts, setBulkCopyConcepts] = useState(false);
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -318,6 +326,9 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     setShowExtras(false);
     setExtrasErrors({});
     setExtrasCpError(null);
+    setTerminoBusqueda('');
+    setResultadosGes([]);
+    setBuscandoGes(false);
   };
 
   /** Autocomplete de código postal para el modal de creación */
@@ -437,6 +448,73 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       }
     ).catch(() => setExtrasCurpStatus('error'));
   };
+
+  /** Busca alumno en GES 4 usando el puente local */
+  const handleBuscarGES = async () => {
+    if (terminoBusqueda.trim().length < 3) return;
+    setBuscandoGes(true);
+    try {
+      const baseUrl = import.meta.env.VITE_GES_API_URL || 'http://localhost:3001';
+      const res = await fetch(`${baseUrl}/api/legacy/alumnos/buscar?q=${encodeURIComponent(terminoBusqueda)}`);
+      if (!res.ok) throw new Error('Error al conectar con la base de datos GES 4');
+      const data = await res.json();
+      if (!data || data.length === 0) {
+        toast.error('No se encontraron coincidencias');
+        setResultadosGes([]);
+      } else {
+        setResultadosGes(data);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Error en la búsqueda');
+      setResultadosGes([]);
+    } finally {
+      setBuscandoGes(false);
+    }
+  };
+
+  /** Carga los datos de GES 4 al formulario */
+  const handleSeleccionarAlumno = (alumnoGes: any) => {
+    console.log('GES Data:', alumnoGes.estado_nacimiento, alumnoGes.estado_escolaridad);
+    const parts = (alumnoGes.nombre_completo || '').split(' ');
+    const apellido_paterno = parts[0] || '';
+    const apellido_materno = parts.length > 2 ? parts[1] : '';
+    const nombres = parts.length > 2 ? parts.slice(2).join(' ') : parts.slice(1).join(' ');
+
+    setEditForm(prev => ({
+      ...prev,
+      apellido_paterno,
+      apellido_materno,
+      nombres,
+      nombre_completo: buildNombreCompleto(apellido_paterno, apellido_materno, nombres),
+      licenciatura: alumnoGes.licenciatura ? alumnoGes.licenciatura.toUpperCase() : ''
+    }));
+
+    setNewExtras(prev => ({
+      ...prev,
+      matricula: alumnoGes.matricula || '',
+      curp: alumnoGes.curp || '',
+      fecha_nacimiento: alumnoGes.fecha_nacimiento || '',
+      sexo: alumnoGes.sexo || '',
+      domicilio: alumnoGes.domicilio || '',
+      cp: alumnoGes.cp || '',
+      telefono: alumnoGes.telefono || '',
+      celular: alumnoGes.celular || '',
+      email: alumnoGes.email || '',
+      estado_nacimiento: mapToLegacyCode(alumnoGes.estado_nacimiento ? String(alumnoGes.estado_nacimiento).trim() : ''),
+      nacionalidad: alumnoGes.nacionalidad || 'MEXICANA',
+      escuela_procedencia: alumnoGes.escuela_procedencia || '',
+      estado_escolaridad: mapToLegacyCode(alumnoGes.estado_escolaridad ? String(alumnoGes.estado_escolaridad).trim() : ''),
+    }));
+
+    if (alumnoGes.cp) {
+      extrasHandleCP(alumnoGes.cp);
+    }
+
+    setShowExtras(true);
+    setResultadosGes([]);
+    toast.success('Datos importados correctamente');
+  };
+
 
   const handlePromote = (alumno: Alumno) => {
     if (alumno.estatus?.includes('EGRESADO') || alumno.grado_actual?.includes('EGRESADO')) {
@@ -822,6 +900,11 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
           <div className="flex-1"></div>
 
+          <button onClick={() => setShowSyncModal(true)} disabled={alumnos.length === 0}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
+            <Database size={18} /> Sincronizador GES 4
+          </button>
+
           <button onClick={() => setShowBulkModal(true)} disabled={alumnos.length === 0}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
             <Users size={18} /> Promoción Masiva
@@ -1184,6 +1267,55 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
               {/* Body */}
               <div className="p-4 md:p-5 overflow-y-auto">
+                {/* ── Buscador Inteligente GES 4 ── */}
+                {editingId === 'new' && (
+                  <div className="mb-4 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-[12px] border border-gray-200 dark:border-[rgba(255,255,255,0.08)]">
+                    <label className="block text-xs font-bold text-[#1456f0] dark:text-indigo-300 uppercase tracking-wider mb-2">
+                      Buscar en Base de Datos Anterior (GES 4)
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={terminoBusqueda}
+                          onChange={(e) => setTerminoBusqueda(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleBuscarGES()}
+                          placeholder="Buscar por matrícula o nombre completo..."
+                          className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[8px] pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100"
+                        />
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleBuscarGES}
+                        disabled={buscandoGes || terminoBusqueda.trim().length < 3}
+                        className="px-4 py-2 bg-[#1456f0] hover:bg-[#1149cc] text-white rounded-[8px] text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {buscandoGes ? <Loader2 size={16} className="animate-spin" /> : 'Buscar'}
+                      </button>
+                    </div>
+                    {/* Resultados GES */}
+                    {resultadosGes.length > 0 && (
+                      <div className="mt-3 max-h-48 overflow-y-auto rounded-[8px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c2228] shadow-sm">
+                        {resultadosGes.map((alumnoGes, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSeleccionarAlumno(alumnoGes)}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-b last:border-0 border-gray-100 dark:border-gray-800 flex flex-col transition-colors"
+                          >
+                            <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                              {alumnoGes.nombre_completo}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              Matrícula: {alumnoGes.matricula} | CURP: {alumnoGes.curp || 'N/A'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-wider mb-2">Datos del Alumno</p>
                 {/* Row 1: Apellido Paterno + Apellido Materno + Nombre(s) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
@@ -1384,7 +1516,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                                     onChange={e => setNewExtras(p => ({ ...p, estado_nacimiento: e.target.value }))}
                                     className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]">
                                     <option value="">— Seleccionar —</option>
-                                    {ESTADOS_LIST.map(e => <option key={e.abbr} value={e.nombre}>{e.nombre}</option>)}
+                                    {ESTADOS_LIST.map(e => <option key={e.abbr} value={e.abbr}>{e.nombre}</option>)}
                                   </select>
                                 </div>
                                 <div>
@@ -1573,7 +1705,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                                     onChange={e => setNewExtras(p => ({ ...p, estado_escolaridad: e.target.value }))}
                                     className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]">
                                     <option value="">— Seleccionar —</option>
-                                    {ESTADOS_LIST.map(e => <option key={e.abbr} value={e.nombre}>{e.nombre}</option>)}
+                                    {ESTADOS_LIST.map(e => <option key={e.abbr} value={e.abbr}>{e.nombre}</option>)}
                                   </select>
                                 </div>
                               </div>
@@ -1788,6 +1920,10 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
           </div>
         )}
       </AnimatePresence>
+
+      {/* ── Modales Externos ── */}
+      <ModalSincronizacionGES isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
+
     </div>
   );
 }

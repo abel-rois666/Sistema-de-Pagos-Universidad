@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import type { Alumno } from '../../types';
 import { supabase } from '../../lib/supabase';
-import { lookupCP, getStateAbbr, STATE_MAPPING, ESTADOS_LIST } from '../../utils/geoUtils';
+import { lookupCP, getStateAbbr, STATE_MAPPING, ESTADOS_LIST, mapToLegacyCode } from '../../utils/geoUtils';
 import { calcularCURP, calcularDigitoVerificador, inferirDigito17 } from '../../utils/curpUtils';
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
@@ -366,6 +366,65 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   const [cpError, setCpError] = useState<string | null>(null);
   const cpAbortRef = useRef<AbortController | null>(null);
 
+  const [terminoBusqueda, setTerminoBusqueda] = useState(alumno.nombre_completo || '');
+  const [resultadosGes, setResultadosGes] = useState<any[]>([]);
+  const [buscandoGes, setBuscandoGes] = useState(false);
+
+  const handleBuscarGES = async () => {
+    if (!terminoBusqueda.trim()) return;
+    setBuscandoGes(true);
+    setResultadosGes([]);
+    try {
+      const res = await fetch(`http://localhost:3001/api/legacy/alumnos/buscar?q=${encodeURIComponent(terminoBusqueda.trim())}`);
+      if (!res.ok) throw new Error('Error al buscar en GES 4');
+      const data = await res.json();
+      if (data.length === 0) {
+        toast('No se encontraron coincidencias en GES 4.', { icon: 'ℹ️' });
+      }
+      setResultadosGes(data);
+    } catch (err: any) {
+      toast.error(err.message || 'Error de conexión con el sistema legado');
+    } finally {
+      setBuscandoGes(false);
+    }
+  };
+
+  const handleSeleccionarAlumno = (datosGes: any) => {
+    const msg = alumno.sincronizado_el 
+      ? `¡Atención! Este registro ya fue sincronizado el ${new Date(alumno.sincronizado_el).toLocaleDateString()}. ¿Estás seguro de que quieres volver a sobrescribir los datos actuales?`
+      : "¿Estás seguro de que deseas sobrescribir los datos actuales con la información del sistema legado? Los datos vacíos se reemplazarán.";
+    const confirmar = window.confirm(msg);
+    if (!confirmar) return;
+
+    const expand = (v: string) => ESTADOS_LIST.find(e => e.abbr === v?.toUpperCase())?.nombre ?? v;
+
+    setForm(prev => ({
+      ...prev,
+      matricula: datosGes.matricula || '',
+      curp: datosGes.curp || '',
+      fecha_nacimiento: datosGes.fecha_nacimiento || '',
+      sexo: datosGes.sexo || '',
+      domicilio: datosGes.domicilio || '',
+      cp: datosGes.cp || '',
+      telefono: datosGes.telefono || '',
+      celular: datosGes.celular || '',
+      email: datosGes.email || '',
+      estado_nacimiento: expand(mapToLegacyCode(datosGes.estado_nacimiento ? String(datosGes.estado_nacimiento).trim() : '')),
+      nacionalidad: datosGes.nacionalidad || 'MEXICANA',
+      escuela_procedencia: datosGes.escuela_procedencia || '',
+      estado_escolaridad: expand(mapToLegacyCode(datosGes.estado_escolaridad ? String(datosGes.estado_escolaridad).trim() : '')),
+      discapacidad: datosGes.discapacidad || 'NINGUNA',
+      lengua_indigena: datosGes.lengua_indigena || 'NINGUNA',
+    }));
+
+    if (datosGes.cp) {
+      handleZipCodeChange(datosGes.cp);
+    }
+
+    setResultadosGes([]);
+    toast.success('Datos del legado aplicados al formulario');
+  };
+
   // buildForm necesita convertir abreviatura → nombre largo al cargar
   const buildFormWithConversion = useCallback((a: Alumno): FormData => {
     const raw = buildForm(a);
@@ -704,7 +763,11 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     toAbrev('estado');
     toAbrev('estado_nacimiento');
     toAbrev('estado_escolaridad');
-    const { error } = await supabase.from('alumnos').update(payload).eq('id', alumno.id);
+    const payloadConSync = {
+      ...payload,
+      sincronizado_el: new Date().toISOString()
+    };
+    const { error } = await supabase.from('alumnos').update(payloadConSync).eq('id', alumno.id);
     setSaving(false);
     if (error) {
       toast.error(`Error al guardar: ${error.message}`);
@@ -772,6 +835,55 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
           </div>
         )}
       </div>
+
+      {/* ── Sincronización Legada ─────────────────────────────────────── */}
+      {isAdmin && editing && (
+        <div className="mb-6 bg-blue-50/50 dark:bg-[#1c2228] border border-blue-100 dark:border-[rgba(255,255,255,0.08)] rounded-[12px] p-4">
+          <div className="flex flex-col md:flex-row md:items-end gap-3">
+            <div className="flex-1">
+              <label className="flex items-center gap-2 text-xs font-bold text-[#1456f0] dark:text-[#60a5fa] uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-ui)' }}>
+                <Search size={14} /> Sincronización con Sistema Legado
+              </label>
+              <input 
+                type="text" 
+                value={terminoBusqueda}
+                onChange={e => setTerminoBusqueda(e.target.value)}
+                placeholder="Nombre del alumno..."
+                className="w-full px-3 py-2 rounded-[8px] bg-white dark:bg-[#181e25] border border-blue-200 dark:border-[rgba(255,255,255,0.12)] text-sm text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]"
+                style={{ fontFamily: 'var(--font-ui)' }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleBuscarGES}
+              disabled={buscandoGes || !terminoBusqueda.trim()}
+              className="px-4 py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white text-sm font-semibold rounded-[8px] transition-colors disabled:opacity-50 h-[38px] flex items-center justify-center min-w-[160px]"
+              style={{ fontFamily: 'var(--font-ui)' }}
+            >
+              {buscandoGes ? <Loader2 size={16} className="animate-spin" /> : 'Buscar Coincidencias'}
+            </button>
+          </div>
+          
+          {resultadosGes.length > 0 && (
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+              {resultadosGes.map((r, i) => (
+                <div 
+                  key={i}
+                  onClick={() => handleSeleccionarAlumno(r)}
+                  className="bg-white dark:bg-[#181e25] border border-blue-100 dark:border-[rgba(255,255,255,0.08)] p-3 rounded-[8px] cursor-pointer hover:border-[#1456f0] hover:shadow-sm transition-all"
+                >
+                  <p className="text-sm font-bold text-[#222222] dark:text-gray-100 mb-1 leading-tight">{r.nombre_completo}</p>
+                  <div className="flex flex-wrap gap-2 text-[10px] text-[#8e8e93] font-semibold uppercase tracking-wider">
+                    {r.matricula && <span>🎓 {r.matricula}</span>}
+                    {r.licenciatura && <span>📚 {r.licenciatura}</span>}
+                    {r.curp && <span>🆔 {r.curp}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Sección: Nacimiento ───────────────────────────────────────── */}
       <Section icon={<Baby size={15} />} title="Nacimiento">

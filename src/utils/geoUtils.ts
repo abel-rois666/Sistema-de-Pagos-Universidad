@@ -52,6 +52,52 @@ export const STATE_MAPPING: Record<string, string> = {
   'Mexico City':                 'DF',
   'Mexico':                      'MEX',   // fallback genérico si viene inglés
   'Distrito Federal':            'DF',
+
+  // Nombres en mayúsculas y sin acentos para mayor compatibilidad
+  'AGUASCALIENTES': 'AGS',
+  'BAJA CALIFORNIA': 'BC',
+  'BAJA CALIFORNIA SUR': 'BCS',
+  'CAMPECHE': 'CAM',
+  'CHIAPAS': 'CHIS',
+  'CHIHUAHUA': 'CHIH',
+  'CIUDAD DE MEXICO': 'DF',
+  'DISTRITO FEDERAL': 'DF',
+  'COAHUILA': 'COAH',
+  'COAHUILA DE ZARAGOZA': 'COAH',
+  'COLIMA': 'COL',
+  'DURANGO': 'DGO',
+  'ESTADO DE MEXICO': 'MEX',
+  'MEXICO': 'MEX',
+  'GUANAJUATO': 'GTO',
+  'GUERRERO': 'GR',
+  'HIDALGO': 'HGO',
+  'JALISCO': 'JAL',
+  'MICHOACAN': 'MICH',
+  'MICHOACAN DE OCAMPO': 'MICH',
+  'MORELOS': 'MOR',
+  'NAYARIT': 'NAY',
+  'NUEVO LEON': 'NL',
+  'OAXACA': 'OAX',
+  'PUEBLA': 'PUE',
+  'QUERETARO': 'QRO',
+  'QUERETARO DE ARTEAGA': 'QRO',
+  'QUINTANA ROO': 'QROO',
+  'SAN LUIS POTOSI': 'SLP',
+  'SINALOA': 'SIN',
+  'SONORA': 'SON',
+  'TABASCO': 'TAB',
+  'TAMAULIPAS': 'TAMPS',
+  'TLAXCALA': 'TLAX',
+  'VERACRUZ': 'VER',
+  'VERACRUZ DE IGNACIO DE LA LLAVE': 'VER',
+  'YUCATAN': 'YUC',
+  'ZACATECAS': 'ZAC',
+};
+
+export const mapToLegacyCode = (stateName: string | undefined): string => {
+  if (!stateName) return '';
+  const normalized = stateName.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return STATE_MAPPING[normalized] || normalized.substring(0, 3);
 };
 
 // ── Lookup robusto ────────────────────────────────────────────────────────────
