@@ -454,7 +454,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     if (terminoBusqueda.trim().length < 3) return;
     setBuscandoGes(true);
     try {
-      const baseUrl = import.meta.env.VITE_GES_API_URL || 'http://localhost:3001';
+      const baseUrl = (import.meta.env.VITE_GES_API_URL || 'http://localhost:3001').trim().replace(/\/$/, '');
       const res = await fetch(`${baseUrl}/api/legacy/alumnos/buscar?q=${encodeURIComponent(terminoBusqueda)}`);
       if (!res.ok) throw new Error('Error al conectar con la base de datos GES 4');
       const data = await res.json();

@@ -375,7 +375,8 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     setBuscandoGes(true);
     setResultadosGes([]);
     try {
-      const res = await fetch(`http://localhost:3001/api/legacy/alumnos/buscar?q=${encodeURIComponent(terminoBusqueda.trim())}`);
+      const baseUrl = (import.meta.env.VITE_GES_API_URL || 'http://localhost:3001').trim().replace(/\/$/, '');
+      const res = await fetch(`${baseUrl}/api/legacy/alumnos/buscar?q=${encodeURIComponent(terminoBusqueda.trim())}`);
       if (!res.ok) throw new Error('Error al buscar en GES 4');
       const data = await res.json();
       if (data.length === 0) {
