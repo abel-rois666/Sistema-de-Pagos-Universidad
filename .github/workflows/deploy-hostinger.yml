@@ -39,6 +39,7 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
           VITE_RAPIDAPI_CURP_KEY: ${{ secrets.VITE_RAPIDAPI_CURP_KEY }}
+          VITE_GES_API_URL: ${{ secrets.VITE_GES_API_URL }}
         
       # (Opcional) Puedes generar un archivo temporal para validar que el build pasó ok.
       - name: 📂 Directorio de Verificación (Debug)
