@@ -270,7 +270,13 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
     }
   }, [selectedPlanId]);
   
-  const isCoordinador = currentUser.rol === 'COORDINADOR';
+  // Permisos por rol:
+  // - ADMINISTRADOR: acceso total (crear, editar, eliminar)
+  // - CAJERO: puede crear y editar planes (no puede eliminar)
+  // - COORDINADOR: puede crear y editar planes (no puede eliminar)
+  const canManagePlans = currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'CAJERO' || currentUser.rol === 'COORDINADOR';
+  const canEditPlan    = currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'CAJERO' || currentUser.rol === 'COORDINADOR';
+  const canDeletePlan  = currentUser.rol === 'ADMINISTRADOR';
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Modal States
@@ -515,7 +521,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
           <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 mb-3">Sin Planes de Pago</h2>
           <p className="text-[#8e8e93] dark:text-[#8e8e93] mb-8">No hay planes de pago registrados para este ciclo escolar. Por favor, selecciona otro ciclo o inscribe alumnos.</p>
           <div className="flex flex-col gap-3">
-            {!isCoordinador && (
+            {canManagePlans && (
               <button
                 onClick={() => setIsNewPlanModalOpen(true)}
                 className="bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-6 py-3 rounded-[13px] font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
@@ -1186,20 +1192,24 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
           </div>
           
           <div className="flex items-center gap-2 shrink-0">
-            {!isCoordinador && (
+            {canManagePlans && (
               <button 
                 onClick={() => setIsNewPlanModalOpen(true)} 
                 className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white rounded-[8px] shadow-[var(--shadow-subtle)] gap-2 transition-colors font-medium"
+                title={`Crear nuevo plan (${currentUser.rol})`}
               >
                 <Plus size={18} /> <span className="hidden xl:inline">Nuevo Plan</span>
               </button>
             )}
-            <button 
-              onClick={openEditPlanModal} 
-              className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-white hover:bg-[#f2f3f5] text-[#222222] border border-gray-300 rounded-[8px] shadow-[var(--shadow-subtle)] gap-2 transition-all font-bold text-sm"
-            >
-              <Edit size={18} /> <span className="hidden xl:inline">Editar</span>
-            </button>
+            {canEditPlan && (
+              <button 
+                onClick={openEditPlanModal} 
+                className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-white hover:bg-[#f2f3f5] text-[#222222] border border-gray-300 rounded-[8px] shadow-[var(--shadow-subtle)] gap-2 transition-all font-bold text-sm"
+                title={`Editar plan (${currentUser.rol})`}
+              >
+                <Edit size={18} /> <span className="hidden xl:inline">Editar</span>
+              </button>
+            )}
             <button 
               onClick={handleGeneratePDF} 
               disabled={isGeneratingPDF} 
@@ -1741,7 +1751,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
             </div>
 
             <div className="p-6 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-between items-center gap-3">
-              {currentUser?.rol === 'ADMINISTRADOR' ? (
+              {canDeletePlan ? (
                 <button
                   onClick={() => setDeleteConfirmPlanId(editForm.id!)}
                   className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-[8px] font-semibold transition-colors border border-transparent hover:border-red-200 text-sm"
