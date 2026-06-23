@@ -50,7 +50,7 @@ export default function Login({ onLogin }: LoginProps) {
         return;
       }
 
-      console.log('✅ Login exitoso. Auth ID:', authData.user.id);
+
 
       // Obtener el perfil vinculado usando el UUID del usuario autenticado.
       // Usamos authData.user.id directamente (evita una segunda llamada a getUser() que puede fallar).
@@ -60,7 +60,7 @@ export default function Login({ onLogin }: LoginProps) {
         .eq('auth_id', authData.user.id)
         .maybeSingle();
 
-      console.log('🔍 Resultado de buscar perfil:', { perfil, perfilError });
+
 
       if (perfilError || !perfil) {
         setError('Usuario autenticado pero sin perfil en el sistema. Contacta al administrador.');

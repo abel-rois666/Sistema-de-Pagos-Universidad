@@ -1,141 +1,216 @@
 -- ======================================================================================
 -- ESQUEMA COMPLETO DE BASE DE DATOS: SISTEMA DE CONTROL DE PAGOS UNIVERSIDAD
+-- Alineado con la BD real de Supabase (revisión: 23 de junio de 2026)
+-- ======================================================================================
+-- INSTRUCCIONES:
+--   1. Ejecutar en Supabase → SQL Editor (o psql) en orden.
+--   2. Las tablas se crean en orden de dependencia (primero las que no referencian a otras).
+--   3. Las políticas RLS están al final.
 -- ======================================================================================
 
 -- Habilitar extensión para UUIDs automáticos
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ==========================================
--- 1. TABLA: USUARIOS
--- ==========================================
-CREATE TABLE IF NOT EXISTS public.usuarios (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT,
-    rol TEXT NOT NULL CHECK (rol IN ('ADMINISTRADOR', 'COORDINADOR', 'CAJERO')),
-    ultimo_ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE SET NULL,
-    preferencia_tema TEXT DEFAULT 'light',
-    auth_id UUID,
-    activo BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- ==========================================
--- 2. TABLA: CICLOS ESCOLARES
+-- 1. TABLA: CICLOS ESCOLARES
+-- (Sin dependencias — se crea primero porque usuarios la referencia)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.ciclos_escolares (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     nombre TEXT NOT NULL,
-    meses_abarca TEXT NOT NULL,
-    anio INTEGER NOT NULL,
+    meses_abarca TEXT,
+    anio INTEGER,
+    anio_fin INTEGER,                -- Año de fin (para ciclos que abarcan 2 años, ej. 2026-2027)
     activo BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- ==========================================
+-- 2. TABLA: USUARIOS
+-- (Depende de ciclos_escolares via ultimo_ciclo_id)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.usuarios (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT,                    -- Hash bcrypt (legacy, usar Supabase Auth como primario)
+    rol TEXT NOT NULL CHECK (rol IN ('ADMINISTRADOR', 'COORDINADOR', 'CAJERO')),
+    ultimo_ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE SET NULL,
+    preferencia_tema TEXT DEFAULT 'light',
+    auth_id UUID,                    -- UUID de Supabase Auth (vincula la sesión JWT)
+    activo BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- ==========================================
 -- 3. TABLA: CATÁLOGOS
+-- (Sin dependencias)
 -- ==========================================
+-- NOTA: En la BD real el id es UUID (no TEXT como en versiones anteriores del schema).
+-- El CHECK de tipo no existe en la BD real (se controla desde la app),
+-- pero se documenta aquí los valores válidos como referencia.
 CREATE TABLE IF NOT EXISTS public.catalogos (
-    id TEXT PRIMARY KEY,
-    tipo TEXT NOT NULL CHECK (tipo IN ('concepto', 'licenciatura', 'beca_tipo', 'beca_porcentaje', 'grado', 'turno', 'estatus_alumno')),
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    tipo TEXT NOT NULL,
+    -- Tipos válidos (controlados por la app):
+    --   'concepto', 'licenciatura', 'beca_tipo', 'beca_porcentaje',
+    --   'grado', 'turno', 'estatus_alumno', 'empresa_ss', 'modalidad_titulacion'
     valor TEXT NOT NULL,
-    orden INTEGER NOT NULL,
+    orden INTEGER,
     activo BOOLEAN DEFAULT true,
-    -- Metadatos opcionales (solo para tipo='licenciatura'):
-    -- { "tipo_academico": "LICENCIATURA"|"ESPECIALIDAD", "tipo_periodo": "CUATRIMESTRAL"|"SEMESTRAL" }
+    -- Metadatos opcionales (usado principalmente para tipo='licenciatura'):
+    -- { "tipo_academico": "LICENCIATURA"|"ESPECIALIDAD", "tipo_periodo": "CUATRIMESTRAL"|"SEMESTRAL",
+    --   "rvoe": "...", "rvoe_fecha": "YYYY-MM-DD" }
     metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
--- Para bases de datos existentes, ejecutar:
--- ALTER TABLE public.catalogos ADD COLUMN IF NOT EXISTS metadata JSONB;
-
 
 -- ==========================================
 -- 4. TABLA: ALUMNOS
+-- (Sin dependencias)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.alumnos (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    nombre_completo TEXT NOT NULL,
-    matricula TEXT UNIQUE,
+
+    -- Nombre normalizado (Opción B: conviven nombre_completo + campos separados)
+    apellido_paterno TEXT,
+    apellido_materno TEXT,
+    nombres TEXT,
+    nombre_completo TEXT NOT NULL,          -- UPPERCASE concatenado: "APELLIDO_P APELLIDO_M NOMBRES"
+    nombre_requiere_revision BOOLEAN,      -- Bandera para revisión post-migración
+
+    -- Datos académicos
     licenciatura TEXT,
     grado_actual TEXT,
     turno TEXT,
     estatus TEXT DEFAULT 'ACTIVO',
+    matricula TEXT UNIQUE,                 -- Identificador del sistema legado
+
+    -- Becas y finanzas
     beca_tipo TEXT,
     beca_porcentaje TEXT,
-    ciclo_ultima_asignacion_grado TEXT,
+    ciclo_ultima_asignacion_grado UUID,    -- Referencia lógica a ciclos_escolares (sin FK en BD real)
     observaciones_pago_titulacion TEXT,
     saldo_a_favor NUMERIC(10,2) DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+
+    -- Dirección
+    domicilio TEXT,
+    cp VARCHAR,
+    municipio TEXT,
+    estado TEXT,
+
+    -- Identificación y origen
+    curp VARCHAR UNIQUE,
+    fecha_nacimiento DATE,
+    estado_nacimiento TEXT,
+    nacionalidad TEXT,
+    escuela_procedencia TEXT,
+    estado_escolaridad TEXT,
+
+    -- Contacto y género
+    telefono VARCHAR,
+    celular VARCHAR,
+    email TEXT,
+    sexo VARCHAR,                          -- 'H' | 'M'
+
+    -- Datos adicionales
+    discapacidad TEXT,
+    lengua_indigena TEXT,
+
+    -- Sincronización con sistema externo (GES)
+    sincronizado_el TIMESTAMP WITH TIME ZONE,
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 CREATE INDEX IF NOT EXISTS idx_alumnos_matricula ON public.alumnos(matricula);
 CREATE INDEX IF NOT EXISTS idx_alumnos_nombre ON public.alumnos(nombre_completo);
+CREATE INDEX IF NOT EXISTS idx_alumnos_curp ON public.alumnos(curp);
 
 -- ==========================================
--- 5. TABLA: CONFIGURACIÓN APP (NUEVA)
+-- 5. TABLA: CONFIGURACIÓN APP
+-- (Sin dependencias)
 -- ==========================================
+-- NOTA: En la BD real el id es TEXT (se usa como clave descriptiva: 'app_title', 'app_logo', etc.)
 CREATE TABLE IF NOT EXISTS public.configuracion_app (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    clave TEXT UNIQUE NOT NULL,
-    valor TEXT,
-    descripcion TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    id TEXT PRIMARY KEY,                   -- Clave descriptiva: 'app_title', 'app_logo', 'director_nombre', etc.
+    valor TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+-- Valores esperados por la app:
+--   'app_title'            → Título de la app (ej. "Sistema de Control de Pagos")
+--   'app_logo'             → URL del logo institucional
+--   'director_nombre'      → Nombre del director (constancias)
+--   'director_cargo'       → Cargo del director (constancias)
+--   'constancia_ss_params' → JSON con parámetros de formato de constancias
 
 -- ==========================================
--- 6. TABLA: PLANTILLAS DE PLAN 
+-- 6. TABLA: PLANTILLAS DE PLAN
+-- (Depende de ciclos_escolares)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.plantillas_plan (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     nombre TEXT NOT NULL,
     ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE SET NULL,
-    tipo_plan TEXT CHECK (tipo_plan IN ('Cuatrimestral', 'Semestral', 'Titulación', 'Especialidad Completa', 'Especialidad Cuatrimestral')),
+    tipo_plan TEXT,
+    -- Valores válidos: 'Cuatrimestral', 'Semestral', 'Titulación',
+    --                  'Especialidad Completa', 'Especialidad Cuatrimestral'
     descripcion TEXT,
     activo BOOLEAN DEFAULT true,
-    concepto_1 TEXT, fecha_1 DATE, cantidad_1 NUMERIC(10,2),
-    concepto_2 TEXT, fecha_2 DATE, cantidad_2 NUMERIC(10,2),
-    concepto_3 TEXT, fecha_3 DATE, cantidad_3 NUMERIC(10,2),
-    concepto_4 TEXT, fecha_4 DATE, cantidad_4 NUMERIC(10,2),
-    concepto_5 TEXT, fecha_5 DATE, cantidad_5 NUMERIC(10,2),
-    concepto_6 TEXT, fecha_6 DATE, cantidad_6 NUMERIC(10,2),
-    concepto_7 TEXT, fecha_7 DATE, cantidad_7 NUMERIC(10,2),
-    concepto_8 TEXT, fecha_8 DATE, cantidad_8 NUMERIC(10,2),
-    concepto_9 TEXT, fecha_9 DATE, cantidad_9 NUMERIC(10,2),
+
+    -- Conceptos 1 a 9 (fecha como TEXT para compatibilidad con formatos legacy DD/MM/YYYY)
+    concepto_1 TEXT, fecha_1 TEXT, cantidad_1 NUMERIC(10,2),
+    concepto_2 TEXT, fecha_2 TEXT, cantidad_2 NUMERIC(10,2),
+    concepto_3 TEXT, fecha_3 TEXT, cantidad_3 NUMERIC(10,2),
+    concepto_4 TEXT, fecha_4 TEXT, cantidad_4 NUMERIC(10,2),
+    concepto_5 TEXT, fecha_5 TEXT, cantidad_5 NUMERIC(10,2),
+    concepto_6 TEXT, fecha_6 TEXT, cantidad_6 NUMERIC(10,2),
+    concepto_7 TEXT, fecha_7 TEXT, cantidad_7 NUMERIC(10,2),
+    concepto_8 TEXT, fecha_8 TEXT, cantidad_8 NUMERIC(10,2),
+    concepto_9 TEXT, fecha_9 TEXT, cantidad_9 NUMERIC(10,2),
+
+    -- Conceptos 10 a 15 (fecha como DATE — agregados después para Especialidades)
     concepto_10 TEXT, fecha_10 DATE, cantidad_10 NUMERIC(10,2),
     concepto_11 TEXT, fecha_11 DATE, cantidad_11 NUMERIC(10,2),
     concepto_12 TEXT, fecha_12 DATE, cantidad_12 NUMERIC(10,2),
     concepto_13 TEXT, fecha_13 DATE, cantidad_13 NUMERIC(10,2),
     concepto_14 TEXT, fecha_14 DATE, cantidad_14 NUMERIC(10,2),
     concepto_15 TEXT, fecha_15 DATE, cantidad_15 NUMERIC(10,2),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- ==========================================
--- 7. TABLA: PLANES_PAGO (TABLA BASE)
+-- 7. TABLA: PLANES DE PAGO
+-- (Depende de alumnos y ciclos_escolares)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.planes_pago (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     alumno_id UUID REFERENCES public.alumnos(id) ON DELETE CASCADE,
     ciclo_id UUID REFERENCES public.ciclos_escolares(id) ON DELETE RESTRICT,
-    no_plan_pagos TEXT NOT NULL,
-    fecha_plan DATE NOT NULL,
+
+    no_plan_pagos TEXT,                    -- Folio auto-generado (ej. "262-001")
+    fecha_plan TEXT,                       -- Fecha del plan (TEXT por formatos legacy)
     beca_porcentaje TEXT,
     beca_tipo TEXT,
-    grado TEXT,
-    turno TEXT,
-    tipo_plan TEXT CHECK (tipo_plan IN ('Cuatrimestral', 'Semestral', 'Titulación', 'Especialidad Completa', 'Especialidad Cuatrimestral')),
+    grado_turno_inscrito TEXT,             -- Snapshot del grado/turno al momento de crear el plan
+    grado TEXT,                            -- Grado separado
+    turno TEXT,                            -- Turno separado
+    tipo_plan TEXT,
+    -- Valores válidos: 'Cuatrimestral', 'Semestral', 'Titulación',
+    --                  'Especialidad Completa', 'Especialidad Cuatrimestral'
     licenciatura TEXT,
-    
-    -- Conceptos 1 - 15 (Soporte extendido para Especialidades/Titulación)
-    concepto_1 TEXT, fecha_1 DATE, cantidad_1 NUMERIC(10,2), estatus_1 TEXT DEFAULT 'PENDIENTE',
-    concepto_2 TEXT, fecha_2 DATE, cantidad_2 NUMERIC(10,2), estatus_2 TEXT DEFAULT 'PENDIENTE',
-    concepto_3 TEXT, fecha_3 DATE, cantidad_3 NUMERIC(10,2), estatus_3 TEXT DEFAULT 'PENDIENTE',
-    concepto_4 TEXT, fecha_4 DATE, cantidad_4 NUMERIC(10,2), estatus_4 TEXT DEFAULT 'PENDIENTE',
-    concepto_5 TEXT, fecha_5 DATE, cantidad_5 NUMERIC(10,2), estatus_5 TEXT DEFAULT 'PENDIENTE',
-    concepto_6 TEXT, fecha_6 DATE, cantidad_6 NUMERIC(10,2), estatus_6 TEXT DEFAULT 'PENDIENTE',
-    concepto_7 TEXT, fecha_7 DATE, cantidad_7 NUMERIC(10,2), estatus_7 TEXT DEFAULT 'PENDIENTE',
-    concepto_8 TEXT, fecha_8 DATE, cantidad_8 NUMERIC(10,2), estatus_8 TEXT DEFAULT 'PENDIENTE',
-    concepto_9 TEXT, fecha_9 DATE, cantidad_9 NUMERIC(10,2), estatus_9 TEXT DEFAULT 'PENDIENTE',
+
+    -- Conceptos 1 a 9 (fecha como TEXT por compatibilidad con formatos legacy)
+    concepto_1 TEXT, fecha_1 TEXT, cantidad_1 NUMERIC(10,2), estatus_1 TEXT DEFAULT 'PENDIENTE',
+    concepto_2 TEXT, fecha_2 TEXT, cantidad_2 NUMERIC(10,2), estatus_2 TEXT DEFAULT 'PENDIENTE',
+    concepto_3 TEXT, fecha_3 TEXT, cantidad_3 NUMERIC(10,2), estatus_3 TEXT DEFAULT 'PENDIENTE',
+    concepto_4 TEXT, fecha_4 TEXT, cantidad_4 NUMERIC(10,2), estatus_4 TEXT DEFAULT 'PENDIENTE',
+    concepto_5 TEXT, fecha_5 TEXT, cantidad_5 NUMERIC(10,2), estatus_5 TEXT DEFAULT 'PENDIENTE',
+    concepto_6 TEXT, fecha_6 TEXT, cantidad_6 NUMERIC(10,2), estatus_6 TEXT DEFAULT 'PENDIENTE',
+    concepto_7 TEXT, fecha_7 TEXT, cantidad_7 NUMERIC(10,2), estatus_7 TEXT DEFAULT 'PENDIENTE',
+    concepto_8 TEXT, fecha_8 TEXT, cantidad_8 NUMERIC(10,2), estatus_8 TEXT DEFAULT 'PENDIENTE',
+    concepto_9 TEXT, fecha_9 TEXT, cantidad_9 NUMERIC(10,2), estatus_9 TEXT DEFAULT 'PENDIENTE',
+
+    -- Conceptos 10 a 15 (fecha como DATE — agregados para Especialidades/Titulación extendida)
     concepto_10 TEXT, fecha_10 DATE, cantidad_10 NUMERIC(10,2), estatus_10 TEXT DEFAULT 'PENDIENTE',
     concepto_11 TEXT, fecha_11 DATE, cantidad_11 NUMERIC(10,2), estatus_11 TEXT DEFAULT 'PENDIENTE',
     concepto_12 TEXT, fecha_12 DATE, cantidad_12 NUMERIC(10,2), estatus_12 TEXT DEFAULT 'PENDIENTE',
@@ -149,21 +224,18 @@ CREATE TABLE IF NOT EXISTS public.planes_pago (
     desglose_descuento_porcentaje NUMERIC(5,2),
     desglose_descuento_monto NUMERIC(15,2),
     desglose_total_neto NUMERIC(15,2),
-    
-    observaciones JSONB,
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    UNIQUE(alumno_id, ciclo_id, no_plan_pagos)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 CREATE INDEX IF NOT EXISTS idx_planes_pago_alumno ON public.planes_pago(alumno_id);
 CREATE INDEX IF NOT EXISTS idx_planes_pago_ciclo ON public.planes_pago(ciclo_id);
 
 -- ==========================================
 -- 8. VISTA: VISTA_PLANES_PAGO
--- Integra Tablas para la aplicación
+-- Integra planes_pago + alumnos + ciclos para la aplicación
 -- ==========================================
-CREATE OR REPLACE VIEW public.vista_planes_pago AS 
-SELECT 
+CREATE OR REPLACE VIEW public.vista_planes_pago AS
+SELECT
     p.id,
     p.alumno_id,
     p.ciclo_id,
@@ -173,7 +245,7 @@ SELECT
     p.beca_porcentaje,
     p.beca_tipo,
     c.nombre AS ciclo_escolar,
-    
+
     p.concepto_1, p.fecha_1, p.cantidad_1, p.estatus_1,
     p.concepto_2, p.fecha_2, p.cantidad_2, p.estatus_2,
     p.concepto_3, p.fecha_3, p.cantidad_3, p.estatus_3,
@@ -189,15 +261,13 @@ SELECT
     p.concepto_13, p.fecha_13, p.cantidad_13, p.estatus_13,
     p.concepto_14, p.fecha_14, p.cantidad_14, p.estatus_14,
     p.concepto_15, p.fecha_15, p.cantidad_15, p.estatus_15,
-    
-    -- Desglose
+
+    -- Desglose (Especialidades)
     p.desglose_conceptos,
     p.desglose_total_bruto,
     p.desglose_descuento_porcentaje,
     p.desglose_descuento_monto,
     p.desglose_total_neto,
-
-    p.observaciones,
 
     COALESCE(p.licenciatura, a.licenciatura) AS licenciatura,
     (COALESCE(p.grado, a.grado_actual) || ' - ' || COALESCE(p.turno, a.turno)) AS grado_turno,
@@ -210,11 +280,12 @@ LEFT JOIN public.ciclos_escolares c ON p.ciclo_id = c.id;
 
 -- ==========================================
 -- 9. TABLA: RECIBOS (CONTROL DE INGRESOS)
+-- (Depende de alumnos y ciclos_escolares)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.recibos (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    folio SERIAL UNIQUE NOT NULL,
-    folio_fiscal TEXT,        -- Para cuando se factura un recibo
+    folio SERIAL UNIQUE NOT NULL,          -- Folio secuencial automático
+    folio_fiscal VARCHAR,                  -- Para cuando se factura un recibo
     fecha_recibo DATE NOT NULL,
     fecha_pago DATE NOT NULL,
     alumno_id UUID REFERENCES public.alumnos(id) ON DELETE RESTRICT,
@@ -223,12 +294,20 @@ CREATE TABLE IF NOT EXISTS public.recibos (
     forma_pago TEXT NOT NULL,
     banco TEXT NOT NULL,
     estatus TEXT DEFAULT 'ACTIVO' CHECK (estatus IN ('ACTIVO', 'CANCELADO')),
+
+    -- Funcionalidades de facturación y monedero
+    uso_saldo_a_favor NUMERIC(10,2),       -- Monto del saldo a favor usado en este recibo
+    requiere_factura BOOLEAN DEFAULT false,
+    estatus_factura VARCHAR DEFAULT 'NO APLICA',  -- 'NO APLICA', 'PENDIENTE', 'FACTURADO'
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_recibos_alumno ON public.recibos(alumno_id);
+CREATE INDEX IF NOT EXISTS idx_recibos_ciclo ON public.recibos(ciclo_id);
 
 -- ==========================================
 -- 10. TABLA: RECIBOS_DETALLES
+-- (Depende de recibos)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.recibos_detalles (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -237,102 +316,199 @@ CREATE TABLE IF NOT EXISTS public.recibos_detalles (
     concepto TEXT NOT NULL,
     costo_unitario NUMERIC(15,2) NOT NULL,
     subtotal NUMERIC(15,2) NOT NULL,
-    indice_concepto_plan INTEGER, -- 1 a 15, sirve para saber a qué concepto del plan le abonó
-    observaciones TEXT,           -- Nota de abono parcial: "Abono $X — Restante: $Y"
+    indice_concepto_plan INTEGER,           -- 1 a 15, vincula a qué concepto del plan se abonó
+    observaciones TEXT,                     -- Nota de abono parcial: "Abono $X — Restante: $Y"
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_recibos_detalles_recibo ON public.recibos_detalles(recibo_id);
 
 -- ==========================================
 -- 11. TABLA: SERVICIO SOCIAL
+-- (Depende de alumnos)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.servicio_social (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    alumno_id UUID REFERENCES public.alumnos(id) ON DELETE CASCADE,
+    alumno_id UUID REFERENCES public.alumnos(id) ON DELETE CASCADE NOT NULL,
     nombre_empresa TEXT NOT NULL,
-    tipo_empresa TEXT CHECK (tipo_empresa IN ('PRIVADA', 'PUBLICA')),
-    fecha_registro DATE,
+    tipo_empresa TEXT NOT NULL,             -- 'PRIVADA' | 'PUBLICA'
+    fecha_registro DATE NOT NULL,
     fecha_inicio DATE,
     fecha_termino DATE,
-    horas_cubrir INTEGER,
-    estatus TEXT DEFAULT 'EN_CURSO' CHECK (estatus IN ('EN_CURSO', 'LIBERADO')),
+    horas_cubrir INTEGER NOT NULL,
+    estatus TEXT NOT NULL DEFAULT 'EN_CURSO',  -- 'EN_CURSO' | 'LIBERADO'
     nombre_programa TEXT,
-    variante_legal TEXT DEFAULT 'ART_55',
-    art52_motivo TEXT,
-    art52_doc_acta TEXT DEFAULT 'PENDIENTE',
-    art52_doc_expediente TEXT DEFAULT 'PENDIENTE',
-    art91_req_constancia BOOLEAN DEFAULT false,
-    art91_req_comprobantes BOOLEAN DEFAULT false,
-    art91_req_informe BOOLEAN DEFAULT false,
+
+    -- Variante legal
+    variante_legal TEXT NOT NULL DEFAULT 'ART_55',  -- 'ART_55' | 'ART_52' | 'ART_91'
+
+    -- ART. 52 — Exención por condición personal
+    art52_motivo TEXT,                     -- 'EDAD' | 'ENFERMEDAD'
+    art52_doc_acta TEXT NOT NULL DEFAULT 'PENDIENTE',       -- 'PENDIENTE' | 'ENTREGADO'
+    art52_doc_expediente TEXT NOT NULL DEFAULT 'PENDIENTE',  -- 'PENDIENTE' | 'ENTREGADO'
+
+    -- ART. 91 — Experiencia laboral
+    art91_req_constancia BOOLEAN NOT NULL DEFAULT false,
+    art91_req_comprobantes BOOLEAN NOT NULL DEFAULT false,
+    art91_req_informe BOOLEAN NOT NULL DEFAULT false,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_servicio_social_alumno ON public.servicio_social(alumno_id);
 
 -- ==========================================
--- 12. TABLA: FICHAS DE TITULACIÓN
+-- 12. TABLA: FICHA DE TITULACIÓN
+-- (Nombre real en Supabase: ficha_titulacion — singular)
+-- (Depende de alumnos; alumno_id es UNIQUE — 1 ficha por alumno)
 -- ==========================================
-CREATE TABLE IF NOT EXISTS public.fichas_titulacion (
+CREATE TABLE IF NOT EXISTS public.ficha_titulacion (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    alumno_id UUID REFERENCES public.alumnos(id) ON DELETE CASCADE,
+    alumno_id UUID UNIQUE REFERENCES public.alumnos(id) ON DELETE CASCADE,
+
+    -- Requisitos
     modalidad TEXT,
-    pago_titulacion TEXT DEFAULT 'SIN_INICIAR',
-    certificado_estudios TEXT DEFAULT 'SIN_INICIAR',
-    ingles TEXT DEFAULT 'SIN_INICIAR',
-    servicio_social_req TEXT DEFAULT 'SIN_INICIAR',
-    fotografias TEXT DEFAULT 'PENDIENTES',
-    promedio_alto_rendimiento TEXT,
-    doc_antecedente TEXT DEFAULT 'SIN_INICIAR',
+    pago_titulacion TEXT NOT NULL DEFAULT 'SIN_INICIAR',
+    certificado_estudios TEXT NOT NULL DEFAULT 'SIN_INICIAR',
+    ingles TEXT NOT NULL DEFAULT 'SIN_INICIAR',
+    servicio_social_req TEXT NOT NULL DEFAULT 'SIN_INICIAR',
+    fotografias TEXT NOT NULL DEFAULT 'PENDIENTES',
+    promedio_alto_rendimiento TEXT NOT NULL DEFAULT 'SIN_INICIAR',
+
+    -- Documentos oficiales
+    doc_antecedente TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_antecedente_nota TEXT,
-    doc_acta_nacimiento TEXT DEFAULT 'SIN_INICIAR',
+    doc_acta_nacimiento TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_acta_nacimiento_nota TEXT,
-    doc_curp TEXT DEFAULT 'SIN_INICIAR',
+    doc_curp TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_curp_nota TEXT,
-    doc_titulo_profesional TEXT DEFAULT 'SIN_INICIAR',
+    doc_titulo_profesional TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_titulo_profesional_nota TEXT,
-    doc_cedula_profesional TEXT DEFAULT 'SIN_INICIAR',
+    doc_cedula_profesional TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_cedula_profesional_nota TEXT,
+
+    -- Seguimiento del trámite
     fecha_inicio_tramite DATE,
     fecha_estimada_culminacion DATE,
-    tramite_completado BOOLEAN DEFAULT false,
-    fecha_completado DATE,
+    tramite_completado BOOLEAN NOT NULL DEFAULT false,
+    fecha_completado TIMESTAMP WITH TIME ZONE,
     enlace_drive TEXT,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_fichas_titulacion_alumno ON public.fichas_titulacion(alumno_id);
+CREATE INDEX IF NOT EXISTS idx_ficha_titulacion_alumno ON public.ficha_titulacion(alumno_id);
 
 -- ==========================================
--- 13. TABLA: FICHAS DE CERTIFICACIÓN
+-- 13. TABLA: FICHA DE CERTIFICACIÓN
+-- (Nombre real en Supabase: ficha_certificacion — singular)
+-- (Depende de alumnos; alumno_id es UNIQUE — 1 ficha por alumno)
 -- ==========================================
-CREATE TABLE IF NOT EXISTS public.fichas_certificacion (
+CREATE TABLE IF NOT EXISTS public.ficha_certificacion (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    alumno_id UUID REFERENCES public.alumnos(id) ON DELETE CASCADE,
-    pago_certificado TEXT DEFAULT 'SIN_INICIAR',
-    doc_acta_nacimiento TEXT DEFAULT 'SIN_INICIAR',
+    alumno_id UUID UNIQUE REFERENCES public.alumnos(id) ON DELETE CASCADE,
+
+    pago_certificado TEXT NOT NULL DEFAULT 'SIN_INICIAR',
+
+    -- Documentos oficiales
+    doc_acta_nacimiento TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_acta_nacimiento_nota TEXT,
-    doc_curp TEXT DEFAULT 'SIN_INICIAR',
+    doc_curp TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_curp_nota TEXT,
-    doc_antecedente TEXT DEFAULT 'SIN_INICIAR',
+    doc_antecedente TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_antecedente_nota TEXT,
-    doc_titulo_profesional TEXT DEFAULT 'SIN_INICIAR',
+    doc_titulo_profesional TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_titulo_profesional_nota TEXT,
-    doc_cedula_profesional TEXT DEFAULT 'SIN_INICIAR',
+    doc_cedula_profesional TEXT NOT NULL DEFAULT 'SIN_INICIAR',
     doc_cedula_profesional_nota TEXT,
-    tipo_certificado TEXT,
+
+    tipo_certificado TEXT,                 -- 'TOTAL' | 'PARCIAL'
+
+    -- Seguimiento del trámite
     fecha_inicio_tramite DATE,
     fecha_termino_tramite DATE,
-    tramite_completado BOOLEAN DEFAULT false,
-    fecha_completado DATE,
+    tramite_completado BOOLEAN NOT NULL DEFAULT false,
+    fecha_completado TIMESTAMP WITH TIME ZONE,
     enlace_drive TEXT,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_fichas_certificacion_alumno ON public.fichas_certificacion(alumno_id);
+CREATE INDEX IF NOT EXISTS idx_ficha_certificacion_alumno ON public.ficha_certificacion(alumno_id);
 
 -- ==========================================
--- 14. POLÍTICAS DE SEGURIDAD (RLS)
+-- 14. TABLA: PLANES DE ESTUDIO (ACADÉMICO)
+-- (Depende de catalogos via licenciatura_id)
 -- ==========================================
+CREATE TABLE IF NOT EXISTS public.planes_estudio (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    licenciatura_id UUID,                  -- Referencia lógica a catalogos.id (tipo='licenciatura')
+    clave_legado TEXT UNIQUE NOT NULL,     -- Clave del sistema legado (GES)
+    nombre TEXT NOT NULL,
+    estatus TEXT,
+    creditos_obligatorios NUMERIC,
+    tipo_periodo TEXT,                     -- 'CUATRIMESTRAL' | 'SEMESTRAL'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- ==========================================
+-- 15. TABLA: ASIGNATURAS
+-- (Depende de planes_estudio)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.asignaturas (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    plan_id UUID REFERENCES public.planes_estudio(id) ON DELETE CASCADE,
+    clave_legado TEXT NOT NULL,            -- Clave del sistema legado (GES)
+    nombre TEXT NOT NULL,
+    creditos NUMERIC,
+    etapa_clave TEXT,
+    etapa_nombre TEXT,
+    clasificacion_nombre TEXT,
+    clasificacion_clave TEXT,
+    activo BOOLEAN DEFAULT true,
+    numero_periodo INTEGER,               -- Cuatrimestre/Semestre al que pertenece
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+CREATE INDEX IF NOT EXISTS idx_asignaturas_plan ON public.asignaturas(plan_id);
+
+-- ==========================================
+-- 16. TABLA: UI PREFERENCIAS (PERSISTENCIA DE UI POR USUARIO/MÓDULO)
+-- (Sin dependencia FK — usuario_id es TEXT para flexibilidad)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.ui_preferencias (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    usuario_id TEXT NOT NULL,              -- ID del usuario (como texto)
+    modulo TEXT NOT NULL,                  -- Identificador del módulo de la app
+    preferencias JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+CREATE INDEX IF NOT EXISTS idx_ui_preferencias_usuario ON public.ui_preferencias(usuario_id, modulo);
+
+-- ==========================================
+-- 17. TABLA LEGACY: CONTROL_PAGOS
+-- (Tabla original del sistema — mantenida por compatibilidad/histórico.
+--  Los datos activos están en planes_pago + vista_planes_pago)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.control_pagos (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    nombre_alumno TEXT NOT NULL,
+    no_plan_pagos TEXT,
+    fecha_plan TEXT,
+    beca_porcentaje TEXT,
+    beca_tipo TEXT,
+    concepto_1 TEXT, fecha_1 TEXT, cantidad_1 NUMERIC, estatus_1 TEXT,
+    concepto_2 TEXT, fecha_2 TEXT, cantidad_2 NUMERIC, estatus_2 TEXT,
+    concepto_3 TEXT, fecha_3 TEXT, cantidad_3 NUMERIC, estatus_3 TEXT,
+    concepto_4 TEXT, fecha_4 TEXT, cantidad_4 NUMERIC, estatus_4 TEXT,
+    concepto_5 TEXT, fecha_5 TEXT, cantidad_5 NUMERIC, estatus_5 TEXT,
+    licenciatura TEXT,
+    grado_turno TEXT
+);
+
+-- ==========================================
+-- 18. POLÍTICAS DE SEGURIDAD (RLS)
+-- ==========================================
+-- Habilitar RLS en todas las tablas
 ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ciclos_escolares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.catalogos ENABLE ROW LEVEL SECURITY;
@@ -343,12 +519,16 @@ ALTER TABLE public.planes_pago ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recibos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recibos_detalles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.servicio_social ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.fichas_titulacion ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.fichas_certificacion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ficha_titulacion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ficha_certificacion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.planes_estudio ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.asignaturas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ui_preferencias ENABLE ROW LEVEL SECURITY;
 
--- Nota: Como estás gestionando la sesión del usuario manualmente usando bcrypt y una consulta de login 
--- del lado del cliente, todas las políticas están abiertas para lectura/escritura pública con Anon Key. 
--- *Recomendación Futura*: Autenticación directa a través de Supabase Auth usando roles de Supabase para mayor seguridad.
+-- ── Políticas actuales: Acceso abierto para usuarios autenticados ──
+-- NOTA: La sesión del usuario se gestiona vía Supabase Auth (JWT).
+-- Todas las operaciones pasan por el Anon Key con sesión activa.
+-- *Recomendación Futura*: Restringir con auth.uid() y roles de Supabase.
 CREATE POLICY "Acceso total - usuarios" ON public.usuarios FOR ALL USING (true);
 CREATE POLICY "Acceso total - ciclos" ON public.ciclos_escolares FOR ALL USING (true);
 CREATE POLICY "Acceso total - catalogos" ON public.catalogos FOR ALL USING (true);
@@ -359,5 +539,8 @@ CREATE POLICY "Acceso total - planes" ON public.planes_pago FOR ALL USING (true)
 CREATE POLICY "Acceso total - recibos" ON public.recibos FOR ALL USING (true);
 CREATE POLICY "Acceso total - recibos_detalles" ON public.recibos_detalles FOR ALL USING (true);
 CREATE POLICY "Acceso total - servicio_social" ON public.servicio_social FOR ALL USING (true);
-CREATE POLICY "Acceso total - fichas_titulacion" ON public.fichas_titulacion FOR ALL USING (true);
-CREATE POLICY "Acceso total - fichas_certificacion" ON public.fichas_certificacion FOR ALL USING (true);
+CREATE POLICY "Acceso total - ficha_titulacion" ON public.ficha_titulacion FOR ALL USING (true);
+CREATE POLICY "Acceso total - ficha_certificacion" ON public.ficha_certificacion FOR ALL USING (true);
+CREATE POLICY "Acceso total - planes_estudio" ON public.planes_estudio FOR ALL USING (true);
+CREATE POLICY "Acceso total - asignaturas" ON public.asignaturas FOR ALL USING (true);
+CREATE POLICY "Acceso total - ui_preferencias" ON public.ui_preferencias FOR ALL USING (true);

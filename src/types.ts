@@ -417,3 +417,33 @@ export interface ServicioSocial {
   created_at?: string;
   updated_at?: string;
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// PLAN DE ESTUDIOS Y ASIGNATURAS (ACADÉMICO)
+// ──────────────────────────────────────────────────────────────────────
+
+export interface PlanEstudio {
+  id: string;
+  licenciatura_id: string; // UUID referenciando a catalogos.id
+  clave_legado: string;
+  nombre: string;
+  estatus: string;
+  creditos_obligatorios?: number;
+  tipo_periodo?: string;
+  created_at: string;
+}
+
+export interface Asignatura {
+  id: string;
+  plan_id: string; // UUID referenciando a planes_estudio.id
+  clave_legado: string;
+  nombre: string;
+  creditos: number;
+  etapa_clave: string;
+  etapa_nombre: string;
+  clasificacion_nombre?: string;
+  clasificacion_clave?: string;
+  numero_periodo?: number;
+  activo?: boolean;
+  created_at: string;
+}

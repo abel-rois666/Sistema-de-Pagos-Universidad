@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, ReactNode, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { FileText, User, BarChart3, Users, Settings, GraduationCap, Calendar, BookOpen, Upload, Download, CheckCircle, AlertCircle, Shield, Wallet, ChevronDown, TrendingDown, ClipboardList } from 'lucide-react';
+import { FileText, User, BarChart3, Users, Settings, GraduationCap, Calendar, BookOpen, Upload, Download, CheckCircle, AlertCircle, Shield, Wallet, ChevronDown, TrendingDown, ClipboardList, LayoutDashboard, Briefcase } from 'lucide-react';
 import { supabase, savePlan, bulkSaveAlumnos, bulkSavePlanes, saveAlumno, deleteAlumno, saveCiclo, deleteCiclo, saveCatalogoItem, deleteCatalogoItem, savePlantilla, deletePlantilla, getAppConfig, updateUserPreferences, fetchAllSupabase } from './lib/supabase';
 import { PaymentPlan, CicloEscolar, Alumno, CatalogoItem, Catalogos, PlantillaPlan, AppConfig } from './types';
 import { MOCK_DATA, MOCK_CICLOS, MOCK_ALUMNOS } from './data';
@@ -23,6 +23,8 @@ import ControlIngresos from './components/ControlIngresos';
 import { AppConfigSettings } from './components/AppConfigSettings';
 import DarkModeToggle from './components/DarkModeToggle';
 import LoadingSkeleton from './components/LoadingSkeleton';
+import AppLayout from './components/AppLayout';
+import ControlAcademico from './components/ControlAcademico';
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -93,30 +95,8 @@ export default function App() {
   const navState = (location.state || {}) as any;
   const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(navState.alumnoId || null);
   const [showImport, setShowImport] = useState(false);
-  const [showConfigMenu, setShowConfigMenu] = useState(false);
-  const [showCicloMenu, setShowCicloMenu] = useState(false);
   const [sectionOperaciones, setSectionOperaciones] = useState(true);
   const [sectionReportes, setSectionReportes] = useState(true);
-  const configMenuRef = useRef<HTMLDivElement>(null);
-  const cicloMenuRef = useRef<HTMLDivElement>(null);
-
-  // Cerrar menús al hacer clic fuera
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (configMenuRef.current && !configMenuRef.current.contains(event.target as Node)) {
-        setShowConfigMenu(false);
-      }
-      if (cicloMenuRef.current && !cicloMenuRef.current.contains(event.target as Node)) {
-        setShowCicloMenu(false);
-      }
-    }
-    if (showConfigMenu || showCicloMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showConfigMenu, showCicloMenu]);
 
   // ── Toast global ─────────────────────────────────────────────────────────
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -369,7 +349,7 @@ export default function App() {
     };
 
     const homePageContent = (
-      <PageWrapper keyStr="home" className="min-h-screen bg-white dark:bg-[#0f1318] p-4 sm:p-8 font-sans transition-colors duration-300">
+      <PageWrapper keyStr="home" className="w-full pb-10 transition-colors duration-300">
         <div className="max-w-6xl mx-auto">
           <AnimatePresence>
             {showImport && (
@@ -386,179 +366,7 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* Header & Ciclo Selector */}
-          <div className="sticky top-4 z-40 w-full max-w-7xl mx-auto rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] header-glass mb-8 transition-all duration-300">
-            
-            {/* TOP ROW: White BG */}
-            <div className="px-6 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-t-[20px] bg-[#eef2ff] dark:bg-[rgba(255,255,255,0.03)]">
-              
-              {/* Left: Logo, Title, Cycle */}
-              <div className="flex flex-wrap items-center gap-4">
-                {appConfig?.logoUrl ? (
-                  <img src={appConfig.logoUrl} alt="App Logo" className="h-10 sm:h-12 w-auto object-contain" />
-                ) : (
-                  <div className="h-10 w-10 sm:h-12 sm:w-12 bg-[#181e25] dark:bg-[#1456f0] rounded-[13px] flex items-center justify-center shadow-[var(--shadow-subtle)] shrink-0 text-white font-semibold text-lg sm:text-xl" style={{ fontFamily: 'var(--font-display)' }}>
-                    U
-                  </div>
-                )}
-                
-                <h1 className="text-lg sm:text-[22px] font-semibold text-[#222222] dark:text-white tracking-tight leading-[1.10] whitespace-nowrap" style={{ fontFamily: 'var(--font-display)' }}>
-                  {appConfig?.title || 'Sistema de Control de Pagos'}
-                </h1>
 
-                {/* Vertical Separator */}
-                <div className="hidden md:block w-px h-8 bg-gray-200 dark:bg-gray-800 mx-2"></div>
-
-                {/* Dropdown Ciclo con Glow Custom */}
-                <div className="relative shrink-0" ref={cicloMenuRef}>
-                  <div className="absolute -inset-1 bg-[#1456f0] rounded-[9999px] blur opacity-20 group-hover:opacity-40 transition duration-200"></div>
-                  <button
-                    onClick={() => setShowCicloMenu(prev => !prev)}
-                    className="relative flex items-center gap-2 px-4 py-1.5 bg-[#1456f0] border border-[#1456f0] text-white rounded-[9999px] shadow-[var(--shadow-subtle)] font-medium text-[14px] transition-all duration-200 min-w-max hover:bg-[#2563eb]"
-                  >
-                    <Calendar size={14} className="text-white/70" />
-                    <span className="truncate max-w-[120px]">{activeCiclo?.nombre || 'Seleccionar Ciclo'}</span>
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${showCicloMenu ? 'rotate-180' : ''} text-white/70`} />
-                  </button>
-
-                  {/* Menú de opciones de Ciclo */}
-                  <AnimatePresence>
-                    {showCicloMenu && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-50 min-w-[180px] overflow-hidden"
-                      >
-                        {ciclos.map(c => (
-                          <button
-                            key={c.id}
-                            onClick={() => {
-                              const newId = c.id;
-                              setActiveCicloId(newId);
-                              if (currentUser) {
-                                setCurrentUser({ ...currentUser, ultimo_ciclo_id: newId });
-                                updateUserPreferences(currentUser.id, { ultimo_ciclo_id: newId });
-                              }
-                              setShowCicloMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-3 text-sm font-semibold transition-colors flex items-center justify-between
-                              ${c.id === activeCicloId 
-                                ? 'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' 
-                                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-                              }`}
-                          >
-                            {c.nombre}
-                            {c.id === activeCicloId && <CheckCircle size={14} className="text-violet-500" />}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              {/* Right: Dark Mode, User, Logout */}
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <DarkModeToggle 
-                  initialTheme={currentUser.preferencia_tema} 
-                  onChange={(isDark) => {
-                    const theme = isDark ? 'dark' : 'light';
-                    setCurrentUser({ ...currentUser, preferencia_tema: theme });
-                    updateUserPreferences(currentUser.id, { preferencia_tema: theme });
-                  }} 
-                />
-                
-                <div className="w-px h-8 bg-gray-200 dark:bg-gray-800 hidden sm:block shrink-0"></div>
-                
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex flex-col items-end leading-none min-w-0 hidden xs:flex">
-                    <span className="text-[14px] font-medium text-[#222222] dark:text-gray-200 truncate max-w-[100px]">{currentUser.username}</span>
-                    <span className="text-[10px] font-semibold text-[#1456f0] dark:text-[#60a5fa] uppercase tracking-widest mt-1">{currentUser.rol}</span>
-                  </div>
-                  
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#bfdbfe] border border-[#e5e7eb] dark:bg-[#1d4ed8] dark:border-[#1d4ed8] flex items-center justify-center text-[#1456f0] dark:text-white font-semibold text-sm shrink-0">
-                    {currentUser.username.charAt(0).toUpperCase()}
-                  </div>
-                </div>
-
-                <button onClick={() => supabase.auth.signOut()} className="relative ml-1 group shrink-0">
-                  <div className="absolute -inset-1 bg-[#222222] rounded-[8px] blur opacity-10 group-hover:opacity-20 transition duration-200"></div>
-                  <div className="relative px-3 py-1.5 border border-[#e5e7eb] bg-[#f0f0f0] dark:bg-[rgba(255,255,255,0.08)] text-[#222222] dark:text-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[8px] text-xs font-semibold tracking-wide hover:bg-[#e5e7eb] dark:hover:bg-[rgba(255,255,255,0.15)] transition-colors">
-                    SALIR
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* BOTTOM ROW: Nav bar refinada */}
-            <div className="bg-white/60 dark:bg-[rgba(24,30,37,0.5)] backdrop-blur-sm border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] px-4 py-2.5 flex flex-wrap items-center gap-2 rounded-b-[20px]">
-
-              {/* Alumnos */}
-              <button
-                onClick={() => navigate('/alumnos')}
-                className="relative flex items-center gap-1.5 px-4 py-1.5 bg-[rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.08)] dark:hover:bg-[rgba(255,255,255,0.12)] text-[#18181b] dark:text-gray-200 rounded-[9999px] font-medium text-[14px] transition-all duration-200 shrink-0 group"
-              >
-                <GraduationCap size={15} className="group-hover:scale-110 transition-transform" /> Alumnos
-                {totalActivos > 0 && (
-                  <span className="bg-[#1456f0] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ml-0.5">
-                    {totalActivos}
-                  </span>
-                )}
-              </button>
-
-              {!isRestrictedRole && (
-                <>
-                  {/* Separador */}
-                  <div className="w-px h-5 bg-gray-300 dark:bg-gray-700 mx-1" />
-
-                  {/* Configuración dropdown */}
-                  <div className="relative shrink-0" ref={configMenuRef}>
-                    <button
-                      onClick={() => setShowConfigMenu(prev => !prev)}
-                      className={`flex items-center gap-1.5 px-4 py-1.5 rounded-[9999px] font-medium text-[14px] transition-all duration-200 border-none group
-                        ${ showConfigMenu
-                          ? 'bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.12)] text-[#18181b] dark:text-gray-200'
-                          : 'bg-[rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.08)] dark:hover:bg-[rgba(255,255,255,0.12)] text-[#45515e] dark:text-gray-300'
-                        }`}
-                    >
-                      <Settings size={15} className={`transition-all duration-300 ${showConfigMenu ? 'rotate-45' : 'group-hover:rotate-12'}`} />
-                      Configuración
-                      <ChevronDown size={13} className={`transition-transform duration-200 ${showConfigMenu ? 'rotate-180' : ''}`} />
-                    </button>
-                    {showConfigMenu && (
-                      <div className="absolute top-full left-0 mt-2 bg-white dark:bg-[#1c2228] rounded-[13px] shadow-[var(--shadow-elevated)] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] py-1 z-50 min-w-[210px]">
-                        <button onClick={() => { navigate('/catalogos'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
-                          <BookOpen size={16} /> Catálogos
-                        </button>
-                        <button onClick={() => { navigate('/plantillas'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
-                          <FileText size={16} /> Plantillas
-                        </button>
-                        <button onClick={() => { navigate('/ciclos'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
-                          <Calendar size={16} /> Ciclos Escolares
-                        </button>
-                        <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
-                        <button onClick={() => { navigate('/configuracion-app'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
-                          <Settings size={16} /> Generales
-                        </button>
-                        <button onClick={() => { navigate('/usuarios'); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
-                          <Shield size={16} /> Módulo de Usuarios
-                        </button>
-                        <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
-                        <button onClick={() => { setShowImport(true); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
-                          <Upload size={16} /> Importar CSV
-                        </button>
-                        <button onClick={() => { handleExportCSV(); setShowConfigMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-[14px] font-medium text-[#222222] dark:text-gray-200 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] transition-colors">
-                          <Download size={16} /> Exportar CSV
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
 
 
 
@@ -879,70 +687,96 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-      <Routes>
-        <Route path="/plan-pagos" element={
-          <PageWrapper keyStr="plan_pagos">
-            <PlanPagos initialAlumnoId={selectedAlumnoId || navState.alumnoId}
-              onSavePlan={handleSavePlan}
-              onDeletePlan={(planId) => setPlans(prev => prev.filter(p => p.id !== planId))}
-              onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
-              onGoToPagos={(aId, cIdx, pId) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, initialPlanId: pId, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
-              onViewReceipt={(folio, aId) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: aId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
-              onBackToFicha={navState.fromFicha ? (id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: navState.fromAlumnos } }); } : undefined}
-              onBackToReceipt={navState.returnFolio ? () => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: navState.returnFolio, fromPlan: true, alumnoId: selectedAlumnoId || navState.alumnoId } }) : undefined}
-            />
-          </PageWrapper>
-        } />
-        <Route path="/ficha-alumno" element={
-          <PageWrapper keyStr="ficha_alumno">
-            <FichaAlumno initialAlumnoId={selectedAlumnoId || navState.alumnoId}
-              onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
-              onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
-              onBackToAlumnos={navState.fromAlumnos ? () => { setSelectedAlumnoId(null); navigate('/alumnos'); } : undefined}
-            />
-          </PageWrapper>
-        } />
-        <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas onBack={() => navigate('/')} /></PageWrapper>} />
-        <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores onBack={() => navigate('/')} onNavigateToAlumno={(alumnoId) => { setSelectedAlumnoId(alumnoId); navigate('/ficha-alumno', { state: { alumnoId } }); }} /></PageWrapper>} />
-        <Route path="/ciclos" element={<PageWrapper keyStr="ciclos"><CiclosConfig onBack={() => navigate('/')} /></PageWrapper>} />
-        <Route path="/alumnos" element={
-          <PageWrapper keyStr="alumnos">
-            <AlumnosConfig 
-              onViewFicha={(id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: true } }); }}
-              onBack={() => navigate('/')}
-            />
-          </PageWrapper>
-        } />
-        <Route path="/catalogos" element={<PageWrapper keyStr="catalogos"><CatalogosConfig onBack={() => navigate('/')} /></PageWrapper>} />
-        <Route path="/plantillas" element={<PageWrapper keyStr="plantillas"><PlantillasConfig onBack={() => navigate('/')} /></PageWrapper>} />
-        <Route path="/usuarios" element={<PageWrapper keyStr="usuarios"><UsuariosConfig onBack={() => navigate('/')} /></PageWrapper>} />
-        <Route path="/configuracion-app" element={
-          <PageWrapper keyStr="config_app">
-            <AppConfigSettings onBack={() => navigate('/')} />
-          </PageWrapper>
-        } />
-        <Route path="/control-ingresos" element={
-          <PageWrapper keyStr={`control_ingresos_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}>
-            <ControlIngresos key={`ci_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}
-              onBack={() => navigate('/')}
-              onBackToPlan={navState.fromPlan && navState.alumnoId
-                ? () => navigate('/plan-pagos', { state: { alumnoId: navState.alumnoId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })
-                : undefined}
-              initialAlumnoId={navState.alumnoId}
-              initialConceptIndex={navState.conceptoIdx}
-              initialPlanId={navState.initialPlanId}
-              initialView={navState.view}
-              initialSearchTerm={navState.searchTerm}
-              onNavigateToPlan={(alumnoId, folio) => {
-                setSelectedAlumnoId(alumnoId);
-                navigate('/plan-pagos', { state: { alumnoId, returnFolio: folio } });
-              }}
-            />
-          </PageWrapper>
-        } />
-        <Route path="/" element={homePageContent} />
-        <Route path="*" element={homePageContent} />
-      </Routes>
+      <AppLayout>
+        <Routes>
+          <Route path="/plan-pagos" element={
+            <PageWrapper keyStr="plan_pagos">
+              <PlanPagos initialAlumnoId={selectedAlumnoId || navState.alumnoId}
+                onSavePlan={handleSavePlan}
+                onDeletePlan={(planId) => setPlans(prev => prev.filter(p => p.id !== planId))}
+                onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
+                onGoToPagos={(aId, cIdx, pId) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, initialPlanId: pId, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
+                onViewReceipt={(folio, aId) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: aId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
+                onBackToFicha={navState.fromFicha ? (id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: navState.fromAlumnos } }); } : undefined}
+                onBackToReceipt={navState.returnFolio ? () => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: navState.returnFolio, fromPlan: true, alumnoId: selectedAlumnoId || navState.alumnoId } }) : undefined}
+              />
+            </PageWrapper>
+          } />
+          <Route path="/ficha-alumno" element={
+            <PageWrapper keyStr="ficha_alumno">
+              <FichaAlumno initialAlumnoId={selectedAlumnoId || navState.alumnoId}
+                onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
+                onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
+                onBackToAlumnos={navState.fromAlumnos ? () => { setSelectedAlumnoId(null); navigate('/alumnos'); } : undefined}
+              />
+            </PageWrapper>
+          } />
+          <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas onBack={() => navigate('/')} /></PageWrapper>} />
+          <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores onBack={() => navigate('/')} onNavigateToAlumno={(alumnoId) => { setSelectedAlumnoId(alumnoId); navigate('/ficha-alumno', { state: { alumnoId } }); }} /></PageWrapper>} />
+          <Route path="/ciclos" element={<PageWrapper keyStr="ciclos"><CiclosConfig onBack={() => navigate('/')} /></PageWrapper>} />
+          <Route path="/alumnos" element={
+            <PageWrapper keyStr="alumnos">
+              <AlumnosConfig 
+                onViewFicha={(id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: true } }); }}
+                onBack={() => navigate('/')}
+              />
+            </PageWrapper>
+          } />
+          <Route path="/catalogos" element={<PageWrapper keyStr="catalogos"><CatalogosConfig onBack={() => navigate('/')} /></PageWrapper>} />
+          <Route path="/plantillas" element={<PageWrapper keyStr="plantillas"><PlantillasConfig onBack={() => navigate('/')} /></PageWrapper>} />
+          <Route path="/usuarios" element={<PageWrapper keyStr="usuarios"><UsuariosConfig onBack={() => navigate('/')} /></PageWrapper>} />
+          <Route path="/configuracion-app" element={
+            <PageWrapper keyStr="config_app">
+              <AppConfigSettings onBack={() => navigate('/')} />
+            </PageWrapper>
+          } />
+          <Route path="/control-ingresos" element={
+            <PageWrapper keyStr={`control_ingresos_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}>
+              <ControlIngresos key={`ci_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}
+                onBack={() => navigate('/')}
+                onBackToPlan={navState.fromPlan && navState.alumnoId
+                  ? () => navigate('/plan-pagos', { state: { alumnoId: navState.alumnoId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })
+                  : undefined}
+                initialAlumnoId={navState.alumnoId}
+                initialConceptIndex={navState.conceptoIdx}
+                initialPlanId={navState.initialPlanId}
+                initialView={navState.view}
+                initialSearchTerm={navState.searchTerm}
+                onNavigateToPlan={(alumnoId, folio) => {
+                  setSelectedAlumnoId(alumnoId);
+                  navigate('/plan-pagos', { state: { alumnoId, returnFolio: folio } });
+                }}
+              />
+            </PageWrapper>
+          } />
+          <Route path="/" element={homePageContent} />
+          {/* Rutas Placeholders para el Sidebar */}
+          <Route path="/dashboard" element={
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <LayoutDashboard size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
+                <h2 className="text-2xl font-bold text-gray-500 dark:text-gray-400">Dashboard General</h2>
+                <p className="text-gray-400 dark:text-gray-500 mt-2">Próximamente...</p>
+              </div>
+            </div>
+          } />
+          <Route path="/academico" element={
+            <PageWrapper keyStr="academico">
+              <ControlAcademico />
+            </PageWrapper>
+          } />
+          <Route path="/rh" element={
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <Briefcase size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
+                <h2 className="text-2xl font-bold text-gray-500 dark:text-gray-400">Recursos Humanos</h2>
+                <p className="text-gray-400 dark:text-gray-500 mt-2">En construcción...</p>
+              </div>
+            </div>
+          } />
+          <Route path="*" element={homePageContent} />
+        </Routes>
+      </AppLayout>
     </>
   );
 }
