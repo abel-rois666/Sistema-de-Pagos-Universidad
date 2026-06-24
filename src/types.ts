@@ -69,6 +69,16 @@ export interface Alumno {
   lengua_indigena?: string | null;
 }
 
+export interface PaymentPlanDetalle {
+  id: string;
+  plan_id: string;
+  indice_concepto: number;
+  concepto: string;
+  fecha_vencimiento: string | null; // ISO YYYY-MM-DD
+  cantidad: number;
+  estatus: string;
+}
+
 export interface PaymentPlan {
   id: string;
   alumno_id?: string;
@@ -168,6 +178,7 @@ export interface PaymentPlan {
   desglose_descuento_monto?: number;
   desglose_total_neto?: number;
   observaciones?: string[];
+  detalles?: PaymentPlanDetalle[];
 }
 
 export interface ConstanciaParams {

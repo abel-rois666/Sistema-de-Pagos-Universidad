@@ -117,6 +117,32 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
     
     // 1. Conceptos de los planes actuales (solamente los que tengan cantidad y no digan 'PAGADO')
     pupilPlans.forEach(planActual => {
+      if (planActual.detalles && planActual.detalles.length > 0) {
+        planActual.detalles.forEach(d => {
+          if (d.concepto && d.cantidad > 0 && !(d.estatus || '').toUpperCase().includes('PAGADO')) {
+            let montoSugerido = d.cantidad;
+            let etiquetaResta = `$${d.cantidad.toFixed(2)}`;
+
+            if (d.estatus) {
+              const restaMatch = d.estatus.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
+              if (restaMatch) {
+                montoSugerido = parseFloat(restaMatch[1].replace(',', ''));
+                etiquetaResta = `$${montoSugerido.toFixed(2)} (abono parcial)`;
+              }
+            }
+
+            opciones.push({
+              value: `PLAN_${planActual.id}_${d.indice_concepto}_${d.concepto}`,
+              label: `[${planActual.tipo_plan || 'Plan'}] ${d.concepto} — Resta: ${etiquetaResta}`,
+              index: d.indice_concepto,
+              planId: planActual.id,
+              sugerido: montoSugerido
+            });
+          }
+        });
+        return; // Retornar temprano para saltar el fallback
+      }
+
       for (let i = 1; i <= 15; i++) {
         const conceptoName = planActual[`concepto_${i}` as keyof PaymentPlan] as string;
         const cantidad = planActual[`cantidad_${i}` as keyof PaymentPlan] as number;
@@ -161,7 +187,14 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
       const idx = initialConceptIndex;
       const targetPlan = pupilPlans.find(p => p.id === initialPlanId);
       if (targetPlan) {
-        const conceptoRef = targetPlan[`concepto_${idx}` as keyof PaymentPlan] as string;
+        let conceptoRef = '';
+        if (targetPlan.detalles && targetPlan.detalles.length > 0) {
+           const d = targetPlan.detalles.find(x => x.indice_concepto === idx);
+           if (d) conceptoRef = d.concepto;
+        } else {
+           conceptoRef = targetPlan[`concepto_${idx}` as keyof PaymentPlan] as string;
+        }
+        
         const targetValue = `PLAN_${initialPlanId}_${idx}_${conceptoRef}`;
         const op = opcionesConceptos.find(o => o.value === targetValue);
         if (op) {
@@ -312,8 +345,16 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
       for (const idxStr of Object.keys(abonosPorIndice)) {
         const idx = parseInt(idxStr, 10);
         const abonoActual = abonosPorIndice[idx];
-        const cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
-        const estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
+        let cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
+        let estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
+
+        if (planActual.detalles && planActual.detalles.length > 0) {
+          const d = planActual.detalles.find(x => x.indice_concepto === idx);
+          if (d) {
+            cantidadOriginal = d.cantidad;
+            estatusPrevio = d.estatus || '';
+          }
+        }
 
         const restanteAnterior = getRestanteDe(estatusPrevio, cantidadOriginal);
         const resta = restanteAnterior - abonoActual;
@@ -363,8 +404,16 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
         for (const idxStr of Object.keys(abonosPorIndice)) {
           const idx = parseInt(idxStr, 10);
           const abonoActual = abonosPorIndice[idx];
-          const cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
-          const estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
+          let cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
+          let estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
+
+          if (planActual.detalles && planActual.detalles.length > 0) {
+            const d = planActual.detalles.find(x => x.indice_concepto === idx);
+            if (d) {
+              cantidadOriginal = d.cantidad;
+              estatusPrevio = d.estatus || '';
+            }
+          }
 
           // Extraer folios anteriores para concatenar al nuevo estatus
           const folios = (estatusPrevio.match(/R-\d+/g) || []);

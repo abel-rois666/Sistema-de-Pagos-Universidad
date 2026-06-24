@@ -529,14 +529,37 @@ ALTER TABLE public.ui_preferencias ENABLE ROW LEVEL SECURITY;
 -- NOTA: La sesión del usuario se gestiona vía Supabase Auth (JWT).
 -- Todas las operaciones pasan por el Anon Key con sesión activa.
 -- *Recomendación Futura*: Restringir con auth.uid() y roles de Supabase.
-CREATE POLICY "Acceso total - usuarios" ON public.usuarios FOR ALL USING (true);
+-- ── Función de Seguridad para RLS ──
+CREATE OR REPLACE FUNCTION public.get_user_role()
+RETURNS TEXT
+LANGUAGE sql SECURITY DEFINER
+AS $$
+  SELECT rol FROM public.usuarios WHERE auth_id = auth.uid() LIMIT 1;
+$$;
+
+-- ── Políticas de Seguridad Estrictas ──
+-- USUARIOS: Solo lectura para todos, escritura solo para Administrador
+CREATE POLICY "Lectura usuarios" ON public.usuarios FOR SELECT USING (true);
+CREATE POLICY "Modificar usuarios" ON public.usuarios FOR ALL USING (public.get_user_role() = 'ADMINISTRADOR');
+
+-- ALUMNOS: Lectura para todos, modificación solo para Admin/Coordinador
+CREATE POLICY "Lectura alumnos" ON public.alumnos FOR SELECT USING (true);
+CREATE POLICY "Modificar alumnos" ON public.alumnos FOR INSERT WITH CHECK (public.get_user_role() IN ('ADMINISTRADOR', 'COORDINADOR'));
+CREATE POLICY "Actualizar alumnos" ON public.alumnos FOR UPDATE USING (public.get_user_role() IN ('ADMINISTRADOR', 'COORDINADOR'));
+CREATE POLICY "Eliminar alumnos" ON public.alumnos FOR DELETE USING (public.get_user_role() IN ('ADMINISTRADOR', 'COORDINADOR'));
+
+-- RECIBOS: Lectura e Inserción para todos, Delete solo Admin/Coordinador
+CREATE POLICY "Lectura recibos" ON public.recibos FOR SELECT USING (true);
+CREATE POLICY "Insertar recibos" ON public.recibos FOR INSERT WITH CHECK (true);
+CREATE POLICY "Actualizar recibos" ON public.recibos FOR UPDATE USING (true);
+CREATE POLICY "Eliminar recibos" ON public.recibos FOR DELETE USING (public.get_user_role() IN ('ADMINISTRADOR', 'COORDINADOR'));
+
+-- Políticas actuales (Abiertas temporalmente):
 CREATE POLICY "Acceso total - ciclos" ON public.ciclos_escolares FOR ALL USING (true);
 CREATE POLICY "Acceso total - catalogos" ON public.catalogos FOR ALL USING (true);
-CREATE POLICY "Acceso total - alumnos" ON public.alumnos FOR ALL USING (true);
 CREATE POLICY "Acceso total - configuracion" ON public.configuracion_app FOR ALL USING (true);
 CREATE POLICY "Acceso total - plantillas" ON public.plantillas_plan FOR ALL USING (true);
 CREATE POLICY "Acceso total - planes" ON public.planes_pago FOR ALL USING (true);
-CREATE POLICY "Acceso total - recibos" ON public.recibos FOR ALL USING (true);
 CREATE POLICY "Acceso total - recibos_detalles" ON public.recibos_detalles FOR ALL USING (true);
 CREATE POLICY "Acceso total - servicio_social" ON public.servicio_social FOR ALL USING (true);
 CREATE POLICY "Acceso total - ficha_titulacion" ON public.ficha_titulacion FOR ALL USING (true);
@@ -544,3 +567,92 @@ CREATE POLICY "Acceso total - ficha_certificacion" ON public.ficha_certificacion
 CREATE POLICY "Acceso total - planes_estudio" ON public.planes_estudio FOR ALL USING (true);
 CREATE POLICY "Acceso total - asignaturas" ON public.asignaturas FOR ALL USING (true);
 CREATE POLICY "Acceso total - ui_preferencias" ON public.ui_preferencias FOR ALL USING (true);
+
+-- ======================================================================================
+-- 19. MIGRACIÓN GRADUAL: NORMALIZACIÓN DE PLANES DE PAGO A 1NF
+-- ======================================================================================
+
+-- 1. Crear la nueva tabla relacional para los conceptos detallados
+CREATE TABLE IF NOT EXISTS public.planes_pago_detalles (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    plan_id UUID REFERENCES public.planes_pago(id) ON DELETE CASCADE NOT NULL,
+    indice_concepto INTEGER NOT NULL CHECK (indice_concepto BETWEEN 1 AND 15),
+    concepto TEXT NOT NULL,
+    fecha_vencimiento DATE,
+    cantidad NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    estatus TEXT DEFAULT 'PENDIENTE',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Indexar para optimizar las queries financieras y reportes de morosidad
+CREATE INDEX IF NOT EXISTS idx_pp_detalles_plan ON public.planes_pago_detalles(plan_id);
+CREATE INDEX IF NOT EXISTS idx_pp_detalles_vencimiento ON public.planes_pago_detalles(fecha_vencimiento);
+
+-- 2. Función PL/pgSQL para sincronizar automáticamente el formato viejo al nuevo
+CREATE OR REPLACE FUNCTION public.sync_planes_pago_to_detalles()
+RETURNS TRIGGER AS $$
+DECLARE
+    i INT;
+    v_concepto TEXT;
+    v_fecha_txt TEXT;
+    v_fecha_date DATE;
+    v_cantidad NUMERIC(10,2);
+    v_estatus TEXT;
+BEGIN
+    -- Limpiar detalles existentes del plan modificado para reescribir de forma limpia
+    DELETE FROM public.planes_pago_detalles WHERE plan_id = NEW.id;
+
+    -- Procesar Conceptos 1 al 9 (Manejo de fechas tipo TEXT legacy)
+    FOR i IN 1..9 LOOP
+        EXECUTE format('SELECT ($1).concepto_%s, ($1).fecha_%s, ($1).cantidad_%s, ($1).estatus_%s', i, i, i, i)
+        USING NEW
+        INTO v_concepto, v_fecha_txt, v_cantidad, v_estatus;
+
+        IF v_concepto IS NOT NULL AND v_concepto != '' THEN
+            -- Intento de casteo seguro de TEXT a DATE
+            BEGIN
+                IF v_fecha_txt ~ '^\d{2}/\d{2}/\d{4}$' THEN
+                    v_fecha_date := to_date(v_fecha_txt, 'DD/MM/YYYY');
+                ELSIF v_fecha_txt ~ '^\d{4}-\d{2}-\d{2}$' THEN
+                    v_fecha_date := v_fecha_txt::DATE;
+                ELSE
+                    v_fecha_date := NULL;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN
+                v_fecha_date := NULL;
+            END;
+
+            INSERT INTO public.planes_pago_detalles (plan_id, indice_concepto, concepto, fecha_vencimiento, cantidad, estatus)
+            VALUES (NEW.id, i, v_concepto, v_fecha_date, COALESCE(v_cantidad, 0), COALESCE(v_estatus, 'PENDIENTE'));
+        END IF;
+    END LOOP;
+
+    -- Procesar Conceptos 10 al 15 (Fechas nativas DATE)
+    FOR i IN 10..15 LOOP
+        EXECUTE format('SELECT ($1).concepto_%s, ($1).fecha_%s, ($1).cantidad_%s, ($1).estatus_%s', i, i, i, i)
+        USING NEW
+        INTO v_concepto, v_fecha_date, v_cantidad, v_estatus;
+
+        IF v_concepto IS NOT NULL AND v_concepto != '' THEN
+            INSERT INTO public.planes_pago_detalles (plan_id, indice_concepto, concepto, fecha_vencimiento, cantidad, estatus)
+            VALUES (NEW.id, i, v_concepto, v_fecha_date, COALESCE(v_cantidad, 0), COALESCE(v_estatus, 'PENDIENTE'));
+        END IF;
+    END LOOP;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. Crear el disparador para mantener la consistencia en tiempo real
+DROP TRIGGER IF EXISTS tg_sync_planes_pago_detalles ON public.planes_pago;
+CREATE TRIGGER tg_sync_planes_pago_detalles
+    AFTER INSERT OR UPDATE ON public.planes_pago
+    FOR EACH ROW
+    EXECUTE FUNCTION public.sync_planes_pago_to_detalles();
+
+-- 4. FASE 2: Forzar la migración de todos los registros históricos existentes
+-- UPDATE public.planes_pago SET created_at = created_at;
+
+-- Política de RLS para planes_pago_detalles
+ALTER TABLE public.planes_pago_detalles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Acceso total - planes_pago_detalles" ON public.planes_pago_detalles FOR ALL USING (true);

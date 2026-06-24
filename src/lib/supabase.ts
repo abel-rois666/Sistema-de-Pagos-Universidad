@@ -105,7 +105,11 @@ export const saveAlumno = async (alumno: Alumno): Promise<string | null> => {
     ciclo_ultima_asignacion_grado: alumno.ciclo_ultima_asignacion_grado,
     saldo_a_favor: alumno.saldo_a_favor,
   });
-  if (error) { console.error('[saveAlumno]', error.message); return error.message; }
+  if (error) { 
+    console.error('[saveAlumno]', error); 
+    if (error.code === '42501') return 'No tienes permisos de Administrador/Coordinador para modificar alumnos.';
+    return error.message; 
+  }
   return null;
 };
 
@@ -208,7 +212,11 @@ export const deletePlantilla = async (id: string): Promise<string | null> => {
 export const deleteAlumno = async (id: string): Promise<string | null> => {
   if (!isUUID(id)) return null;
   const { error } = await supabase.from('alumnos').delete().eq('id', id);
-  if (error) { console.error('[deleteAlumno]', error.message); return error.message; }
+  if (error) { 
+    console.error('[deleteAlumno]', error); 
+    if (error.code === '42501') return 'No tienes permisos de Administrador/Coordinador para eliminar alumnos.';
+    return error.message; 
+  }
   return null;
 };
 
@@ -299,21 +307,41 @@ export const saveReciboCompleto = async (
 
     // 3. Actualizar Plan de Pagos (si hubo afectación a conceptos)
     if (planUpdates) {
-      const finalUpdates: any = {};
       for (const [k, v] of Object.entries(planUpdates.updates)) {
+        let finalStatus = v;
         if (typeof v === 'string') {
-          finalUpdates[k] = v.replace('{{FOLIO}}', String(newFolio));
+          finalStatus = v.replace('{{FOLIO}}', String(newFolio));
+        }
+
+        if (k.startsWith('estatus_')) {
+          const idx = parseInt(k.split('_')[1], 10);
+          
+          // 1. Actualizamos explícitamente la tabla normalizada (como solicitaste)
+          const { error: detError } = await supabase
+            .from('planes_pago_detalles')
+            .update({ estatus: finalStatus })
+            .eq('plan_id', planUpdates.planId)
+            .eq('indice_concepto', idx);
+          
+          if (detError) throw new Error(`Error actualizando detalle del plan: ${detError.message}`);
+          
+          // 2. CRÍTICO: También actualizamos la tabla plana para que el Trigger 
+          // no borre nuestro avance si alguien edita el plan después
+          const { error: planError } = await supabase
+            .from('planes_pago')
+            .update({ [k]: finalStatus })
+            .eq('id', planUpdates.planId);
+            
+          if (planError) throw new Error(`Error actualizando el plan de pagos legacy: ${planError.message}`);
         } else {
-          finalUpdates[k] = v;
+          const { error: planError } = await supabase
+            .from('planes_pago')
+            .update({ [k]: finalStatus })
+            .eq('id', planUpdates.planId);
+            
+          if (planError) throw new Error(`Error actualizando el plan de pagos: ${planError.message}`);
         }
       }
-
-      const { error: planError } = await supabase
-        .from('planes_pago')
-        .update(finalUpdates)
-        .eq('id', planUpdates.planId);
-      
-      if (planError) throw new Error(`Error actualizando el plan de pagos: ${planError.message}`);
     }
 
     // 4. Actualizar Saldo a Favor del alumno (Monedero)
@@ -358,7 +386,7 @@ export const updateReciboFactura = async (reciboId: string, folioFiscal: string)
     if (recibo && recibo.alumno_id && recibo.ciclo_id) {
         const detallesConPlan = (recibo.recibos_detalles || []).filter((d: any) => d.indice_concepto_plan != null);
         if (detallesConPlan.length > 0) {
-           const { data: planes } = await supabase.from('planes_pago').select('*')
+           const { data: planes } = await supabase.from('planes_pago').select('*, detalles:planes_pago_detalles(*)')
                .eq('alumno_id', recibo.alumno_id)
                .eq('ciclo_id', recibo.ciclo_id);
            if (planes && planes.length > 0) {
@@ -404,7 +432,10 @@ export const cancelarRecibo = async (reciboId: string): Promise<string | null> =
        .from('recibos')
        .update({ estatus: 'CANCELADO' })
        .eq('id', reciboId);
-     if (cancelErr) throw new Error(cancelErr.message);
+     if (cancelErr) {
+       if (cancelErr.code === '42501') throw new Error('No tienes permisos de Administrador/Coordinador para cancelar este recibo.');
+       throw new Error(cancelErr.message);
+     }
 
      // 3. Revertir conceptos del plan que fueron afectados
      const detallesConPlan = (recibo.recibos_detalles || []).filter(
@@ -610,7 +641,7 @@ export const vincularReciboDetalleAMultiplesPlan = async (
     for (const [planId, indices] of Object.entries(porPlan)) {
       const { data: planData, error: fetchErr } = await supabase
         .from('planes_pago')
-        .select('*')
+        .select('*, detalles:planes_pago_detalles(*)')
         .eq('id', planId)
         .single();
       if (fetchErr || !planData) throw new Error('No se pudo leer el plan: ' + fetchErr?.message);

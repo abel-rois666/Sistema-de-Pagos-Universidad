@@ -939,7 +939,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
               <div className="flex flex-wrap items-center gap-3 bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-[13px]">
                 <span className="text-sm font-bold text-[#1456f0]">{mainTableSelected.size} seleccionados</span>
                 <button onClick={() => setShowBulkStatusModal(true)} className="text-sm font-semibold bg-white border border-indigo-200 text-[#1456f0] px-3 py-1.5 rounded-[8px] shadow-[var(--shadow-subtle)] hover:bg-[#bfdbfe] transition-colors">Cambiar Estatus</button>
-                {!isCoordinador && (
+                {!isCoordinador && currentUser.rol !== 'CAJERO' && (
                   <button onClick={handleBulkDelete} className="text-sm font-semibold bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-[8px] shadow-[var(--shadow-subtle)] hover:bg-red-50 transition-colors">Eliminar</button>
                 )}
                 <button onClick={() => setMainTableSelected(new Set())} className="text-sm text-[#8e8e93] hover:text-[#45515e] font-medium px-2" title="Cancelar selección"><X size={16} /></button>
@@ -1146,7 +1146,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                         <button onClick={() => handleEdit(alumno)} className="text-[#8e8e93] dark:text-[#8e8e93] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-blue-900/30 p-1 rounded-[6px] transition-colors ml-1" title="Editar Alumno">
                           <Edit2 size={15} />
                         </button>
-                        {!isCoordinador && (
+                        {currentUser.rol !== 'CAJERO' && (
                           <button onClick={() => handleDelete(alumno)} className="text-[#8e8e93] dark:text-[#8e8e93] hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-[6px] transition-colors ml-0.5" title="Eliminar Alumno">
                             <Trash2 size={15} />
                           </button>

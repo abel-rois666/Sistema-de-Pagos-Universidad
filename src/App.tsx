@@ -170,12 +170,12 @@ export default function App() {
     today.setHours(23, 59, 59, 999);
     const parsePaymentDate = (dStr: string): Date | null => {
       if (!dStr) return null;
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
-        const [d, m, y] = dStr.split('/');
+      if (dStr.includes('-')) {
+        const [y, m, d] = dStr.split('-');
         return new Date(Number(y), Number(m) - 1, Number(d));
       }
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
-        const [y, m, d] = dStr.split('-');
+      if (dStr.includes('/')) {
+        const [d, m, y] = dStr.split('/');
         return new Date(Number(y), Number(m) - 1, Number(d));
       }
       return null;
@@ -183,6 +183,17 @@ export default function App() {
     return filteredPlans.filter(p => {
       const alumno = alumnos.find(a => a.id === p.alumno_id || a.nombre_completo === p.nombre_alumno);
       if (alumno?.estatus === 'BAJA') return false;
+
+      if (p.detalles && p.detalles.length > 0) {
+        return p.detalles.some(d => {
+          if (d.estatus === 'PENDIENTE' && d.fecha_vencimiento) {
+            const dt = parsePaymentDate(d.fecha_vencimiento);
+            if (dt && dt <= today) return true;
+          }
+          return false;
+        });
+      }
+
       for (let i = 1; i <= 9; i++) {
         const estatus = p[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
         const fecha = p[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
@@ -200,12 +211,12 @@ export default function App() {
     today.setHours(23, 59, 59, 999);
     const parseDate = (dStr: string): Date | null => {
       if (!dStr) return null;
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
-        const [d, m, y] = dStr.split('/');
+      if (dStr.includes('-')) {
+        const [y, m, d] = dStr.split('-');
         return new Date(Number(y), Number(m) - 1, Number(d));
       }
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
-        const [y, m, d] = dStr.split('-');
+      if (dStr.includes('/')) {
+        const [d, m, y] = dStr.split('/');
         return new Date(Number(y), Number(m) - 1, Number(d));
       }
       return null;
@@ -214,6 +225,19 @@ export default function App() {
     filteredPlans.forEach(plan => {
       const alumno = alumnos.find(a => a.id === plan.alumno_id || a.nombre_completo === plan.nombre_alumno);
       if (alumno?.estatus === 'BAJA') return;
+
+      if (plan.detalles && plan.detalles.length > 0) {
+        plan.detalles.forEach(d => {
+          if (d.cantidad && d.estatus && d.fecha_vencimiento && !isPaid(d.estatus)) {
+            const fechaDate = parseDate(d.fecha_vencimiento);
+            if (fechaDate && fechaDate <= today) {
+              total += getRestanteFromEstatus(d.estatus, Number(d.cantidad));
+            }
+          }
+        });
+        return;
+      }
+
       for (let i = 1; i <= 9; i++) {
         const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
         const estatus  = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
@@ -334,6 +358,15 @@ export default function App() {
           a?.observaciones_pago_titulacion || '',
           ...Array.from({ length: 9 }, (_, i) => {
              const id = i + 1;
+             const det = p.detalles?.find(d => d.indice_concepto === id);
+             if (det) {
+               return [
+                 det.concepto || '',
+                 det.fecha_vencimiento || '',
+                 String(det.cantidad || ''),
+                 det.estatus || ''
+               ];
+             }
              return [
                p[`concepto_${id}` as keyof PaymentPlan] as string || '',
                p[`fecha_${id}` as keyof PaymentPlan] as string || '',

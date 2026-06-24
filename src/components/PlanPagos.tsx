@@ -867,9 +867,33 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
     if (plan) setSearchTerm(getAlumnoName(plan));
   };
 
+  const getConceptData = (plan: PaymentPlan, index: number) => {
+    if (plan.detalles && plan.detalles.length > 0) {
+      const detail = plan.detalles.find(d => d.indice_concepto === index);
+      if (detail && detail.concepto) {
+         return {
+           concepto: detail.concepto,
+           fecha: detail.fecha_vencimiento,
+           cantidad: detail.cantidad,
+           estatus: detail.estatus || 'PENDIENTE'
+         };
+      }
+      return null;
+    }
+    const concepto = plan[`concepto_${index}` as keyof PaymentPlan] as string | undefined;
+    if (!concepto) return null;
+    return {
+      concepto,
+      fecha: plan[`fecha_${index}` as keyof PaymentPlan] as string | undefined,
+      cantidad: plan[`cantidad_${index}` as keyof PaymentPlan] as number | undefined,
+      estatus: plan[`estatus_${index}` as keyof PaymentPlan] as string | undefined,
+    };
+  };
+
   const openPaymentModal = (index: number) => {
     setSelectedPaymentIndex(index);
-    setPaymentInput(selectedPlan[`estatus_${index}` as keyof PaymentPlan] as string || '');
+    const data = getConceptData(selectedPlan, index);
+    setPaymentInput(data?.estatus || '');
     setPaymentModalTab('manual');
     setCandidateDetalles([]);
     setSelectedDetalleId('');
@@ -1037,13 +1061,11 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
   );
 
   const renderPaymentRow = (index: number) => {
-    const concepto = selectedPlan[`concepto_${index}` as keyof PaymentPlan] as string | undefined;
-    const fecha = selectedPlan[`fecha_${index}` as keyof PaymentPlan] as string | undefined;
-    const cantidad = selectedPlan[`cantidad_${index}` as keyof PaymentPlan] as number | undefined;
-    const estatus = selectedPlan[`estatus_${index}` as keyof PaymentPlan] as string | undefined;
+    const data = getConceptData(selectedPlan, index);
+    if (!data) return null;
+    
+    const { concepto, fecha, cantidad, estatus } = data;
     const paid = isPaid(estatus);
-
-    if (!concepto) return null;
 
     return (
       <tr key={index}>
@@ -1371,7 +1393,10 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 </tr>
               </thead>
               <tbody>
-                {paymentIndices.map(i => renderPaymentRow(i))}
+                {selectedPlan.detalles && selectedPlan.detalles.length > 0
+                  ? selectedPlan.detalles.slice().sort((a, b) => a.indice_concepto - b.indice_concepto).map(d => renderPaymentRow(d.indice_concepto))
+                  : paymentIndices.map(i => renderPaymentRow(i))
+                }
                 <tr key="filler-1">
                   <Td className="bg-gray-100"><div className="h-6 w-full bg-gray-200 rounded-full"></div></Td>
                   <Td></Td><Td></Td><Td></Td>
@@ -1442,7 +1467,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   Estatus de Pago
                 </h3>
                 <p className="text-xs text-[#8e8e93] mt-0.5">
-                  {selectedPlan[`concepto_${selectedPaymentIndex}` as keyof PaymentPlan] as string} · {toTitleCase(selectedPlan.nombre_alumno)}
+                  {getConceptData(selectedPlan, selectedPaymentIndex)?.concepto} · {toTitleCase(selectedPlan.nombre_alumno)}
                 </p>
               </div>
               <button onClick={() => setIsPaymentModalOpen(false)} className="text-[#8e8e93] hover:text-[#45515e]">

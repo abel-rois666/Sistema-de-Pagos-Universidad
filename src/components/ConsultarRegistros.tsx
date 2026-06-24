@@ -1154,7 +1154,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                       Imprimir
                     </button>
                   )}
-                  {reciboSeleccionado.estatus === 'ACTIVO' && (
+                  {reciboSeleccionado.estatus === 'ACTIVO' && currentUser?.rol !== 'CAJERO' && (
                     <button
                       onClick={() => handleCancelar(reciboSeleccionado.id)}
                       className="flex items-center gap-2 bg-red-500/30 hover:bg-red-500/50 text-red-100 px-3 py-2 rounded-[13px] text-sm font-semibold transition-colors border border-red-400/50"

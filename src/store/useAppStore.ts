@@ -96,7 +96,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   fetchAllData: async () => {
     set({ loading: true });
     try {
-      const { data: planesData, error: planesError } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*').order('id'));
+      const { data: planesData, error: planesError } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*, detalles:planes_pago_detalles(*)').order('id'));
       const { data: ciclosData, error: ciclosError } = await fetchAllSupabase(() => supabase.from('ciclos_escolares').select('*').order('id'));
       const { data: alumnosData, error: alumnosError } = await fetchAllSupabase(() => supabase.from('alumnos').select('*').order('id'));
       const { data: catalogosData, error: catalogosError } = await fetchAllSupabase(() => supabase.from('catalogos').select('*').order('orden', { ascending: true }));
@@ -145,7 +145,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   refreshPlans: async () => {
     try {
-      const { data, error } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*').order('id'));
+      const { data, error } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*, detalles:planes_pago_detalles(*)').order('id'));
       if (!error && data) set({ plans: data as PaymentPlan[] });
     } catch { /* silenciar */ }
   },
