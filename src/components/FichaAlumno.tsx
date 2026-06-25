@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, GraduationCap, ScrollText, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, GraduationCap, ScrollText, ClipboardList, BookOpen } from 'lucide-react';
 import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '../types';
 import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { calculateStudentTotals, toTitleCase } from '../utils';
@@ -10,9 +10,10 @@ import TabServicioSocial from './tabs/TabServicioSocial';
 import TabCertificacion from './tabs/TabCertificacion';
 import TabTitulacion from './tabs/TabTitulacion';
 import TabDatosGenerales from './tabs/TabDatosGenerales';
+import TabHistorialAcademico from './tabs/TabHistorialAcademico';
 
 // ── Tabs disponibles ────────────────────────────────────────────────────────
-type TabId = 'pagos' | 'datos_generales' | 'servicio_social' | 'certificacion' | 'titulacion';
+type TabId = 'pagos' | 'datos_generales' | 'academico' | 'servicio_social' | 'certificacion' | 'titulacion';
 
 interface TabDef {
   id: TabId;
@@ -24,6 +25,7 @@ interface TabDef {
 const TABS: TabDef[] = [
   { id: 'pagos',            label: 'Pagos',            icon: <FileText size={15} /> },
   { id: 'datos_generales',  label: 'Datos Generales',  icon: <ClipboardList size={15} /> },
+  { id: 'academico',        label: 'Historial Acad.',  icon: <BookOpen size={15} /> },
   { id: 'servicio_social',  label: 'Servicio Social',  icon: <Briefcase size={15} />, adminOnly: true },
   { id: 'certificacion',    label: 'Certificación',    icon: <ScrollText size={15} />, adminOnly: true },
   { id: 'titulacion',       label: 'Titulación',       icon: <GraduationCap size={15} />, adminOnly: true },
@@ -382,6 +384,9 @@ export default function FichaAlumno({
               isAdmin={isAdmin}
               onAlumnoUpdated={() => onRefreshAlumnos?.()}
             />
+          )}
+          {activeTab === 'academico' && (
+            <TabHistorialAcademico alumno={selectedAlumno} />
           )}
           {activeTab === 'servicio_social' && isAdmin && (
             <TabServicioSocial

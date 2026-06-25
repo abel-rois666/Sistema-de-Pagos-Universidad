@@ -458,3 +458,33 @@ export interface Asignatura {
   activo?: boolean;
   created_at: string;
 }
+
+export interface InscripcionAcademica {
+  id?: string;
+  alumno_id: string;
+  ciclo_id?: string | null;
+  ciclo_legado?: string | null;
+  asignatura_id: string;
+  parcial_1?: number | null;
+  parcial_2?: number | null;
+  parcial_3?: number | null;
+  promedio_calculado?: number | null;
+  calificacion_final?: number | null;
+  modificada_manualmente?: boolean;
+  observaciones?: string | null;
+  tipo_evaluacion: string;
+  estatus: string;
+  created_at?: string;
+  asignaturas?: {
+    nombre: string;
+    clave_legado: string;
+    creditos: number;
+    clasificacion_clave?: string | null;
+    clasificacion_nombre?: string | null;
+    planes_estudio?: {
+      nombre: string;
+      clave_legado: string;
+      creditos_obligatorios?: number;
+    };
+  };
+}

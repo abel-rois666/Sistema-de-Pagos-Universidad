@@ -89,6 +89,52 @@ function getEstatusTitulacion(ficha: FichaTitulacion | null): 'SIN_INICIAR' | 'E
   return allDone ? 'EN_CURSO' : 'EN_CURSO'; // COMPLETADO solo via tramite_completado
 }
 
+// ── Helpers de Requisitos ───────────────────────────────────────────────────
+async function validarRequisitoIngles(alumnoId: string): Promise<boolean> {
+  try {
+    // 1. Descubrir cuántas materias de Inglés tiene el plan de estudios asignado
+    const { data: historialTop } = await supabase
+      .from('inscripciones_academicas')
+      .select('asignaturas!inner(plan_id)')
+      .eq('alumno_id', alumnoId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!historialTop?.asignaturas?.plan_id) return false;
+    const planId = (historialTop.asignaturas as any).plan_id;
+
+    const { data: materiasInglesPlan } = await supabase
+      .from('asignaturas')
+      .select('id')
+      .eq('plan_id', planId)
+      .ilike('nombre', '%ingl%');
+
+    const totalInglesPlan = materiasInglesPlan?.length || 0;
+
+    // Si el plan no requiere inglés, se da por exento/cubierto
+    if (totalInglesPlan === 0) return true;
+
+    const idsIngles = materiasInglesPlan.map(m => m.id);
+
+    // 2. Buscar en el historial académico cuáles de esas materias ya aprobó (>= 6)
+    const { data: historialIngles } = await supabase
+      .from('inscripciones_academicas')
+      .select('asignatura_id, calificacion_final')
+      .eq('alumno_id', alumnoId)
+      .in('asignatura_id', idsIngles)
+      .gte('calificacion_final', 6);
+
+    // Agrupar IDs únicos para no contar recursamientos o extraordinarios como materias distintas
+    const materiasAprobadasUnicas = new Set(historialIngles?.map(h => h.asignatura_id));
+
+    // 3. Validar
+    return materiasAprobadasUnicas.size >= totalInglesPlan;
+  } catch (error) {
+    console.error('Error al validar requisito de inglés:', error);
+    return false;
+  }
+}
+
 // ── Colores badge ─────────────────────────────────────────────────────────────
 const BADGE_ESTATUS = {
   SIN_INICIAR: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700',
@@ -430,7 +476,13 @@ export default function TabTitulacion({
     if (ficha) {
       await supabase.from('ficha_titulacion').update({ ...draft, updated_at: new Date().toISOString() }).eq('id', ficha.id);
     } else {
-      const { data } = await supabase.from('ficha_titulacion').insert({ alumno_id: alumnoId, ...draft }).select().single();
+      // Validar Inglés al crear la ficha por primera vez
+      const isInglesCubierto = await validarRequisitoIngles(alumnoId);
+      const payloadInsert = {
+        ...draft,
+        ingles: isInglesCubierto ? 'COMPLETADO' : draft.ingles
+      };
+      const { data } = await supabase.from('ficha_titulacion').insert({ alumno_id: alumnoId, ...payloadInsert }).select().single();
       if (data) setFicha(data as FichaTitulacion);
     }
     setSaving(false);
