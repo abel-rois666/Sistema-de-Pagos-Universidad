@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, Download, AlertCircle, BookOpen, GraduationCap, CheckCircle2, TrendingUp, CalendarDays, Filter } from 'lucide-react';
+import { MultiSelectFilter } from '../MultiSelectFilter';
 import { supabase } from '../../lib/supabase';
 import type { Alumno, InscripcionAcademica } from '../../types';
 import toast from 'react-hot-toast';
@@ -58,7 +59,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Filtros
-  const [filtroEstatus, setFiltroEstatus] = useState<'TODAS' | 'ACREDITADAS' | 'POR_ACREDITAR' | 'REPROBADAS'>('TODAS');
+  const OPCIONES_ESTATUS = ['Acreditadas', 'Reprobadas', 'Por acreditar / Cursando'];
+  const [filtroEstatus, setFiltroEstatus] = useState<string[]>(OPCIONES_ESTATUS);
   const [ocultarComplementarias, setOcultarComplementarias] = useState(false);
 
   const fetchHistorialLocal = async () => {
@@ -266,10 +268,37 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       });
     }
 
-    // 2. Aplicar Filtro de Estatus
-    if (filtroEstatus === 'ACREDITADAS') filtrados = filtrados.filter(item => item.acreditada);
-    if (filtroEstatus === 'REPROBADAS') filtrados = filtrados.filter(item => !item.acreditada && item.mejor_calificacion !== null);
-    if (filtroEstatus === 'POR_ACREDITAR') filtrados = filtrados.filter(item => !item.acreditada && item.mejor_calificacion === null);
+    // 2. Aplicar Filtro de Estatus (Multiselect)
+    if (filtroEstatus.length > 0 && filtroEstatus.length < OPCIONES_ESTATUS.length) {
+      filtrados = filtrados.filter(item => {
+        const p1 = item.ordinario?.parcial_1;
+        const p2 = item.ordinario?.parcial_2;
+        const p3 = item.ordinario?.parcial_3;
+        
+        const finalCalif = item.mejor_calificacion;
+        const hasFinal = finalCalif !== null && finalCalif !== undefined;
+        const isAcreditada = item.acreditada;
+        
+        // REGLA 1 (Por Final): Tiene calificación final explícita y es reprobatoria (0, 5, -555 o menor a 6)
+        const isReprobadaPorFinal = hasFinal && finalCalif < 6;
+        
+        // REGLA 2 (Por Parciales): Sin final, pero los 3 parciales capturados son letales (0, 5, o -555)
+        const isReprobadaPorParciales = !hasFinal &&
+                                        p1 !== null && p1 !== undefined &&
+                                        p2 !== null && p2 !== undefined &&
+                                        p3 !== null && p3 !== undefined &&
+                                        [p1, p2, p3].every(p => p === 0 || p === 5 || p === -555);
+                                     
+        const isReprobada = isReprobadaPorFinal || isReprobadaPorParciales;
+        const isPorAcreditar = !isAcreditada && !isReprobada;
+
+        if (filtroEstatus.includes('Acreditadas') && isAcreditada) return true;
+        if (filtroEstatus.includes('Reprobadas') && isReprobada) return true;
+        if (filtroEstatus.includes('Por acreditar / Cursando') && isPorAcreditar) return true;
+        
+        return false;
+      });
+    }
 
     // 3. Calcular Estadísticas sobre el TOTAL agrupado
     let sumPromedio = 0;
@@ -524,16 +553,12 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
             <div className="bg-[#f8f9ff] dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[12px] p-3 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <Filter size={16} className="text-gray-400 ml-1" />
-                    <select
-                        value={filtroEstatus}
-                        onChange={(e) => setFiltroEstatus(e.target.value as any)}
-                        className="bg-white dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-[6px] text-sm font-medium text-[#222222] dark:text-gray-200 py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                        <option value="TODAS">Todas las asignaturas</option>
-                        <option value="ACREDITADAS">Solo Acreditadas</option>
-                        <option value="REPROBADAS">Reprobadas / Recursando</option>
-                        <option value="POR_ACREDITAR">Sin cursar / Por acreditar</option>
-                    </select>
+                    <MultiSelectFilter
+                       label="Estatus"
+                       options={OPCIONES_ESTATUS}
+                       selected={filtroEstatus}
+                       onChange={setFiltroEstatus}
+                    />
                 </div>
 
                 <label className="flex items-center gap-2 text-sm font-medium text-[#45515e] dark:text-gray-300 cursor-pointer select-none pr-2">
