@@ -311,51 +311,114 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   const datosAgrupados = useMemo(() => {
     const grupos: Record<string, any> = {};
 
-    // 1. Extraer ciclos flexibles
-    const ciclosFlexibles = new Set<string>();
-    datosFiltrados.forEach(item => {
-      const modeloPlan = item.asignatura?.planes_estudio?.modelo || 'RIGIDO';
-      if (modeloPlan === 'FLEXIBLE') {
-        const ciclo = item.ordinario?.ciclo_legado || item.ordinario?.ciclo?.nombre;
-        if (ciclo && ciclo !== '-') ciclosFlexibles.add(ciclo);
-      }
-    });
-    const ciclosOrdenados = Array.from(ciclosFlexibles).sort((a, b) => getCicloWeight(a) - getCicloWeight(b));
-
-    // 2. Agrupar Materias
+    // 1. Agrupar todo estrictamente por el bloque/periodo configurado en el catálogo
     datosFiltrados.forEach(item => {
       const planData = item.asignatura?.planes_estudio;
       const modelo = planData?.modelo || 'RIGIDO';
       const tipoPeriodo = planData?.tipo_periodo || 'Semestral';
       const clavePlan = planData?.clave_legado || 'DEFAULT';
+      const numPeriodo = item.asignatura?.numero_periodo || 1;
 
-      let groupKey = '', tituloGrupo = '', numeroOrden = 0;
+      // --- NUEVA REGLA: INTERCEPCIÓN DE COMPLEMENTARIAS ---
+      const clasifClave = item.asignatura?.clasificacion_clave;
+      const clasifNombre = item.asignatura?.clasificacion_nombre?.toLowerCase() || '';
+      const esComplementaria = clasifClave === '266' || clasifNombre.includes('complementaria');
 
-      if (modelo === 'FLEXIBLE') {
-        const ciclo = item.ordinario?.ciclo_legado || item.ordinario?.ciclo?.nombre || 'SIN_CICLO';
-        const indice = ciclosOrdenados.indexOf(ciclo) + 1; 
-        groupKey = `${clavePlan}_FLEX_${ciclo}`;
-        numeroOrden = getCicloWeight(ciclo);
-        const ordinal = obtenerNombrePeriodo(indice > 0 ? indice : 1, tipoPeriodo);
-        tituloGrupo = ciclo !== 'SIN_CICLO' ? `${ordinal} (${ciclo})` : 'Materias sin ciclo asignado';
-      } else {
-        // CORRECCIÓN: Extraer numero_periodo directo de asignatura
-        const numPeriodo = item.asignatura?.numero_periodo || 1;
-        groupKey = `${clavePlan}_RIG_${numPeriodo}`;
-        numeroOrden = numPeriodo; // Se ordena estrictamente por su número de semestre
-        tituloGrupo = obtenerNombrePeriodo(numPeriodo, tipoPeriodo);
+      if (esComplementaria) {
+        const groupKey = `${clavePlan}_COMPLEMENTARIAS`;
+        
+        if (!grupos[groupKey]) {
+          grupos[groupKey] = {
+            plan: clavePlan,
+            modelo: 'ESPECIAL',
+            tipoPeriodo: tipoPeriodo,
+            numeroOriginal: 99999, // Un número gigantesco para enviarlo al final de la retícula
+            titulo: 'Asignaturas Complementarias (Inglés / Talleres)',
+            numeroParaOrden: 99999,
+            items: [],
+            minCicloWeight: 999999
+          };
+        }
+        
+        grupos[groupKey].items.push(item);
+        return; // 🛑 Se detiene aquí para no meterla en los semestres regulares
       }
+      // --- FIN DE LA INTERCEPCIÓN ---
+
+      const groupKey = `${clavePlan}_${numPeriodo}`;
 
       if (!grupos[groupKey]) {
-        grupos[groupKey] = { plan: clavePlan, modelo, titulo: tituloGrupo, numeroParaOrden: numeroOrden, items: [] };
+        grupos[groupKey] = {
+          plan: clavePlan,
+          modelo: modelo,
+          tipoPeriodo: tipoPeriodo,
+          numeroOriginal: numPeriodo, // El bloque configurado en la base de datos
+          items: [],
+          minCicloWeight: 999999, // Utilizado para ordenar los flexibles
+          cicloRepresentativo: null
+        };
       }
+
       grupos[groupKey].items.push(item);
+
+      // Para modelos flexibles, encontrar el ciclo más antiguo cursado en este bloque
+      if (modelo === 'FLEXIBLE') {
+        const ciclo = item.ordinario?.ciclo_legado || item.ordinario?.ciclo?.nombre;
+        if (ciclo && ciclo !== '-') {
+          const weight = getCicloWeight(ciclo);
+          if (weight < grupos[groupKey].minCicloWeight) {
+            grupos[groupKey].minCicloWeight = weight;
+            grupos[groupKey].cicloRepresentativo = ciclo;
+          }
+        }
+      }
     });
 
-    return Object.values(grupos).sort((a, b) => {
-      if (a.plan !== b.plan) return a.plan.localeCompare(b.plan);
-      return a.numeroParaOrden - b.numeroParaOrden;
+    // 2. Aplicar reglas de ordenamiento y nomenclatura por Plan
+    let gruposArray = Object.values(grupos);
+    const planesUnicos = Array.from(new Set(gruposArray.map(g => g.plan)));
+    let resultadoFinal: any[] = [];
+
+    planesUnicos.forEach(clavePlan => {
+      const gruposDelPlan = gruposArray.filter(g => g.plan === clavePlan);
+      const modeloPlan = gruposDelPlan[0]?.modelo;
+
+      if (modeloPlan === 'FLEXIBLE') {
+        // a) Ordenar bloques flexibles cronológicamente por su primer intento
+        gruposDelPlan.sort((a, b) => {
+          if (a.minCicloWeight !== b.minCicloWeight) return a.minCicloWeight - b.minCicloWeight;
+          return a.numeroOriginal - b.numeroOriginal; // Desempate si llevaron 2 bloques al mismo tiempo
+        });
+
+        // b) Asignar etiquetas ordinales
+        let indiceCronologico = 1;
+        gruposDelPlan.forEach(grupo => {
+          if (grupo.minCicloWeight !== 999999) {
+            // Bloque cursado
+            const ordinal = obtenerNombrePeriodo(indiceCronologico, grupo.tipoPeriodo);
+            grupo.titulo = `${ordinal} (${grupo.cicloRepresentativo})`;
+            grupo.numeroParaOrden = indiceCronologico;
+            indiceCronologico++;
+          } else {
+            // Bloque no cursado (sin calificaciones)
+            grupo.titulo = `Bloque ${grupo.numeroOriginal} (Por cursar)`;
+            grupo.numeroParaOrden = 9999 + grupo.numeroOriginal; // Mandarlo al fondo
+          }
+        });
+      } else {
+        // RÍGIDO: Se queda en su posición inamovible
+        gruposDelPlan.forEach(grupo => {
+          grupo.titulo = obtenerNombrePeriodo(grupo.numeroOriginal, grupo.tipoPeriodo);
+          grupo.numeroParaOrden = grupo.numeroOriginal;
+        });
+        // Ordenar por el número original
+        gruposDelPlan.sort((a, b) => a.numeroParaOrden - b.numeroParaOrden);
+      }
+
+      resultadoFinal = [...resultadoFinal, ...gruposDelPlan];
     });
+
+    return resultadoFinal;
   }, [datosFiltrados]);
 
   if (loading) {
