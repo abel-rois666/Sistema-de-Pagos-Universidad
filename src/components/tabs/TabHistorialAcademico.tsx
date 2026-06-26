@@ -466,7 +466,21 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
       // Ordenar los grupos de este plan por su número de orden asignado
       gruposDelPlan.sort((a, b) => a.numeroParaOrden - b.numeroParaOrden);
-      resultadoFinal = [...resultadoFinal, ...gruposDelPlan];
+      
+      // Extraer el nombre del plan desde el primer item válido del grupo
+      let nombrePlan = 'Plan Desconocido';
+      for (const g of gruposDelPlan) {
+        if (g.items.length > 0 && g.items[0].asignatura?.planes_estudio?.nombre) {
+          nombrePlan = g.items[0].asignatura.planes_estudio.nombre;
+          break;
+        }
+      }
+
+      resultadoFinal.push({
+        planClave: clavePlan,
+        planNombre: nombrePlan,
+        grupos: gruposDelPlan
+      });
     });
 
     return resultadoFinal;
@@ -624,15 +638,27 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                     </td>
                   </tr>
                 ) : (
-                  datosAgrupados.map((grupo) => (
-                    <React.Fragment key={grupo.titulo}>
-                      <tr className="bg-gray-100 dark:bg-gray-800/60 border-y border-gray-200 dark:border-gray-700">
-                        <td colSpan={13} className="px-4 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
-                          {grupo.titulo}
-                          {grupo.modelo === 'FLEXIBLE' && <span className="text-xs font-normal text-gray-500 lowercase ml-2">(orden cronológico)</span>}
+                  datosAgrupados.map((planEstructurado) => (
+                    <React.Fragment key={planEstructurado.planClave}>
+                      {/* SÚPER CABECERA DEL PLAN DE ESTUDIOS */}
+                      <tr className="bg-[#1456f0] dark:bg-blue-900 text-white">
+                        <td colSpan={13} className="px-4 py-3 text-sm font-black uppercase tracking-wider shadow-inner">
+                          🎓 {planEstructurado.planNombre} <span className="font-normal text-blue-200 text-xs ml-2">(CLAVE: {planEstructurado.planClave})</span>
                         </td>
                       </tr>
-                      {grupo.items.map((item: any, idx: number) => {
+
+                      {/* ITERACIÓN DE LOS SEMESTRES/BLOQUES DE ESE PLAN */}
+                      {planEstructurado.grupos.map((grupo: any) => (
+                        <React.Fragment key={grupo.titulo}>
+                          <tr className="bg-gray-100 dark:bg-gray-800/60 border-y border-gray-200 dark:border-gray-700">
+                            <td colSpan={13} className="px-4 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                              {grupo.titulo}
+                              {grupo.modelo === 'FLEXIBLE' && <span className="text-xs font-normal text-gray-500 lowercase ml-2">(orden cronológico)</span>}
+                            </td>
+                          </tr>
+                          
+                          {/* ITERACIÓN DE MATERIAS (Mantener el map(item => ...) original aquí adentro exactamente como estaba) */}
+                          {grupo.items.map((item: any, idx: number) => {
                           const rowClass = item.acreditada 
                               ? 'hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors' 
                               : (item.mejor_calificacion !== null)
@@ -696,6 +722,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                         </tr>
                     );
                 })}
+                        </React.Fragment>
+                      ))}
                     </React.Fragment>
                   ))
                 )}
