@@ -73,6 +73,7 @@ export default function ControlAcademico() {
     clave_legado: '',
     nombre: '',
     tipo_periodo: 'Semestral',
+    modelo: 'RIGIDO',
     creditos_obligatorios: 0,
   });
 
@@ -93,6 +94,7 @@ export default function ControlAcademico() {
     nombre: string;
     creditos?: number;
     tipo_periodo?: string;
+    modelo?: string;
     numero_periodo?: number;
   }>({
     isOpen: false,
@@ -101,12 +103,13 @@ export default function ControlAcademico() {
     nombre: '',
     creditos: 0,
     tipo_periodo: 'Semestral',
+    modelo: 'RIGIDO',
     numero_periodo: 1
   });
 
   const handleEditPlan = (e: React.MouseEvent, plan: PlanEstudio) => {
     e.stopPropagation();
-    setEditModal({ isOpen: true, type: 'plan', id: plan.id, nombre: plan.nombre, tipo_periodo: plan.tipo_periodo || 'Semestral' });
+    setEditModal({ isOpen: true, type: 'plan', id: plan.id, nombre: plan.nombre, tipo_periodo: plan.tipo_periodo || 'Semestral', modelo: plan.modelo || 'RIGIDO' });
   };
 
   const handleEditAsignatura = (e: React.MouseEvent, asig: Asignatura) => {
@@ -117,10 +120,10 @@ export default function ControlAcademico() {
   const saveEdit = async () => {
     try {
       if (editModal.type === 'plan') {
-        const { error } = await supabase.from('planes_estudio').update({ nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo }).eq('id', editModal.id);
+        const { error } = await supabase.from('planes_estudio').update({ nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo, modelo: editModal.modelo }).eq('id', editModal.id);
         if (error) throw error;
-        setPlanesLocal(prev => prev.map(p => p.id === editModal.id ? { ...p, nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo } : p));
-        if (selectedPlan?.id === editModal.id) setSelectedPlan(prev => prev ? { ...prev, nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo } : null);
+        setPlanesLocal(prev => prev.map(p => p.id === editModal.id ? { ...p, nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo, modelo: editModal.modelo } : p));
+        if (selectedPlan?.id === editModal.id) setSelectedPlan(prev => prev ? { ...prev, nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo, modelo: editModal.modelo } : null);
         toast.success('Plan actualizado');
       } else {
         const { error } = await supabase.from('asignaturas').update({ nombre: editModal.nombre, creditos: editModal.creditos, numero_periodo: editModal.numero_periodo }).eq('id', editModal.id);
@@ -146,6 +149,7 @@ export default function ControlAcademico() {
         clave_legado: newPlanForm.clave_legado,
         nombre: newPlanForm.nombre,
         tipo_periodo: newPlanForm.tipo_periodo,
+        modelo: newPlanForm.modelo,
         creditos_obligatorios: newPlanForm.creditos_obligatorios,
         estatus: 'ACTIVO'
       }).select().single();
@@ -153,7 +157,7 @@ export default function ControlAcademico() {
       if (error) throw error;
       setPlanesLocal(prev => [...prev, data]);
       setIsCreatingPlan(false);
-      setNewPlanForm({ licenciatura_id: '', clave_legado: '', nombre: '', tipo_periodo: 'Semestral', creditos_obligatorios: 0 });
+      setNewPlanForm({ licenciatura_id: '', clave_legado: '', nombre: '', tipo_periodo: 'Semestral', modelo: 'RIGIDO', creditos_obligatorios: 0 });
       toast.success('Plan de estudio creado con éxito');
     } catch (err) {
       console.error(err);
@@ -656,12 +660,21 @@ export default function ControlAcademico() {
   // Ordenar las etapas lógicamente
   const etapasOrdenadas = Object.keys(asignaturasAgrupadas).map(Number).sort((a, b) => a - b);
 
-  const obtenerNombreBloque = (numero: number, tipo?: string) => {
+  const obtenerNombreBloque = (numero: number, modelo?: string, tipoPeriodo?: string) => {
+    // Si es un modelo Flexible, la estructura base solo se llama "Bloque"
+    if (modelo === 'FLEXIBLE') {
+      return `Bloque ${numero}`;
+    }
+
+    // Si es un modelo Rígido, la estructura ya define el semestre/cuatrimestre real
     const ordinales = ['Primer', 'Segundo', 'Tercer', 'Cuarto', 'Quinto', 'Sexto', 'Séptimo', 'Octavo', 'Noveno', 'Décimo', 'Undécimo', 'Duodécimo'];
     const ordinal = ordinales[numero - 1] || `${numero}°`;
-    if (tipo === 'Semestral') return `${ordinal} Semestre`;
-    if (tipo === 'Cuatrimestral') return `${ordinal} Cuatrimestre`;
-    return `Bloque ${numero}`;
+    const tipoLower = tipoPeriodo?.toLowerCase() || '';
+    
+    if (tipoLower.includes('cuatrimestral')) return `${ordinal} Cuatrimestre`;
+    if (tipoLower.includes('semestral')) return `${ordinal} Semestre`;
+    
+    return `Bloque ${numero}`; // Fallback por defecto
   };
 
   // Agrupar planes de estudio por la categoría (metadatos) del catálogo
@@ -818,7 +831,7 @@ export default function ControlAcademico() {
                       </button>
                       <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                         <div className="w-1.5 h-6 bg-[#1456f0] rounded-full"></div>
-                        {obtenerNombreBloque(etapa, selectedPlan.tipo_periodo)}
+                        {obtenerNombreBloque(etapa, selectedPlan.modelo, selectedPlan.tipo_periodo)}
                       </h3>
                       <div className="ml-auto flex items-center gap-3">
                         <button 
@@ -1157,18 +1170,30 @@ export default function ControlAcademico() {
                 </div>
                 
                 {editModal.type === 'plan' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Periodo</label>
-                    <select 
-                      value={editModal.tipo_periodo}
-                      onChange={(e) => setEditModal(prev => ({ ...prev, tipo_periodo: e.target.value }))}
-                      className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] focus:border-transparent dark:text-white"
-                    >
-                      <option value="Semestral">Semestral</option>
-                      <option value="Cuatrimestral">Cuatrimestral</option>
-                      <option value="Bloque Flexible">Bloque Flexible</option>
-                    </select>
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modelo Curricular</label>
+                      <select 
+                        value={editModal.modelo}
+                        onChange={(e) => setEditModal(prev => ({ ...prev, modelo: e.target.value }))}
+                        className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] focus:border-transparent dark:text-white"
+                      >
+                        <option value="RIGIDO">Rígido (Secuencial)</option>
+                        <option value="FLEXIBLE">Flexible (Por créditos/fechas)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Periodo</label>
+                      <select 
+                        value={editModal.tipo_periodo}
+                        onChange={(e) => setEditModal(prev => ({ ...prev, tipo_periodo: e.target.value }))}
+                        className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] focus:border-transparent dark:text-white"
+                      >
+                        <option value="Semestral">Semestral</option>
+                        <option value="Cuatrimestral">Cuatrimestral</option>
+                      </select>
+                    </div>
+                  </>
                 )}
                 
                 {editModal.type === 'asignatura' && (
@@ -1262,6 +1287,17 @@ export default function ControlAcademico() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modelo Curricular</label>
+                  <select 
+                    value={newPlanForm.modelo}
+                    onChange={(e) => setNewPlanForm(prev => ({ ...prev, modelo: e.target.value }))}
+                    className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] dark:text-white"
+                  >
+                    <option value="RIGIDO">Rígido (Secuencial)</option>
+                    <option value="FLEXIBLE">Flexible (Por créditos/fechas)</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Periodo</label>
                   <select 
                     value={newPlanForm.tipo_periodo}
@@ -1270,7 +1306,6 @@ export default function ControlAcademico() {
                   >
                     <option value="Semestral">Semestral</option>
                     <option value="Cuatrimestral">Cuatrimestral</option>
-                    <option value="Bloque Flexible">Bloque Flexible</option>
                   </select>
                 </div>
                 <div>

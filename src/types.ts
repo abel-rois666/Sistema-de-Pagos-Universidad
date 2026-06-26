@@ -441,6 +441,7 @@ export interface PlanEstudio {
   estatus: string;
   creditos_obligatorios?: number;
   tipo_periodo?: string;
+  modelo?: string;
   created_at: string;
 }
 
@@ -485,6 +486,8 @@ export interface InscripcionAcademica {
       nombre: string;
       clave_legado: string;
       creditos_obligatorios?: number;
+      modelo?: string;
+      tipo_periodo?: string;
     };
   };
 }

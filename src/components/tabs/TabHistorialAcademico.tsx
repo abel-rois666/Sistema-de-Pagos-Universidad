@@ -23,6 +23,27 @@ const calificacionALetras = (num?: number | null): string => {
   return texto;
 };
 
+const obtenerNombrePeriodo = (numero: number, tipo: string): string => {
+  const ordinales = ['Primer', 'Segundo', 'Tercer', 'Cuarto', 'Quinto', 'Sexto', 'Séptimo', 'Octavo', 'Noveno', 'Décimo', 'Undécimo', 'Duodécimo'];
+  const ordinal = ordinales[numero - 1] || `${numero}°`;
+  const tipoLower = tipo?.toLowerCase() || '';
+  if (tipoLower.includes('cuatrimestral')) return `${ordinal} Cuatrimestre`;
+  if (tipoLower.includes('semestral')) return `${ordinal} Semestre`;
+  return `Bloque ${numero}`;
+};
+
+const getCicloWeight = (cicloStr?: string | null): number => {
+  if (!cicloStr || cicloStr === '-') return 999999;
+  const parts = cicloStr.match(/(\d+)[-/](\d+)/);
+  if (parts) {
+    let year = parseInt(parts[1], 10);
+    if (year < 100) year += 2000; // Asumir 2000s para años de 2 dígitos
+    const period = parseInt(parts[2], 10);
+    return year * 10 + period;
+  }
+  return 999999;
+};
+
 export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoProps) {
   const [historial, setHistorial] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,10 +66,13 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
             creditos,
             clasificacion_clave,
             clasificacion_nombre,
+            numero_periodo,
             planes_estudio (
               nombre,
               clave_legado,
-              creditos_obligatorios
+              creditos_obligatorios,
+              tipo_periodo,
+              modelo
             )
           )
         `)
@@ -284,6 +308,56 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     };
   }, [historialAgrupado, filtroEstatus, ocultarComplementarias, historial]);
 
+  const datosAgrupados = useMemo(() => {
+    const grupos: Record<string, any> = {};
+
+    // 1. Extraer ciclos flexibles
+    const ciclosFlexibles = new Set<string>();
+    datosFiltrados.forEach(item => {
+      const modeloPlan = item.asignatura?.planes_estudio?.modelo || 'RIGIDO';
+      if (modeloPlan === 'FLEXIBLE') {
+        const ciclo = item.ordinario?.ciclo_legado || item.ordinario?.ciclo?.nombre;
+        if (ciclo && ciclo !== '-') ciclosFlexibles.add(ciclo);
+      }
+    });
+    const ciclosOrdenados = Array.from(ciclosFlexibles).sort((a, b) => getCicloWeight(a) - getCicloWeight(b));
+
+    // 2. Agrupar Materias
+    datosFiltrados.forEach(item => {
+      const planData = item.asignatura?.planes_estudio;
+      const modelo = planData?.modelo || 'RIGIDO';
+      const tipoPeriodo = planData?.tipo_periodo || 'Semestral';
+      const clavePlan = planData?.clave_legado || 'DEFAULT';
+
+      let groupKey = '', tituloGrupo = '', numeroOrden = 0;
+
+      if (modelo === 'FLEXIBLE') {
+        const ciclo = item.ordinario?.ciclo_legado || item.ordinario?.ciclo?.nombre || 'SIN_CICLO';
+        const indice = ciclosOrdenados.indexOf(ciclo) + 1; 
+        groupKey = `${clavePlan}_FLEX_${ciclo}`;
+        numeroOrden = getCicloWeight(ciclo);
+        const ordinal = obtenerNombrePeriodo(indice > 0 ? indice : 1, tipoPeriodo);
+        tituloGrupo = ciclo !== 'SIN_CICLO' ? `${ordinal} (${ciclo})` : 'Materias sin ciclo asignado';
+      } else {
+        // CORRECCIÓN: Extraer numero_periodo directo de asignatura
+        const numPeriodo = item.asignatura?.numero_periodo || 1;
+        groupKey = `${clavePlan}_RIG_${numPeriodo}`;
+        numeroOrden = numPeriodo; // Se ordena estrictamente por su número de semestre
+        tituloGrupo = obtenerNombrePeriodo(numPeriodo, tipoPeriodo);
+      }
+
+      if (!grupos[groupKey]) {
+        grupos[groupKey] = { plan: clavePlan, modelo, titulo: tituloGrupo, numeroParaOrden: numeroOrden, items: [] };
+      }
+      grupos[groupKey].items.push(item);
+    });
+
+    return Object.values(grupos).sort((a, b) => {
+      if (a.plan !== b.plan) return a.plan.localeCompare(b.plan);
+      return a.numeroParaOrden - b.numeroParaOrden;
+    });
+  }, [datosFiltrados]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -433,15 +507,30 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f2f3f5] dark:divide-[rgba(255,255,255,0.04)] text-sm">
-                {datosFiltrados.map((item, idx) => {
-                    const rowClass = item.acreditada 
-                        ? 'hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors' 
-                        : (item.mejor_calificacion !== null)
-                            ? 'bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50/80 dark:hover:bg-red-900/20 transition-colors'
-                            : 'hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors';
+                {datosAgrupados.length === 0 ? (
+                  <tr>
+                    <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
+                      No hay registros académicos con los filtros actuales.
+                    </td>
+                  </tr>
+                ) : (
+                  datosAgrupados.map((grupo) => (
+                    <React.Fragment key={grupo.titulo}>
+                      <tr className="bg-gray-100 dark:bg-gray-800/60 border-y border-gray-200 dark:border-gray-700">
+                        <td colSpan={13} className="px-4 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                          {grupo.titulo}
+                          {grupo.modelo === 'FLEXIBLE' && <span className="text-xs font-normal text-gray-500 lowercase ml-2">(orden cronológico)</span>}
+                        </td>
+                      </tr>
+                      {grupo.items.map((item: any, idx: number) => {
+                          const rowClass = item.acreditada 
+                              ? 'hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors' 
+                              : (item.mejor_calificacion !== null)
+                                  ? 'bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50/80 dark:hover:bg-red-900/20 transition-colors'
+                                  : 'hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors';
 
-                    return (
-                        <tr key={item.asignatura?.id || idx} className={`${rowClass} text-[#45515e] dark:text-gray-300`}>
+                          return (
+                              <tr key={item.asignatura?.id || idx} className={`${rowClass} text-[#45515e] dark:text-gray-300`}>
                             {/* Asignatura */}
                             <td className="px-4 py-2.5 font-medium sticky left-0 bg-white dark:bg-[#181e25] border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] shadow-[2px_0_4px_rgba(0,0,0,0.02)]">
                             <div className="flex flex-col max-w-[250px]">
@@ -497,6 +586,9 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                         </tr>
                     );
                 })}
+                    </React.Fragment>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
