@@ -8,8 +8,16 @@ interface TabHistorialAcademicoProps {
   alumno: Alumno;
 }
 
+const renderCalif = (cal?: number | null): string | number => {
+  if (cal === null || cal === undefined) return '-';
+  if (cal === -555) return 'NP';
+  return cal;
+};
+
 const calificacionALetras = (num?: number | null): string => {
   if (num === null || num === undefined || isNaN(num)) return '';
+  if (num === -555) return 'NO PRESENTÓ';
+
   const enteros = ['CERO', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE', 'DIEZ'];
   const [enteroStr, decimalStr] = num.toString().split('.');
   
@@ -147,9 +155,9 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
         if (promParc === null) {
             let sum = 0, count = 0;
-            if (p1 !== null) { sum += p1; count++; }
-            if (p2 !== null) { sum += p2; count++; }
-            if (p3 !== null) { sum += p3; count++; }
+            if (p1 !== null) { sum += (p1 === -555 ? 0 : p1); count++; }
+            if (p2 !== null) { sum += (p2 === -555 ? 0 : p2); count++; }
+            if (p3 !== null) { sum += (p3 === -555 ? 0 : p3); count++; }
             if (count > 0) promParc = Number((sum / count).toFixed(2));
         }
 
@@ -194,7 +202,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   };
 
   const safeRender = (val: number | null | undefined) => {
-    return val !== null && val !== undefined && !isNaN(val) ? val : '-';
+    return renderCalif(val);
   };
 
   // Agrupa los registros por asignatura
@@ -617,7 +625,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                             <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_3)}</td>
                             <td className="px-2 py-2.5 text-center font-mono text-[13px] text-gray-400">
                                 {item.ordinario?.promedio_calculado !== null && item.ordinario?.promedio_calculado !== undefined 
-                                    ? Number(item.ordinario.promedio_calculado).toFixed(2) 
+                                    ? renderCalif(item.ordinario.promedio_calculado) === 'NP' ? 'NP' : Number(item.ordinario.promedio_calculado).toFixed(2)
                                     : '-'}
                             </td>
                             <td className="px-3 py-2.5 text-center font-mono text-[13px] font-semibold border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
