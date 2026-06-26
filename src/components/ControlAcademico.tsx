@@ -964,16 +964,6 @@ export default function ControlAcademico() {
                   </div>
                 );
               })}
-              
-              {/* Añadir este botón al final del contenedor de los bloques del plan */}
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setIsCreatingAsignatura({ isOpen: true, periodo: 99 })}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
-                >
-                  + Añadir Asignatura Complementaria
-                </button>
-              </div>
             </div>
           )}
         </div>
