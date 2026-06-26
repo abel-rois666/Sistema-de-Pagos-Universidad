@@ -381,40 +381,42 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
     planesUnicos.forEach(clavePlan => {
       const gruposDelPlan = gruposArray.filter(g => g.plan === clavePlan);
-      const modeloPlan = gruposDelPlan[0]?.modelo;
+      
+      // Buscar el modelo principal del plan (ignorando el cajón de complementarias)
+      const grupoPrincipal = gruposDelPlan.find(g => g.modelo !== 'ESPECIAL');
+      const modeloPlan = grupoPrincipal ? grupoPrincipal.modelo : 'RIGIDO';
 
-      if (modeloPlan === 'FLEXIBLE') {
-        // a) Ordenar bloques flexibles cronológicamente por su primer intento
-        gruposDelPlan.sort((a, b) => {
-          if (a.minCicloWeight !== b.minCicloWeight) return a.minCicloWeight - b.minCicloWeight;
-          return a.numeroOriginal - b.numeroOriginal; // Desempate si llevaron 2 bloques al mismo tiempo
-        });
+      let indiceCronologico = 1;
 
-        // b) Asignar etiquetas ordinales
-        let indiceCronologico = 1;
-        gruposDelPlan.forEach(grupo => {
+      gruposDelPlan.forEach(grupo => {
+        // 1. AISLAMIENTO DE COMPLEMENTARIAS
+        if (grupo.modelo === 'ESPECIAL') {
+          grupo.titulo = 'ASIGNATURAS COMPLEMENTARIAS';
+          grupo.numeroParaOrden = 99999;
+        } 
+        // 2. LÓGICA FLEXIBLE
+        else if (modeloPlan === 'FLEXIBLE') {
           if (grupo.minCicloWeight !== 999999) {
-            // Bloque cursado
+            // Bloque cursado (asume ordinal cronológico)
             const ordinal = obtenerNombrePeriodo(indiceCronologico, grupo.tipoPeriodo);
             grupo.titulo = `${ordinal} (${grupo.cicloRepresentativo})`;
             grupo.numeroParaOrden = indiceCronologico;
             indiceCronologico++;
           } else {
-            // Bloque no cursado (sin calificaciones)
+            // Bloque No Cursado (Mantiene nombre original del bloque)
             grupo.titulo = `Bloque ${grupo.numeroOriginal} (Por cursar)`;
-            grupo.numeroParaOrden = 9999 + grupo.numeroOriginal; // Mandarlo al fondo
+            grupo.numeroParaOrden = 9999 + grupo.numeroOriginal; // Lo manda al final, pero antes de las complementarias
           }
-        });
-      } else {
-        // RÍGIDO: Se queda en su posición inamovible
-        gruposDelPlan.forEach(grupo => {
+        } 
+        // 3. LÓGICA RÍGIDA
+        else {
           grupo.titulo = obtenerNombrePeriodo(grupo.numeroOriginal, grupo.tipoPeriodo);
           grupo.numeroParaOrden = grupo.numeroOriginal;
-        });
-        // Ordenar por el número original
-        gruposDelPlan.sort((a, b) => a.numeroParaOrden - b.numeroParaOrden);
-      }
+        }
+      });
 
+      // Ordenar los grupos de este plan por su número de orden asignado
+      gruposDelPlan.sort((a, b) => a.numeroParaOrden - b.numeroParaOrden);
       resultadoFinal = [...resultadoFinal, ...gruposDelPlan];
     });
 
