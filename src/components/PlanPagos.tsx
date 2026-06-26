@@ -646,24 +646,17 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                    {catalogos?.licenciaturas?.length ? (
-                      <select
-                        className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                        value={newPlanForm.licenciatura || ''}
-                        onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
-                      >
-                        <option value="">-- Seleccione --</option>
-                        {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                        value={newPlanForm.licenciatura || ''}
-                        placeholder="Ej. Especialidad en Derecho..."
-                        onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
-                      />
-                    )}
+                    <input
+                      type="text"
+                      list="licenciaturas-list"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                      value={newPlanForm.licenciatura || ''}
+                      placeholder="Ej. Licenciatura en Derecho..."
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
+                    />
+                    <datalist id="licenciaturas-list">
+                      {catalogos?.licenciaturas?.map(l => <option key={l} value={l} />)}
+                    </datalist>
                   </div>
                   <div className="col-span-2 md:col-span-2">
                     <label className="block text-sm font-medium text-[#45515e] mb-1">Grado y Turno (Opcional)</label>
@@ -1625,24 +1618,17 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                  {catalogos?.licenciaturas?.length ? (
-                    <select
-                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                      value={editForm.licenciatura || ''}
-                      onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
-                    >
-                      <option value="">-- Seleccione --</option>
-                      {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                      value={editForm.licenciatura || ''}
-                      placeholder="Ej. Especialidad en Cirugía..."
-                      onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
-                    />
-                  )}
+                  <input
+                    type="text"
+                    list="licenciaturas-list-edit"
+                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                    value={editForm.licenciatura || ''}
+                    placeholder="Ej. Licenciatura en Derecho..."
+                    onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
+                  />
+                  <datalist id="licenciaturas-list-edit">
+                    {catalogos?.licenciaturas?.map(l => <option key={l} value={l} />)}
+                  </datalist>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Grado y Turno</label>
@@ -1970,24 +1956,17 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                  {catalogos?.licenciaturas?.length ? (
-                    <select
-                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                      value={newPlanForm.licenciatura || ''}
-                      onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
-                    >
-                      <option value="">-- Seleccione --</option>
-                      {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                      value={newPlanForm.licenciatura || ''}
-                      placeholder="Ej. Especialidad en Cirugía..."
-                      onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
-                    />
-                  )}
+                  <input
+                    type="text"
+                    list="licenciaturas-list-new"
+                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                    value={newPlanForm.licenciatura || ''}
+                    placeholder="Ej. Licenciatura en Derecho..."
+                    onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
+                  />
+                  <datalist id="licenciaturas-list-new">
+                    {catalogos?.licenciaturas?.map(l => <option key={l} value={l} />)}
+                  </datalist>
                 </div>
               </div>
 

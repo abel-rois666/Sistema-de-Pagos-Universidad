@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import {
   MapPin, IdCard, Phone, Save, Edit2,
   Loader2, X, CheckCircle, AlertCircle, Baby,
-  School, HeartHandshake, Search, ShieldCheck, ShieldX, Wand2,
+  School, HeartHandshake, Search, ShieldCheck, ShieldX, Wand2, GraduationCap
 } from 'lucide-react';
 import type { Alumno } from '../../types';
 import { supabase } from '../../lib/supabase';
@@ -71,6 +71,18 @@ const ABBR_TO_NAME: Record<string, string> = Object.entries(STATE_MAPPING)
     if (!acc[abrev]) acc[abrev] = nombre; // conservar el primer nombre canónico
     return acc;
   }, {});
+
+interface ProgramaAlumno {
+  id: string;
+  plan_id: string;
+  estatus: string;
+  fecha_inscripcion: string;
+  planes_estudio: {
+    nombre: string;
+    clave_legado: string;
+    modelo: string;
+  };
+}
 
 interface Props {
   alumno: Alumno;
@@ -369,6 +381,53 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   const [terminoBusqueda, setTerminoBusqueda] = useState(alumno.nombre_completo || '');
   const [resultadosGes, setResultadosGes] = useState<any[]>([]);
   const [buscandoGes, setBuscandoGes] = useState(false);
+
+  const [programas, setProgramas] = useState<ProgramaAlumno[]>([]);
+  const [loadingProgramas, setLoadingProgramas] = useState(false);
+  const [isAddingPrograma, setIsAddingPrograma] = useState(false);
+  const [planesDisponibles, setPlanesDisponibles] = useState<any[]>([]);
+  const [nuevoPrograma, setNuevoPrograma] = useState({ plan_id: '', estatus: 'CURSANDO', fecha_inscripcion: new Date().toISOString().split('T')[0] });
+
+  const fetchProgramas = useCallback(async () => {
+    setLoadingProgramas(true);
+    try {
+      const { data, error } = await supabase
+        .from('alumno_programas')
+        .select(`*, planes_estudio(nombre, clave_legado, modelo)`)
+        .eq('alumno_id', alumno.id)
+        .order('fecha_inscripcion', { ascending: false });
+      if (error) throw error;
+      setProgramas(data || []);
+
+      const { data: planes } = await supabase.from('planes_estudio').select('id, nombre, clave_legado').order('nombre');
+      if (planes) setPlanesDisponibles(planes);
+    } catch (error) {
+      console.error('Error fetching programas:', error);
+    } finally {
+      setLoadingProgramas(false);
+    }
+  }, [alumno.id]);
+
+  const handleAddPrograma = async () => {
+    if (!nuevoPrograma.plan_id) return toast.error('Selecciona un plan de estudios');
+    try {
+      const { error } = await supabase.from('alumno_programas').insert({
+        alumno_id: alumno.id,
+        ...nuevoPrograma
+      });
+      if (error) throw error;
+      toast.success('Programa añadido al historial');
+      setIsAddingPrograma(false);
+      fetchProgramas();
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al añadir el programa');
+    }
+  };
+
+  useEffect(() => {
+    fetchProgramas();
+  }, [fetchProgramas]);
 
   const handleBuscarGES = async () => {
     if (!terminoBusqueda.trim()) return;
@@ -1341,6 +1400,128 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
           placeholder="Ej. Náhuatl o 'NINGUNA'"
         />
       </Section>
+
+      {/* ── Historial de Programas Académicos (Multi-Plan) ── */}
+      <div className="mt-8 bg-white dark:bg-[#181e25] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] rounded-[16px] overflow-hidden shadow-sm">
+        <div className="p-5 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] flex justify-between items-center bg-gray-50 dark:bg-[#1c2228]">
+          <h3 className="text-[15px] font-bold text-[#222222] dark:text-gray-100 flex items-center gap-2" style={{ fontFamily: 'var(--font-display)' }}>
+            <span className="bg-[#bfdbfe] dark:bg-[#1d4ed8]/30 text-[#1456f0] dark:text-[#60a5fa] p-1.5 rounded-[8px]"><GraduationCap size={16} /></span>
+            Historial de Programas Académicos
+          </h3>
+          {isAdmin && !isAddingPrograma && (
+            <button
+              onClick={() => setIsAddingPrograma(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-[#1456f0] dark:text-white bg-[#eef2ff] dark:bg-[#1456f0] border border-[#bfdbfe] dark:border-transparent rounded-[6px] hover:bg-[#dbeafe] dark:hover:bg-blue-600 transition-colors"
+            >
+              + Inscribir a Programa
+            </button>
+          )}
+        </div>
+
+        {isAddingPrograma && (
+          <div className="p-4 bg-[#f8f9ff] dark:bg-blue-900/10 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]">
+            <h4 className="text-xs font-semibold text-[#45515e] dark:text-gray-300 mb-3 uppercase tracking-wider">Nueva Inscripción</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Plan de Estudios</label>
+                <select
+                  value={nuevoPrograma.plan_id}
+                  onChange={e => setNuevoPrograma(p => ({ ...p, plan_id: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-[6px] p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-[#222222] dark:text-gray-200"
+                >
+                  <option value="">Seleccione un plan...</option>
+                  {planesDisponibles.map(p => (
+                    <option key={p.id} value={p.id}>{p.clave_legado} - {p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Fecha de Inscripción</label>
+                <input
+                  type="date"
+                  value={nuevoPrograma.fecha_inscripcion}
+                  onChange={e => setNuevoPrograma(p => ({ ...p, fecha_inscripcion: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-[6px] p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-[#222222] dark:text-gray-200"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Estatus</label>
+                <select
+                  value={nuevoPrograma.estatus}
+                  onChange={e => setNuevoPrograma(p => ({ ...p, estatus: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-[6px] p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-[#222222] dark:text-gray-200"
+                >
+                  <option value="CURSANDO">CURSANDO</option>
+                  <option value="BAJA">BAJA</option>
+                  <option value="EGRESADO">EGRESADO</option>
+                  <option value="TITULADO">TITULADO</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddPrograma}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[6px] text-sm font-semibold transition-colors shadow-sm"
+              >
+                Guardar Inscripción
+              </button>
+              <button
+                onClick={() => setIsAddingPrograma(false)}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-[6px] text-sm font-semibold transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50/50 dark:bg-[#1c2228]/50 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.06)]">
+              <tr className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-3">Clave</th>
+                <th className="px-4 py-3">Programa / Licenciatura</th>
+                <th className="px-4 py-3 text-center">F. Inscripción</th>
+                <th className="px-4 py-3 text-center">Estatus</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e5e7eb] dark:divide-[rgba(255,255,255,0.04)] text-sm">
+              {loadingProgramas ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                    <Loader2 size={20} className="animate-spin mx-auto text-[#1456f0]" />
+                  </td>
+                </tr>
+              ) : programas.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400 italic text-sm">
+                    No hay programas registrados en el historial de este alumno.
+                  </td>
+                </tr>
+              ) : (
+                programas.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+                    <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-300">{p.planes_estudio?.clave_legado || '-'}</td>
+                    <td className="px-4 py-3 font-bold text-[#222222] dark:text-gray-100">{p.planes_estudio?.nombre}</td>
+                    <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{formatFecha(p.fecha_inscripcion)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex px-2.5 py-1 rounded-[6px] text-[11px] font-bold tracking-wider ${
+                        p.estatus === 'CURSANDO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                        p.estatus === 'BAJA' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' :
+                        p.estatus === 'EGRESADO' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' :
+                        p.estatus === 'TITULADO' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                      }`}>
+                        {p.estatus}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* ── Nota informativa (no admin) ───────────────────────────────── */}
       {!isAdmin && (
