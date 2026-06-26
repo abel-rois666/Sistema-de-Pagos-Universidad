@@ -276,20 +276,32 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
         const p3 = item.ordinario?.parcial_3;
         
         const finalCalif = item.mejor_calificacion;
-        const hasFinal = finalCalif !== null && finalCalif !== undefined;
         const isAcreditada = item.acreditada;
         
-        // REGLA 1 (Por Final): Tiene calificación final explícita y es reprobatoria (0, 5, -555 o menor a 6)
-        const isReprobadaPorFinal = hasFinal && finalCalif < 6;
+        // Helper: Un valor se considera "vacío" o "no capturado" si es null, undefined o exactamente 0.
+        const isVacio = (v: any) => v === null || v === undefined || v === 0;
         
-        // REGLA 2 (Por Parciales): Sin final, pero los 3 parciales capturados son letales (0, 5, o -555)
-        const isReprobadaPorParciales = !hasFinal &&
-                                        p1 !== null && p1 !== undefined &&
-                                        p2 !== null && p2 !== undefined &&
-                                        p3 !== null && p3 !== undefined &&
-                                        [p1, p2, p3].every(p => p === 0 || p === 5 || p === -555);
+        // Verificamos si la captura del semestre está en curso (tiene huecos o ceros por defecto)
+        const parcialesIncompletos = isVacio(p1) || isVacio(p2) || isVacio(p3);
+        
+        // --- REGLAS ESTRICTAS DE REPROBACIÓN ---
+        
+        // A) Final explícito: 5, NP (-555), o una calificación real entre 0.1 y 5.9
+        const finalExplicito = finalCalif === 5 || finalCalif === -555 || (finalCalif !== null && finalCalif > 0 && finalCalif < 6);
+        
+        // B) Final en 0 legítimo: Tiene 0 en el final, PERO sus 3 parciales sí fueron capturados (ninguno está vacío). 
+        // Esto diferencia un abandono real de un "0 de inicialización de sistema".
+        const reprobadaConCero = finalCalif === 0 && !parcialesIncompletos;
+        
+        // C) Reprobada por parciales letales: No tiene final (o es 0), pero sus 3 parciales están capturados y todos son exactamente 5 o NP.
+        const tresParcialesLetales = !isVacio(p1) && !isVacio(p2) && !isVacio(p3) && 
+                                     [p1, p2, p3].every(p => p === 5 || p === -555);
                                      
-        const isReprobada = isReprobadaPorFinal || isReprobadaPorParciales;
+        // Evaluación final de reprobación
+        const isReprobada = !isAcreditada && (finalExplicito || reprobadaConCero || tresParcialesLetales);
+        
+        // --- REGLA DE CURSANDO ---
+        // Si no está acreditada y no superó las reglas estrictas de reprobación (es decir, está llena de 0s, nulls, o faltan parciales), está en curso.
         const isPorAcreditar = !isAcreditada && !isReprobada;
 
         if (filtroEstatus.includes('Acreditadas') && isAcreditada) return true;
