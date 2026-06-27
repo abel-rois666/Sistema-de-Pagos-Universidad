@@ -121,7 +121,16 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       
       if (data && data.length > 0) {
         setProgramas(data);
-        setPlanActivoId(prev => prev && data.some(d => d.plan_id === prev) ? prev : data[0].plan_id);
+        
+        const planPrincipal = data.find(p => 
+          p.planes_estudio?.nombre === alumno.licenciatura || 
+          p.planes_estudio?.clave_legado === alumno.licenciatura
+        ) || data.find(p => p.estatus === 'CURSANDO') || data[0];
+
+        setPlanActivoId(prev => {
+          if (prev && data.some(d => d.plan_id === prev)) return prev;
+          return planPrincipal.plan_id;
+        });
       } else {
         // AUTO-HEALING
         const { data: kardexDeducido } = await supabase
@@ -310,7 +319,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     });
 
     return Array.from(mapa.values());
-  }, [historial]);
+  }, [historial, planActivoId]);
 
   // Aplica filtros y calcula estadísticas
   const { datosFiltrados, estadisticas } = useMemo(() => {
