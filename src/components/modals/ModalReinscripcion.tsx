@@ -19,28 +19,27 @@ interface ModalReinscripcionProps {
 
 const calcularSiguienteGradoYEstatus = (gradoActual: string | null, planNombre: string, tipoPeriodo: string) => {
   let limite = 10;
-  const nombreLower = planNombre.toLowerCase();
+  const nombreLower = planNombre?.toLowerCase() || '';
   const periodoLower = tipoPeriodo?.toLowerCase() || '';
 
   if (nombreLower.includes('especialidad')) limite = 3;
   else if (periodoLower.includes('semestral')) limite = 8;
   else if (periodoLower.includes('cuatrimestral')) limite = 10;
 
-  if (!gradoActual) return { nuevoGrado: '1', nuevoEstatus: 'CURSANDO' };
+  // Si viene nulo, vacío o es "0" del GES 4, asume que pasa a 1er grado
+  if (!gradoActual || gradoActual === '0' || gradoActual.trim() === '') {
+    return { nuevoGrado: '1', nuevoEstatus: 'CURSANDO' };
+  }
   
   const match = gradoActual.match(/\d+/);
   if (match) {
     const num = parseInt(match[0], 10);
-    
     if (num >= limite) {
       return { nuevoGrado: gradoActual, nuevoEstatus: 'EGRESADO' };
     }
-    
-    return { 
-      nuevoGrado: gradoActual.replace(match[0], (num + 1).toString()), 
-      nuevoEstatus: 'CURSANDO' 
-    };
+    return { nuevoGrado: gradoActual.replace(match[0], (num + 1).toString()), nuevoEstatus: 'CURSANDO' };
   }
+  
   return { nuevoGrado: gradoActual, nuevoEstatus: 'CURSANDO' };
 };
 

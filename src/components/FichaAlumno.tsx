@@ -112,22 +112,46 @@ export default function FichaAlumno({
   useEffect(() => {
     if (!selectedAlumnoId) return;
     const fetchProgramas = async () => {
-      const { data } = await supabase
-        .from('alumno_programas')
-        .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo)')
-        .eq('alumno_id', selectedAlumnoId)
-        .order('fecha_inscripcion', { ascending: false });
-      
-      if (data && data.length > 0) {
-        setProgramas(data);
-        setPlanActivoId(data[0].plan_id); // Por defecto el más reciente
-      } else {
-        setProgramas([]);
-        setPlanActivoId(null);
+      try {
+        const { data } = await supabase
+          .from('alumno_programas')
+          .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo)')
+          .eq('alumno_id', selectedAlumnoId)
+          .order('fecha_inscripcion', { ascending: false });
+        
+        if (data && data.length > 0) {
+          setProgramas(data);
+          setPlanActivoId(data[0].plan_id);
+        } else {
+          // AUTO-HEALING PARA ALUMNOS IMPORTADOS DEL GES 4
+          const { data: kardexDeducido } = await supabase
+            .from('inscripciones_academicas')
+            .select('asignaturas(plan_id)')
+            .eq('alumno_id', selectedAlumnoId)
+            .limit(1);
+
+          const planDeducido = kardexDeducido?.[0]?.asignaturas?.plan_id;
+          const alumno = alumnos.find(a => a.id === selectedAlumnoId);
+
+          if (planDeducido && alumno) {
+            await supabase.from('alumno_programas').insert({
+              alumno_id: selectedAlumnoId,
+              plan_id: planDeducido,
+              estatus: alumno.estatus || 'CURSANDO',
+              fecha_inscripcion: new Date().toISOString().split('T')[0]
+            });
+            fetchProgramas(); 
+          } else {
+            setProgramas([]);
+            setPlanActivoId(null);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching/healing programas:", error);
       }
     };
     fetchProgramas();
-  }, [selectedAlumnoId]);
+  }, [selectedAlumnoId, alumnos]);
 
   // ── Derivados ─────────────────────────────────────────────────────────────
   const filteredAlumnos = alumnos.filter(a =>
@@ -352,10 +376,10 @@ export default function FichaAlumno({
                           </option>
                         ))}
                       </select>
-                      {isAdmin && (
+                      {isAdmin && planActivoId && !['BAJA', 'EGRESADO', 'TITULADO'].includes(selectedAlumno.estatus?.toUpperCase() || '') && (
                         <button 
                           onClick={() => setShowReinscripcion(true)}
-                          className="ml-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm transition-colors"
+                          className="ml-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm transition-colors flex items-center gap-2"
                         >
                           Reinscribir a Nuevo Ciclo
                         </button>
