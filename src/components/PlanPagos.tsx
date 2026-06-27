@@ -646,17 +646,44 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                    <input
-                      type="text"
-                      list="licenciaturas-list"
-                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                      value={newPlanForm.licenciatura || ''}
-                      placeholder="Ej. Licenciatura en Derecho..."
-                      onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
-                    />
-                    <datalist id="licenciaturas-list">
-                      {catalogos?.licenciaturas?.map(l => <option key={l} value={l} />)}
-                    </datalist>
+                    {catalogos?.licenciaturas?.length ? (
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <select
+                          className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                          value={catalogos.licenciaturas.includes(newPlanForm.licenciatura || '') ? newPlanForm.licenciatura || '' : ((newPlanForm.licenciatura || '') !== '' ? 'OTRA' : '')}
+                          onChange={(e) => {
+                            if (e.target.value === 'OTRA') {
+                              setNewPlanForm({ ...newPlanForm, licenciatura: ' ' }); // Espacio en blanco para activar el input
+                            } else {
+                              setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value });
+                            }
+                          }}
+                        >
+                          <option value="">-- Seleccione --</option>
+                          {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                          <option value="OTRA">✏️ Escribir manualmente...</option>
+                        </select>
+                        
+                        {!catalogos.licenciaturas.includes(newPlanForm.licenciatura || '') && (newPlanForm.licenciatura || '') !== '' && (
+                          <input
+                            type="text"
+                            className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                            value={(newPlanForm.licenciatura || '').trim()}
+                            placeholder="Nombre del programa..."
+                            onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value || ' ' })}
+                            autoFocus
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                        value={newPlanForm.licenciatura || ''}
+                        placeholder="Ej. Licenciatura en Derecho..."
+                        onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
+                      />
+                    )}
                   </div>
                   <div className="col-span-2 md:col-span-2">
                     <label className="block text-sm font-medium text-[#45515e] mb-1">Grado y Turno (Opcional)</label>
@@ -1618,17 +1645,44 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                  <input
-                    type="text"
-                    list="licenciaturas-list-edit"
-                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                    value={editForm.licenciatura || ''}
-                    placeholder="Ej. Licenciatura en Derecho..."
-                    onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
-                  />
-                  <datalist id="licenciaturas-list-edit">
-                    {catalogos?.licenciaturas?.map(l => <option key={l} value={l} />)}
-                  </datalist>
+                  {catalogos?.licenciaturas?.length ? (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                        value={catalogos.licenciaturas.includes(editForm.licenciatura || '') ? editForm.licenciatura || '' : ((editForm.licenciatura || '') !== '' ? 'OTRA' : '')}
+                        onChange={(e) => {
+                          if (e.target.value === 'OTRA') {
+                            setEditForm({ ...editForm, licenciatura: ' ' }); // Espacio en blanco para activar el input
+                          } else {
+                            setEditForm({ ...editForm, licenciatura: e.target.value });
+                          }
+                        }}
+                      >
+                        <option value="">-- Seleccione --</option>
+                        {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                        <option value="OTRA">✏️ Escribir manualmente...</option>
+                      </select>
+                      
+                      {!catalogos.licenciaturas.includes(editForm.licenciatura || '') && (editForm.licenciatura || '') !== '' && (
+                        <input
+                          type="text"
+                          className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                          value={(editForm.licenciatura || '').trim()}
+                          placeholder="Nombre del programa..."
+                          onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value || ' ' })}
+                          autoFocus
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                      value={editForm.licenciatura || ''}
+                      placeholder="Ej. Licenciatura en Derecho..."
+                      onChange={(e) => setEditForm({ ...editForm, licenciatura: e.target.value })}
+                    />
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Grado y Turno</label>
@@ -1956,17 +2010,44 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                  <input
-                    type="text"
-                    list="licenciaturas-list-new"
-                    className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                    value={newPlanForm.licenciatura || ''}
-                    placeholder="Ej. Licenciatura en Derecho..."
-                    onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
-                  />
-                  <datalist id="licenciaturas-list-new">
-                    {catalogos?.licenciaturas?.map(l => <option key={l} value={l} />)}
-                  </datalist>
+                  {catalogos?.licenciaturas?.length ? (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                        value={catalogos.licenciaturas.includes(newPlanForm.licenciatura || '') ? newPlanForm.licenciatura || '' : ((newPlanForm.licenciatura || '') !== '' ? 'OTRA' : '')}
+                        onChange={(e) => {
+                          if (e.target.value === 'OTRA') {
+                            setNewPlanForm({ ...newPlanForm, licenciatura: ' ' }); // Espacio en blanco para activar el input
+                          } else {
+                            setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value });
+                          }
+                        }}
+                      >
+                        <option value="">-- Seleccione --</option>
+                        {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                        <option value="OTRA">✏️ Escribir manualmente...</option>
+                      </select>
+                      
+                      {!catalogos.licenciaturas.includes(newPlanForm.licenciatura || '') && (newPlanForm.licenciatura || '') !== '' && (
+                        <input
+                          type="text"
+                          className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                          value={(newPlanForm.licenciatura || '').trim()}
+                          placeholder="Nombre del programa..."
+                          onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value || ' ' })}
+                          autoFocus
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
+                      value={newPlanForm.licenciatura || ''}
+                      placeholder="Ej. Licenciatura en Derecho..."
+                      onChange={(e) => setNewPlanForm({ ...newPlanForm, licenciatura: e.target.value })}
+                    />
+                  )}
                 </div>
               </div>
 
