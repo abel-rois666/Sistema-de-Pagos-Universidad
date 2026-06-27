@@ -15,34 +15,48 @@ export default function ModalGenerarCarga({ alumnoId, planId, onClose, onSuccess
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [yaInscritas, setYaInscritas] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const fetchAsignaturas = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('asignaturas')
-        .select('*')
-        .eq('plan_id', planId)
-        .eq('activo', true)
-        .order('numero_periodo');
+      
+      const [asignaturasRes, inscripcionesRes] = await Promise.all([
+        supabase
+          .from('asignaturas')
+          .select('*')
+          .eq('plan_id', planId)
+          .eq('activo', true)
+          .order('numero_periodo'),
+        supabase
+          .from('inscripciones_academicas')
+          .select('asignatura_id')
+          .eq('alumno_id', alumnoId)
+      ]);
 
-      if (error) {
+      if (asignaturasRes.error) {
         toast.error('Error al cargar la retícula');
-      } else if (data) {
-        setAsignaturas(data);
+      } else if (asignaturasRes.data) {
+        setAsignaturas(asignaturasRes.data);
         
-        // Pre-seleccionar obligatorias (263)
-        const obligatorias = new Set<string>();
-        data.forEach(a => {
-          if (a.clasificacion_clave === '263') obligatorias.add(a.id);
+        const inscritasSet = new Set<string>();
+        if (inscripcionesRes.data) {
+          inscripcionesRes.data.forEach(i => inscritasSet.add(i.asignatura_id));
+        }
+        setYaInscritas(inscritasSet);
+
+        // Pre-seleccionar obligatorias (263) y las ya inscritas
+        const iniciales = new Set<string>(inscritasSet);
+        asignaturasRes.data.forEach(a => {
+          if (a.clasificacion_clave === '263') iniciales.add(a.id);
         });
-        setSelectedIds(obligatorias);
+        setSelectedIds(iniciales);
       }
       setLoading(false);
     };
 
-    fetchAsignaturas();
-  }, [planId]);
+    fetchData();
+  }, [planId, alumnoId]);
 
   const handleToggle = (id: string) => {
     const next = new Set(selectedIds);
@@ -52,10 +66,18 @@ export default function ModalGenerarCarga({ alumnoId, planId, onClose, onSuccess
   };
 
   const handleSave = async () => {
-    if (selectedIds.size === 0) return toast.error('Selecciona al menos una materia');
+    // Filtrar IDs que ya estaban inscritos
+    const nuevasInscripciones = Array.from(selectedIds).filter(id => !yaInscritas.has(id));
+
+    if (nuevasInscripciones.length === 0) {
+      toast.success('No hay materias nuevas que generar.');
+      onSuccess();
+      return;
+    }
+
     setSaving(true);
     
-    const inscripciones = Array.from(selectedIds).map(id => ({
+    const inscripciones = nuevasInscripciones.map(id => ({
       alumno_id: alumnoId,
       asignatura_id: id,
       observaciones: 'Carga inicial'
@@ -119,20 +141,32 @@ export default function ModalGenerarCarga({ alumnoId, planId, onClose, onSuccess
                     {grupos[p].map(a => {
                       const isSelected = selectedIds.has(a.id);
                       const isObligatoria = a.clasificacion_clave === '263';
+                      const isYaInscrita = yaInscritas.has(a.id);
                       
                       return (
                         <div 
                           key={a.id} 
-                          onClick={() => handleToggle(a.id)}
-                          className={`flex items-center gap-3 p-3 cursor-pointer bg-white dark:bg-[#181e25] hover:bg-gray-50 dark:hover:bg-[#222a35] transition-colors ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                          onClick={() => {
+                            if (!isYaInscrita) handleToggle(a.id);
+                          }}
+                          className={`flex items-center gap-3 p-3 transition-colors ${
+                            isYaInscrita 
+                              ? 'bg-gray-50/50 dark:bg-gray-800/30 opacity-70 cursor-not-allowed'
+                              : isSelected 
+                                ? 'bg-blue-50/50 dark:bg-blue-900/10 cursor-pointer'
+                                : 'bg-white dark:bg-[#181e25] hover:bg-gray-50 dark:hover:bg-[#222a35] cursor-pointer'
+                          }`}
                         >
-                          <div className={`shrink-0 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                          <div className={`shrink-0 ${isYaInscrita ? 'text-gray-400' : isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
                             {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{a.clave_legado} - {a.nombre}</p>
                             <p className="text-[11px] text-gray-500 dark:text-gray-400">Créditos: {a.creditos} • {a.clasificacion_nombre || (isObligatoria ? 'Obligatoria' : 'Optativa')}</p>
                           </div>
+                          {isYaInscrita && (
+                            <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">Ya en Kardex</span>
+                          )}
                         </div>
                       );
                     })}
