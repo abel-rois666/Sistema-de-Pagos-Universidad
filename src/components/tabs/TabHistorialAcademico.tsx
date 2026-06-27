@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, Download, AlertCircle, BookOpen, GraduationCap, CheckCircle2, TrendingUp, CalendarDays, Filter } from 'lucide-react';
 import { MultiSelectFilter } from '../MultiSelectFilter';
 import ModalGenerarCarga from '../modals/ModalGenerarCarga';
+import ModalReinscripcion from '../modals/ModalReinscripcion';
 import { supabase } from '../../lib/supabase';
 import type { Alumno, InscripcionAcademica } from '../../types';
+import { useAppStore } from '../../store/appStore';
 import toast from 'react-hot-toast';
 
 interface TabHistorialAcademicoProps {
   alumno: Alumno;
-  planActivoId?: string | null;
 }
 
 const renderCalif = (cal?: number | null): string | number => {
@@ -55,11 +56,18 @@ const getCicloWeight = (cicloStr?: string | null): number => {
   return 999999;
 };
 
-export default function TabHistorialAcademico({ alumno, planActivoId }: TabHistorialAcademicoProps) {
+export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoProps) {
   const [historial, setHistorial] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showModalCarga, setShowModalCarga] = useState(false);
+
+  // Multi-Plan context
+  const [programas, setProgramas] = useState<any[]>([]);
+  const [planActivoId, setPlanActivoId] = useState<string | null>(null);
+  const [showModalReinscripcion, setShowModalReinscripcion] = useState(false);
+  
+  const { ciclos } = useAppStore();
 
   // Filtros
   const OPCIONES_ESTATUS = ['Acreditadas', 'Reprobadas', 'Por acreditar / Cursando'];
@@ -103,9 +111,54 @@ export default function TabHistorialAcademico({ alumno, planActivoId }: TabHisto
     }
   };
 
+  const fetchProgramas = async () => {
+    try {
+      const { data } = await supabase
+        .from('alumno_programas')
+        .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo)')
+        .eq('alumno_id', alumno.id)
+        .order('fecha_inscripcion', { ascending: false });
+      
+      if (data && data.length > 0) {
+        setProgramas(data);
+        setPlanActivoId(prev => prev && data.some(d => d.plan_id === prev) ? prev : data[0].plan_id);
+      } else {
+        // AUTO-HEALING
+        const { data: kardexDeducido } = await supabase
+          .from('inscripciones_academicas')
+          .select('asignaturas(plan_id)')
+          .eq('alumno_id', alumno.id)
+          .limit(1);
+
+        const planDeducido = kardexDeducido?.[0]?.asignaturas?.plan_id;
+        if (planDeducido) {
+          await supabase.from('alumno_programas').insert({
+            alumno_id: alumno.id,
+            plan_id: planDeducido,
+            estatus: alumno.estatus || 'CURSANDO',
+            fecha_inscripcion: new Date().toISOString().split('T')[0]
+          });
+          const { data: dataActualizada } = await supabase
+            .from('alumno_programas')
+            .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo)')
+            .eq('alumno_id', alumno.id)
+            .order('fecha_inscripcion', { ascending: false });
+            
+          if(dataActualizada) {
+             setProgramas(dataActualizada);
+             setPlanActivoId(dataActualizada[0].plan_id);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching programas:", error);
+    }
+  };
+
   useEffect(() => {
     if (alumno?.id) {
       fetchHistorialLocal();
+      fetchProgramas();
     }
   }, [alumno]);
 
@@ -198,6 +251,7 @@ export default function TabHistorialAcademico({ alumno, planActivoId }: TabHisto
 
       toast.success('Historial sincronizado exitosamente.');
       await fetchHistorialLocal();
+      await fetchProgramas(); // Dispara el auto-healing y actualiza el selector inmediatamente
 
     } catch (error: any) {
       console.error('Error sincronizando con GES 4:', error);
@@ -583,6 +637,35 @@ export default function TabHistorialAcademico({ alumno, planActivoId }: TabHisto
                 </div>
             </div>
 
+            {/* ── Selector Multi-Plan y Reinscripción ── */}
+            {programas.length > 0 && (
+              <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg border border-gray-200 dark:border-gray-700 mb-4 mt-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">Plan de Estudios:</span>
+                  <select 
+                    value={planActivoId || ''} 
+                    onChange={(e) => setPlanActivoId(e.target.value)}
+                    className="text-sm bg-white dark:bg-[#1c2228] border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-blue-600 dark:text-blue-400 font-bold focus:ring-2 focus:ring-blue-500"
+                  >
+                    {programas.map(prog => (
+                      <option key={prog.plan_id} value={prog.plan_id}>
+                        {prog.planes_estudio?.clave_legado} - {prog.planes_estudio?.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {!['BAJA', 'EGRESADO', 'TITULADO'].includes(alumno.estatus?.toUpperCase() || '') && planActivoId && (
+                  <button 
+                    onClick={() => setShowModalReinscripcion(true)}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors shadow-sm flex items-center gap-2"
+                  >
+                    🔄 Reinscribir a Nuevo Ciclo
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* ── Barra de Filtros ── */}
             <div className="bg-[#f8f9ff] dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[12px] p-3 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -749,6 +832,25 @@ export default function TabHistorialAcademico({ alumno, planActivoId }: TabHisto
         </div>
       )}
       
+      {/* MONTAJE EXPLÍCITO DEL MODAL DE REINSCRIPCIÓN */}
+      {showModalReinscripcion && planActivoId && (
+        <ModalReinscripcion
+           alumnoId={alumno.id}
+           alumnoGradoActual={alumno.grado_actual}
+           alumnoEstatus={alumno.estatus || 'ACTIVO'}
+           planActivoId={planActivoId}
+           planActivoNombre={programas.find(p => p.plan_id === planActivoId)?.planes_estudio?.nombre || ''}
+           planActivoTipoPeriodo={programas.find(p => p.plan_id === planActivoId)?.planes_estudio?.tipo_periodo || ''}
+           ciclos={ciclos}
+           onClose={() => setShowModalReinscripcion(false)}
+           onSuccess={() => {
+              setShowModalReinscripcion(false);
+              fetchHistorialLocal();
+              fetchProgramas();
+           }}
+        />
+      )}
+
       {showModalCarga && planActivoId && (
         <ModalGenerarCarga 
           alumnoId={alumno.id} 

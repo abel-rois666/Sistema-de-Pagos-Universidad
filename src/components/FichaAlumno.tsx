@@ -11,7 +11,6 @@ import TabCertificacion from './tabs/TabCertificacion';
 import TabTitulacion from './tabs/TabTitulacion';
 import TabDatosGenerales from './tabs/TabDatosGenerales';
 import TabHistorialAcademico from './tabs/TabHistorialAcademico';
-import ModalReinscripcion from './modals/ModalReinscripcion';
 
 // ── Tabs disponibles ────────────────────────────────────────────────────────
 type TabId = 'pagos' | 'datos_generales' | 'academico' | 'servicio_social' | 'certificacion' | 'titulacion';
@@ -54,7 +53,6 @@ export default function FichaAlumno({
     appConfig,
     activeCicloId,
     refreshAfterPayment,
-    ciclos
   } = useAppStore();
 
   const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
@@ -103,55 +101,6 @@ export default function FichaAlumno({
 
   // Resetear tab al cambiar de alumno
   useEffect(() => { setActiveTab('pagos'); }, [selectedAlumnoId]);
-
-  // Contexto Multi-Plan
-  const [programas, setProgramas] = useState<any[]>([]);
-  const [planActivoId, setPlanActivoId] = useState<string | null>(null);
-  const [showReinscripcion, setShowReinscripcion] = useState(false);
-
-  useEffect(() => {
-    if (!selectedAlumnoId) return;
-    const fetchProgramas = async () => {
-      try {
-        const { data } = await supabase
-          .from('alumno_programas')
-          .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo)')
-          .eq('alumno_id', selectedAlumnoId)
-          .order('fecha_inscripcion', { ascending: false });
-        
-        if (data && data.length > 0) {
-          setProgramas(data);
-          setPlanActivoId(data[0].plan_id);
-        } else {
-          // AUTO-HEALING PARA ALUMNOS IMPORTADOS DEL GES 4
-          const { data: kardexDeducido } = await supabase
-            .from('inscripciones_academicas')
-            .select('asignaturas(plan_id)')
-            .eq('alumno_id', selectedAlumnoId)
-            .limit(1);
-
-          const planDeducido = kardexDeducido?.[0]?.asignaturas?.plan_id;
-          const alumno = alumnos.find(a => a.id === selectedAlumnoId);
-
-          if (planDeducido && alumno) {
-            await supabase.from('alumno_programas').insert({
-              alumno_id: selectedAlumnoId,
-              plan_id: planDeducido,
-              estatus: alumno.estatus || 'CURSANDO',
-              fecha_inscripcion: new Date().toISOString().split('T')[0]
-            });
-            fetchProgramas(); 
-          } else {
-            setProgramas([]);
-            setPlanActivoId(null);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching/healing programas:", error);
-      }
-    };
-    fetchProgramas();
-  }, [selectedAlumnoId, alumnos]);
 
   // ── Derivados ─────────────────────────────────────────────────────────────
   const filteredAlumnos = alumnos.filter(a =>
@@ -360,32 +309,6 @@ export default function FichaAlumno({
                       </div>
                     )}
                   </div>
-
-                  {programas.length > 0 && (
-                    <div className="mt-4 flex flex-wrap items-center gap-2 bg-white/5 border border-white/10 rounded-[10px] p-2 pr-3 w-fit shadow-inner">
-                      <span className="text-xs font-semibold text-white/70 uppercase tracking-wider pl-1">Plan Activo:</span>
-                      <select 
-                        value={planActivoId || ''} 
-                        onChange={(e) => setPlanActivoId(e.target.value)}
-                        className="text-sm bg-white/10 hover:bg-white/15 border border-white/20 rounded-md px-3 py-1 text-white font-semibold shadow-sm focus:ring-2 focus:ring-[#3b82f6] outline-none transition-colors cursor-pointer"
-                        style={{ fontFamily: 'var(--font-ui)' }}
-                      >
-                        {programas.map(prog => (
-                          <option key={prog.plan_id} value={prog.plan_id} className="text-black dark:text-white bg-white dark:bg-[#181e25]">
-                            {prog.planes_estudio?.clave_legado} - {prog.planes_estudio?.nombre} ({prog.estatus})
-                          </option>
-                        ))}
-                      </select>
-                      {isAdmin && planActivoId && !['BAJA', 'EGRESADO', 'TITULADO'].includes(selectedAlumno.estatus?.toUpperCase() || '') && (
-                        <button 
-                          onClick={() => setShowReinscripcion(true)}
-                          className="ml-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm transition-colors flex items-center gap-2"
-                        >
-                          Reinscribir a Nuevo Ciclo
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -463,7 +386,7 @@ export default function FichaAlumno({
             />
           )}
           {activeTab === 'academico' && (
-            <TabHistorialAcademico alumno={selectedAlumno} planActivoId={planActivoId} />
+            <TabHistorialAcademico alumno={selectedAlumno} />
           )}
           {activeTab === 'servicio_social' && isAdmin && (
             <TabServicioSocial
