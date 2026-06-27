@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 
 interface TabHistorialAcademicoProps {
   alumno: Alumno;
+  planActivoId?: string | null;
 }
 
 const renderCalif = (cal?: number | null): string | number => {
@@ -53,7 +54,7 @@ const getCicloWeight = (cicloStr?: string | null): number => {
   return 999999;
 };
 
-export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoProps) {
+export default function TabHistorialAcademico({ alumno, planActivoId }: TabHistorialAcademicoProps) {
   const [historial, setHistorial] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -77,6 +78,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
             clasificacion_clave,
             clasificacion_nombre,
             numero_periodo,
+            plan_id,
             planes_estudio (
               nombre,
               clave_legado,
@@ -212,6 +214,9 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     const mapa = new Map<string, any>();
 
     historial.forEach((reg) => {
+      // FILTRO DE CONTEXTO AISLADO
+      if (planActivoId && reg.asignaturas?.plan_id !== planActivoId) return;
+
       const idAsig = reg.asignatura_id;
       if (!mapa.has(idAsig)) {
         mapa.set(idAsig, {
