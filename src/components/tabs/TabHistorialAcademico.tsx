@@ -5,7 +5,7 @@ import ModalGenerarCarga from '../modals/ModalGenerarCarga';
 import ModalReinscripcion from '../modals/ModalReinscripcion';
 import { supabase } from '../../lib/supabase';
 import type { Alumno, InscripcionAcademica } from '../../types';
-import { useAppStore } from '../../store/appStore';
+import { useAppStore } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
 
 interface TabHistorialAcademicoProps {
