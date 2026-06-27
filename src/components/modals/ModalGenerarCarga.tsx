@@ -6,11 +6,12 @@ import toast from 'react-hot-toast';
 interface ModalGenerarCargaProps {
   alumnoId: string;
   planId: string;
+  cicloId?: string; // Optional target cycle
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function ModalGenerarCarga({ alumnoId, planId, onClose, onSuccess }: ModalGenerarCargaProps) {
+export default function ModalGenerarCarga({ alumnoId, planId, cicloId, onClose, onSuccess }: ModalGenerarCargaProps) {
   const [asignaturas, setAsignaturas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,7 +81,8 @@ export default function ModalGenerarCarga({ alumnoId, planId, onClose, onSuccess
     const inscripciones = nuevasInscripciones.map(id => ({
       alumno_id: alumnoId,
       asignatura_id: id,
-      observaciones: 'Carga inicial'
+      ciclo_id: cicloId || null,
+      observaciones: cicloId ? 'Carga de reinscripción' : 'Carga inicial'
     }));
 
     const { error } = await supabase.from('inscripciones_academicas').insert(inscripciones);

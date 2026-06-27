@@ -11,6 +11,7 @@ import TabCertificacion from './tabs/TabCertificacion';
 import TabTitulacion from './tabs/TabTitulacion';
 import TabDatosGenerales from './tabs/TabDatosGenerales';
 import TabHistorialAcademico from './tabs/TabHistorialAcademico';
+import ModalReinscripcion from './modals/ModalReinscripcion';
 
 // ── Tabs disponibles ────────────────────────────────────────────────────────
 type TabId = 'pagos' | 'datos_generales' | 'academico' | 'servicio_social' | 'certificacion' | 'titulacion';
@@ -52,7 +53,8 @@ export default function FichaAlumno({
     catalogoItems,
     appConfig,
     activeCicloId,
-    refreshAfterPayment
+    refreshAfterPayment,
+    ciclos
   } = useAppStore();
 
   const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
@@ -105,13 +107,14 @@ export default function FichaAlumno({
   // Contexto Multi-Plan
   const [programas, setProgramas] = useState<any[]>([]);
   const [planActivoId, setPlanActivoId] = useState<string | null>(null);
+  const [showReinscripcion, setShowReinscripcion] = useState(false);
 
   useEffect(() => {
     if (!selectedAlumnoId) return;
     const fetchProgramas = async () => {
       const { data } = await supabase
         .from('alumno_programas')
-        .select('plan_id, estatus, planes_estudio(nombre, clave_legado)')
+        .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo)')
         .eq('alumno_id', selectedAlumnoId)
         .order('fecha_inscripcion', { ascending: false });
       
@@ -349,6 +352,14 @@ export default function FichaAlumno({
                           </option>
                         ))}
                       </select>
+                      {isAdmin && (
+                        <button 
+                          onClick={() => setShowReinscripcion(true)}
+                          className="ml-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm transition-colors"
+                        >
+                          Reinscribir a Nuevo Ciclo
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
