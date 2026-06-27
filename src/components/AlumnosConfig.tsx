@@ -76,7 +76,14 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   };
 
   const isCoordinador = currentUser.rol === 'COORDINADOR';
-  const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string }>({});
+  const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string; plan_id?: string }>({});
+
+  const [planesEstudioDisponibles, setPlanesEstudioDisponibles] = useState<any[]>([]);
+  React.useEffect(() => {
+    supabase.from('planes_estudio').select('id, nombre, clave_legado').order('nombre').then(({data}) => {
+      if (data) setPlanesEstudioDisponibles(data);
+    });
+  }, []);
 
   // Estado para los datos personales opcionales del modal de creación
   const [newExtras, setNewExtras] = useState({
@@ -221,7 +228,17 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
         discapacidad: newExtras.discapacidad || null,
         lengua_indigena: newExtras.lengua_indigena || null,
       });
-      if (alumnoErr) console.warn('[AlumnosConfig] insert alumno:', alumnoErr.message);
+      if (alumnoErr) {
+        console.warn('[AlumnosConfig] insert alumno:', alumnoErr.message);
+      } else if (editForm.plan_id) {
+        // Auto-matricular al plan en alumno_programas
+        await supabase.from('alumno_programas').insert({
+          alumno_id: alumnoToSave.id,
+          plan_id: editForm.plan_id,
+          estatus: 'CURSANDO',
+          fecha_inscripcion: new Date().toISOString().split('T')[0]
+        });
+      }
 
       // Auto-generar plan de pagos para el ciclo activo
       if (editForm.assignPlanType === 'blank' || editForm.assignPlanType === 'template') {
@@ -1360,14 +1377,17 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                 {/* Row 2: Licenciatura + Grado */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
                   <div>
-                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Licenciatura</label>
-                    {catalogos?.licenciaturas?.length ? (
-                      <select className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value.toUpperCase() })}>
+                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Plan de Estudios (Licenciatura)</label>
+                    {planesEstudioDisponibles.length ? (
+                      <select className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" 
+                        value={editForm.plan_id || ''} 
+                        onChange={e => {
+                          const planId = e.target.value;
+                          const plan = planesEstudioDisponibles.find(p => p.id === planId);
+                          setEditForm({ ...editForm, plan_id: planId, licenciatura: plan ? plan.nombre : '' });
+                        }}>
                         <option value="">-- Seleccionar --</option>
-                        {catalogos.licenciaturas.map(c => <option key={c} value={c}>{c}</option>)}
-                        {editForm.licenciatura && !catalogos.licenciaturas.includes(editForm.licenciatura) && (
-                          <option value={toTitleCase(editForm.licenciatura)}>{toTitleCase(editForm.licenciatura)} (Mantenida)</option>
-                        )}
+                        {planesEstudioDisponibles.map(p => <option key={p.id} value={p.id}>{p.clave_legado} - {p.nombre}</option>)}
                       </select>
                     ) : (
                       <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value.toUpperCase() })} />

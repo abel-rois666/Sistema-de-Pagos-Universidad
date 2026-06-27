@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, Download, AlertCircle, BookOpen, GraduationCap, CheckCircle2, TrendingUp, CalendarDays, Filter } from 'lucide-react';
 import { MultiSelectFilter } from '../MultiSelectFilter';
+import ModalGenerarCarga from '../modals/ModalGenerarCarga';
 import { supabase } from '../../lib/supabase';
 import type { Alumno, InscripcionAcademica } from '../../types';
 import toast from 'react-hot-toast';
@@ -58,6 +59,7 @@ export default function TabHistorialAcademico({ alumno, planActivoId }: TabHisto
   const [historial, setHistorial] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showModalCarga, setShowModalCarga] = useState(false);
 
   // Filtros
   const OPCIONES_ESTATUS = ['Acreditadas', 'Reprobadas', 'Por acreditar / Cursando'];
@@ -516,9 +518,10 @@ export default function TabHistorialAcademico({ alumno, planActivoId }: TabHisto
         
         <div className="flex gap-2">
             <button
+            onClick={() => setShowModalCarga(true)}
             className="flex items-center gap-2 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.12)] text-[#222222] dark:text-gray-200 px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] hover:shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-            disabled={true}
-            title="Próximamente"
+            title="Inscribir materias del plan actual"
+            disabled={!planActivoId}
             >
             <CalendarDays size={16} className="text-gray-500" />
             <span className="hidden sm:inline">Generar Carga</span>
@@ -744,6 +747,18 @@ export default function TabHistorialAcademico({ alumno, planActivoId }: TabHisto
               </div>
           </div>
         </div>
+      )}
+      
+      {showModalCarga && planActivoId && (
+        <ModalGenerarCarga 
+          alumnoId={alumno.id} 
+          planId={planActivoId} 
+          onClose={() => setShowModalCarga(false)}
+          onSuccess={() => {
+            setShowModalCarga(false);
+            fetchHistorialLocal();
+          }}
+        />
       )}
     </div>
   );
