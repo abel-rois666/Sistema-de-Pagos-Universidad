@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, BookOpen, Layers, AlertCircle, FileText, Trash2, X, CheckSquare, Square, Edit2, Save, ChevronUp, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { RefreshCw, BookOpen, Layers, AlertCircle, FileText, Trash2, X, CheckSquare, Square, Edit2, Save, ChevronUp, ChevronDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
-import type { PlanEstudio, Asignatura } from '../types';
+import type { PlanEstudio, Asignatura, Carrera } from '../types';
+import ModalCarrera from './modals/ModalCarrera';
+import ModalPlanEstudio from './modals/ModalPlanEstudio';
 
 const normalizeText = (text: string) => {
   if (!text) return '';
@@ -34,7 +36,17 @@ const getClasificacionColor = (clave: string | undefined | null) => {
 };
 
 export default function ControlAcademico() {
-  const { catalogoItems } = useAppStore();
+  const { catalogoItems, carreras } = useAppStore();
+  
+  // Carrera States
+  const [selectedCarrera, setSelectedCarrera] = useState<Carrera | null>(null);
+  const [showModalCarrera, setShowModalCarrera] = useState(false);
+  const [carreraToEdit, setCarreraToEdit] = useState<Carrera | null>(null);
+
+  // Plan States
+  const [showModalPlan, setShowModalPlan] = useState(false);
+  const [planToEdit, setPlanToEdit] = useState<PlanEstudio | null>(null);
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [planesLocal, setPlanesLocal] = useState<PlanEstudio[]>([]);
   const [asignaturasLocal, setAsignaturasLocal] = useState<Asignatura[]>([]);
@@ -66,16 +78,7 @@ export default function ControlAcademico() {
 
   const closeConfirmDialog = () => setConfirmDialog(prev => ({ ...prev, isOpen: false }));
 
-  // Estado para Crear Plan
-  const [isCreatingPlan, setIsCreatingPlan] = useState(false);
-  const [newPlanForm, setNewPlanForm] = useState({
-    licenciatura_id: '',
-    clave_legado: '',
-    nombre: '',
-    tipo_periodo: 'Semestral',
-    modelo: 'RIGIDO',
-    creditos_obligatorios: 0,
-  });
+  // (Removido: Estados de Crear Plan manuales, ahora usa ModalPlanEstudio)
 
   // Estado para Crear Asignatura
   const [isCreatingAsignatura, setIsCreatingAsignatura] = useState<{isOpen: boolean, periodo: number}>({ isOpen: false, periodo: 1 });
@@ -109,7 +112,8 @@ export default function ControlAcademico() {
 
   const handleEditPlan = (e: React.MouseEvent, plan: PlanEstudio) => {
     e.stopPropagation();
-    setEditModal({ isOpen: true, type: 'plan', id: plan.id, nombre: plan.nombre, tipo_periodo: plan.tipo_periodo || 'Semestral', modelo: plan.modelo || 'RIGIDO' });
+    setPlanToEdit(plan);
+    setShowModalPlan(true);
   };
 
   const handleEditAsignatura = (e: React.MouseEvent, asig: Asignatura) => {
@@ -120,11 +124,7 @@ export default function ControlAcademico() {
   const saveEdit = async () => {
     try {
       if (editModal.type === 'plan') {
-        const { error } = await supabase.from('planes_estudio').update({ nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo, modelo: editModal.modelo }).eq('id', editModal.id);
-        if (error) throw error;
-        setPlanesLocal(prev => prev.map(p => p.id === editModal.id ? { ...p, nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo, modelo: editModal.modelo } : p));
-        if (selectedPlan?.id === editModal.id) setSelectedPlan(prev => prev ? { ...prev, nombre: editModal.nombre, tipo_periodo: editModal.tipo_periodo, modelo: editModal.modelo } : null);
-        toast.success('Plan actualizado');
+        // Obsoleto: Edit de plan se maneja por ModalPlanEstudio
       } else {
         const { error } = await supabase.from('asignaturas').update({ nombre: editModal.nombre, creditos: editModal.creditos, numero_periodo: editModal.numero_periodo }).eq('id', editModal.id);
         if (error) throw error;
@@ -139,31 +139,7 @@ export default function ControlAcademico() {
     }
   };
 
-  const saveNewPlan = async () => {
-    if (!newPlanForm.licenciatura_id || !newPlanForm.clave_legado || !newPlanForm.nombre) {
-      return toast.error("Llena todos los campos requeridos.");
-    }
-    try {
-      const { data, error } = await supabase.from('planes_estudio').insert({
-        licenciatura_id: newPlanForm.licenciatura_id,
-        clave_legado: newPlanForm.clave_legado,
-        nombre: newPlanForm.nombre,
-        tipo_periodo: newPlanForm.tipo_periodo,
-        modelo: newPlanForm.modelo,
-        creditos_obligatorios: newPlanForm.creditos_obligatorios,
-        estatus: 'ACTIVO'
-      }).select().single();
-      
-      if (error) throw error;
-      setPlanesLocal(prev => [...prev, data]);
-      setIsCreatingPlan(false);
-      setNewPlanForm({ licenciatura_id: '', clave_legado: '', nombre: '', tipo_periodo: 'Semestral', modelo: 'RIGIDO', creditos_obligatorios: 0 });
-      toast.success('Plan de estudio creado con éxito');
-    } catch (err) {
-      console.error(err);
-      toast.error('Error al crear plan');
-    }
-  };
+  // (Removido: saveNewPlan, manejado en ModalPlanEstudio)
 
   const saveNewAsignatura = async () => {
     if (!selectedPlan) return;
@@ -321,10 +297,10 @@ export default function ControlAcademico() {
       toast.loading(`Mapeando ${dataGES.length} planes...`, { id: loadingToast });
 
       // Normalización del Catálogo Local
-      const licenciaturasCat = catalogoItems.filter(c => c.tipo === 'licenciatura' && c.activo);
+      const carrerasActivas = carreras.filter(c => c.activo);
       const catMap = new Map<string, string>();
-      licenciaturasCat.forEach(c => {
-        catMap.set(normalizeText(c.valor), c.id);
+      carrerasActivas.forEach(c => {
+        catMap.set(normalizeText(c.nombre), c.id);
       });
 
       let planesIgnorados = 0;
@@ -339,7 +315,7 @@ export default function ControlAcademico() {
         const idCatalogo = catMap.get(normalizedGesName);
 
         if (!idCatalogo) {
-          console.warn(`Se ignoró la carrera: "${gesName}" (Normalizado: "${normalizedGesName}"). No hay coincidencia en el catálogo.`);
+          console.warn(`Se ignoró la carrera: "${gesName}" (Normalizado: "${normalizedGesName}"). No hay coincidencia en la tabla de carreras.`);
           planesIgnorados++;
           continue;
         }
@@ -362,7 +338,8 @@ export default function ControlAcademico() {
           }
 
           planesParaUpsert.push({
-            licenciatura_id: idCatalogo,
+            carrera_id: idCatalogo,
+            licenciatura_id: idCatalogo, // Doble inserción para retrocompatibilidad
             clave_legado: String(clavePlan),
             nombre: String(nombrePlan),
             estatus: String(estatusPlan).toUpperCase()
@@ -680,67 +657,136 @@ export default function ControlAcademico() {
     return `Bloque ${numero}`; // Fallback por defecto
   };
 
-  // Agrupar planes de estudio por la categoría (metadatos) del catálogo
-  const planesAgrupados = planesLocal.reduce((acc, plan) => {
-    const catalogo = catalogoItems.find(c => c.id === plan.licenciatura_id);
-    const rawCategoria = (catalogo?.metadata as any)?.tipo_academico || (catalogo?.metadata as any)?.categoria || (catalogo?.metadata as any)?.nivel || 'Licenciaturas';
-    let categoria = String(rawCategoria).charAt(0).toUpperCase() + String(rawCategoria).slice(1).toLowerCase();
-    if (categoria === 'Licenciatura') categoria = 'Licenciaturas';
-    if (categoria === 'Especialidad') categoria = 'Especialidades';
-    if (categoria === 'Maestria') categoria = 'Maestrías';
-    if (categoria === 'Doctorado') categoria = 'Doctorados';
-    if (!acc[categoria]) acc[categoria] = [];
-    acc[categoria].push(plan);
+  const toTitleCase = (str: string) => {
+    return str.toLowerCase().replace(/(?:^|\s|-)\S/g, match => match.toUpperCase());
+  };
+
+  const getCarreraFullName = (c?: Carrera | null) => {
+    if (!c) return 'Desconocida';
+    const nivel = toTitleCase((c.nivel_educativo || 'Licenciatura').trim());
+    const nombre = toTitleCase(c.nombre.trim());
+    // Si el nombre ya empieza o contiene el nivel, evitar repetirlo
+    if (nombre.toUpperCase().includes(nivel.toUpperCase())) {
+      return nombre;
+    }
+    return `${nivel} en ${nombre}`;
+  };
+
+  const planesFiltrados = selectedCarrera ? planesLocal.filter(p => p.carrera_id === selectedCarrera.id || p.licenciatura_id === selectedCarrera.id) : [];
+
+  // Orden para los niveles educativos (puedes cambiarlo aquí)
+  const ordenNiveles = ['Especialidad', 'Licenciatura', 'Maestría', 'Doctorado'];
+
+  const carrerasAgrupadas = carreras.reduce((acc, c) => {
+    const nivel = toTitleCase((c.nivel_educativo || 'Licenciatura').trim());
+    if (!acc[nivel]) acc[nivel] = [];
+    acc[nivel].push(c);
     return acc;
-  }, {} as Record<string, PlanEstudio[]>);
+  }, {} as Record<string, Carrera[]>);
+
+  const nivelesOrdenados = Object.keys(carrerasAgrupadas).sort((a, b) => {
+    const idxA = ordenNiveles.indexOf(a);
+    const idxB = ordenNiveles.indexOf(b);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  const getPlural = (str: string) => {
+    if (str.endsWith('d')) return str + 'es';
+    if (str.endsWith('s')) return str;
+    return str + 's';
+  };
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          {selectedPlan && (
-            <button
-              onClick={() => setSelectedPlan(null)}
-              className="flex items-center gap-1.5 text-gray-500 hover:text-[#1456f0] dark:text-gray-400 dark:hover:text-blue-400 font-medium mb-3 transition-colors text-sm"
-            >
-              <RefreshCw size={14} className="rotate-180" /> Volver a planes
-            </button>
-          )}
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-            {selectedPlan ? 'Retícula Académica' : 'Control Académico'}
-          </h1>
-          <p className="text-[#45515e] dark:text-gray-400 mt-1">
-            {selectedPlan 
-              ? `Visualizando mapa curricular del plan: ${selectedPlan.nombre}`
-              : 'Gestión de planes de estudio y mapa curricular de la institución.'}
-          </p>
+    <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row gap-6 h-[calc(100vh-120px)]">
+      {/* SIDEBAR: Carreras (oculto si hay un plan seleccionado en móvil) */}
+      <div className={`w-full md:w-80 flex-shrink-0 flex-col bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-gray-800 rounded-[20px] shadow-sm overflow-hidden flex ${selectedPlan ? 'hidden md:flex' : 'flex'}`}>
+        <div className="p-5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-[#1c2228]/50 flex items-center justify-between">
+          <h2 className="font-bold text-gray-800 dark:text-gray-200">Carreras</h2>
+          <button onClick={() => { setCarreraToEdit(null); setShowModalCarrera(true); }} className="p-2 bg-[#1456f0]/10 text-[#1456f0] dark:bg-blue-900/30 dark:text-blue-400 rounded-lg hover:bg-[#1456f0]/20 transition-colors" title="Nueva Carrera">
+            <Plus size={18} />
+          </button>
         </div>
-        
-        {/* Botones de Acción Globales */}
-        {!selectedPlan && (
-          <div className="flex flex-wrap items-center gap-3">
-            <button 
-              onClick={() => setIsCreatingPlan(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold rounded-xl shadow-sm transition-all"
-            >
-              <FileText size={18} />
-              Crear Nuevo Plan
-            </button>
-
-            <button 
-              onClick={handleSyncGES}
-              disabled={isSyncing}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#1456f0] hover:bg-blue-700 text-white font-semibold rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
-              {isSyncing ? 'Sincronizando...' : 'Sincronizar GES 4'}
-            </button>
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto p-3 space-y-5 custom-scrollbar">
+          {nivelesOrdenados.map(nivel => (
+            <div key={nivel} className="space-y-1">
+              <div className="flex items-center gap-3 px-2 mb-3">
+                <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest select-none">
+                  {getPlural(nivel)}
+                </h3>
+                <div className="h-px bg-blue-100 dark:bg-blue-900/30 flex-1"></div>
+              </div>
+              {carrerasAgrupadas[nivel].map(c => (
+                <div key={c.id} onClick={() => { setSelectedCarrera(c); setSelectedPlan(null); }} className={`p-3 rounded-[12px] cursor-pointer transition-all flex items-center justify-between group border ${selectedCarrera?.id === c.id ? 'bg-[#1456f0] text-white border-[#1456f0] shadow-md' : 'bg-transparent border-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                  <div className="pr-2 flex-1">
+                    <div className="font-semibold text-sm tracking-tight leading-snug">{getCarreraFullName(c)}</div>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); setCarreraToEdit(c); setShowModalCarrera(true); }} className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ${selectedCarrera?.id === c.id ? 'hover:bg-white/20 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400'}`} title="Editar Carrera">
+                    <Edit2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ))}
+          {carreras.length === 0 && (
+            <div className="text-center p-6 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 rounded-xl m-2 border border-dashed border-gray-200 dark:border-gray-800">
+              No hay carreras registradas.<br/>Comienza creando una.
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* CONTENT: Estado / Lista de Planes */}
+      {/* MAIN CONTENT */}
+      <div className={`flex-1 flex flex-col min-w-0 ${selectedPlan ? 'flex' : 'hidden md:flex'}`}>
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            {selectedPlan ? (
+              <>
+                <button onClick={() => setSelectedPlan(null)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#1456f0] dark:text-gray-400 dark:hover:text-blue-400 font-medium mb-3 transition-colors text-sm">
+                  <RefreshCw size={14} className="rotate-180" /> Volver a planes
+                </button>
+                <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                  Retícula Académica
+                </h1>
+                <p className="text-[#45515e] dark:text-gray-400 mt-1">Plan: {getCarreraFullName(carreras.find(c => c.id === selectedPlan.carrera_id))}</p>
+              </>
+            ) : selectedCarrera ? (
+              <>
+                <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                  Planes de Estudio
+                </h1>
+                <p className="text-[#45515e] dark:text-gray-400 mt-1">{getCarreraFullName(selectedCarrera)}</p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                  Control Académico
+                </h1>
+                <p className="text-[#45515e] dark:text-gray-400 mt-1">Gestión de oferta educativa.</p>
+              </>
+            )}
+          </div>
+          
+          {/* Botones Globales */}
+          {!selectedPlan && (
+            <div className="flex flex-wrap items-center gap-3">
+              {selectedCarrera && (
+                <button onClick={() => { setPlanToEdit(null); setShowModalPlan(true); }} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold rounded-xl shadow-sm transition-all text-sm">
+                  <FileText size={16} /> Nuevo Plan
+                </button>
+              )}
+              <button onClick={handleSyncGES} disabled={isSyncing} className="flex items-center gap-2 px-4 py-2 bg-[#1456f0] hover:bg-blue-700 text-white font-semibold rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm">
+                <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} /> Sincronizar GES 4
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* CONTENT */}
+        <div className="flex-1 overflow-y-auto pb-10 pr-2 custom-scrollbar">
       {isLoading ? (
         <div className="flex flex-col items-center justify-center h-64 text-gray-400">
           <RefreshCw size={32} className="animate-spin mb-4 text-[#1456f0]" />
@@ -750,21 +796,31 @@ export default function ControlAcademico() {
         // VISTA DE DETALLE (RETÍCULA)
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8 shadow-sm">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{selectedPlan.nombre}</h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
-              Clave: <span className="font-semibold text-gray-700 dark:text-gray-300">{selectedPlan.clave_legado}</span> • 
-              Carrera: <span className="font-semibold text-gray-700 dark:text-gray-300">
-                {catalogoItems.find(c => c.id === selectedPlan.licenciatura_id)?.valor || 'Desconocida'}
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{getCarreraFullName(carreras.find(c => c.id === selectedPlan.carrera_id))}</h2>
+            <div className="flex flex-wrap gap-3 text-sm font-medium mt-4">
+              <span className="bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg flex items-center border border-gray-200 dark:border-gray-700/50">
+                <span className="opacity-70 mr-1.5 font-normal">Clave:</span> {selectedPlan.clave_legado}
               </span>
-            </p>
-            <div className="flex flex-wrap gap-4 text-sm font-medium">
-              <span className="bg-blue-50 dark:bg-blue-900/20 text-[#1456f0] dark:text-blue-400 px-3 py-1 rounded-md">
-                Créditos Totales: {Number(asignaturasPlan.reduce((sum, a) => sum + (Number(a.creditos) || 0), 0)).toFixed(2)}
+              <span className="bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg flex items-center border border-gray-200 dark:border-gray-700/50">
+                <span className="opacity-70 mr-1.5 font-normal">Plan:</span> {selectedPlan.nombre}
               </span>
-              <span className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-md flex items-center gap-2">
+              {selectedPlan.rvoe && (
+                <span className="bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg flex items-center border border-gray-200 dark:border-gray-700/50">
+                  <span className="opacity-70 mr-1.5 font-normal">RVOE:</span> {selectedPlan.rvoe}
+                  {selectedPlan.fecha_rvoe && <span className="opacity-60 ml-1 text-xs">({selectedPlan.fecha_rvoe})</span>}
+                </span>
+              )}
+              
+              <span className="bg-blue-50 dark:bg-blue-900/20 text-[#1456f0] dark:text-blue-400 px-3 py-1.5 rounded-lg flex items-center border border-blue-100 dark:border-blue-900/30">
+                <span className="opacity-80 mr-1.5">Créditos Plan:</span> {Number(asignaturasPlan.reduce((sum, a) => sum + (Number(a.creditos) || 0), 0)).toFixed(2)}
+              </span>
+              <span className="bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 px-3 py-1.5 rounded-lg flex items-center border border-purple-100 dark:border-purple-900/30">
+                {selectedPlan.modelo || 'RIGIDO'} • {selectedPlan.tipo_periodo || 'Semestral'}
+              </span>
+              <span className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-lg flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/30">
                 {isEditingCreditos ? (
                   <>
-                    Créditos Obligatorios:
+                    <span className="opacity-80 mr-1">Créd. Obligatorios:</span>
                     <input 
                       type="number" 
                       step="0.01"
@@ -777,7 +833,7 @@ export default function ControlAcademico() {
                   </>
                 ) : (
                   <>
-                    Créditos Obligatorios: {Number(selectedPlan.creditos_obligatorios || 0).toFixed(2)}
+                    <span className="opacity-80 mr-1">Créd. Obligatorios:</span> {Number(selectedPlan.creditos_obligatorios || 0).toFixed(2)}
                     <button onClick={startEditingCreditos} className="p-1 text-emerald-600/70 hover:text-emerald-800 dark:text-emerald-400/70 dark:hover:text-emerald-300 transition-colors" title="Editar Créditos Obligatorios"><Edit2 size={14} /></button>
                   </>
                 )}
@@ -967,89 +1023,89 @@ export default function ControlAcademico() {
             </div>
           )}
         </div>
-      ) : planesLocal.length === 0 ? (
-        <div className="bg-white dark:bg-[#1c2228] border border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-12 text-center shadow-sm">
+      ) : !selectedCarrera ? (
+        <div className="flex flex-col items-center justify-center h-full bg-white dark:bg-[#1c2228] border border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-12 text-center shadow-sm">
           <BookOpen size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">No hay planes de estudio registrados</h3>
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">Selecciona una Carrera</h3>
           <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-            La base de datos local aún no cuenta con un mapa curricular. Utiliza el botón superior para extraer la información desde el sistema legado GES 4.
+            Elige una carrera en el panel lateral para administrar sus planes de estudio y retícula de asignaturas.
           </p>
         </div>
+      ) : planesFiltrados.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full bg-white dark:bg-[#1c2228] border border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-12 text-center shadow-sm">
+          <Layers size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">No hay planes de estudio</h3>
+          <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
+            La carrera seleccionada aún no cuenta con un mapa curricular.
+          </p>
+          <button onClick={() => { setPlanToEdit(null); setShowModalPlan(true); }} className="px-5 py-2.5 bg-[#1456f0] text-white rounded-xl font-medium hover:bg-blue-700 transition-colors">
+            Crear Primer Plan
+          </button>
+        </div>
       ) : (
-        <div className="space-y-12">
-          {(Object.entries(planesAgrupados) as [string, PlanEstudio[]][]).sort().map(([categoria, planesCat]) => (
-            <div key={categoria}>
-              <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800 pb-2">
-                {categoria}
-                <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
-                  {planesCat.length}
-                </span>
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {planesCat.map(plan => {
-                  const carreraValor = catalogoItems.find(c => c.id === plan.licenciatura_id)?.valor || 'Desconocida';
-                  const materiasCount = countMaterias(plan.id);
-                  const totalCreditos = asignaturasLocal.filter(a => a.plan_id === plan.id).reduce((sum, a) => sum + (Number(a.creditos) || 0), 0);
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+          {planesFiltrados.map(plan => {
+            const materiasCount = countMaterias(plan.id);
+            const totalCreditos = asignaturasLocal.filter(a => a.plan_id === plan.id).reduce((sum, a) => sum + (Number(a.creditos) || 0), 0);
 
-                  return (
-                    <div 
-                      key={plan.id} 
-                      onClick={() => handleViewPlan(plan)}
-                      className="bg-white dark:bg-[#1c2228] p-5 rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] hover:-translate-y-1 transition-transform duration-300 flex flex-col group cursor-pointer"
+            return (
+              <div 
+                key={plan.id} 
+                onClick={() => handleViewPlan(plan)}
+                className="bg-white dark:bg-[#1c2228] p-5 rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] hover:-translate-y-1 transition-transform duration-300 flex flex-col group cursor-pointer"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="bg-blue-50 dark:bg-blue-900/30 text-[#1456f0] dark:text-blue-400 p-2.5 rounded-xl group-hover:scale-110 transition-transform">
+                    <FileText size={22} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${plan.estatus === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                      {plan.estatus}
+                    </span>
+                    <button 
+                      onClick={(e) => handleEditPlan(e, plan)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      title="Editar Plan"
                     >
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="bg-blue-50 dark:bg-blue-900/30 text-[#1456f0] dark:text-blue-400 p-2.5 rounded-xl group-hover:scale-110 transition-transform">
-                          <FileText size={22} />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${plan.estatus === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-                            {plan.estatus}
-                          </span>
-                          <button 
-                            onClick={(e) => handleEditPlan(e, plan)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                            title="Editar Plan"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            onClick={(e) => handleDeletePlan(e, plan)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                            title="Eliminar Plan"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 leading-tight mb-1" style={{ fontFamily: 'var(--font-display)' }}>
-                        {plan.nombre}
-                      </h3>
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4 flex-1">
-                        {carreraValor}
-                      </p>
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={(e) => handleDeletePlan(e, plan)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      title="Eliminar Plan"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                
+                <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 leading-tight mb-1" style={{ fontFamily: 'var(--font-display)' }}>
+                  {getCarreraFullName(selectedCarrera)}
+                </h3>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4 flex-1">
+                  {plan.nombre}
+                </p>
 
-                      <div className="pt-4 border-t border-gray-100 dark:border-gray-800/60 flex items-center justify-between text-sm">
-                        <span className="flex flex-col gap-0.5 text-gray-500 dark:text-gray-400">
-                          <span className="flex items-center gap-1.5"><Layers size={13} /> {plan.clave_legado}</span>
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-md">
-                            {Number(totalCreditos).toFixed(2)} cr.
-                          </span>
-                          <span className="flex items-center gap-1.5 text-[#1456f0] dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-md group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
-                            <BookOpen size={14} /> {materiasCount}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-800/60 flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 font-medium text-xs">
+                    <FileText size={13} /> {plan.rvoe ? `RVOE: ${plan.rvoe}` : 'Sin RVOE'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-md" title="Créditos Obligatorios">
+                      {Number(plan.creditos_obligatorios || 0).toFixed(2)} cr.
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[#1456f0] dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-md group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
+                      <BookOpen size={14} /> {materiasCount}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+        </div>
+      </div>
 
       {/* TOOLBAR FLOTANTE PARA ACCIONES MASIVAS */}
       {selectedMaterias.length > 0 && (
@@ -1172,33 +1228,6 @@ export default function ControlAcademico() {
                   />
                 </div>
                 
-                {editModal.type === 'plan' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modelo Curricular</label>
-                      <select 
-                        value={editModal.modelo}
-                        onChange={(e) => setEditModal(prev => ({ ...prev, modelo: e.target.value }))}
-                        className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] focus:border-transparent dark:text-white"
-                      >
-                        <option value="RIGIDO">Rígido (Secuencial)</option>
-                        <option value="FLEXIBLE">Flexible (Por créditos/fechas)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Periodo</label>
-                      <select 
-                        value={editModal.tipo_periodo}
-                        onChange={(e) => setEditModal(prev => ({ ...prev, tipo_periodo: e.target.value }))}
-                        className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] focus:border-transparent dark:text-white"
-                      >
-                        <option value="Semestral">Semestral</option>
-                        <option value="Cuatrimestral">Cuatrimestral</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-                
                 {editModal.type === 'asignatura' && (
                   <>
                     <div>
@@ -1245,103 +1274,8 @@ export default function ControlAcademico() {
           </div>
         </div>
       )}
-      {/* CREATE PLAN MODAL */}
-      {isCreatingPlan && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1c2228] w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-800">
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                <FileText size={18} className="text-[#1456f0]" />
-                Crear Nuevo Plan de Estudio
-              </h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Programa / Licenciatura</label>
-                  <select 
-                    value={newPlanForm.licenciatura_id}
-                    onChange={(e) => setNewPlanForm(prev => ({ ...prev, licenciatura_id: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] dark:text-white"
-                  >
-                    <option value="" disabled>Selecciona un programa</option>
-                    {catalogoItems.filter(c => c.tipo === 'licenciatura' && c.activo).map(c => (
-                      <option key={c.id} value={c.id}>{c.valor}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Clave del Plan</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. 2026_DER"
-                    value={newPlanForm.clave_legado}
-                    onChange={(e) => setNewPlanForm(prev => ({ ...prev, clave_legado: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del Plan</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej. Plan 2026"
-                    value={newPlanForm.nombre}
-                    onChange={(e) => setNewPlanForm(prev => ({ ...prev, nombre: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modelo Curricular</label>
-                  <select 
-                    value={newPlanForm.modelo}
-                    onChange={(e) => setNewPlanForm(prev => ({ ...prev, modelo: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] dark:text-white"
-                  >
-                    <option value="RIGIDO">Rígido (Secuencial)</option>
-                    <option value="FLEXIBLE">Flexible (Por créditos/fechas)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de Periodo</label>
-                  <select 
-                    value={newPlanForm.tipo_periodo}
-                    onChange={(e) => setNewPlanForm(prev => ({ ...prev, tipo_periodo: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] dark:text-white"
-                  >
-                    <option value="Semestral">Semestral</option>
-                    <option value="Cuatrimestral">Cuatrimestral</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Créditos Obligatorios (SEP)</label>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    value={newPlanForm.creditos_obligatorios}
-                    onChange={(e) => setNewPlanForm(prev => ({ ...prev, creditos_obligatorios: Number(e.target.value) }))}
-                    className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] dark:text-white"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-3 mt-8">
-                <button
-                  onClick={() => setIsCreatingPlan(false)}
-                  className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-xl transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={saveNewPlan}
-                  className="px-5 py-2.5 text-sm font-medium text-white bg-[#1456f0] hover:bg-blue-700 rounded-xl shadow-sm transition-colors flex items-center gap-2"
-                >
-                  <Save size={16} />
-                  Crear Plan
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
+      {/* CREATE PLAN MODAL REMOVIDO, AHORA USA COMPONENTE EXTERNO */}
 
       {/* CREATE ASIGNATURA MODAL */}
       {isCreatingAsignatura.isOpen && (
@@ -1427,6 +1361,43 @@ export default function ControlAcademico() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODALES EXTERNOS DE ENTIDADES */}
+      {showModalCarrera && (
+        <ModalCarrera 
+          onClose={() => setShowModalCarrera(false)}
+          carrera={carreraToEdit}
+          onSaved={(carrera) => {
+            setShowModalCarrera(false);
+            // El store se actualiza via Supabase Realtime si está configurado, o podemos forzar recarga.
+            // Por simplicidad, useAppStore.getState().fetchCarreras() actualiza las carreras.
+            useAppStore.getState().fetchCarreras(); 
+            if (carreraToEdit) {
+              if (selectedCarrera?.id === carrera.id) setSelectedCarrera(carrera);
+            } else {
+              setSelectedCarrera(carrera);
+            }
+          }}
+        />
+      )}
+
+      {showModalPlan && (
+        <ModalPlanEstudio
+          carreras={carreras}
+          carreraIdActiva={selectedCarrera?.id}
+          onClose={() => setShowModalPlan(false)}
+          plan={planToEdit}
+          onSaved={(plan) => {
+            setShowModalPlan(false);
+            if (planToEdit) {
+              setPlanesLocal(prev => prev.map(p => p.id === plan.id ? plan : p));
+              if (selectedPlan?.id === plan.id) setSelectedPlan(plan);
+            } else {
+              setPlanesLocal(prev => [...prev, plan]);
+            }
+          }}
+        />
       )}
     </div>
   );

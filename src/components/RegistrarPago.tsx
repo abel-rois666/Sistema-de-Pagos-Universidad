@@ -29,7 +29,7 @@ const BANCOS = ['BBVA 1', 'BBVA 2', 'MIFEL', 'BANORTE', 'NO APLICA'];
 const FORMAS_PAGO = ['Depósito Bancario', 'Transferencia bancaria', 'Tarjeta de Débito', 'Tarjeta de Crédito', 'Efectivo'];
 
 export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, initialPlanId }: Props) {
-  const { alumnos, ciclos, activeCicloId, plans, catalogos, appConfig, currentUser, refreshAfterPayment, setCatalogoItems } = useAppStore();
+  const { alumnos, ciclos, activeCicloId, plans, catalogos, appConfig, currentUser, refreshAfterPayment, setCatalogoItems, carreras } = useAppStore();
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<string>(initialAlumnoId || '');
   const [searchAlumnoTerm, setSearchAlumnoTerm] = useState('');
@@ -38,6 +38,14 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
   const [formaPago, setFormaPago] = useState<string>('Efectivo');
   const [banco, setBanco] = useState<string>('NO APLICA');
   const [usarMonedero, setUsarMonedero] = useState(false);
+  
+  const licenciaturasMetadata = useMemo(() => {
+    const meta: Record<string, any> = {};
+    carreras.forEach(c => {
+      meta[c.nombre] = { nivel_educativo: c.nivel_educativo };
+    });
+    return meta;
+  }, [carreras]);
   
   useEffect(() => {
     const alumno = alumnos.find(a => a.id === alumnoSeleccionado);
@@ -882,7 +890,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
                     detalles={reciboGuardado.detalles}
                     alumno={reciboGuardado.alumno}
                     logoUrl={appConfig?.logoUrl}
-                    licenciaturasMetadata={catalogos.licenciaturasMetadata}
+                    licenciaturasMetadata={licenciaturasMetadata}
                   />
                 </div>
               </div>

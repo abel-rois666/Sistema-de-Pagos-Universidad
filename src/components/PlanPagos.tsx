@@ -238,8 +238,10 @@ interface PlanPagosProps {
 
 export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDeletePlan, onGoToPagos, onViewReceipt, onBackToFicha, onBackToReceipt }: PlanPagosProps) {
   const {
-    currentUser, plans: allPlans, alumnos, ciclos, activeCicloId, catalogos, plantillas, setPlans
+    currentUser, plans: allPlans, alumnos, ciclos, activeCicloId, catalogos, plantillas, setPlans, carreras
   } = useAppStore();
+
+  const nombresCarreras = carreras.map(c => c.nombre);
 
   const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
@@ -646,11 +648,11 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                    {catalogos?.licenciaturas?.length ? (
+                    {nombresCarreras?.length ? (
                       <div className="flex flex-col sm:flex-row gap-2">
                         <select
                           className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                          value={catalogos.licenciaturas.includes(newPlanForm.licenciatura || '') ? newPlanForm.licenciatura || '' : ((newPlanForm.licenciatura || '') !== '' ? 'OTRA' : '')}
+                          value={nombresCarreras.includes(newPlanForm.licenciatura || '') ? newPlanForm.licenciatura || '' : ((newPlanForm.licenciatura || '') !== '' ? 'OTRA' : '')}
                           onChange={(e) => {
                             if (e.target.value === 'OTRA') {
                               setNewPlanForm({ ...newPlanForm, licenciatura: ' ' }); // Espacio en blanco para activar el input
@@ -660,11 +662,11 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                           }}
                         >
                           <option value="">-- Seleccione --</option>
-                          {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                          {nombresCarreras.map(l => <option key={l} value={l}>{l}</option>)}
                           <option value="OTRA">✏️ Escribir manualmente...</option>
                         </select>
                         
-                        {!catalogos.licenciaturas.includes(newPlanForm.licenciatura || '') && (newPlanForm.licenciatura || '') !== '' && (
+                        {!nombresCarreras.includes(newPlanForm.licenciatura || '') && (newPlanForm.licenciatura || '') !== '' && (
                           <input
                             type="text"
                             className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
@@ -1645,11 +1647,11 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                  {catalogos?.licenciaturas?.length ? (
+                  {nombresCarreras?.length ? (
                     <div className="flex flex-col sm:flex-row gap-2">
                       <select
                         className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                        value={catalogos.licenciaturas.includes(editForm.licenciatura || '') ? editForm.licenciatura || '' : ((editForm.licenciatura || '') !== '' ? 'OTRA' : '')}
+                        value={nombresCarreras.includes(editForm.licenciatura || '') ? editForm.licenciatura || '' : ((editForm.licenciatura || '') !== '' ? 'OTRA' : '')}
                         onChange={(e) => {
                           if (e.target.value === 'OTRA') {
                             setEditForm({ ...editForm, licenciatura: ' ' }); // Espacio en blanco para activar el input
@@ -1659,11 +1661,11 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                         }}
                       >
                         <option value="">-- Seleccione --</option>
-                        {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                        {nombresCarreras.map(l => <option key={l} value={l}>{l}</option>)}
                         <option value="OTRA">✏️ Escribir manualmente...</option>
                       </select>
                       
-                      {!catalogos.licenciaturas.includes(editForm.licenciatura || '') && (editForm.licenciatura || '') !== '' && (
+                      {!nombresCarreras.includes(editForm.licenciatura || '') && (editForm.licenciatura || '') !== '' && (
                         <input
                           type="text"
                           className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
@@ -2010,11 +2012,11 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Programa / Licenciatura</label>
-                  {catalogos?.licenciaturas?.length ? (
+                  {nombresCarreras?.length ? (
                     <div className="flex flex-col sm:flex-row gap-2">
                       <select
                         className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                        value={catalogos.licenciaturas.includes(newPlanForm.licenciatura || '') ? newPlanForm.licenciatura || '' : ((newPlanForm.licenciatura || '') !== '' ? 'OTRA' : '')}
+                        value={nombresCarreras.includes(newPlanForm.licenciatura || '') ? newPlanForm.licenciatura || '' : ((newPlanForm.licenciatura || '') !== '' ? 'OTRA' : '')}
                         onChange={(e) => {
                           if (e.target.value === 'OTRA') {
                             setNewPlanForm({ ...newPlanForm, licenciatura: ' ' }); // Espacio en blanco para activar el input
@@ -2024,11 +2026,11 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                         }}
                       >
                         <option value="">-- Seleccione --</option>
-                        {catalogos.licenciaturas.map(l => <option key={l} value={l}>{l}</option>)}
+                        {nombresCarreras.map(l => <option key={l} value={l}>{l}</option>)}
                         <option value="OTRA">✏️ Escribir manualmente...</option>
                       </select>
                       
-                      {!catalogos.licenciaturas.includes(newPlanForm.licenciatura || '') && (newPlanForm.licenciatura || '') !== '' && (
+                      {!nombresCarreras.includes(newPlanForm.licenciatura || '') && (newPlanForm.licenciatura || '') !== '' && (
                         <input
                           type="text"
                           className="flex-1 border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"

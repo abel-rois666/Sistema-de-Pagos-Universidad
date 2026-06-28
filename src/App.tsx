@@ -86,7 +86,7 @@ export default function App() {
     currentUser, authChecked, loading,
     plans, ciclos, alumnos, plantillas, catalogoItems, appConfig, activeCicloId,
     setCurrentUser, setAuthChecked, setActiveCicloId, setLoading,
-    fetchAllData, refreshAfterPayment,
+    fetchAllData, refreshAfterPayment, fetchCarreras,
     setPlans, setAlumnos, setCiclos, setPlantillas, setCatalogoItems, setAppConfig
   } = useAppStore();
 
@@ -136,6 +136,7 @@ export default function App() {
           }
           // Cargar datos del sistema
           await fetchAllData();
+          await fetchCarreras(); // Inicialización forzada de carreras
           return;
         } else {
           // Sesión Auth válida pero sin perfil en la BD — cerrar sesión
@@ -192,6 +193,7 @@ export default function App() {
 
       // Cargar todos los datos del sistema
       fetchAllData();
+      fetchCarreras();
     }} />;
   }
 

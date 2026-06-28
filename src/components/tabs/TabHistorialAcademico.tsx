@@ -67,7 +67,33 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   const [planActivoId, setPlanActivoId] = useState<string | null>(null);
   const [showModalReinscripcion, setShowModalReinscripcion] = useState(false);
   
-  const { ciclos } = useAppStore();
+  const { ciclos, carreras } = useAppStore();
+
+  const toTitleCase = (str: string) => {
+    if (!str) return '';
+    return str.toLowerCase().replace(/(?:^|\s|-)\S/g, match => match.toUpperCase());
+  };
+
+  const getCarreraFullName = (c: any) => {
+    if (!c) return 'Desconocida';
+    const nivel = toTitleCase((c.nivel_educativo || 'Licenciatura').trim());
+    const nombre = toTitleCase(c.nombre.trim());
+    if (nombre.toUpperCase().includes(nivel.toUpperCase())) return nombre;
+    return `${nivel} en ${nombre}`;
+  };
+
+  const formatPlanOption = (prog: any) => {
+    const plan = prog.planes_estudio;
+    if (!plan) return 'Plan Desconocido';
+    
+    const carrera = carreras.find(c => c.id === plan.carrera_id);
+    const claveReducida = plan.clave_legado ? plan.clave_legado.substring(0, 4) : '';
+    
+    if (carrera) {
+      return `${getCarreraFullName(carrera)} (${claveReducida})`;
+    }
+    return `${plan.nombre} (${claveReducida})`;
+  };
 
   // Filtros
   const OPCIONES_ESTATUS = ['Acreditadas', 'Reprobadas', 'Por acreditar / Cursando'];
@@ -115,17 +141,17 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     try {
       const { data } = await supabase
         .from('alumno_programas')
-        .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo)')
+        .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo, carrera_id)')
         .eq('alumno_id', alumno.id)
         .order('fecha_inscripcion', { ascending: false });
       
       if (data && data.length > 0) {
         setProgramas(data);
         
-        const planPrincipal = data.find(p => 
-          p.planes_estudio?.nombre === alumno.licenciatura || 
-          p.planes_estudio?.clave_legado === alumno.licenciatura
-        ) || data.find(p => p.estatus === 'CURSANDO') || data[0];
+        const planPrincipal = data.find((p: any) => 
+          (p.planes_estudio as any)?.nombre === alumno.licenciatura || 
+          (p.planes_estudio as any)?.clave_legado === alumno.licenciatura
+        ) || data.find((p: any) => p.estatus === 'CURSANDO') || data[0];
 
         setPlanActivoId(prev => {
           if (prev && data.some(d => d.plan_id === prev)) return prev;
@@ -139,7 +165,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
           .eq('alumno_id', alumno.id)
           .limit(1);
 
-        const planDeducido = kardexDeducido?.[0]?.asignaturas?.plan_id;
+        const planDeducido = (kardexDeducido as any)?.[0]?.asignaturas?.plan_id || (kardexDeducido?.[0]?.asignaturas as any)?.[0]?.plan_id;
         if (planDeducido) {
           await supabase.from('alumno_programas').insert({
             alumno_id: alumno.id,
@@ -149,7 +175,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
           });
           const { data: dataActualizada } = await supabase
             .from('alumno_programas')
-            .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo)')
+            .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo, carrera_id)')
             .eq('alumno_id', alumno.id)
             .order('fecha_inscripcion', { ascending: false });
             
@@ -658,7 +684,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                   >
                     {programas.map(prog => (
                       <option key={prog.plan_id} value={prog.plan_id}>
-                        {prog.planes_estudio?.clave_legado} - {prog.planes_estudio?.nombre}
+                        {formatPlanOption(prog)}
                       </option>
                     ))}
                   </select>

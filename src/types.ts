@@ -436,9 +436,7 @@ export interface ServicioSocial {
 export interface Carrera {
   id: string;
   nombre: string;
-  clave?: string;
-  rvoe?: string;
-  modalidad?: string;
+  nivel_educativo?: string;
   activo: boolean;
   created_at?: string;
 }

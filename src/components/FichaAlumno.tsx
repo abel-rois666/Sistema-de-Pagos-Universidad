@@ -53,6 +53,7 @@ export default function FichaAlumno({
     appConfig,
     activeCicloId,
     refreshAfterPayment,
+    carreras,
   } = useAppStore();
 
   const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
@@ -116,7 +117,7 @@ export default function FichaAlumno({
 
   // Detectar si el alumno es de Especialidad (para TabTitulacion)
   const esEspecialidad = selectedAlumno
-    ? (catalogos?.licenciaturasMetadata?.[selectedAlumno.licenciatura]?.tipo_academico === 'ESPECIALIDAD')
+    ? (carreras.find(c => c.nombre === selectedAlumno.licenciatura)?.nivel_educativo === 'Especialidad')
     : false;
 
   // Todos los planes del alumno seleccionado (para auto-detectar pago titulación)

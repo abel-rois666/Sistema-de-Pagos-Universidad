@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { Alumno } from '../../types';
 import { supabase } from '../../lib/supabase';
+import { useAppStore } from '../../store/useAppStore';
 import { lookupCP, getStateAbbr, STATE_MAPPING, ESTADOS_LIST, mapToLegacyCode } from '../../utils/geoUtils';
 import { calcularCURP, calcularDigitoVerificador, inferirDigito17 } from '../../utils/curpUtils';
 
@@ -370,9 +371,34 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   }), []);
 
   const [form, setForm] = useState<FormData>(buildForm(alumno));
+  const { carreras } = useAppStore();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [curpStatus, setCurpStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+  
+  const toTitleCase = (str: string) => {
+    if (!str) return '';
+    return str.toLowerCase().replace(/(?:^|\s|-)\S/g, match => match.toUpperCase());
+  };
+
+  const getCarreraFullName = (c: any) => {
+    if (!c) return 'Desconocida';
+    const nivel = toTitleCase((c.nivel_educativo || 'Licenciatura').trim());
+    const nombre = toTitleCase(c.nombre.trim());
+    if (nombre.toUpperCase().includes(nivel.toUpperCase())) return nombre;
+    return `${nivel} en ${nombre}`;
+  };
+
+  const formatPlanName = (prog: any) => {
+    const plan = prog.planes_estudio;
+    if (!plan) return 'Desconocido';
+    
+    const carrera = carreras.find(c => c.id === plan.carrera_id);
+    if (carrera) {
+      return getCarreraFullName(carrera);
+    }
+    return plan.nombre;
+  };
   const [contactErrors, setContactErrors] = useState<{ telefono?: string; celular?: string; email?: string }>({});
   const [cpLoading, setCpLoading] = useState(false);
   const [cpError, setCpError] = useState<string | null>(null);
@@ -393,7 +419,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     try {
       const { data, error } = await supabase
         .from('alumno_programas')
-        .select(`*, planes_estudio(nombre, clave_legado, modelo)`)
+        .select(`*, planes_estudio(nombre, clave_legado, modelo, carrera_id)`)
         .eq('alumno_id', alumno.id)
         .order('fecha_inscripcion', { ascending: false });
       if (error) throw error;
@@ -1480,7 +1506,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
             <thead className="bg-gray-50/50 dark:bg-[#1c2228]/50 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.06)]">
               <tr className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <th className="px-4 py-3">Clave</th>
-                <th className="px-4 py-3">Programa / Licenciatura</th>
+                <th className="px-4 py-3">Carrera</th>
                 <th className="px-4 py-3 text-center">F. Inscripción</th>
                 <th className="px-4 py-3 text-center">Estatus</th>
               </tr>
@@ -1502,7 +1528,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
                 programas.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                     <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-300">{p.planes_estudio?.clave_legado || '-'}</td>
-                    <td className="px-4 py-3 font-bold text-[#222222] dark:text-gray-100">{p.planes_estudio?.nombre}</td>
+                    <td className="px-4 py-3 font-bold text-[#222222] dark:text-gray-100">{formatPlanName(p)}</td>
                     <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{formatFecha(p.fecha_inscripcion)}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex px-2.5 py-1 rounded-[6px] text-[11px] font-bold tracking-wider ${

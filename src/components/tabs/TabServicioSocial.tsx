@@ -8,6 +8,7 @@ import type { ServicioSocial, Alumno, AppConfig, CatalogoItem } from '../../type
 import { formatDate, toTitleCase } from '../../utils';
 import ModalServicioSocial from '../modals/ModalServicioSocial';
 import ModalConstanciaServicioSocial from '../modals/ModalConstanciaServicioSocial';
+import { useAppStore } from '../../store/useAppStore';
 
 interface TabServicioSocialProps {
   alumnoId: string;
@@ -66,6 +67,8 @@ export default function TabServicioSocial({
   const [loading, setLoading]       = useState(true);
   const [showModal, setShowModal]   = useState(false);
   const [editando, setEditando]     = useState<ServicioSocial | null>(null);
+
+  const { carreras } = useAppStore();
 
   // Dropdown "Marcar completado"
   const [showDropdown, setShowDropdown]     = useState(false);
@@ -427,14 +430,14 @@ export default function TabServicioSocial({
 
       {/* Modal constancia PDF */}
       {constanciaTarget && (() => {
-        const licMeta = catalogoItems.find(i => i.tipo === 'licenciatura' && i.valor === alumno.licenciatura)?.metadata;
+        const carrera = carreras.find(c => c.nombre === alumno.licenciatura);
         return (
           <ModalConstanciaServicioSocial
             registro={constanciaTarget}
             alumno={alumno}
             appConfig={appConfig}
-            rvoe={licMeta?.rvoe ?? ''}
-            rvoeFecha={licMeta?.rvoe_fecha ?? ''}
+            rvoe={carrera?.rvoe ?? ''}
+            rvoeFecha={carrera?.fecha_rvoe ?? ''}
             isAdmin={isAdmin}
             onClose={() => setConstanciaTarget(null)}
           />
