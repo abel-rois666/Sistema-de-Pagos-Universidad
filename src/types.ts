@@ -433,9 +433,23 @@ export interface ServicioSocial {
 // PLAN DE ESTUDIOS Y ASIGNATURAS (ACADÉMICO)
 // ──────────────────────────────────────────────────────────────────────
 
+export interface Carrera {
+  id: string;
+  nombre: string;
+  clave?: string;
+  rvoe?: string;
+  modalidad?: string;
+  activo: boolean;
+  created_at?: string;
+}
+
 export interface PlanEstudio {
   id: string;
   licenciatura_id: string; // UUID referenciando a catalogos.id
+  carrera_id?: string;
+  rvoe?: string;
+  fecha_rvoe?: string;
+  carrera?: Carrera; // Para joins
   clave_legado: string;
   nombre: string;
   estatus: string;

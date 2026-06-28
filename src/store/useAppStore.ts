@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase, fetchAllSupabase, getAppConfig, updateUserPreferences } from '../lib/supabase';
-import { PaymentPlan, CicloEscolar, Alumno, CatalogoItem, Catalogos, PlantillaPlan, AppConfig, Usuario } from '../types';
+import { PaymentPlan, CicloEscolar, Alumno, CatalogoItem, Catalogos, PlantillaPlan, AppConfig, Usuario, Carrera } from '../types';
 
 export const buildCatalogos = (items: CatalogoItem[]): Catalogos => ({
   conceptos: Array.from(new Set(items.filter(i => i.tipo === 'concepto' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
@@ -31,6 +31,7 @@ interface AppState {
   catalogos: Catalogos;
   appConfig: AppConfig | null;
   activeCicloId: string;
+  carreras: Carrera[];
 
   // Acciones
   setCurrentUser: (user: Usuario | null) => void;
@@ -40,6 +41,7 @@ interface AppState {
   
   // Data fetchers
   fetchAllData: () => Promise<void>;
+  fetchCarreras: () => Promise<void>;
   refreshPlans: () => Promise<void>;
   refreshAlumnos: () => Promise<void>;
   refreshAfterPayment: () => Promise<void>;
@@ -51,6 +53,7 @@ interface AppState {
   setPlantillas: (updater: PlantillaPlan[] | ((prev: PlantillaPlan[]) => PlantillaPlan[])) => void;
   setCatalogoItems: (updater: CatalogoItem[] | ((prev: CatalogoItem[]) => CatalogoItem[])) => void;
   setAppConfig: (config: AppConfig | null) => void;
+  setCarreras: (carreras: Carrera[]) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -66,6 +69,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   catalogos: buildCatalogos([]),
   appConfig: null,
   activeCicloId: '',
+  carreras: [],
 
   setCurrentUser: (user) => set({ currentUser: user }),
   setAuthChecked: (checked) => set({ authChecked: checked }),
@@ -92,6 +96,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { catalogoItems: newItems, catalogos: buildCatalogos(newItems) };
   }),
   setAppConfig: (config) => set({ appConfig: config }),
+  setCarreras: (carreras) => set({ carreras }),
+
+  fetchCarreras: async () => {
+    const { data, error } = await supabase.from('carreras').select('*').order('nombre');
+    if (data) set({ carreras: data as Carrera[] });
+    if (error) console.error("Error fetching carreras:", error);
+  },
 
   fetchAllData: async () => {
     set({ loading: true });
@@ -103,6 +114,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { data: plantillasData, error: plantillasError } = await fetchAllSupabase(() => supabase.from('plantillas_plan').select('*').order('id'));
       
       const config = await getAppConfig();
+
+      // Llamada paralela a la función de carreras
+      await get().fetchCarreras();
 
       const newState: Partial<AppState> = {
         appConfig: config,
