@@ -120,7 +120,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
               clave_legado,
               creditos_obligatorios,
               tipo_periodo,
-              modelo
+              modelo,
+              carrera_id
             )
           )
         `)
@@ -463,6 +464,10 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       const tipoPeriodo = planData?.tipo_periodo || 'Semestral';
       const clavePlan = planData?.clave_legado || 'DEFAULT';
       const numPeriodo = item.asignatura?.numero_periodo || 1;
+      
+      const carrera = carreras.find(c => c.id === planData?.carrera_id);
+      const nivel = carrera?.nivel_educativo?.toLowerCase() || '';
+      const esEspecialidadFlexible = (nivel.includes('especialidad') && modelo === 'FLEXIBLE');
 
       // --- NUEVA REGLA: INTERCEPCIÓN DE COMPLEMENTARIAS ---
       const clasifClave = item.asignatura?.clasificacion_clave;
@@ -481,7 +486,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
             titulo: 'Asignaturas Complementarias (Inglés / Talleres)',
             numeroParaOrden: 99999,
             items: [],
-            minCicloWeight: 999999
+            minCicloWeight: 999999,
+            esEspecialidadFlexible: false
           };
         }
         
@@ -490,7 +496,19 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       }
       // --- FIN DE LA INTERCEPCIÓN ---
 
-      const groupKey = `${clavePlan}_${numPeriodo}`;
+      let groupKey;
+      let cicloAgrupador = null;
+      let minCicloWeight = 999999;
+      const ciclo = item.ordinario?.ciclo_legado || item.ordinario?.ciclo?.nombre;
+      const isValidCiclo = (ciclo && ciclo !== '-');
+
+      if (esEspecialidadFlexible) {
+        cicloAgrupador = isValidCiclo ? ciclo : 'POR_CURSAR';
+        groupKey = `${clavePlan}_CICLO_${cicloAgrupador}`;
+        minCicloWeight = isValidCiclo ? getCicloWeight(ciclo) : 999999;
+      } else {
+        groupKey = `${clavePlan}_${numPeriodo}`;
+      }
 
       if (!grupos[groupKey]) {
         grupos[groupKey] = {
@@ -499,17 +517,18 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
           tipoPeriodo: tipoPeriodo,
           numeroOriginal: numPeriodo, // El bloque configurado en la base de datos
           items: [],
-          minCicloWeight: 999999, // Utilizado para ordenar los flexibles
-          cicloRepresentativo: null
+          minCicloWeight: esEspecialidadFlexible ? minCicloWeight : 999999, // Utilizado para ordenar los flexibles
+          cicloRepresentativo: esEspecialidadFlexible ? (isValidCiclo ? ciclo : null) : null,
+          esEspecialidadFlexible,
+          cicloAgrupador
         };
       }
 
       grupos[groupKey].items.push(item);
 
-      // Para modelos flexibles, encontrar el ciclo más antiguo cursado en este bloque
-      if (modelo === 'FLEXIBLE') {
-        const ciclo = item.ordinario?.ciclo_legado || item.ordinario?.ciclo?.nombre;
-        if (ciclo && ciclo !== '-') {
+      // Para modelos flexibles regulares, encontrar el ciclo más antiguo cursado en este bloque
+      if (modelo === 'FLEXIBLE' && !esEspecialidadFlexible) {
+        if (isValidCiclo) {
           const weight = getCicloWeight(ciclo);
           if (weight < grupos[groupKey].minCicloWeight) {
             grupos[groupKey].minCicloWeight = weight;
@@ -533,13 +552,42 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
       let indiceCronologico = 1;
 
+      // Ordenar cronológicamente antes de asignar títulos
+      gruposDelPlan.sort((a, b) => {
+        if (a.modelo === 'ESPECIAL') return 1;
+        if (b.modelo === 'ESPECIAL') return -1;
+        if (a.minCicloWeight !== 999999 || b.minCicloWeight !== 999999) {
+          if (a.minCicloWeight === b.minCicloWeight) return a.numeroOriginal - b.numeroOriginal;
+          return a.minCicloWeight - b.minCicloWeight;
+        }
+        return a.numeroOriginal - b.numeroOriginal;
+      });
+
       gruposDelPlan.forEach(grupo => {
         // 1. AISLAMIENTO DE COMPLEMENTARIAS
         if (grupo.modelo === 'ESPECIAL') {
           grupo.titulo = 'ASIGNATURAS COMPLEMENTARIAS';
           grupo.numeroParaOrden = 99999;
         } 
-        // 2. LÓGICA FLEXIBLE
+        // 2. LÓGICA ESPECIALIDAD FLEXIBLE
+        else if (grupo.esEspecialidadFlexible) {
+          if (grupo.cicloAgrupador !== 'POR_CURSAR') {
+             const ordinal = obtenerNombrePeriodo(indiceCronologico, grupo.tipoPeriodo);
+             grupo.titulo = `${ordinal} (${grupo.cicloAgrupador})`;
+             grupo.numeroParaOrden = indiceCronologico;
+             indiceCronologico++;
+          } else {
+             grupo.titulo = `Materias por cursar`;
+             grupo.numeroParaOrden = 9999;
+          }
+          // Ordenar materias internamente alfabéticamente para Especialidad Flexible
+          grupo.items.sort((a: any, b: any) => {
+            const nameA = a.asignatura?.nombre || '';
+            const nameB = b.asignatura?.nombre || '';
+            return nameA.localeCompare(nameB);
+          });
+        }
+        // 3. LÓGICA FLEXIBLE REGULAR
         else if (modeloPlan === 'FLEXIBLE') {
           if (grupo.minCicloWeight !== 999999) {
             // Bloque cursado (asume ordinal cronológico)
@@ -553,14 +601,14 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
             grupo.numeroParaOrden = 9999 + grupo.numeroOriginal; // Lo manda al final, pero antes de las complementarias
           }
         } 
-        // 3. LÓGICA RÍGIDA
+        // 4. LÓGICA RÍGIDA
         else {
           grupo.titulo = obtenerNombrePeriodo(grupo.numeroOriginal, grupo.tipoPeriodo);
           grupo.numeroParaOrden = grupo.numeroOriginal;
         }
       });
 
-      // Ordenar los grupos de este plan por su número de orden asignado
+      // Asegurar orden final por numeroParaOrden
       gruposDelPlan.sort((a, b) => a.numeroParaOrden - b.numeroParaOrden);
       
       // Extraer el nombre del plan desde el primer item válido del grupo
