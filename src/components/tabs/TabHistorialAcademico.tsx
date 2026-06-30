@@ -149,10 +149,25 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       if (data && data.length > 0) {
         setProgramas(data);
         
-        const planPrincipal = data.find((p: any) => 
-          (p.planes_estudio as any)?.nombre === alumno.licenciatura || 
-          (p.planes_estudio as any)?.clave_legado === alumno.licenciatura
-        ) || data.find((p: any) => p.estatus === 'CURSANDO') || data[0];
+        // Buscar el plan que coincida con la licenciatura configurada en datos generales
+        const licAlumno = alumno.licenciatura?.trim().toUpperCase() || '';
+        const planPrincipal = data.find((p: any) => {
+          const plan = p.planes_estudio as any;
+          if (!plan || !licAlumno) return false;
+          // Match por nombre del plan o clave_legado
+          if (plan.nombre?.toUpperCase() === licAlumno) return true;
+          if (plan.clave_legado?.toUpperCase() === licAlumno) return true;
+          // Match por nombre de la carrera asociada
+          if (plan.carrera_id) {
+            const carrera = carreras.find(c => c.id === plan.carrera_id);
+            if (carrera?.nombre?.trim().toUpperCase() === licAlumno) return true;
+            // Match parcial (el campo licenciatura podría contener "PSICOLOGIA" y la carrera ser "PSICOLOGÍA")
+            const nombreNorm = carrera?.nombre?.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
+            const licNorm = licAlumno.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (nombreNorm && nombreNorm === licNorm) return true;
+          }
+          return false;
+        }) || data.find((p: any) => p.estatus === 'CURSANDO') || data[0];
 
         setPlanActivoId(prev => {
           if (prev && data.some(d => d.plan_id === prev)) return prev;
@@ -228,6 +243,9 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       }
 
       // 3. Map records
+      // NOTA: El microservicio ya aplica sanitizarCalificaciones, por lo que:
+      // - Los 0s artificiales del GES ya fueron convertidos a null
+      // - El campo item.estatus ya refleja correctamente: APROBADA/REPROBADA/EN_CURSO/SIN_EVALUAR
       const registrosMapeados: any[] = [];
       
       for (const item of dataGES) {
@@ -237,24 +255,28 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
         const asigMatch = asignaturas.find(a => a.clave_legado === item.clave_asignatura && a.plan_id === planMatch.id);
         if (!asigMatch) continue;
 
-        const califFinal = parseFloat(item.calificacion_final);
-        let estatus = 'PENDIENTE';
-        if (!isNaN(califFinal)) {
-          estatus = califFinal >= 6 ? 'APROBADA' : 'REPROBADA';
-        }
+        // Respetar los valores ya saneados por el microservicio (null = null, no convertir)
+        const parseOrNull = (val: any) => (val !== null && val !== undefined) ? parseFloat(val) : null;
+        
+        const p1 = parseOrNull(item.parcial_1);
+        const p2 = parseOrNull(item.parcial_2);
+        const p3 = parseOrNull(item.parcial_3);
+        let promParc = parseOrNull(item.promedio_calculado);
 
-        const p1 = item.parcial_1 !== null ? parseFloat(item.parcial_1) : null;
-        const p2 = item.parcial_2 !== null ? parseFloat(item.parcial_2) : null;
-        const p3 = item.parcial_3 !== null ? parseFloat(item.parcial_3) : null;
-        let promParc = item.promedio_calculado !== null ? parseFloat(item.promedio_calculado) : null;
-
-        if (promParc === null) {
+        // Calcular promedio solo si el microservicio no lo trajo y hay parciales reales
+        if (promParc === null && (p1 !== null || p2 !== null || p3 !== null)) {
             let sum = 0, count = 0;
             if (p1 !== null) { sum += (p1 === -555 ? 0 : p1); count++; }
             if (p2 !== null) { sum += (p2 === -555 ? 0 : p2); count++; }
             if (p3 !== null) { sum += (p3 === -555 ? 0 : p3); count++; }
             if (count > 0) promParc = Number((sum / count).toFixed(2));
         }
+
+        // Usar el estatus calculado por el microservicio; si no viene, derivar uno básico como respaldo
+        const estatus = item.estatus || (
+          item.calificacion_final === null ? 'EN_CURSO' :
+          item.calificacion_final >= 6 ? 'APROBADA' : 'REPROBADA'
+        );
 
         registrosMapeados.push({
           alumno_id: alumno.id,
@@ -265,11 +287,11 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
           parcial_2: p2,
           parcial_3: p3,
           promedio_calculado: promParc,
-          calificacion_final: item.calificacion_final !== null ? parseFloat(item.calificacion_final) : null,
+          calificacion_final: parseOrNull(item.calificacion_final),
           tipo_evaluacion: item.tipo_evaluacion || 'ORDINARIO',
           estatus: estatus,
           modificada_manualmente: false,
-          observaciones: 'Importado de GES 4'
+          observaciones: item.observaciones || 'Importado de GES 4'
         });
       }
 
@@ -285,9 +307,36 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
       if (insertError) throw insertError;
 
-      toast.success('Historial sincronizado exitosamente.');
+      // 5. AUTO-REGISTRAR TODOS LOS PLANES DETECTADOS en alumno_programas
+      // Detectar todos los plan_id únicos que se importaron
+      const planIdsImportados = [...new Set(registrosMapeados.map(r => r.asignatura_id).map(asigId => {
+        const asig = asignaturas.find(a => a.id === asigId);
+        return asig?.plan_id;
+      }).filter(Boolean))] as string[];
+
+      // Consultar cuáles ya están registrados
+      const { data: programasExistentes } = await supabase
+        .from('alumno_programas')
+        .select('plan_id')
+        .eq('alumno_id', alumno.id);
+
+      const planIdsExistentes = (programasExistentes || []).map(p => p.plan_id);
+      const planesFaltantes = planIdsImportados.filter(pid => !planIdsExistentes.includes(pid));
+
+      if (planesFaltantes.length > 0) {
+        const nuevosRegistros = planesFaltantes.map(pid => ({
+          alumno_id: alumno.id,
+          plan_id: pid,
+          estatus: alumno.estatus || 'CURSANDO',
+          fecha_inscripcion: new Date().toISOString().split('T')[0]
+        }));
+        await supabase.from('alumno_programas').insert(nuevosRegistros);
+        // Planes faltantes registrados automáticamente
+      }
+
+      toast.success(`Historial sincronizado: ${registrosMapeados.length} registros de ${planIdsImportados.length} plan(es).`);
       await fetchHistorialLocal();
-      await fetchProgramas(); // Dispara el auto-healing y actualiza el selector inmediatamente
+      await fetchProgramas();
 
     } catch (error: any) {
       console.error('Error sincronizando con GES 4:', error);
