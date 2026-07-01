@@ -243,7 +243,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
       // 2. Fetch Lookups from Supabase
       const { data: asignaturas } = await supabase.from('asignaturas').select('id, clave_legado, plan_id');
-      const { data: planes } = await supabase.from('planes_estudio').select('id, clave_legado');
+      const { data: planes } = await supabase.from('planes_estudio').select('id, clave_legado, tipo_periodo');
 
       if (!asignaturas || !planes) {
         throw new Error('Error al cargar los catálogos de asignaturas y planes de estudio.');
@@ -285,9 +285,23 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
           item.calificacion_final >= calificacionMinima ? 'APROBADA' : 'REPROBADA'
         );
 
+        // Mapeo automático de ciclo_id basado en ciclo_legado y tipo_periodo del plan
+        let mappedCicloId = null;
+        if (item.ciclo_legado) {
+          const planAsignatura = planes.find(p => p.id === asigMatch.plan_id);
+          const tipoPeriodoPlan = planAsignatura?.tipo_periodo;
+          
+          if (tipoPeriodoPlan) {
+            const cicloMatch = ciclos.find(c => c.nombre === item.ciclo_legado && c.tipo_periodo === tipoPeriodoPlan);
+            if (cicloMatch) {
+              mappedCicloId = cicloMatch.id;
+            }
+          }
+        }
+
         registrosMapeados.push({
           alumno_id: alumno.id,
-          ciclo_id: null,
+          ciclo_id: mappedCicloId,
           ciclo_legado: item.ciclo_legado,
           asignatura_id: asigMatch.id,
           parcial_1: p1,
