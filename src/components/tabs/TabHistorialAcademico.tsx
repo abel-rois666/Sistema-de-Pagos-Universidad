@@ -105,7 +105,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   const carreraDelPlan = carreras.find(c => c.id === (planActivoData?.planes_estudio as any)?.carrera_id);
   const calificacionMinima = carreraDelPlan?.calificacion_minima_aprobatoria || 6;
   const esEspecialidad = carreraDelPlan?.nivel_educativo?.toLowerCase().includes('especialidad') || false;
-  const totalColumnas = esEspecialidad ? 9 : 13;
+  const totalColumnas = esEspecialidad ? 10 : 13;
 
   const fetchHistorialLocal = async () => {
     setLoading(true);
@@ -489,10 +489,11 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     let promedioRaw = materiasParaPromedio > 0 ? (sumPromedio / materiasParaPromedio) : 0;
     const promedioGeneral = (Math.trunc(promedioRaw * 100) / 100).toFixed(2);
     
-    // Extraer créditos del plan desde la primera materia
+    // Extraer créditos del plan usando la primera materia que pertenezca al plan activo
     let creditosTotalesPlan = 325; // Default fallback
-    if (historial.length > 0 && historial[0]?.asignaturas?.planes_estudio?.creditos_obligatorios) {
-        creditosTotalesPlan = Number(historial[0].asignaturas.planes_estudio.creditos_obligatorios);
+    const materiaDelPlan = historial.find(h => h.asignaturas?.plan_id === planActivoId);
+    if (materiaDelPlan?.asignaturas?.planes_estudio?.creditos_obligatorios) {
+        creditosTotalesPlan = Number(materiaDelPlan.asignaturas.planes_estudio.creditos_obligatorios);
     }
     
     const porcentajeAvance = creditosTotalesPlan > 0 ? ((creditosCubiertos / creditosTotalesPlan) * 100).toFixed(1) : '0.0';
@@ -867,7 +868,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                   <th className="px-2 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Recur.</th>
                   <th className="px-3 py-3 text-center text-[#1456f0] dark:text-[#60a5fa] text-xs">Final</th>
                   <th className="px-3 py-3 text-center">Letra</th>
-                  {!esEspecialidad && <th className="px-3 py-3 text-center">Créd.</th>}
+                  <th className="px-3 py-3 text-center">Créd.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f2f3f5] dark:divide-[rgba(255,255,255,0.04)] text-sm">
@@ -978,11 +979,9 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                             <td className="px-3 py-2.5 text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
                                 {calificacionALetras(item.mejor_calificacion)}
                             </td>
-                            {!esEspecialidad && (
                             <td className="px-3 py-2.5 text-center font-mono text-[12px] text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/50 dark:bg-blue-900/20">
                                 {item.asignatura?.creditos || '-'}
                             </td>
-                            )}
                         </tr>
                     );
                 })}
