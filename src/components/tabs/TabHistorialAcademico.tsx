@@ -100,6 +100,13 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   const [filtroEstatus, setFiltroEstatus] = useState<string[]>(OPCIONES_ESTATUS);
   const [ocultarComplementarias, setOcultarComplementarias] = useState(false);
 
+  // Derivar la calificación mínima aprobatoria del plan activo
+  const planActivoData = programas.find(p => p.plan_id === planActivoId);
+  const carreraDelPlan = carreras.find(c => c.id === (planActivoData?.planes_estudio as any)?.carrera_id);
+  const calificacionMinima = carreraDelPlan?.calificacion_minima_aprobatoria || 6;
+  const esEspecialidad = carreraDelPlan?.nivel_educativo?.toLowerCase().includes('especialidad') || false;
+  const totalColumnas = esEspecialidad ? 9 : 13;
+
   const fetchHistorialLocal = async () => {
     setLoading(true);
     try {
@@ -221,8 +228,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
     setIsSyncing(true);
     try {
-      // 1. Fetch from legacy API
-      const response = await fetch(`http://localhost:3001/api/legacy/kardex/${alumno.matricula}`);
+      // 1. Fetch from legacy API (Opción C: pasar umbral de aprobación)
+      const response = await fetch(`http://localhost:3001/api/legacy/kardex/${alumno.matricula}?umbral=${calificacionMinima}`);
       if (!response.ok) {
         throw new Error(`Error HTTP! status: ${response.status}`);
       }
@@ -275,7 +282,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
         // Usar el estatus calculado por el microservicio; si no viene, derivar uno básico como respaldo
         const estatus = item.estatus || (
           item.calificacion_final === null ? 'EN_CURSO' :
-          item.calificacion_final >= 6 ? 'APROBADA' : 'REPROBADA'
+          item.calificacion_final >= calificacionMinima ? 'APROBADA' : 'REPROBADA'
         );
 
         registrosMapeados.push({
@@ -383,7 +390,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       // Determinar la mejor calificación y si está acreditada
       const calif = reg.calificacion_final !== null ? parseFloat(reg.calificacion_final) : null;
       if (calif !== null) {
-        if (calif >= 6) {
+        if (calif >= calificacionMinima) {
           grupo.acreditada = true;
           if (grupo.mejor_calificacion === null || calif > grupo.mejor_calificacion) {
             grupo.mejor_calificacion = calif;
@@ -395,7 +402,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     });
 
     return Array.from(mapa.values());
-  }, [historial, planActivoId]);
+  }, [historial, planActivoId, calificacionMinima]);
 
   // Aplica filtros y calcula estadísticas
   const { datosFiltrados, estadisticas } = useMemo(() => {
@@ -432,8 +439,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
         
         // --- REGLAS ESTRICTAS DE REPROBACIÓN ---
         
-        // A) Final explícito: 5, NP (-555), o una calificación real entre 0.1 y 5.9
-        const finalExplicito = finalCalif === 5 || finalCalif === -555 || (finalCalif !== null && finalCalif > 0 && finalCalif < 6);
+        // A) Final explícito: NP (-555), o una calificación real entre 0.1 y el umbral
+        const finalExplicito = finalCalif === -555 || (finalCalif !== null && finalCalif > 0 && finalCalif < calificacionMinima);
         
         // B) Final en 0 legítimo: Tiene 0 en el final, PERO sus 3 parciales sí fueron capturados (ninguno está vacío). 
         // Esto diferencia un abandono real de un "0 de inicialización de sistema".
@@ -840,23 +847,33 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                 <tr className="bg-gray-50 dark:bg-[#1c2228] border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
                   <th className="px-4 py-3 sticky left-0 bg-gray-50 dark:bg-[#1c2228] z-10 border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Asignatura</th>
                   <th className="px-3 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Ciclo</th>
-                  <th className="px-2 py-3 text-center">P1</th>
-                  <th className="px-2 py-3 text-center">P2</th>
-                  <th className="px-2 py-3 text-center">P3</th>
-                  <th className="px-2 py-3 text-center text-gray-400">Prom.</th>
-                  <th className="px-3 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Final Ord.</th>
-                  <th className="px-2 py-3 text-center">Ext. 1</th>
-                  <th className="px-2 py-3 text-center">Ext. 2</th>
+                  {esEspecialidad ? (
+                    <>
+                      <th className="px-2 py-3 text-center">Eval. Final</th>
+                      <th className="px-2 py-3 text-center text-gray-400">Prom.</th>
+                      <th className="px-3 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Final Ord.</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-2 py-3 text-center">P1</th>
+                      <th className="px-2 py-3 text-center">P2</th>
+                      <th className="px-2 py-3 text-center">P3</th>
+                      <th className="px-2 py-3 text-center text-gray-400">Prom.</th>
+                      <th className="px-3 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Final Ord.</th>
+                      <th className="px-2 py-3 text-center">Ext. 1</th>
+                      <th className="px-2 py-3 text-center">Ext. 2</th>
+                    </>
+                  )}
                   <th className="px-2 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Recur.</th>
                   <th className="px-3 py-3 text-center text-[#1456f0] dark:text-[#60a5fa] text-xs">Final</th>
                   <th className="px-3 py-3 text-center">Letra</th>
-                  <th className="px-3 py-3 text-center">Créd.</th>
+                  {!esEspecialidad && <th className="px-3 py-3 text-center">Créd.</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f2f3f5] dark:divide-[rgba(255,255,255,0.04)] text-sm">
                 {datosAgrupados.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={totalColumnas} className="px-4 py-8 text-center text-gray-500">
                       No hay registros académicos con los filtros actuales.
                     </td>
                   </tr>
@@ -865,7 +882,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                     <React.Fragment key={planEstructurado.planClave}>
                       {/* SÚPER CABECERA DEL PLAN DE ESTUDIOS */}
                       <tr className="bg-[#1456f0] dark:bg-blue-900 text-white">
-                        <td colSpan={13} className="px-4 py-3 text-sm font-black uppercase tracking-wider shadow-inner">
+                        <td colSpan={totalColumnas} className="px-4 py-3 text-sm font-black uppercase tracking-wider shadow-inner">
                           🎓 {planEstructurado.planNombre} <span className="font-normal text-blue-200 text-xs ml-2">(CLAVE: {planEstructurado.planClave})</span>
                         </td>
                       </tr>
@@ -874,7 +891,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                       {planEstructurado.grupos.map((grupo: any) => (
                         <React.Fragment key={grupo.titulo}>
                           <tr className="bg-gray-100 dark:bg-gray-800/60 border-y border-gray-200 dark:border-gray-700">
-                            <td colSpan={13} className="px-4 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                            <td colSpan={totalColumnas} className="px-4 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
                               {grupo.titulo}
                               {grupo.modelo === 'FLEXIBLE' && <span className="text-xs font-normal text-gray-500 lowercase ml-2">(orden cronológico)</span>}
                             </td>
@@ -906,27 +923,49 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                             </td>
                             
                             {/* Ordinario */}
-                            <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_1)}</td>
-                            <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_2)}</td>
-                            <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_3)}</td>
-                            <td className="px-2 py-2.5 text-center font-mono text-[13px] text-gray-400">
-                                {item.ordinario?.promedio_calculado !== null && item.ordinario?.promedio_calculado !== undefined 
-                                    ? renderCalif(item.ordinario.promedio_calculado) === 'NP' ? 'NP' : Number(item.ordinario.promedio_calculado).toFixed(2)
-                                    : '-'}
-                            </td>
-                            <td className="px-3 py-2.5 text-center font-mono text-[13px] font-semibold border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-                                {safeRender(item.ordinario?.calificacion_final)}
-                            </td>
+                            {esEspecialidad ? (
+                              <>
+                                {/* Especialidad: Eval. Final (= parcial_1) */}
+                                <td className="px-2 py-2.5 text-center font-mono text-[13px] font-semibold">{safeRender(item.ordinario?.parcial_1)}</td>
+                                {/* Prom. */}
+                                <td className="px-2 py-2.5 text-center font-mono text-[13px] text-gray-400">
+                                    {item.ordinario?.promedio_calculado !== null && item.ordinario?.promedio_calculado !== undefined 
+                                        ? renderCalif(item.ordinario.promedio_calculado) === 'NP' ? 'NP' : Number(item.ordinario.promedio_calculado).toFixed(2)
+                                        : '-'}
+                                </td>
+                                {/* Final Ord. (= parcial_1 para Especialidades) */}
+                                <td className="px-3 py-2.5 text-center font-mono text-[13px] font-semibold border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
+                                    {safeRender(item.ordinario?.calificacion_final ?? item.ordinario?.parcial_1)}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                {/* Licenciatura: P1, P2, P3, Prom, Final, Ext1, Ext2 */}
+                                <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_1)}</td>
+                                <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_2)}</td>
+                                <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_3)}</td>
+                                <td className="px-2 py-2.5 text-center font-mono text-[13px] text-gray-400">
+                                    {item.ordinario?.promedio_calculado !== null && item.ordinario?.promedio_calculado !== undefined 
+                                        ? renderCalif(item.ordinario.promedio_calculado) === 'NP' ? 'NP' : Number(item.ordinario.promedio_calculado).toFixed(2)
+                                        : '-'}
+                                </td>
+                                <td className="px-3 py-2.5 text-center font-mono text-[13px] font-semibold border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
+                                    {safeRender(item.ordinario?.calificacion_final)}
+                                </td>
 
-                            {/* Extraordinarios y Recursamiento */}
-                            <td className="px-2 py-2.5 text-center font-mono text-[13px] text-amber-700 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-900/10">
-                                {safeRender(item.extras[0]?.calificacion_final)}
-                            </td>
-                            <td className="px-2 py-2.5 text-center font-mono text-[13px] text-amber-700 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-900/10">
-                                {safeRender(item.extras[1]?.calificacion_final)}
-                            </td>
+                                {/* Extraordinarios */}
+                                <td className="px-2 py-2.5 text-center font-mono text-[13px] text-amber-700 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-900/10">
+                                    {safeRender(item.extras[0]?.calificacion_final)}
+                                </td>
+                                <td className="px-2 py-2.5 text-center font-mono text-[13px] text-amber-700 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-900/10">
+                                    {safeRender(item.extras[1]?.calificacion_final)}
+                                </td>
+                              </>
+                            )}
+
+                            {/* Recursamiento (común a ambos layouts) */}
                             <td className="px-2 py-2.5 text-center font-mono text-[13px] text-purple-700 dark:text-purple-400 bg-purple-50/30 dark:bg-purple-900/10 border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-                                {safeRender(item.extras[2]?.calificacion_final)}
+                                {safeRender(item.extras[esEspecialidad ? 0 : 2]?.calificacion_final)}
                             </td>
 
                             {/* Final, Letra y Créditos */}
@@ -939,9 +978,11 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                             <td className="px-3 py-2.5 text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
                                 {calificacionALetras(item.mejor_calificacion)}
                             </td>
+                            {!esEspecialidad && (
                             <td className="px-3 py-2.5 text-center font-mono text-[12px] text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/50 dark:bg-blue-900/20">
                                 {item.asignatura?.creditos || '-'}
                             </td>
+                            )}
                         </tr>
                     );
                 })}

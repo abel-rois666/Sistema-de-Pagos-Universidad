@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.carreras (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     nombre TEXT NOT NULL,
     nivel_educativo TEXT,
+    calificacion_minima_aprobatoria NUMERIC DEFAULT 6,
     activo BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now()
 );

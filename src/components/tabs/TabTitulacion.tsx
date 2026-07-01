@@ -90,7 +90,7 @@ function getEstatusTitulacion(ficha: FichaTitulacion | null): 'SIN_INICIAR' | 'E
 }
 
 // ── Helpers de Requisitos ───────────────────────────────────────────────────
-async function validarRequisitoIngles(alumnoId: string): Promise<boolean> {
+async function validarRequisitoIngles(alumnoId: string, calificacionMinima: number = 6): Promise<boolean> {
   try {
     // 1. Descubrir cuántas materias de Inglés tiene el plan de estudios asignado
     const { data: historialTop } = await supabase
@@ -116,13 +116,13 @@ async function validarRequisitoIngles(alumnoId: string): Promise<boolean> {
 
     const idsIngles = materiasInglesPlan.map(m => m.id);
 
-    // 2. Buscar en el historial académico cuáles de esas materias ya aprobó (>= 6)
+    // 2. Buscar en el historial académico cuáles de esas materias ya aprobó (umbral dinámico)
     const { data: historialIngles } = await supabase
       .from('inscripciones_academicas')
       .select('asignatura_id, calificacion_final')
       .eq('alumno_id', alumnoId)
       .in('asignatura_id', idsIngles)
-      .gte('calificacion_final', 6);
+      .gte('calificacion_final', calificacionMinima);
 
     // Agrupar IDs únicos para no contar recursamientos o extraordinarios como materias distintas
     const materiasAprobadasUnicas = new Set(historialIngles?.map(h => h.asignatura_id));
@@ -477,7 +477,7 @@ export default function TabTitulacion({
       await supabase.from('ficha_titulacion').update({ ...draft, updated_at: new Date().toISOString() }).eq('id', ficha.id);
     } else {
       // Validar Inglés al crear la ficha por primera vez
-      const isInglesCubierto = await validarRequisitoIngles(alumnoId);
+      const isInglesCubierto = await validarRequisitoIngles(alumnoId, esEspecialidad ? 8 : 6);
       const payloadInsert = {
         ...draft,
         ingles: isInglesCubierto ? 'COMPLETADO' : draft.ingles

@@ -437,6 +437,7 @@ export interface Carrera {
   id: string;
   nombre: string;
   nivel_educativo?: string;
+  calificacion_minima_aprobatoria?: number;
   activo: boolean;
   created_at?: string;
 }

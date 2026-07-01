@@ -13,6 +13,7 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
   const [form, setForm] = useState<Partial<Carrera>>({
     nombre: '',
     nivel_educativo: 'Licenciatura',
+    calificacion_minima_aprobatoria: 6,
     activo: true,
   });
   
@@ -24,6 +25,7 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
       setForm({
         nombre: carrera.nombre || '',
         nivel_educativo: carrera.nivel_educativo || 'Licenciatura',
+        calificacion_minima_aprobatoria: carrera.calificacion_minima_aprobatoria ?? 6,
         activo: carrera.activo !== undefined ? carrera.activo : true,
       });
     }
@@ -48,6 +50,7 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
           .update({
             nombre: form.nombre.trim(),
             nivel_educativo: form.nivel_educativo,
+            calificacion_minima_aprobatoria: form.calificacion_minima_aprobatoria ?? 6,
             activo: form.activo,
           })
           .eq('id', carrera.id)
@@ -63,6 +66,7 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
           .insert([{
             nombre: form.nombre.trim(),
             nivel_educativo: form.nivel_educativo,
+            calificacion_minima_aprobatoria: form.calificacion_minima_aprobatoria ?? 6,
             activo: form.activo,
           }])
           .select()
@@ -120,13 +124,33 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
             <select
               className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100"
               value={form.nivel_educativo}
-              onChange={(e) => setForm({ ...form, nivel_educativo: e.target.value })}
+              onChange={(e) => {
+                const nivel = e.target.value;
+                const umbralDefault = nivel === 'Especialidad' ? 8 : 6;
+                setForm({ ...form, nivel_educativo: nivel, calificacion_minima_aprobatoria: umbralDefault });
+              }}
             >
               <option value="Licenciatura">Licenciatura</option>
               <option value="Especialidad">Especialidad</option>
               <option value="Maestría">Maestría</option>
               <option value="Doctorado">Doctorado</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Calificación Mínima Aprobatoria</label>
+            <input
+              type="number"
+              min="0"
+              max="10"
+              step="0.5"
+              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100"
+              value={form.calificacion_minima_aprobatoria ?? 6}
+              onChange={(e) => setForm({ ...form, calificacion_minima_aprobatoria: parseFloat(e.target.value) || 6 })}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              {form.nivel_educativo === 'Especialidad' ? 'Especialidades: 8 por defecto' : 'Licenciaturas: 6 por defecto'}
+            </p>
           </div>
 
           <div className="flex items-center gap-3 pt-2">
