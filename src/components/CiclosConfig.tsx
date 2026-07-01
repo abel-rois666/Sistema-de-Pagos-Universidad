@@ -66,6 +66,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
         meses_abarca: editForm.meses_abarca,
         anio: Number(editForm.anio),
         anio_fin: editForm.anio_fin ? Number(editForm.anio_fin) : null,
+        tipo_periodo: editForm.tipo_periodo || 'Semestral',
         activo: editForm.activo || false
       };
       updatedCiclos = [...ciclos, cicloToSave];
@@ -83,6 +84,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
         meses_abarca: cicloToSave.meses_abarca,
         anio: cicloToSave.anio,
         anio_fin: cicloToSave.anio_fin ?? null,
+        tipo_periodo: cicloToSave.tipo_periodo ?? null,
         activo: cicloToSave.activo,
       });
       if (error) {
@@ -103,7 +105,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
   const handleAddNew = () => {
     const now = new Date();
     setEditingId('new');
-    setEditForm({ nombre: '', meses_abarca: 'Enero - Abril', anio: now.getFullYear(), anio_fin: null, activo: false });
+    setEditForm({ nombre: '', meses_abarca: 'Enero - Abril', anio: now.getFullYear(), anio_fin: null, tipo_periodo: 'Semestral', activo: false });
   };
 
   const handleSetActivo = async (id: string) => {
@@ -112,7 +114,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
     try {
       const validForDB = updated
         .filter(c => isValidUUID(c.id))
-        .map(c => ({ id: c.id, nombre: c.nombre, meses_abarca: c.meses_abarca, anio: c.anio, anio_fin: c.anio_fin ?? null, activo: c.activo }));
+        .map(c => ({ id: c.id, nombre: c.nombre, meses_abarca: c.meses_abarca, anio: c.anio, anio_fin: c.anio_fin ?? null, tipo_periodo: c.tipo_periodo ?? null, activo: c.activo }));
 
       if (validForDB.length > 0) {
         const { error } = await supabase.from('ciclos_escolares').upsert(validForDB);
@@ -206,6 +208,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
                 <tr className="bg-gray-100 dark:bg-[#1c2228] text-[#45515e] dark:text-[#8e8e93] text-sm uppercase tracking-wider">
                   <th className="py-3 px-6 font-semibold">Nombre del Ciclo</th>
                   <th className="py-3 px-6 font-semibold min-w-[220px]">Meses que Abarca</th>
+                  <th className="py-3 px-6 font-semibold">Tipo</th>
                   <th className="py-3 px-6 font-semibold min-w-[140px]">Año(s)</th>
                   <th className="py-3 px-6 font-semibold text-center">Estado</th>
                   <th className="py-3 px-6 font-semibold text-right">Acciones</th>
@@ -221,6 +224,18 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
                     </td>
                     <td className="py-3 px-6">
                       {renderMonthSelectors()}
+                    </td>
+                    <td className="py-3 px-6">
+                      <select 
+                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-blue-500"
+                        value={editForm.tipo_periodo || 'Semestral'}
+                        onChange={e => setEditForm({ ...editForm, tipo_periodo: e.target.value })}
+                      >
+                        <option value="Semestral">Semestral</option>
+                        <option value="Cuatrimestral">Cuatrimestral</option>
+                        <option value="Modular">Modular</option>
+                        <option value="Otro">Otro</option>
+                      </select>
                     </td>
                     <td className="py-3 px-6">
                       {renderYearFields()}
@@ -247,6 +262,18 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
                           {renderMonthSelectors()}
                         </td>
                         <td className="py-3 px-6">
+                          <select 
+                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-blue-500"
+                            value={editForm.tipo_periodo || 'Semestral'}
+                            onChange={e => setEditForm({ ...editForm, tipo_periodo: e.target.value })}
+                          >
+                            <option value="Semestral">Semestral</option>
+                            <option value="Cuatrimestral">Cuatrimestral</option>
+                            <option value="Modular">Modular</option>
+                            <option value="Otro">Otro</option>
+                          </select>
+                        </td>
+                        <td className="py-3 px-6">
                           {renderYearFields()}
                         </td>
                         <td className="py-3 px-6 text-center">
@@ -266,6 +293,9 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
                           <span className="bg-gray-100 dark:bg-[#1c2228] px-3 py-1 rounded-full text-xs text-[#45515e] dark:text-gray-300 inline-block shadow-[var(--shadow-subtle)]">
                             {ciclo.meses_abarca}
                           </span>
+                        </td>
+                        <td className="py-4 px-6 text-[#45515e] dark:text-[#8e8e93] font-semibold text-sm">
+                          {ciclo.tipo_periodo || 'No definido'}
                         </td>
                         <td className="py-4 px-6 text-[#45515e] dark:text-[#8e8e93] font-semibold">
                           {ciclo.anio_fin && ciclo.anio_fin !== ciclo.anio

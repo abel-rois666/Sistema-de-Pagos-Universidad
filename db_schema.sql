@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.ciclos_escolares (
     meses_abarca TEXT,
     anio INTEGER,
     anio_fin INTEGER,
+    tipo_periodo TEXT,
     activo BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now()
 );

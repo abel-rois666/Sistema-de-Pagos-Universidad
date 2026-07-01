@@ -4,6 +4,7 @@ export interface CicloEscolar {
   meses_abarca: string;
   anio: number;
   anio_fin?: number | null;  // Año de fin (para ciclos que abarcan 2 años)
+  tipo_periodo?: string | null; // Semestral, Cuatrimestral, etc.
   activo: boolean;
 }
 
