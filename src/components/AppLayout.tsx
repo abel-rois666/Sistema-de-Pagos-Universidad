@@ -244,30 +244,68 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute top-full right-0 mt-2 bg-white dark:bg-[#1c2228] rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 py-1 z-50 min-w-[200px]"
+                    className="absolute top-full right-0 mt-2 bg-white dark:bg-[#1c2228] rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 z-50 min-w-[220px] flex flex-col"
                   >
-                    {ciclos.map(c => (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          const newId = c.id;
-                          setActiveCicloId(newId);
-                          if (currentUser) {
-                            setCurrentUser({ ...currentUser, ultimo_ciclo_id: newId });
-                            updateUserPreferences(currentUser.id, { ultimo_ciclo_id: newId });
-                          }
-                          setShowCicloMenu(false);
+                    {/* Barra de búsqueda */}
+                    <div className="p-2 border-b border-gray-100 dark:border-gray-800 shrink-0">
+                      <input
+                        type="text"
+                        id="ciclo-search-input"
+                        placeholder="Buscar ciclo..."
+                        autoFocus
+                        className="w-full text-[12px] px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 dark:text-gray-300 placeholder-gray-400"
+                        onChange={(e) => {
+                          const q = e.target.value.toLowerCase();
+                          const items = document.querySelectorAll('[data-ciclo-item]');
+                          items.forEach((el) => {
+                            const name = el.getAttribute('data-ciclo-item') || '';
+                            (el as HTMLElement).style.display = name.includes(q) ? '' : 'none';
+                          });
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-[13px] font-medium flex items-center justify-between transition-colors
-                          ${c.id === activeCicloId 
-                            ? 'bg-blue-50 dark:bg-blue-900/20 text-[#1456f0] dark:text-blue-400' 
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                          }`}
-                      >
-                        {c.nombre}
-                        {c.id === activeCicloId && <CheckCircle size={14} />}
-                      </button>
-                    ))}
+                      />
+                    </div>
+
+                    {/* Lista scrollable */}
+                    <div className="overflow-y-auto max-h-64 py-1">
+                      {[...ciclos]
+                        .sort((a, b) => {
+                          // Ordenar por año desc, luego por nombre desc
+                          const anioA = a.anio || 0;
+                          const anioB = b.anio || 0;
+                          if (anioB !== anioA) return anioB - anioA;
+                          return b.nombre.localeCompare(a.nombre);
+                        })
+                        .map(c => (
+                          <button
+                            key={c.id}
+                            data-ciclo-item={c.nombre.toLowerCase()}
+                            onClick={() => {
+                              const newId = c.id;
+                              setActiveCicloId(newId);
+                              if (currentUser) {
+                                setCurrentUser({ ...currentUser, ultimo_ciclo_id: newId });
+                                updateUserPreferences(currentUser.id, { ultimo_ciclo_id: newId });
+                              }
+                              setShowCicloMenu(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-[13px] font-medium flex items-center justify-between transition-colors
+                              ${c.id === activeCicloId 
+                                ? 'bg-blue-50 dark:bg-blue-900/20 text-[#1456f0] dark:text-blue-400' 
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                              }`}
+                          >
+                            <span>{c.nombre}</span>
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              {c.tipo_periodo && (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">{c.tipo_periodo.slice(0, 3).toUpperCase()}</span>
+                              )}
+                              {c.activo && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Activo" />}
+                              {c.id === activeCicloId && <CheckCircle size={14} />}
+                            </div>
+                          </button>
+                        ))
+                      }
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Plus, Edit2, Save, X, CheckCircle, XCircle, Loader2, Trash2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ArrowLeft, Plus, Edit2, Save, X, CheckCircle, XCircle, Loader2, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { CicloEscolar } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
@@ -16,6 +16,43 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
   const [editForm, setEditForm] = useState<Partial<CicloEscolar>>({});
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [sortField, setSortField] = useState<'nombre' | 'meses_abarca' | 'tipo_periodo' | 'anio' | 'activo'>('anio');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={13} className="opacity-30 ml-1 inline" />;
+    return sortDir === 'asc'
+      ? <ArrowUp size={13} className="text-blue-500 ml-1 inline" />
+      : <ArrowDown size={13} className="text-blue-500 ml-1 inline" />;
+  };
+
+  const sortedCiclos = useMemo(() => {
+    return [...ciclos].sort((a, b) => {
+      let valA: any;
+      let valB: any;
+      switch (sortField) {
+        case 'nombre':       valA = a.nombre || ''; valB = b.nombre || ''; break;
+        case 'meses_abarca': valA = a.meses_abarca || ''; valB = b.meses_abarca || ''; break;
+        case 'tipo_periodo': valA = a.tipo_periodo || ''; valB = b.tipo_periodo || ''; break;
+        case 'anio':         valA = a.anio || 0;   valB = b.anio || 0;   break;
+        case 'activo':       valA = a.activo ? 1 : 0; valB = b.activo ? 1 : 0; break;
+        default:             valA = 0; valB = 0;
+      }
+      if (typeof valA === 'string') {
+        return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return sortDir === 'asc' ? valA - valB : valB - valA;
+    });
+  }, [ciclos, sortField, sortDir]);
 
   const showNotification = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -319,11 +356,21 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
             <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
                 <tr className="bg-gray-100 dark:bg-[#1c2228] text-[#45515e] dark:text-[#8e8e93] text-sm uppercase tracking-wider">
-                  <th className="py-3 px-6 font-semibold">Nombre del Ciclo</th>
-                  <th className="py-3 px-6 font-semibold min-w-[220px]">Meses que Abarca</th>
-                  <th className="py-3 px-6 font-semibold">Tipo</th>
-                  <th className="py-3 px-6 font-semibold min-w-[140px]">Año(s)</th>
-                  <th className="py-3 px-6 font-semibold text-center">Estado</th>
+                  <th className="py-3 px-6 font-semibold cursor-pointer select-none hover:text-blue-600 transition-colors" onClick={() => handleSort('nombre')}>
+                    Nombre del Ciclo <SortIcon field="nombre" />
+                  </th>
+                  <th className="py-3 px-6 font-semibold min-w-[220px] cursor-pointer select-none hover:text-blue-600 transition-colors" onClick={() => handleSort('meses_abarca')}>
+                    Meses que Abarca <SortIcon field="meses_abarca" />
+                  </th>
+                  <th className="py-3 px-6 font-semibold cursor-pointer select-none hover:text-blue-600 transition-colors" onClick={() => handleSort('tipo_periodo')}>
+                    Tipo <SortIcon field="tipo_periodo" />
+                  </th>
+                  <th className="py-3 px-6 font-semibold min-w-[140px] cursor-pointer select-none hover:text-blue-600 transition-colors" onClick={() => handleSort('anio')}>
+                    Año(s) <SortIcon field="anio" />
+                  </th>
+                  <th className="py-3 px-6 font-semibold text-center cursor-pointer select-none hover:text-blue-600 transition-colors" onClick={() => handleSort('activo')}>
+                    Estado <SortIcon field="activo" />
+                  </th>
                   <th className="py-3 px-6 font-semibold text-right">Acciones</th>
                 </tr>
               </thead>
@@ -362,7 +409,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
                     </td>
                   </tr>
                 )}
-                {ciclos.map(ciclo => (
+                {sortedCiclos.map(ciclo => (
                   <tr key={ciclo.id} className="hover:bg-[#f2f3f5] dark:hover:bg-gray-800/50 transition-colors">
                     {editingId === ciclo.id ? (
                       <>
