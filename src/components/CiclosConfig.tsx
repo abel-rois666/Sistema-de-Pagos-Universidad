@@ -78,90 +78,70 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
         return;
       }
 
-      const upsertData: any[] = [];
-      const newCiclosList = [...ciclos];
+      // Construir mapa de pares únicos (nombre + tipo_periodo) para evitar duplicados
+      // al procesar el mismo ciclo GES que puede venir 2 veces con distintos tipos
+      const gesMap = new Map<string, any>();
 
       dataGES.forEach((row: any) => {
-        // nombre ya viene formateado desde el API: "2006-1"
         const formattedName = row.nombre_formateado;
         if (!formattedName) return;
 
-        // tipo_periodo desde DENOM_PERIODO: "Semestre" -> "Semestral", "Cuatrimestre" -> "Cuatrimestral"
         const denomStr = (row.denom_periodo || '').toLowerCase();
         let tipo = 'Semestral';
-        if (denomStr.includes('cuatrimest')) {
-          tipo = 'Cuatrimestral';
-        } else if (denomStr.includes('semest')) {
-          tipo = 'Semestral';
-        }
+        if (denomStr.includes('cuatrimest')) tipo = 'Cuatrimestral';
+        else if (denomStr.includes('semest')) tipo = 'Semestral';
 
-        // Calcular meses desde las fechas reales FECHAINICIAL / FECHAFINAL
-        let anioInicio = Number(row.inicial) || new Date().getFullYear();
-        let anioFin: number | null = (row.final && Number(row.final) !== anioInicio) ? Number(row.final) : null;
-        let startMonth = '';
-        let endMonth = '';
+        const mesesStr = (() => {
+          let s = '', e = '';
+          if (row.fecha_inicial) { const d = new Date(row.fecha_inicial); if (!isNaN(d.getTime())) s = MONTHS[d.getMonth()]; }
+          if (row.fecha_final)   { const d = new Date(row.fecha_final);   if (!isNaN(d.getTime())) e = MONTHS[d.getMonth()]; }
+          return s && e ? `${s} - ${e}` : 'Enero - Abril';
+        })();
 
-        if (row.fecha_inicial) {
-          const dStart = new Date(row.fecha_inicial);
-          if (!isNaN(dStart.getTime())) {
-            startMonth = MONTHS[dStart.getMonth()];
-          }
-        }
-        if (row.fecha_final) {
-          const dEnd = new Date(row.fecha_final);
-          if (!isNaN(dEnd.getTime())) {
-            endMonth = MONTHS[dEnd.getMonth()];
-          }
-        }
-        const mesesStr = startMonth && endMonth ? `${startMonth} - ${endMonth}` : 'Enero - Abril';
+        const anioInicio = Number(row.inicial) || new Date().getFullYear();
+        const anioFin: number | null = (row.final && Number(row.final) !== anioInicio) ? Number(row.final) : null;
 
-        // Buscar si ya existe este ciclo por nombre y tipo
+        // Clave única: nombre + tipo_periodo (garantiza que "2020-1 Semestral" y "2020-1 Cuatrimestral" sean registros DISTINTOS)
+        const key = `${formattedName}||${tipo}`;
+        if (!gesMap.has(key)) {
+          gesMap.set(key, { formattedName, tipo, mesesStr, anioInicio, anioFin });
+        }
+      });
+
+      // Construir el array de upsert, buscando si ya existe en Supabase
+      const upsertData: any[] = [];
+      const newCiclosList = [...ciclos];
+
+      gesMap.forEach(({ formattedName, tipo, mesesStr, anioInicio, anioFin }) => {
         const existingIdx = newCiclosList.findIndex(c => c.nombre === formattedName && c.tipo_periodo === tipo);
-        
         let targetId: string = crypto.randomUUID();
         let isActive = false;
 
         if (existingIdx >= 0) {
-           const existing = newCiclosList[existingIdx];
-           targetId = isValidUUID(existing.id) ? existing.id : crypto.randomUUID();
-           isActive = existing.activo;
-           newCiclosList[existingIdx] = {
-             ...existing,
-             id: targetId,
-             meses_abarca: mesesStr,
-             anio: anioInicio,
-             anio_fin: anioFin,
-           };
+          const existing = newCiclosList[existingIdx];
+          targetId = isValidUUID(existing.id) ? existing.id : crypto.randomUUID();
+          isActive = existing.activo;
+          newCiclosList[existingIdx] = { ...existing, id: targetId, meses_abarca: mesesStr, anio: anioInicio, anio_fin: anioFin };
         } else {
-           newCiclosList.push({
-             id: targetId,
-             nombre: formattedName,
-             meses_abarca: mesesStr,
-             anio: anioInicio,
-             anio_fin: anioFin,
-             tipo_periodo: tipo,
-             activo: false
-           });
+          newCiclosList.push({ id: targetId, nombre: formattedName, meses_abarca: mesesStr, anio: anioInicio, anio_fin: anioFin, tipo_periodo: tipo, activo: false });
         }
 
-        upsertData.push({
-          id: targetId,
-          nombre: formattedName,
-          meses_abarca: mesesStr,
-          anio: anioInicio,
-          anio_fin: anioFin,
-          tipo_periodo: tipo,
-          activo: isActive
-        });
+        upsertData.push({ id: targetId, nombre: formattedName, meses_abarca: mesesStr, anio: anioInicio, anio_fin: anioFin, tipo_periodo: tipo, activo: isActive });
       });
 
       if (upsertData.length > 0) {
-        const { error } = await supabase.from('ciclos_escolares').upsert(upsertData);
+        // onConflict: 'nombre,tipo_periodo' requiere el unique constraint en Supabase.
+        // Si no tienes el constraint, usa solo .upsert(upsertData) (sin onConflict).
+        const { error } = await supabase.from('ciclos_escolares').upsert(upsertData, {
+          onConflict: 'nombre,tipo_periodo',
+          ignoreDuplicates: false
+        });
         if (error) throw error;
       }
 
       setCiclos(newCiclosList);
       showNotification('success', `Se sincronizaron ${upsertData.length} ciclos exitosamente desde GES 4.`);
+
 
     } catch (error: any) {
       console.warn('[handleSyncGES]', error.message);
