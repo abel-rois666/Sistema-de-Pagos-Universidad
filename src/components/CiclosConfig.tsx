@@ -45,43 +45,37 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
       const newCiclosList = [...ciclos];
 
       dataGES.forEach((row: any) => {
-        // Formatear nombre: "26/1" -> "2026-1"
-        let formattedName = row.clave_ciclo;
-        if (row.clave_ciclo && row.clave_ciclo.includes('/')) {
-          const parts = row.clave_ciclo.split('/');
-          if (parts.length === 2 && parts[0].length === 2) {
-            formattedName = `20${parts[0]}-${parts[1]}`;
-          }
-        }
+        // nombre ya viene formateado desde el API: "2006-1"
+        const formattedName = row.nombre_formateado;
+        if (!formattedName) return;
 
-        // Determinar tipo de periodo
+        // tipo_periodo desde DENOM_PERIODO: "Semestre" -> "Semestral", "Cuatrimestre" -> "Cuatrimestral"
+        const denomStr = (row.denom_periodo || '').toLowerCase();
         let tipo = 'Semestral';
-        if (row.denom_periodo && row.denom_periodo.toLowerCase().includes('cuatrimest')) {
+        if (denomStr.includes('cuatrimest')) {
           tipo = 'Cuatrimestral';
+        } else if (denomStr.includes('semest')) {
+          tipo = 'Semestral';
         }
 
-        // Extraer año
-        let anioInicio = new Date().getFullYear();
-        let anioFin = null;
+        // Calcular meses desde las fechas reales FECHAINICIAL / FECHAFINAL
+        let anioInicio = Number(row.inicial) || new Date().getFullYear();
+        let anioFin: number | null = (row.final && Number(row.final) !== anioInicio) ? Number(row.final) : null;
         let startMonth = '';
         let endMonth = '';
 
         if (row.fecha_inicial) {
           const dStart = new Date(row.fecha_inicial);
           if (!isNaN(dStart.getTime())) {
-            anioInicio = dStart.getFullYear();
             startMonth = MONTHS[dStart.getMonth()];
           }
         }
-
         if (row.fecha_final) {
           const dEnd = new Date(row.fecha_final);
           if (!isNaN(dEnd.getTime())) {
-            anioFin = dEnd.getFullYear();
             endMonth = MONTHS[dEnd.getMonth()];
           }
         }
-
         const mesesStr = startMonth && endMonth ? `${startMonth} - ${endMonth}` : 'Enero - Abril';
 
         // Buscar si ya existe este ciclo por nombre y tipo
@@ -94,13 +88,12 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
            const existing = newCiclosList[existingIdx];
            targetId = isValidUUID(existing.id) ? existing.id : crypto.randomUUID();
            isActive = existing.activo;
-           // Actualizar en la lista local
            newCiclosList[existingIdx] = {
              ...existing,
              id: targetId,
              meses_abarca: mesesStr,
              anio: anioInicio,
-             anio_fin: anioFin !== anioInicio ? anioFin : null,
+             anio_fin: anioFin,
            };
         } else {
            newCiclosList.push({
@@ -108,7 +101,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
              nombre: formattedName,
              meses_abarca: mesesStr,
              anio: anioInicio,
-             anio_fin: anioFin !== anioInicio ? anioFin : null,
+             anio_fin: anioFin,
              tipo_periodo: tipo,
              activo: false
            });
@@ -119,7 +112,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
           nombre: formattedName,
           meses_abarca: mesesStr,
           anio: anioInicio,
-          anio_fin: anioFin !== anioInicio ? anioFin : null,
+          anio_fin: anioFin,
           tipo_periodo: tipo,
           activo: isActive
         });
