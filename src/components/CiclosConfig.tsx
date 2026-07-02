@@ -83,13 +83,24 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
       const gesMap = new Map<string, any>();
 
       dataGES.forEach((row: any) => {
-        const formattedName = row.nombre_formateado;
+        const descRaw = (row.descripcion || '').toUpperCase();
+        
+        // La descripción tiene la verdad absoluta (ej: "2020-1 SEMESTRE 1 2020" o "2020-3 CUATRIMESTRE 3")
+        let formattedName = row.nombre_formateado;
+        if (descRaw) {
+          formattedName = descRaw.split(' ')[0];
+        }
         if (!formattedName) return;
 
-        const denomStr = (row.denom_periodo || '').toLowerCase();
         let tipo = 'Semestral';
-        if (denomStr.includes('cuatrimest')) tipo = 'Cuatrimestral';
-        else if (denomStr.includes('semest')) tipo = 'Semestral';
+        if (descRaw) {
+          if (descRaw.includes('CUATRIMEST')) tipo = 'Cuatrimestral';
+          else if (descRaw.includes('SEMEST')) tipo = 'Semestral';
+        } else {
+          // Fallback a denom_periodo si por alguna razón no hay descripción
+          const denomStr = (row.denom_periodo || '').toLowerCase();
+          if (denomStr.includes('cuatrimest')) tipo = 'Cuatrimestral';
+        }
 
         const mesesStr = (() => {
           let s = '', e = '';
