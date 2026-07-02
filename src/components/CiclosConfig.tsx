@@ -18,6 +18,8 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [sortField, setSortField] = useState<'nombre' | 'meses_abarca' | 'tipo_periodo' | 'anio' | 'activo'>('anio');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -57,6 +59,47 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
   const showNotification = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedIds(e.target.checked ? sortedCiclos.map(c => c.id) : []);
+  };
+
+  const handleSelect = (id: string, checked: boolean) => {
+    setSelectedIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id));
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`¿Estás seguro de eliminar ${selectedIds.length} ciclos seleccionados? Esta acción es irreversible.`)) return;
+    setBulkSaving(true);
+    try {
+      const { error } = await supabase.from('ciclos_escolares').delete().in('id', selectedIds);
+      if (error) throw error;
+      setCiclos(ciclos.filter(c => !selectedIds.includes(c.id)));
+      setSelectedIds([]);
+      showNotification('success', `${selectedIds.length} ciclos eliminados exitosamente.`);
+    } catch (err: any) {
+      showNotification('error', `Error al eliminar: ${err.message}`);
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const handleBulkTypeChange = async (newType: string) => {
+    if (!newType) return;
+    if (!window.confirm(`¿Cambiar el tipo a "${newType}" para los ${selectedIds.length} ciclos seleccionados?`)) return;
+    setBulkSaving(true);
+    try {
+      const { error } = await supabase.from('ciclos_escolares').update({ tipo_periodo: newType }).in('id', selectedIds);
+      if (error) throw error;
+      setCiclos(ciclos.map(c => selectedIds.includes(c.id) ? { ...c, tipo_periodo: newType } : c));
+      setSelectedIds([]);
+      showNotification('success', `Tipo actualizado en ${selectedIds.length} ciclos.`);
+    } catch (err: any) {
+      showNotification('error', `Error al actualizar: ${err.message}`);
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   // Valida que el id sea un UUID v4 real (no un id de mock como 'c1', 'c2')
@@ -343,10 +386,35 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
             <p className="text-[#8e8e93] dark:text-[#8e8e93] text-sm mt-1">Administra los periodos escolares y define cuál es el ciclo activo.</p>
           </div>
 
+          {selectedIds.length > 0 && (
+            <div className="bg-blue-50 border-b border-blue-100 px-6 py-3 flex items-center justify-between transition-all">
+              <span className="text-blue-800 font-semibold text-sm">{selectedIds.length} ciclos seleccionados</span>
+              <div className="flex items-center gap-3">
+                <select 
+                  className="border border-blue-200 rounded px-3 py-1.5 text-sm text-blue-800 bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={e => { handleBulkTypeChange(e.target.value); e.target.value = ''; }}
+                  defaultValue=""
+                  disabled={bulkSaving}
+                >
+                  <option value="" disabled>Cambiar Tipo a...</option>
+                  <option value="Semestral">Semestral</option>
+                  <option value="Cuatrimestral">Cuatrimestral</option>
+                  <option value="Modular">Modular</option>
+                </select>
+                <button onClick={handleBulkDelete} disabled={bulkSaving} className="flex items-center gap-1.5 text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 px-3 py-1.5 rounded-[8px] text-sm font-semibold transition-colors disabled:opacity-50">
+                  {bulkSaving ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Eliminar
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
                 <tr className="bg-gray-100 dark:bg-[#1c2228] text-[#45515e] dark:text-[#8e8e93] text-sm uppercase tracking-wider">
+                  <th className="py-3 px-6 w-12 text-center border-r border-gray-200 dark:border-gray-700">
+                    <input type="checkbox" onChange={handleSelectAll} checked={sortedCiclos.length > 0 && selectedIds.length === sortedCiclos.length} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                  </th>
                   <th className="py-3 px-6 font-semibold cursor-pointer select-none hover:text-blue-600 transition-colors" onClick={() => handleSort('nombre')}>
                     Nombre del Ciclo <SortIcon field="nombre" />
                   </th>
@@ -368,6 +436,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {editingId === 'new' && (
                   <tr className="bg-blue-50/50 dark:bg-blue-900/20">
+                    <td className="py-3 px-6 text-center border-r border-gray-200 dark:border-gray-700"></td>
                     <td className="py-3 px-6">
                       <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] uppercase" placeholder="Ej. 26/1"
                         title="Formato Libre"
@@ -401,9 +470,10 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
                   </tr>
                 )}
                 {sortedCiclos.map(ciclo => (
-                  <tr key={ciclo.id} className="hover:bg-[#f2f3f5] dark:hover:bg-gray-800/50 transition-colors">
+                  <tr key={ciclo.id} className={`${selectedIds.includes(ciclo.id) ? 'bg-blue-50/40 dark:bg-blue-900/10' : 'hover:bg-[#f2f3f5] dark:hover:bg-gray-800/50'} transition-colors`}>
                     {editingId === ciclo.id ? (
                       <>
+                        <td className="py-3 px-6 text-center border-r border-gray-200 dark:border-gray-700"></td>
                         <td className="py-3 px-6">
                           <input type="text" className="w-full border border-blue-300 rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] uppercase"
                             placeholder="Ej. 26/1"
@@ -439,6 +509,9 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
                       </>
                     ) : (
                       <>
+                        <td className="py-4 px-6 text-center border-r border-gray-100 dark:border-gray-800">
+                          <input type="checkbox" checked={selectedIds.includes(ciclo.id)} onChange={e => handleSelect(ciclo.id, e.target.checked)} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                        </td>
                         <td className="py-4 px-6 font-bold text-[#222222] dark:text-gray-100">{ciclo.nombre}</td>
                         <td className="py-4 px-6 text-[#45515e] dark:text-[#8e8e93] font-medium">
                           <span className="bg-gray-100 dark:bg-[#1c2228] px-3 py-1 rounded-full text-xs text-[#45515e] dark:text-gray-300 inline-block shadow-[var(--shadow-subtle)]">
