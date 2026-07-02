@@ -87,7 +87,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
         // Buscar si ya existe este ciclo por nombre y tipo
         const existingIdx = newCiclosList.findIndex(c => c.nombre === formattedName && c.tipo_periodo === tipo);
         
-        let targetId = crypto.randomUUID();
+        let targetId: string = crypto.randomUUID();
         let isActive = false;
 
         if (existingIdx >= 0) {
