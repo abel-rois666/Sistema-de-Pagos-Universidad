@@ -615,6 +615,49 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   )}
                 </div>
 
+                {/* CICLO SELECTOR INTELIGENTE */}
+                {(() => {
+                  const inferredTipoPeriodo = newPlanForm.tipo_plan?.toLowerCase().includes('cuatrimestral') 
+                    ? 'Cuatrimestral' 
+                    : newPlanForm.tipo_plan?.toLowerCase().includes('semestral') ? 'Semestral' : null;
+                  
+                  const filteredCiclos = inferredTipoPeriodo 
+                    ? ciclos.filter(c => c.tipo_periodo === inferredTipoPeriodo) 
+                    : ciclos;
+
+                  // Auto-seleccionar el correcto
+                  let currentCicloId = newPlanForm.ciclo_id;
+                  if (!currentCicloId || !filteredCiclos.find(c => c.id === currentCicloId)) {
+                     const activeMatches = filteredCiclos.filter(c => c.activo);
+                     // Escoger el más reciente (mayor id/fecha, o simplemente el primero activo)
+                     currentCicloId = activeMatches.length > 0 ? activeMatches[0].id : (filteredCiclos[0]?.id || activeCiclo?.id);
+                     if (newPlanForm.ciclo_id !== currentCicloId && currentCicloId) {
+                       // Update silently in background to keep state in sync
+                       setTimeout(() => setNewPlanForm(prev => ({ ...prev, ciclo_id: currentCicloId })), 0);
+                     }
+                  }
+
+                  return (
+                    <div>
+                      <label className="block text-sm font-medium text-[#45515e] mb-1">
+                        Ciclo Escolar (Filtrado para {inferredTipoPeriodo || 'todos'})
+                      </label>
+                      <select
+                        className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white font-semibold"
+                        value={currentCicloId || ''}
+                        onChange={(e) => setNewPlanForm({ ...newPlanForm, ciclo_id: e.target.value })}
+                      >
+                        {filteredCiclos.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.nombre} {c.activo ? '(ACTIVO)' : ''}
+                          </option>
+                        ))}
+                        {filteredCiclos.length === 0 && <option value="">No hay ciclos para este tipo</option>}
+                      </select>
+                    </div>
+                  );
+                })()}
+
                 {plantillas.filter(p => p.activo).length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-[#45515e] mb-1">Usar Plantilla de Plan</label>
@@ -775,16 +818,19 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                       showAlert('Error', 'Por favor selecciona un alumno');
                       return;
                     }
+                    const finalCicloId = newPlanForm.ciclo_id || activeCiclo?.id;
+                    const finalCicloNombre = ciclos.find(c => c.id === finalCicloId)?.nombre || '';
+
                     const newPlan: PaymentPlan = {
                       id: crypto.randomUUID(),
                       alumno_id: newPlanForm.alumno_id,
-                      ciclo_id: activeCiclo?.id,
+                      ciclo_id: finalCicloId,
                       nombre_alumno: newPlanForm.nombre_alumno || '',
-                      no_plan_pagos: generateFolioForPlan(newPlanForm.alumno_id, newPlanForm.tipo_plan || 'Cuatrimestral', activeCiclo?.nombre || '', plans),
+                      no_plan_pagos: generateFolioForPlan(newPlanForm.alumno_id, newPlanForm.tipo_plan || 'Cuatrimestral', finalCicloNombre, plans),
                       fecha_plan: new Date().toLocaleDateString('es-MX'),
                       beca_porcentaje: newPlanForm.beca_porcentaje || '0%',
                       beca_tipo: newPlanForm.beca_tipo || 'NINGUNA',
-                      ciclo_escolar: activeCiclo?.nombre || '',
+                      ciclo_escolar: finalCicloNombre,
                       tipo_plan: newPlanForm.tipo_plan || 'Cuatrimestral',
                       licenciatura: newPlanForm.licenciatura || '',
                       observaciones: newPlanForm.observaciones || [],
@@ -814,7 +860,8 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                       beca_porcentaje: '0%',
                       beca_tipo: 'NINGUNA',
                       fecha_plan: new Date().toLocaleDateString('es-MX'),
-                      observaciones: []
+                      observaciones: [],
+                      ciclo_id: ''
                     });
                     setSelectedTemplateId('');
                   }}

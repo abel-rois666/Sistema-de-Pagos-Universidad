@@ -26,6 +26,120 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
   const isValidUUID = (id: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncGES = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('http://localhost:3001/api/legacy/ciclos');
+      if (!response.ok) throw new Error('Error al conectar con GES 4');
+      const dataGES = await response.json();
+
+      if (!dataGES || dataGES.length === 0) {
+        showNotification('error', 'No se encontraron ciclos en GES 4.');
+        setIsSyncing(false);
+        return;
+      }
+
+      const upsertData: any[] = [];
+      const newCiclosList = [...ciclos];
+
+      dataGES.forEach((row: any) => {
+        // Formatear nombre: "26/1" -> "2026-1"
+        let formattedName = row.clave_ciclo;
+        if (row.clave_ciclo && row.clave_ciclo.includes('/')) {
+          const parts = row.clave_ciclo.split('/');
+          if (parts.length === 2 && parts[0].length === 2) {
+            formattedName = `20${parts[0]}-${parts[1]}`;
+          }
+        }
+
+        // Determinar tipo de periodo
+        let tipo = 'Semestral';
+        if (row.denom_periodo && row.denom_periodo.toLowerCase().includes('cuatrimest')) {
+          tipo = 'Cuatrimestral';
+        }
+
+        // Extraer año
+        let anioInicio = new Date().getFullYear();
+        let anioFin = null;
+        let startMonth = '';
+        let endMonth = '';
+
+        if (row.fecha_inicial) {
+          const dStart = new Date(row.fecha_inicial);
+          if (!isNaN(dStart.getTime())) {
+            anioInicio = dStart.getFullYear();
+            startMonth = MONTHS[dStart.getMonth()];
+          }
+        }
+
+        if (row.fecha_final) {
+          const dEnd = new Date(row.fecha_final);
+          if (!isNaN(dEnd.getTime())) {
+            anioFin = dEnd.getFullYear();
+            endMonth = MONTHS[dEnd.getMonth()];
+          }
+        }
+
+        const mesesStr = startMonth && endMonth ? `${startMonth} - ${endMonth}` : 'Enero - Abril';
+
+        // Buscar si ya existe este ciclo por nombre y tipo
+        const existingIdx = newCiclosList.findIndex(c => c.nombre === formattedName && c.tipo_periodo === tipo);
+        
+        let targetId = crypto.randomUUID();
+        let isActive = false;
+
+        if (existingIdx >= 0) {
+           const existing = newCiclosList[existingIdx];
+           targetId = isValidUUID(existing.id) ? existing.id : crypto.randomUUID();
+           isActive = existing.activo;
+           // Actualizar en la lista local
+           newCiclosList[existingIdx] = {
+             ...existing,
+             id: targetId,
+             meses_abarca: mesesStr,
+             anio: anioInicio,
+             anio_fin: anioFin !== anioInicio ? anioFin : null,
+           };
+        } else {
+           newCiclosList.push({
+             id: targetId,
+             nombre: formattedName,
+             meses_abarca: mesesStr,
+             anio: anioInicio,
+             anio_fin: anioFin !== anioInicio ? anioFin : null,
+             tipo_periodo: tipo,
+             activo: false
+           });
+        }
+
+        upsertData.push({
+          id: targetId,
+          nombre: formattedName,
+          meses_abarca: mesesStr,
+          anio: anioInicio,
+          anio_fin: anioFin !== anioInicio ? anioFin : null,
+          tipo_periodo: tipo,
+          activo: isActive
+        });
+      });
+
+      if (upsertData.length > 0) {
+        const { error } = await supabase.from('ciclos_escolares').upsert(upsertData);
+        if (error) throw error;
+      }
+
+      setCiclos(newCiclosList);
+      showNotification('success', `Se sincronizaron ${upsertData.length} ciclos exitosamente desde GES 4.`);
+
+    } catch (error: any) {
+      console.warn('[handleSyncGES]', error.message);
+      showNotification('error', `Error en sincronización: ${error.message}`);
+    }
+    setIsSyncing(false);
+  };
+
   const handleEdit = (ciclo: CicloEscolar) => {
     setEditingId(ciclo.id);
     setEditForm(ciclo);
@@ -182,10 +296,16 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
           <button onClick={onBack} className="flex items-center gap-2 text-[#45515e] dark:text-[#8e8e93] hover:text-black dark:hover:text-white font-bold transition-colors">
             <ArrowLeft size={20} /> Volver al Inicio
           </button>
-          <button onClick={handleAddNew} disabled={editingId !== null || saving}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-[8px] font-medium disabled:opacity-50">
-            {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} Nuevo Ciclo
-          </button>
+          <div className="flex gap-3">
+            <button onClick={handleSyncGES} disabled={isSyncing || saving}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-[8px] font-medium disabled:opacity-50 shadow-sm">
+              {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Sincronizar GES 4
+            </button>
+            <button onClick={handleAddNew} disabled={editingId !== null || saving}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-[8px] font-medium disabled:opacity-50">
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} Nuevo Ciclo
+            </button>
+          </div>
         </div>
 
         {notification && (
