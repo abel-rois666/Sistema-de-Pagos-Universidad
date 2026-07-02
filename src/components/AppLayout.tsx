@@ -265,9 +265,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       />
                     </div>
 
-                    {/* Lista scrollable */}
                     <div className="overflow-y-auto max-h-64 py-1">
-                      {[...ciclos]
+                      {Array.from(new Set(ciclos.map(c => c.nombre)))
+                        .map(nombre => ciclos.find(c => c.nombre === nombre)!) // Get first cycle with this name
                         .sort((a, b) => {
                           // Ordenar por año desc, luego por nombre desc
                           const anioA = a.anio || 0;
@@ -275,9 +275,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                           if (anioB !== anioA) return anioB - anioA;
                           return b.nombre.localeCompare(a.nombre);
                         })
-                        .map(c => (
+                        .map(c => {
+                          const isActivePeriod = c.nombre === activeCiclo?.nombre;
+                          return (
                           <button
-                            key={c.id}
+                            key={c.nombre}
                             data-ciclo-item={c.nombre.toLowerCase()}
                             onClick={() => {
                               const newId = c.id;
@@ -289,21 +291,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
                               setShowCicloMenu(false);
                             }}
                             className={`w-full text-left px-4 py-2.5 text-[13px] font-medium flex items-center justify-between transition-colors
-                              ${c.id === activeCicloId 
+                              ${isActivePeriod 
                                 ? 'bg-blue-50 dark:bg-blue-900/20 text-[#1456f0] dark:text-blue-400' 
                                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                               }`}
                           >
                             <span>{c.nombre}</span>
                             <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                              {c.tipo_periodo && (
-                                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">{c.tipo_periodo.slice(0, 3).toUpperCase()}</span>
-                              )}
-                              {c.activo && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Activo" />}
-                              {c.id === activeCicloId && <CheckCircle size={14} />}
+                              {ciclos.some(x => x.nombre === c.nombre && x.activo) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Contiene ciclos activos" />}
+                              {isActivePeriod && <CheckCircle size={14} />}
                             </div>
                           </button>
-                        ))
+                        )})
                       }
                     </div>
                   </motion.div>

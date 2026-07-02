@@ -36,13 +36,16 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
 
   // ── Fetch pagos libres from DB ──────────────────────────────────────────────
   useEffect(() => {
-    if (!activeCiclo?.id) return;
+    if (!activeCiclo?.nombre) return;
     setLoadingLibres(true);
+
+    const matchingCicloIds = ciclos.filter(c => c.nombre === activeCiclo.nombre).map(c => c.id);
+
     supabase
       .from('recibos_detalles')
       .select('concepto, cantidad, costo_unitario, subtotal, recibos!inner(id, fecha_recibo, ciclo_id, total, alumno_id, estatus, uso_saldo_a_favor)')
       .is('indice_concepto_plan', null)
-      .eq('recibos.ciclo_id', activeCiclo.id)
+      .in('recibos.ciclo_id', matchingCicloIds)
       .neq('recibos.estatus', 'CANCELADO')
       .then(({ data }) => {
         if (data) {
@@ -60,7 +63,7 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
         }
         setLoadingLibres(false);
       });
-  }, [activeCiclo?.id]);
+  }, [activeCiclo?.nombre, ciclos]);
 
   // ── Plan stats (existing logic) ────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -132,7 +135,7 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
       
       // Filtro para planes Ordinarios (no titulación)
       if (!isTit) {
-        if (activeCiclo && plan.ciclo_id !== activeCiclo.id) {
+        if (activeCiclo && plan.ciclo_id !== activeCiclo.id && plan.ciclo_escolar !== activeCiclo.nombre) {
            return;
         }
       }
@@ -168,7 +171,7 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
     const sortedLicenciaturas = Object.entries(licenciaturaData).sort((a, b) => b[1].paid + b[1].owed - (a[1].paid + a[1].owed));
     const sortedTurnos = Object.entries(turnoData).sort((a, b) => b[1].paid + b[1].owed - (a[1].paid + a[1].owed));
     return { totalPaid, totalOwed, totalTitPaid, totalTitOwed, sortedMonths, sortedTitMonths, sortedLicenciaturas, sortedTurnos };
-  }, [plans, alumnos, activeCiclo?.id, filtroAnioTit, ciclos]);
+  }, [plans, alumnos, activeCiclo?.nombre, activeCiclo?.id, filtroAnioTit, ciclos]);
 
   // ── Pagos libres stats ─────────────────────────────────────────────────────
   const libresStats = useMemo(() => {

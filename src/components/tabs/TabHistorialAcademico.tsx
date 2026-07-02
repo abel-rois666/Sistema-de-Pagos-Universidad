@@ -289,14 +289,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
         let mappedCicloId = null;
         if (item.ciclo_legado) {
           const planAsignatura = planes.find(p => p.id === asigMatch.plan_id);
-          const tipoPeriodoPlan = planAsignatura?.tipo_periodo;
-          
-          if (tipoPeriodoPlan) {
-            const cicloMatch = ciclos.find(c => c.nombre === item.ciclo_legado && c.tipo_periodo === tipoPeriodoPlan);
-            if (cicloMatch) {
-              mappedCicloId = cicloMatch.id;
-            }
-          }
+          mappedCicloId = useAppStore.getState().resolveCicloId(item.ciclo_legado, planAsignatura?.tipo_periodo);
         }
 
         registrosMapeados.push({
@@ -528,8 +521,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   const datosAgrupados = useMemo(() => {
     const grupos: Record<string, any> = {};
 
-    // 1. Agrupar todo estrictamente por el bloque/periodo configurado en el catálogo
-    datosFiltrados.forEach(item => {
+    // 1. Agrupar todo estrictamente usando el historial COMPLETO para mantener los índices correctos
+    historialAgrupado.forEach(item => {
       const planData = item.asignatura?.planes_estudio;
       const modelo = planData?.modelo || 'RIGIDO';
       const tipoPeriodo = planData?.tipo_periodo || 'Semestral';
@@ -691,11 +684,19 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
         }
       }
 
-      resultadoFinal.push({
-        planClave: clavePlan,
-        planNombre: nombrePlan,
-        grupos: gruposDelPlan
+      // Filtrar items dentro de cada grupo para mostrar solo los que pasan el filtro (datosFiltrados)
+      gruposDelPlan.forEach(grupo => {
+        grupo.items = grupo.items.filter((item: any) => datosFiltrados.includes(item));
       });
+      const gruposConItems = gruposDelPlan.filter(g => g.items.length > 0);
+
+      if (gruposConItems.length > 0) {
+        resultadoFinal.push({
+          planClave: clavePlan,
+          planNombre: nombrePlan,
+          grupos: gruposConItems
+        });
+      }
     });
 
     return resultadoFinal;

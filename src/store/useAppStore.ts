@@ -38,6 +38,7 @@ interface AppState {
   setAuthChecked: (checked: boolean) => void;
   setLoading: (loading: boolean) => void;
   setActiveCicloId: (id: string) => void;
+  resolveCicloId: (nombrePeriodo: string, modalidad?: string) => string | undefined;
   
   // Data fetchers
   fetchAllData: () => Promise<void>;
@@ -85,6 +86,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ currentUser: { ...user, ultimo_ciclo_id: id } });
       updateUserPreferences(user.id, { ultimo_ciclo_id: id });
     }
+  },
+
+  resolveCicloId: (nombrePeriodo, modalidad) => {
+    const ciclos = get().ciclos;
+    if (!nombrePeriodo) return undefined;
+    
+    // Si tenemos modalidad (ej. "Semestral" o "Cuatrimestral"), intentamos buscar el match exacto
+    if (modalidad) {
+      // Usamos includes para ser flexibles por si dice "Especialidad Cuatrimestral"
+      const modalidaKey = modalidad.toLowerCase().includes('semestral') ? 'semestral' : 'cuatrimestral';
+      const exactMatch = ciclos.find(c => c.nombre === nombrePeriodo && c.tipo_periodo?.toLowerCase().includes(modalidaKey));
+      if (exactMatch) return exactMatch.id;
+    }
+    
+    // Fallback: Si no hay modalidad o no encontró un match exacto, regresa el primero que coincida con el nombre
+    const fallbackMatch = ciclos.find(c => c.nombre === nombrePeriodo);
+    return fallbackMatch?.id;
   },
 
   setPlans: (updater) => set((state) => ({ plans: typeof updater === 'function' ? updater(state.plans) : updater })),

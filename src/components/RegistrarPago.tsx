@@ -116,7 +116,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
       const explicitPlan = plans.find(p => p.id === initialPlanId && p.alumno_id === alumnoSeleccionado);
       if (explicitPlan) return [explicitPlan];
     }
-    return plans.filter(p => p.alumno_id === alumnoSeleccionado && p.ciclo_id === activeCiclo?.id);
+    return plans.filter(p => p.alumno_id === alumnoSeleccionado && (p.ciclo_id === activeCiclo?.id || p.ciclo_escolar === activeCiclo?.nombre));
   }, [plans, alumnoSeleccionado, activeCiclo, initialPlanId]);
 
   // Generar opciones de conceptos combinando los pendientes de TODOS los planes y los del catálogo

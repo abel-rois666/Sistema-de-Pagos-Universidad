@@ -818,8 +818,9 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                       showAlert('Error', 'Por favor selecciona un alumno');
                       return;
                     }
-                    const finalCicloId = newPlanForm.ciclo_id || activeCiclo?.id;
-                    const finalCicloNombre = ciclos.find(c => c.id === finalCicloId)?.nombre || '';
+                    const resolvedId = useAppStore.getState().resolveCicloId(activeCiclo?.nombre || '', newPlanForm.tipo_plan);
+                    const finalCicloId = resolvedId || newPlanForm.ciclo_id || activeCiclo?.id;
+                    const finalCicloNombre = ciclos.find(c => c.id === finalCicloId)?.nombre || activeCiclo?.nombre || '';
 
                     const newPlan: PaymentPlan = {
                       id: crypto.randomUUID(),
@@ -2158,7 +2159,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   const newPlan: PaymentPlan = {
                     id: crypto.randomUUID(),
                     alumno_id: newPlanForm.alumno_id,
-                    ciclo_id: activeCiclo?.id,
+                    ciclo_id: useAppStore.getState().resolveCicloId(activeCiclo?.nombre || '', newPlanForm.tipo_plan) || activeCiclo?.id,
                     nombre_alumno: newPlanForm.nombre_alumno || '',
                     no_plan_pagos: generateFolioForPlan(newPlanForm.alumno_id, newPlanForm.tipo_plan || 'Cuatrimestral', activeCiclo?.nombre || '', plans),
                     fecha_plan: new Date().toLocaleDateString('es-MX'),

@@ -66,11 +66,13 @@ export default function ModalReinscripcion({
           .single();
         
         if (ultimoPlan) {
-          const cicloObj = ciclos.find(c => c.id === cicloDestino);
+          let resolvedCicloId = ciclos.find(c => c.nombre === cicloDestino && c.tipo_periodo?.toLowerCase() === planActivoTipoPeriodo?.toLowerCase())?.id;
+          if (!resolvedCicloId) resolvedCicloId = ciclos.find(c => c.nombre === cicloDestino)?.id;
+          
           const nuevoPlan: any = {
             id: crypto.randomUUID(),
             alumno_id: alumnoId,
-            ciclo_id: cicloDestino,
+            ciclo_id: resolvedCicloId,
             licenciatura: ultimoPlan.licenciatura,
             nombre_alumno: ultimoPlan.nombre_alumno,
             no_plan_pagos: ultimoPlan.no_plan_pagos + '-R', // Distintivo de clonación
@@ -78,7 +80,7 @@ export default function ModalReinscripcion({
             beca_porcentaje: ultimoPlan.beca_porcentaje,
             beca_tipo: ultimoPlan.beca_tipo,
             tipo_plan: ultimoPlan.tipo_plan,
-            ciclo_escolar: cicloObj ? cicloObj.nombre : ultimoPlan.ciclo_escolar,
+            ciclo_escolar: cicloDestino || ultimoPlan.ciclo_escolar,
             grado_turno: ultimoPlan.grado_turno,
             grado: ultimoPlan.grado,
             turno: ultimoPlan.turno,
@@ -101,7 +103,7 @@ export default function ModalReinscripcion({
       await supabase.from('alumnos').update({
         grado_actual: nuevoGrado,
         estatus: nuevoEstatus,
-        ciclo_ultima_asignacion_grado: cicloDestino
+        ciclo_ultima_asignacion_grado: ciclos.find(c => c.nombre === cicloDestino)?.id || cicloDestino
       }).eq('id', alumnoId);
 
       if (nuevoEstatus === 'EGRESADO') {
@@ -123,7 +125,7 @@ export default function ModalReinscripcion({
       <ModalGenerarCarga 
         alumnoId={alumnoId}
         planId={planActivoId}
-        cicloId={cicloDestino}
+        cicloId={ciclos.find(c => c.nombre === cicloDestino)?.id || cicloDestino}
         onClose={() => {
           onSuccess(cicloDestino);
         }}
@@ -160,15 +162,15 @@ export default function ModalReinscripcion({
           ) : (
             <>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Ciclo Escolar Destino</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Periodo Escolar Destino</label>
                 <select 
                   className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.1)] rounded-xl px-3 py-2 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
                   value={cicloDestino}
                   onChange={e => setCicloDestino(e.target.value)}
                 >
-                  <option value="">-- Seleccionar Ciclo --</option>
-                  {ciclos.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  <option value="">-- Seleccionar Periodo --</option>
+                  {Array.from(new Set(ciclos.map(c => c.nombre))).map(nombre => (
+                    <option key={nombre} value={nombre}>{nombre}</option>
                   ))}
                 </select>
               </div>

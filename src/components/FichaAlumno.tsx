@@ -54,9 +54,11 @@ export default function FichaAlumno({
     activeCicloId,
     refreshAfterPayment,
     carreras,
+    ciclos,
   } = useAppStore();
 
-  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
   const onRefreshAlumnos = refreshAfterPayment;
 
   // Búsqueda
