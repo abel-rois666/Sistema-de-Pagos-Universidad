@@ -30,7 +30,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [showCicloMenu, setShowCicloMenu] = useState(false);
   const cicloMenuRef = useRef<HTMLDivElement>(null);
@@ -52,13 +52,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const isRestrictedRole = currentUser.rol === 'COORDINADOR' || currentUser.rol === 'CAJERO';
 
-  const menuItems = [
+  let menuItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
     { name: 'Control Escolar', icon: <GraduationCap size={20} />, path: '/alumnos' },
     { name: 'Control Financiero', icon: <Wallet size={20} />, path: '/' },
     { name: 'Control Académico', icon: <BookOpen size={20} />, path: '/academico' },
     { name: 'Recursos Humanos', icon: <Briefcase size={20} />, path: '/rh' },
   ];
+
+  if (isRestrictedRole) {
+    menuItems = menuItems.filter(item => item.name === 'Control Financiero');
+  }
 
   const isActive = (path: string) => {
     if (path === '/') {

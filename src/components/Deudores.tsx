@@ -45,8 +45,9 @@ const parsePaymentDate = (dStr: string): Date | null => {
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) {
-  const { plans: allPlans, alumnos, activeCicloId } = useAppStore();
-  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
+  const { plans: allPlans, alumnos, activeCicloId, ciclos } = useAppStore();
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLicenciaturas, setFilterLicenciaturas] = useState<string[]>([]);
   const [filterGrados, setFilterGrados] = useState<string[]>([]);

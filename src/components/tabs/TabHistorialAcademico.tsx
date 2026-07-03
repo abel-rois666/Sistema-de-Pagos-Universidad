@@ -6,6 +6,7 @@ import ModalReinscripcion from '../modals/ModalReinscripcion';
 import { supabase } from '../../lib/supabase';
 import type { Alumno, InscripcionAcademica } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
+import { syncAlumnoKardex } from '../../utils/syncKardexUtils';
 import toast from 'react-hot-toast';
 
 interface TabHistorialAcademicoProps {
@@ -228,20 +229,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
     setIsSyncing(true);
     try {
-      // 1. Fetch from legacy API (Opción C: pasar umbral de aprobación)
-      const response = await fetch(`http://localhost:3001/api/legacy/kardex/${alumno.matricula}?umbral=${calificacionMinima}`);
-      if (!response.ok) {
-        throw new Error(`Error HTTP! status: ${response.status}`);
-      }
-      const dataGES = await response.json();
-
-      if (!dataGES || dataGES.length === 0) {
-        toast.error('No se encontraron registros en el historial del GES 4.');
-        setIsSyncing(false);
-        return;
-      }
-
-      // 2. Fetch Lookups from Supabase
+      // Fetch Lookups from Supabase ONCE
       const { data: asignaturas } = await supabase.from('asignaturas').select('id, clave_legado, plan_id');
       const { data: planes } = await supabase.from('planes_estudio').select('id, clave_legado, tipo_periodo');
 
@@ -249,106 +237,20 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
         throw new Error('Error al cargar los catálogos de asignaturas y planes de estudio.');
       }
 
-      // 3. Map records
-      // NOTA: El microservicio ya aplica sanitizarCalificaciones, por lo que:
-      // - Los 0s artificiales del GES ya fueron convertidos a null
-      // - El campo item.estatus ya refleja correctamente: APROBADA/REPROBADA/EN_CURSO/SIN_EVALUAR
-      const registrosMapeados: any[] = [];
-      
-      for (const item of dataGES) {
-        const planMatch = planes.find(p => p.clave_legado === item.clave_plan);
-        if (!planMatch) continue;
+      const result = await syncAlumnoKardex(
+        { id: alumno.id, matricula: alumno.matricula, estatus: alumno.estatus },
+        asignaturas,
+        planes,
+        calificacionMinima
+      );
 
-        const asigMatch = asignaturas.find(a => a.clave_legado === item.clave_asignatura && a.plan_id === planMatch.id);
-        if (!asigMatch) continue;
-
-        // Respetar los valores ya saneados por el microservicio (null = null, no convertir)
-        const parseOrNull = (val: any) => (val !== null && val !== undefined) ? parseFloat(val) : null;
-        
-        const p1 = parseOrNull(item.parcial_1);
-        const p2 = parseOrNull(item.parcial_2);
-        const p3 = parseOrNull(item.parcial_3);
-        let promParc = parseOrNull(item.promedio_calculado);
-
-        // Calcular promedio solo si el microservicio no lo trajo y hay parciales reales
-        if (promParc === null && (p1 !== null || p2 !== null || p3 !== null)) {
-            let sum = 0, count = 0;
-            if (p1 !== null) { sum += (p1 === -555 ? 0 : p1); count++; }
-            if (p2 !== null) { sum += (p2 === -555 ? 0 : p2); count++; }
-            if (p3 !== null) { sum += (p3 === -555 ? 0 : p3); count++; }
-            if (count > 0) promParc = Number((sum / count).toFixed(2));
-        }
-
-        // Usar el estatus calculado por el microservicio; si no viene, derivar uno básico como respaldo
-        const estatus = item.estatus || (
-          item.calificacion_final === null ? 'EN_CURSO' :
-          item.calificacion_final >= calificacionMinima ? 'APROBADA' : 'REPROBADA'
-        );
-
-        // Mapeo automático de ciclo_id basado en ciclo_legado y tipo_periodo del plan
-        let mappedCicloId = null;
-        if (item.ciclo_legado) {
-          const planAsignatura = planes.find(p => p.id === asigMatch.plan_id);
-          mappedCicloId = useAppStore.getState().resolveCicloId(item.ciclo_legado, planAsignatura?.tipo_periodo);
-        }
-
-        registrosMapeados.push({
-          alumno_id: alumno.id,
-          ciclo_id: mappedCicloId,
-          ciclo_legado: item.ciclo_legado,
-          asignatura_id: asigMatch.id,
-          parcial_1: p1,
-          parcial_2: p2,
-          parcial_3: p3,
-          promedio_calculado: promParc,
-          calificacion_final: parseOrNull(item.calificacion_final),
-          tipo_evaluacion: item.tipo_evaluacion || 'ORDINARIO',
-          estatus: estatus,
-          modificada_manualmente: false,
-          observaciones: item.observaciones || 'Importado de GES 4'
-        });
-      }
-
-      if (registrosMapeados.length === 0) {
-        toast.error('No se pudo mapear ninguna materia. Verifica que los planes y materias existan en el sistema.');
+      if (!result.success) {
+        toast.error(result.message);
         setIsSyncing(false);
         return;
       }
 
-      // 4. Delete old records and insert new ones
-      await supabase.from('inscripciones_academicas').delete().eq('alumno_id', alumno.id);
-      const { error: insertError } = await supabase.from('inscripciones_academicas').insert(registrosMapeados);
-
-      if (insertError) throw insertError;
-
-      // 5. AUTO-REGISTRAR TODOS LOS PLANES DETECTADOS en alumno_programas
-      // Detectar todos los plan_id únicos que se importaron
-      const planIdsImportados = [...new Set(registrosMapeados.map(r => r.asignatura_id).map(asigId => {
-        const asig = asignaturas.find(a => a.id === asigId);
-        return asig?.plan_id;
-      }).filter(Boolean))] as string[];
-
-      // Consultar cuáles ya están registrados
-      const { data: programasExistentes } = await supabase
-        .from('alumno_programas')
-        .select('plan_id')
-        .eq('alumno_id', alumno.id);
-
-      const planIdsExistentes = (programasExistentes || []).map(p => p.plan_id);
-      const planesFaltantes = planIdsImportados.filter(pid => !planIdsExistentes.includes(pid));
-
-      if (planesFaltantes.length > 0) {
-        const nuevosRegistros = planesFaltantes.map(pid => ({
-          alumno_id: alumno.id,
-          plan_id: pid,
-          estatus: alumno.estatus || 'CURSANDO',
-          fecha_inscripcion: new Date().toISOString().split('T')[0]
-        }));
-        await supabase.from('alumno_programas').insert(nuevosRegistros);
-        // Planes faltantes registrados automáticamente
-      }
-
-      toast.success(`Historial sincronizado: ${registrosMapeados.length} registros de ${planIdsImportados.length} plan(es).`);
+      toast.success(`Historial sincronizado: ${result.registrosAfectados} registros de ${result.planesAfectados} plan(es).`);
       await fetchHistorialLocal();
       await fetchProgramas();
 

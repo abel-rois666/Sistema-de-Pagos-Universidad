@@ -115,7 +115,13 @@ export default function FichaAlumno({
     : null;
 
   const isAdmin = currentUser?.rol === 'ADMINISTRADOR';
-  const visibleTabs = TABS.filter(t => !t.adminOnly || isAdmin);
+  const isRestrictedRole = currentUser?.rol === 'COORDINADOR' || currentUser?.rol === 'CAJERO';
+  
+  const visibleTabs = TABS.filter(t => {
+    if (t.adminOnly && !isAdmin) return false;
+    if (isRestrictedRole && t.id === 'academico') return false;
+    return true;
+  });
 
   // Detectar si el alumno es de Especialidad (para TabTitulacion)
   const esEspecialidad = selectedAlumno

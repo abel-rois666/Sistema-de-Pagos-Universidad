@@ -7,6 +7,7 @@ import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } 
 import { MultiSelectFilter } from './MultiSelectFilter';
 import ModalReporteAlumnos from './modals/ModalReporteAlumnos';
 import ModalSincronizacionGES from './modals/ModalSincronizacionGES';
+import ModalSincronizacionKardex from './modals/ModalSincronizacionKardex';
 import { supabase, toDBPlan } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import { getMaxFolioCounter } from '../utils';
@@ -38,7 +39,8 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     setAlumnos, setPlans
   } = useAppStore();
 
-  const activeCyclePlans = plans.filter(p => p.ciclo_id === activeCicloId);
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const activeCyclePlans = plans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
   const globalMaxCounter = getMaxFolioCounter(plans);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -145,6 +147,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showKardexModal, setShowKardexModal] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkCopyConcepts, setBulkCopyConcepts] = useState(false);
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -920,6 +923,11 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
           <button onClick={() => setShowSyncModal(true)} disabled={alumnos.length === 0}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
             <Database size={18} /> Sincronizador GES 4
+          </button>
+
+          <button onClick={() => setShowKardexModal(true)} disabled={alumnos.length === 0}
+            className="flex items-center gap-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
+            <Database size={18} /> Sincronizador Kardex
           </button>
 
           <button onClick={() => setShowBulkModal(true)} disabled={alumnos.length === 0}
@@ -1943,6 +1951,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
       {/* ── Modales Externos ── */}
       <ModalSincronizacionGES isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
+      <ModalSincronizacionKardex isOpen={showKardexModal} onClose={() => setShowKardexModal(false)} />
 
     </div>
   );
