@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, BookOpen, Layers, AlertCircle, FileText, Trash2, X, CheckSquare, Square, Edit2, Save, ChevronUp, ChevronDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
+import { RefreshCw, BookOpen, Layers, AlertCircle, FileText, Trash2, X, CheckSquare, Square, Edit2, Save, ChevronUp, ChevronDown, ArrowUp, ArrowDown, Plus, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
@@ -723,8 +723,8 @@ export default function ControlAcademico() {
                   <div className="pr-2 flex-1">
                     <div className="font-semibold text-sm tracking-tight leading-snug">{getCarreraFullName(c)}</div>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); setCarreraToEdit(c); setShowModalCarrera(true); }} className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ${selectedCarrera?.id === c.id ? 'hover:bg-white/20 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400'}`} title="Editar Carrera">
-                    <Edit2 size={14} />
+                  <button onClick={(e) => { e.stopPropagation(); setCarreraToEdit(c); setShowModalCarrera(true); }} className={`p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ${selectedCarrera?.id === c.id ? 'hover:bg-white/20 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400'}`} title="Ver / Editar">
+                    <Eye size={14} />
                   </button>
                 </div>
               ))}
@@ -755,8 +755,13 @@ export default function ControlAcademico() {
               </>
             ) : selectedCarrera ? (
               <>
-                <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 tracking-tight flex items-center gap-3" style={{ fontFamily: 'var(--font-display)' }}>
                   Planes de Estudio
+                  {selectedCarrera.clave && (
+                    <span className="text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-lg font-semibold border border-indigo-200 dark:border-indigo-800/50 mt-1">
+                      {selectedCarrera.clave}
+                    </span>
+                  )}
                 </h1>
                 <p className="text-[#45515e] dark:text-gray-400 mt-1">{getCarreraFullName(selectedCarrera)}</p>
               </>

@@ -15,12 +15,14 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
     logoUrl: '',
     directorNombre: 'LIC. ARTURO RODRIGUEZ ISLAS',
     directorCargo: 'DIRECTOR DE CONTROL ESCOLAR',
+    claveInstitucion: '',
   };
   
   const [title, setTitle]                   = useState(config.title);
   const [logoUrl, setLogoUrl]               = useState(config.logoUrl);
   const [directorNombre, setDirectorNombre] = useState(config.directorNombre);
   const [directorCargo, setDirectorCargo]   = useState(config.directorCargo);
+  const [claveInstitucion, setClaveInstitucion] = useState(config.claveInstitucion || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,11 +52,11 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
   const handleSave = async () => {
     setLoading(true);
     setError(null);
-    const err = await updateAppConfig(title, logoUrl, directorNombre, directorCargo);
+    const err = await updateAppConfig(title, logoUrl, directorNombre, directorCargo, claveInstitucion);
     if (err) {
       setError(err);
     } else {
-      setAppConfig({ title, logoUrl, directorNombre, directorCargo, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
+      setAppConfig({ title, logoUrl, directorNombre, directorCargo, claveInstitucion, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
       onBack();
     }
     setLoading(false);
@@ -164,25 +166,43 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
             <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
               Estos datos aparecerán en las constancias y documentos oficiales generados por el sistema.
             </p>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Nombre completo</label>
-              <input
-                type="text"
-                className={INPUT}
-                value={directorNombre}
-                onChange={(e) => setDirectorNombre(e.target.value.toUpperCase())}
-                placeholder="Ej. LIC. ARTURO RODRIGUEZ ISLAS"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Cargo</label>
-              <input
-                type="text"
-                className={INPUT}
-                value={directorCargo}
-                onChange={(e) => setDirectorCargo(e.target.value.toUpperCase())}
-                placeholder="Ej. DIRECTOR DE CONTROL ESCOLAR"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <UserCheck size={18} className="text-indigo-500" /> Nombre del Director(a)
+                </label>
+                <input
+                  type="text"
+                  className={INPUT}
+                  value={directorNombre}
+                  onChange={e => setDirectorNombre(e.target.value)}
+                  placeholder="Ej. LIC. MARÍA PÉREZ"
+                />
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <UserCheck size={18} className="text-indigo-500" /> Cargo del Director(a)
+                </label>
+                <input
+                  type="text"
+                  className={INPUT}
+                  value={directorCargo}
+                  onChange={e => setDirectorCargo(e.target.value)}
+                  placeholder="Ej. DIRECTORA GENERAL"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <Type size={18} className="text-indigo-500" /> Clave de la Institución
+                </label>
+                <input
+                  type="text"
+                  className={INPUT}
+                  value={claveInstitucion}
+                  onChange={e => setClaveInstitucion(e.target.value)}
+                  placeholder="Ej. 1234567890"
+                />
+              </div>
             </div>
           </div>
 

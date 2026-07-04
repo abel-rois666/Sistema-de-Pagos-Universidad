@@ -30,6 +30,8 @@ export interface Alumno {
   nombre_requiere_revision?: boolean | null;
   // Sincronización
   sincronizado_el?: string | null;
+  kardex_sincronizado?: boolean;
+  kardex_sincronizado_at?: string | null;
   // Resto de campos
   licenciatura: string;
   grado_actual: string;
@@ -227,6 +229,7 @@ export interface AppConfig {
   logoUrl: string;
   directorNombre: string;
   directorCargo: string;
+  claveInstitucion?: string;
   constanciaParams: ConstanciaParams;
 }
 
@@ -437,6 +440,7 @@ export interface ServicioSocial {
 export interface Carrera {
   id: string;
   nombre: string;
+  clave?: string;
   nivel_educativo?: string;
   calificacion_minima_aprobatoria?: number;
   activo: boolean;

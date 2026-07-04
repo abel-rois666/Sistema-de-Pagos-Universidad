@@ -625,6 +625,12 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
              Historial Académico (Kardex)
           </h3>
           <p className="text-sm text-gray-500 mt-1">Sincroniza desde el GES 4 y visualiza el agrupamiento de calificaciones.</p>
+          {alumno.kardex_sincronizado_at && (
+            <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-1.5 flex items-center gap-1.5">
+              <CheckCircle2 size={12} />
+              Última sincronización: {new Date(alumno.kardex_sincronizado_at).toLocaleString()}
+            </p>
+          )}
         </div>
         
         <div className="flex gap-2">

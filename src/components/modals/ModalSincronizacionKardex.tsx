@@ -25,7 +25,20 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
   const [incluirBajas, setIncluirBajas] = useState(false);
   
   // Filtrar solo alumnos que tengan matrícula para intentar sincronizar
-  const alumnosCandidatos = alumnos.filter(a => a.matricula && a.matricula.trim() !== '' && (incluirBajas || a.estatus !== 'BAJA'));
+  const alumnosCandidatos = React.useMemo(() => {
+    return alumnos.filter(a => a.matricula && a.matricula.trim() !== '' && (incluirBajas || a.estatus !== 'BAJA'));
+  }, [alumnos, incluirBajas]);
+
+  // Obtener la fecha más reciente de sincronización global
+  const ultimaSincronizacion = React.useMemo(() => {
+    const fechas = alumnos
+      .map(a => a.kardex_sincronizado_at)
+      .filter((fecha): fecha is string => !!fecha)
+      .map(fecha => new Date(fecha).getTime());
+    
+    if (fechas.length === 0) return null;
+    return new Date(Math.max(...fechas));
+  }, [alumnos]);
 
   const [procesando, setProcesando] = useState(false);
   const [progreso, setProgreso] = useState(0);
@@ -36,53 +49,25 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
   const [sobreescribir, setSobreescribir] = useState(false);
   const [cargandoEstado, setCargandoEstado] = useState(true);
 
-  // Reiniciar estado al abrir y cargar quiénes ya tienen Kardex
+  // Reiniciar estado al abrir y calcular quiénes ya tienen Kardex instantáneamente
   useEffect(() => {
     if (isOpen) {
       setProcesando(false);
       setProgreso(0);
       setExitos(0);
       setLogs([]);
-      setCargandoEstado(true);
       
-      const checkExisting = async () => {
-        const BATCH_SIZE = 10;
-        const CONCURRENT_REQUESTS = 5;
-        const uniqueIds = new Set<string>();
-        
-        // Dividir alumnos en pequeños chunks para NUNCA superar los 1000 registros por query (10 alumnos * 80 materias = 800 registros max)
-        const chunks: string[][] = [];
-        for (let i = 0; i < alumnosCandidatos.length; i += BATCH_SIZE) {
-          chunks.push(alumnosCandidatos.slice(i, i + BATCH_SIZE).map(a => a.id));
-        }
-        
-        // Ejecutar los chunks en lotes concurrentes limitados para no saturar las conexiones (Rate Limit / Timeout)
-        for (let i = 0; i < chunks.length; i += CONCURRENT_REQUESTS) {
-          const currentBatches = chunks.slice(i, i + CONCURRENT_REQUESTS);
-          const promises = currentBatches.map(chunk => 
-            supabase.from('inscripciones_academicas')
-              .select('alumno_id')
-              .in('alumno_id', chunk)
-          );
-          
-          const results = await Promise.all(promises);
-          results.forEach(({ data, error }) => {
-            if (!error && data) {
-              data.forEach((d: any) => uniqueIds.add(d.alumno_id));
-            }
-          });
-        }
-        
-        setAlumnosConKardex(uniqueIds);
-        setCargandoEstado(false);
-      };
-
-      checkExisting();
+      const idsConKardex = new Set(
+        alumnosCandidatos.filter(a => a.kardex_sincronizado).map(a => a.id)
+      );
+      
+      setAlumnosConKardex(idsConKardex);
+      setCargandoEstado(false);
     }
-  }, [isOpen]);
+  }, [isOpen, alumnosCandidatos]);
 
-  const alumnosNuevos = alumnosCandidatos.filter(a => !alumnosConKardex.has(a.id));
-  const alumnosExistentes = alumnosCandidatos.filter(a => alumnosConKardex.has(a.id));
+  const alumnosNuevos = alumnosCandidatos.filter(a => !a.kardex_sincronizado);
+  const alumnosExistentes = alumnosCandidatos.filter(a => a.kardex_sincronizado);
   const alumnosAProcesar = sobreescribir ? alumnosCandidatos : alumnosNuevos;
 
   const iniciarSincronizacion = async () => {
@@ -108,47 +93,49 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
         throw new Error('Error al cargar catálogos de asignaturas o planes.');
       }
 
-      // 2. Procesar por lotes (1 a la vez para control fino de UI y evitar Rate Limits)
+      // 2. Procesar por lotes concurrentes (e.g. 5 a la vez) para mayor velocidad
       let exitosTemp = 0;
+      let progresoTemp = 0;
+      const CONCURRENCY_LIMIT = 5;
       
-      for (let i = 0; i < alumnosAProcesar.length; i++) {
-        const alumno = alumnosAProcesar[i];
+      for (let i = 0; i < alumnosAProcesar.length; i += CONCURRENCY_LIMIT) {
+        const batch = alumnosAProcesar.slice(i, i + CONCURRENCY_LIMIT);
         
-        // Derivar calificación mínima de la carrera del alumno (aproximación)
-        // En una sincronización masiva, asumimos 6 como default si no se puede deducir la carrera
-        let calificacionMinima = 6;
-        if (alumno.licenciatura) {
-          const licNormalizada = alumno.licenciatura.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          const carreraMatch = carreras.find(c => {
-            const cNombre = c.nombre.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            return cNombre === licNormalizada || licNormalizada.includes(cNombre);
-          });
-          if (carreraMatch && carreraMatch.calificacion_minima_aprobatoria) {
-            calificacionMinima = carreraMatch.calificacion_minima_aprobatoria;
+        await Promise.all(batch.map(async (alumno) => {
+          let calificacionMinima = 6;
+          if (alumno.licenciatura) {
+            const licNormalizada = alumno.licenciatura.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const carreraMatch = carreras.find(c => {
+              const cNombre = c.nombre.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              return cNombre === licNormalizada || licNormalizada.includes(cNombre);
+            });
+            if (carreraMatch && carreraMatch.calificacion_minima_aprobatoria) {
+              calificacionMinima = carreraMatch.calificacion_minima_aprobatoria;
+            }
           }
-        }
 
-        try {
-          const result = await syncAlumnoKardex(
-            { id: alumno.id, matricula: alumno.matricula, estatus: alumno.estatus },
-            asignaturas,
-            planes,
-            calificacionMinima
-          );
+          try {
+            const result = await syncAlumnoKardex(
+              { id: alumno.id, matricula: alumno.matricula, estatus: alumno.estatus },
+              asignaturas,
+              planes,
+              calificacionMinima
+            );
 
-          if (result.success) {
-            exitosTemp++;
-            // Solo logueamos éxitos temporalmente o si es necesario, para no saturar la UI
-            // setLogs(prev => [{ alumno_id: alumno.id, nombre_completo: alumno.nombre_completo, matricula: alumno.matricula!, status: 'success', message: result.message }, ...prev]);
-          } else {
-            setLogs(prev => [{ alumno_id: alumno.id, nombre_completo: alumno.nombre_completo, matricula: alumno.matricula!, status: 'error', message: result.message }, ...prev]);
+            if (result.success) {
+              exitosTemp++;
+            } else {
+              setLogs(prev => [{ alumno_id: alumno.id, nombre_completo: alumno.nombre_completo, matricula: alumno.matricula!, status: 'error', message: result.message }, ...prev]);
+            }
+          } catch (error: any) {
+            setLogs(prev => [{ alumno_id: alumno.id, nombre_completo: alumno.nombre_completo, matricula: alumno.matricula!, status: 'error', message: error.message || 'Excepción no controlada' }, ...prev]);
           }
-        } catch (error: any) {
-          setLogs(prev => [{ alumno_id: alumno.id, nombre_completo: alumno.nombre_completo, matricula: alumno.matricula!, status: 'error', message: error.message || 'Excepción no controlada' }, ...prev]);
-        }
+          
+          progresoTemp++;
+        }));
 
         setExitos(exitosTemp);
-        setProgreso(i + 1);
+        setProgreso(progresoTemp);
 
         // Pequeño delay para dejar respirar el Main Thread y que React renderice la barra
         await new Promise(r => setTimeout(r, 50));
@@ -211,10 +198,17 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
                   </div>
                 ) : (
                   <>
-                    <p className="text-blue-700/80 dark:text-blue-400/80 text-sm mt-1 max-w-lg mb-4">
+                    <p className="text-blue-700/80 dark:text-blue-400/80 text-sm mt-1 max-w-lg mb-2">
                       Se detectaron <strong className="text-blue-900 dark:text-blue-200">{alumnosCandidatos.length}</strong> alumnos en total. 
                       De ellos, <strong className="text-emerald-700 dark:text-emerald-400">{alumnosNuevos.length}</strong> no tienen Kardex y <strong className="text-amber-700 dark:text-amber-400">{alumnosExistentes.length}</strong> ya cuentan con un historial.
                     </p>
+
+                    {ultimaSincronizacion && (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 mb-4 bg-emerald-50 dark:bg-emerald-900/20 w-fit px-2.5 py-1.5 rounded-md font-medium border border-emerald-200/50 dark:border-emerald-800/50">
+                        <CheckCircle size={14} />
+                        <span>Última sincronización global detectada: {ultimaSincronizacion.toLocaleString()}</span>
+                      </div>
+                    )}
                     
                     <div className="flex flex-col gap-3">
                       <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-blue-900 dark:text-blue-300 w-fit select-none">

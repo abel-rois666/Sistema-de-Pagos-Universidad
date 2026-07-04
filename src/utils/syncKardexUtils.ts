@@ -122,6 +122,12 @@ export async function syncAlumnoKardex(
     await supabase.from('alumno_programas').insert(nuevosRegistros);
   }
 
+  // Marcar al alumno como sincronizado en la base de datos local
+  await supabase.from('alumnos').update({ 
+    kardex_sincronizado: true,
+    kardex_sincronizado_at: new Date().toISOString()
+  }).eq('id', alumno.id);
+
   return {
     success: true,
     message: `Sincronizado: ${registrosMapeados.length} registros.`,

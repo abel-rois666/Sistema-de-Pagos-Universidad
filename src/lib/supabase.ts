@@ -506,6 +506,7 @@ export const getAppConfig = async (): Promise<import('../types').AppConfig> => {
     if (item.id === 'app_logo')           config.logoUrl         = item.valor;
     if (item.id === 'director_nombre')    config.directorNombre  = item.valor;
     if (item.id === 'director_cargo')     config.directorCargo   = item.valor;
+    if (item.id === 'clave_institucion')  config.claveInstitucion = item.valor;
     if (item.id === 'constancia_ss_params') {
       try { config.constanciaParams = { ...DEFAULT_PARAMS, ...JSON.parse(item.valor) }; } catch {}
     }
@@ -519,6 +520,7 @@ export const updateAppConfig = async (
   logoUrl: string,
   directorNombre: string,
   directorCargo: string,
+  claveInstitucion?: string,
 ): Promise<string | null> => {
   const { error: err1 } = await supabase.from('configuracion_app').upsert({ id: 'app_title',       valor: title,          updated_at: new Date().toISOString() });
   if (err1) return err1.message;
@@ -528,6 +530,12 @@ export const updateAppConfig = async (
   if (err3) return err3.message;
   const { error: err4 } = await supabase.from('configuracion_app').upsert({ id: 'director_cargo',  valor: directorCargo,  updated_at: new Date().toISOString() });
   if (err4) return err4.message;
+  
+  if (claveInstitucion !== undefined) {
+    const { error: err5 } = await supabase.from('configuracion_app').upsert({ id: 'clave_institucion', valor: claveInstitucion, updated_at: new Date().toISOString() });
+    if (err5) return err5.message;
+  }
+  return null;
   return null;
 };
 

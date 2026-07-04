@@ -137,7 +137,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {!isRestrictedRole && (
             <div className="mt-1">
               <button
-                onClick={() => isSidebarOpen ? setIsConfigOpen(!isConfigOpen) : navigate('/configuracion-app')}
+                onClick={() => {
+                  if (!isSidebarOpen) {
+                    setIsSidebarOpen(true);
+                    setIsConfigOpen(true);
+                  } else {
+                    setIsConfigOpen(!isConfigOpen);
+                  }
+                }}
                 className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[rgba(255,255,255,0.04)] hover:text-gray-900 dark:hover:text-gray-200 font-medium`}
                 title={!isSidebarOpen ? 'Configuración' : undefined}
               >

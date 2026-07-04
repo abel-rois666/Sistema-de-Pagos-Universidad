@@ -12,6 +12,7 @@ interface ModalCarreraProps {
 export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarreraProps) {
   const [form, setForm] = useState<Partial<Carrera>>({
     nombre: '',
+    clave: '',
     nivel_educativo: 'Licenciatura',
     calificacion_minima_aprobatoria: 6,
     activo: true,
@@ -19,11 +20,13 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isReadOnly, setIsReadOnly] = useState(!!carrera);
 
   useEffect(() => {
     if (carrera) {
       setForm({
         nombre: carrera.nombre || '',
+        clave: carrera.clave || '',
         nivel_educativo: carrera.nivel_educativo || 'Licenciatura',
         calificacion_minima_aprobatoria: carrera.calificacion_minima_aprobatoria ?? 6,
         activo: carrera.activo !== undefined ? carrera.activo : true,
@@ -49,6 +52,7 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
           .from('carreras')
           .update({
             nombre: form.nombre.trim(),
+            clave: form.clave?.trim() || null,
             nivel_educativo: form.nivel_educativo,
             calificacion_minima_aprobatoria: form.calificacion_minima_aprobatoria ?? 6,
             activo: form.activo,
@@ -65,6 +69,7 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
           .from('carreras')
           .insert([{
             nombre: form.nombre.trim(),
+            clave: form.clave?.trim() || null,
             nivel_educativo: form.nivel_educativo,
             calificacion_minima_aprobatoria: form.calificacion_minima_aprobatoria ?? 6,
             activo: form.activo,
@@ -84,12 +89,22 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] bg-gray-50/50 dark:bg-[#1c2228]/50">
-          <h2 className="text-lg font-bold text-[#222222] dark:text-gray-100">
-            {carrera ? 'Editar Carrera' : 'Nueva Carrera'}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-[#222222] dark:text-gray-100">
+              {carrera ? (isReadOnly ? 'Detalles de Carrera' : 'Editar Carrera') : 'Nueva Carrera'}
+            </h2>
+            {carrera && isReadOnly && (
+              <button
+                onClick={() => setIsReadOnly(false)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-400 dark:hover:bg-blue-900/60 rounded-md transition-colors"
+              >
+                Habilitar Edición
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full text-[#8e8e93] transition-colors"
@@ -107,22 +122,42 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Nombre de la Carrera <span className="text-red-500">*</span></label>
-            <input
-              type="text"
-              autoFocus
-              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 uppercase"
-              placeholder="Ej. LICENCIATURA EN DERECHO"
-              value={form.nombre}
-              onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })}
-            />
-          </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-semibold text-[#45515e] dark:text-gray-300 mb-1.5">
+                  Nombre de la Carrera <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  disabled={isReadOnly}
+                  value={form.nombre}
+                  onChange={e => setForm({ ...form, nombre: e.target.value.toUpperCase() })}
+                  className="w-full bg-white dark:bg-[#181e25] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-3.5 py-2.5 text-sm text-[#222222] dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1456f0] focus:border-transparent transition-all disabled:opacity-60 disabled:bg-gray-50 dark:disabled:bg-gray-900"
+                  placeholder="Ej. DERECHO"
+                />
+              </div>
+
+              <div className="col-span-1">
+                <label className="block text-sm font-semibold text-[#45515e] dark:text-gray-300 mb-1.5">
+                  Clave de Carrera
+                </label>
+                <input
+                  type="text"
+                  disabled={isReadOnly}
+                  value={form.clave || ''}
+                  onChange={e => setForm({ ...form, clave: e.target.value.toUpperCase() })}
+                  className="w-full bg-white dark:bg-[#181e25] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-3.5 py-2.5 text-sm text-[#222222] dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1456f0] focus:border-transparent transition-all disabled:opacity-60 disabled:bg-gray-50 dark:disabled:bg-gray-900"
+                  placeholder="Ej. DER-01"
+                />
+              </div>
+            </div>
 
           <div>
             <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Nivel Educativo</label>
             <select
-              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100"
+              disabled={isReadOnly}
+              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:bg-gray-50 dark:disabled:bg-gray-900"
               value={form.nivel_educativo}
               onChange={(e) => {
                 const nivel = e.target.value;
@@ -144,7 +179,8 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
               min="0"
               max="10"
               step="0.5"
-              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100"
+              disabled={isReadOnly}
+              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:bg-gray-50 dark:disabled:bg-gray-900"
               value={form.calificacion_minima_aprobatoria ?? 6}
               onChange={(e) => setForm({ ...form, calificacion_minima_aprobatoria: parseFloat(e.target.value) || 6 })}
             />
@@ -154,10 +190,11 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className={`flex items-center gap-2 ${isReadOnly ? 'cursor-default opacity-60' : 'cursor-pointer'}`}>
               <input
                 type="checkbox"
-                className="w-4 h-4 text-[#1456f0] border-gray-300 rounded focus:ring-[#1456f0]"
+                disabled={isReadOnly}
+                className="w-4 h-4 text-[#1456f0] border-gray-300 rounded focus:ring-[#1456f0] disabled:opacity-60"
                 checked={form.activo}
                 onChange={(e) => setForm({ ...form, activo: e.target.checked })}
               />
@@ -175,15 +212,17 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
             onClick={onClose}
             className="px-5 py-2.5 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[10px] hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
-            Cancelar
+            {isReadOnly ? 'Cerrar' : 'Cancelar'}
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white bg-[#1456f0] hover:bg-blue-700 rounded-[10px] transition-colors shadow-sm disabled:opacity-50"
-          >
-            {loading ? 'Guardando...' : <><Save size={18} /> Guardar</>}
-          </button>
+          {!isReadOnly && (
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white bg-[#1456f0] hover:bg-blue-700 rounded-[10px] transition-colors shadow-sm disabled:opacity-50"
+            >
+              {loading ? 'Guardando...' : <><Save size={18} /> Guardar</>}
+            </button>
+          )}
         </div>
       </div>
     </div>
