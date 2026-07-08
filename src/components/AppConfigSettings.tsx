@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import { AppConfig, DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { updateAppConfig } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
-import { Save, Image as ImageIcon, Type, ArrowLeft, Upload, Trash2, UserCheck } from 'lucide-react';
+import { Save, Image as ImageIcon, Type, ArrowLeft, Upload, Trash2, UserCheck, Database } from 'lucide-react';
+import ModalSincronizacionAcademica from './modals/ModalSincronizacionAcademica';
 
 interface Props {
   onBack: () => void;
@@ -24,6 +25,8 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
   const [directorCargo, setDirectorCargo]   = useState(config.directorCargo);
   const [claveInstitucion, setClaveInstitucion] = useState(config.claveInstitucion || '');
   const [loading, setLoading] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(config.logoUrl || null);
+  const [isModalSyncOpen, setIsModalSyncOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -206,6 +209,22 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
+          {/* Sección Sincronizaciones */}
+          <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Database size={20} className="text-orange-500" /> Sincronización del Sistema Legado (GES4)
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Ejecute la extracción y carga (ETL) de los datos académicos. Este proceso migrará Docentes, Grupos y sus correspondientes asignaciones.
+            </p>
+            <button
+              onClick={() => setIsModalSyncOpen(true)}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-bold transition-colors shadow-sm flex items-center gap-2"
+            >
+              <Database size={18} /> Iniciar Sincronización Académica
+            </button>
+          </div>
+
           {/* Guardar */}
           <div className="pt-6 border-t border-gray-200 dark:border-gray-800 flex justify-end">
             <button
@@ -218,6 +237,11 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
           </div>
         </div>
       </div>
+
+      <ModalSincronizacionAcademica 
+        isOpen={isModalSyncOpen} 
+        onClose={() => setIsModalSyncOpen(false)} 
+      />
     </div>
   );
 };

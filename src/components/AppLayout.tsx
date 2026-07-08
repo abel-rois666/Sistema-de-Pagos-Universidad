@@ -15,7 +15,8 @@ import {
   Calendar,
   CheckCircle,
   Users,
-  FileText
+  FileText,
+  BookUser
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { supabase, updateUserPreferences } from '../lib/supabase';
@@ -31,7 +32,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const [showCicloMenu, setShowCicloMenu] = useState(false);
   const cicloMenuRef = useRef<HTMLDivElement>(null);
 
@@ -54,14 +55,43 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   let menuItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-    { name: 'Control Escolar', icon: <GraduationCap size={20} />, path: '/alumnos' },
+    { 
+      name: 'Control Escolar', 
+      icon: <GraduationCap size={20} />, 
+      path: '/control-escolar',
+      children: [
+        { name: 'Gestión de Alumnos', path: '/alumnos', icon: <Users size={16}/> },
+        { name: 'Grupos', path: '/grupos', icon: <Users size={16}/> },
+        { name: 'Planes de Estudio', path: '/planes-estudio', icon: <BookOpen size={16}/> }
+      ]
+    },
     { name: 'Control Financiero', icon: <Wallet size={20} />, path: '/' },
-    { name: 'Control Académico', icon: <BookOpen size={20} />, path: '/academico' },
+    { 
+      name: 'Control Académico', 
+      icon: <BookOpen size={20} />, 
+      path: '/control-academico',
+      children: [
+        { name: 'Docentes', path: '/docentes', icon: <BookUser size={16}/> }
+      ]
+    },
     { name: 'Recursos Humanos', icon: <Briefcase size={20} />, path: '/rh' },
   ];
 
   if (isRestrictedRole) {
     menuItems = menuItems.filter(item => item.name === 'Control Financiero');
+  } else {
+    menuItems.push({
+      name: 'Configuración',
+      icon: <Settings size={20} className="transition-transform duration-300 group-hover:rotate-45" />,
+      path: '#',
+      children: [
+        { name: 'Catálogos', path: '/catalogos', icon: <BookOpen size={16}/> },
+        { name: 'Plantillas', path: '/plantillas', icon: <FileText size={16}/> },
+        { name: 'Ciclos Escolares', path: '/ciclos', icon: <Calendar size={16}/> },
+        { name: 'Usuarios', path: '/usuarios', icon: <Users size={16}/> },
+        { name: 'Generales', path: '/configuracion-app', icon: <Settings size={16}/> }
+      ]
+    });
   }
 
   const isActive = (path: string) => {
@@ -111,104 +141,109 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Menu Items */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 flex flex-col gap-1.5 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1.5 scrollbar-thin">
           {menuItems.map((item) => {
+            const hasChildren = item.children && item.children.length > 0;
             const active = isActive(item.path);
+            const isOpen = openMenus[item.name];
+
+            const handleItemClick = (e: React.MouseEvent) => {
+              if (hasChildren) {
+                e.preventDefault();
+                if (!isSidebarOpen) {
+                  setIsSidebarOpen(true);
+                  setOpenMenus(prev => ({ ...prev, [item.name]: true }));
+                  if (item.path !== '#') navigate(item.path);
+                } else {
+                  setOpenMenus(prev => ({ ...prev, [item.name]: !prev[item.name] }));
+                  if (item.path !== '#' && !openMenus[item.name]) {
+                    navigate(item.path);
+                  }
+                }
+              }
+            };
+
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                  active
-                    ? 'bg-blue-50 text-[#1456f0] dark:bg-blue-900/20 dark:text-blue-400 font-semibold shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[rgba(255,255,255,0.04)] hover:text-gray-900 dark:hover:text-gray-200 font-medium'
-                }`}
-                title={!isSidebarOpen ? item.name : undefined}
-              >
-                <div className={`${active ? 'text-[#1456f0] dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300'}`}>
-                  {item.icon}
-                </div>
-                {isSidebarOpen && <span className="whitespace-nowrap text-[14.5px]">{item.name}</span>}
-              </Link>
+              <div key={item.name} className="flex flex-col">
+                <Link
+                  to={item.path !== '#' ? item.path : '#'}
+                  onClick={hasChildren ? handleItemClick : undefined}
+                  className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
+                    active && !hasChildren
+                      ? 'bg-blue-50 text-[#1456f0] dark:bg-blue-900/20 dark:text-blue-400 font-semibold shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[rgba(255,255,255,0.04)] hover:text-gray-900 dark:hover:text-gray-200 font-medium'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`${active && !hasChildren ? 'text-[#1456f0] dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300'}`}>
+                      {item.icon}
+                    </div>
+                    {isSidebarOpen && <span className="whitespace-nowrap text-[14.5px]">{item.name}</span>}
+                  </div>
+                  {isSidebarOpen && hasChildren && (
+                    <ChevronDown size={14} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                  )}
+                  {!isSidebarOpen && (
+                    <div className="fixed left-[76px] ml-2 px-2.5 py-1.5 bg-gray-800 dark:bg-gray-700 text-white text-xs font-semibold rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[9999] whitespace-nowrap">
+                      {item.name}
+                    </div>
+                  )}
+                </Link>
+
+                {/* Submenu Accordion */}
+                {hasChildren && (
+                  <AnimatePresence initial={false}>
+                    {isSidebarOpen && isOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden ml-9 mt-1 flex flex-col gap-1 border-l-2 border-gray-100 dark:border-gray-800"
+                      >
+                        {item.children!.map((subItem) => {
+                          const isSubActive = location.pathname.startsWith(subItem.path);
+                          return (
+                            <Link
+                              key={subItem.path}
+                              to={subItem.path}
+                              className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded-r-xl transition-colors text-[13.5px] ${
+                                isSubActive
+                                  ? 'bg-blue-50/50 text-[#1456f0] dark:bg-blue-900/10 dark:text-blue-400 font-semibold'
+                                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200'
+                              }`}
+                            >
+                               <span className="opacity-70">{subItem.icon}</span>
+                               <span className="whitespace-nowrap">{subItem.name}</span>
+                            </Link>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                )}
+              </div>
             );
           })}
-
-          {/* Configuración (Accordion) */}
-          {!isRestrictedRole && (
-            <div className="mt-1">
-              <button
-                onClick={() => {
-                  if (!isSidebarOpen) {
-                    setIsSidebarOpen(true);
-                    setIsConfigOpen(true);
-                  } else {
-                    setIsConfigOpen(!isConfigOpen);
-                  }
-                }}
-                className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[rgba(255,255,255,0.04)] hover:text-gray-900 dark:hover:text-gray-200 font-medium`}
-                title={!isSidebarOpen ? 'Configuración' : undefined}
-              >
-                <div className="flex items-center gap-3">
-                  <Settings size={20} className="text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-transform duration-300 group-hover:rotate-45" />
-                  {isSidebarOpen && <span className="whitespace-nowrap text-[14.5px]">Configuración</span>}
-                </div>
-                {isSidebarOpen && (
-                  <ChevronDown size={14} className={`transition-transform duration-200 ${isConfigOpen ? 'rotate-180' : ''}`} />
-                )}
-              </button>
-
-              <AnimatePresence initial={false}>
-                {isSidebarOpen && isConfigOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden ml-9 mt-1 flex flex-col gap-1 border-l-2 border-gray-100 dark:border-gray-800"
-                  >
-                    {[
-                      { name: 'Catálogos', path: '/catalogos', icon: <BookOpen size={16}/> },
-                      { name: 'Plantillas', path: '/plantillas', icon: <FileText size={16}/> },
-                      { name: 'Ciclos Escolares', path: '/ciclos', icon: <Calendar size={16}/> },
-                      { name: 'Usuarios', path: '/usuarios', icon: <Users size={16}/> },
-                      { name: 'Generales', path: '/configuracion-app', icon: <Settings size={16}/> }
-                    ].map((subItem) => {
-                      const isSubActive = location.pathname.startsWith(subItem.path);
-                      return (
-                        <Link
-                          key={subItem.path}
-                          to={subItem.path}
-                          className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded-r-xl transition-colors text-[13.5px] ${
-                            isSubActive
-                              ? 'bg-blue-50/50 text-[#1456f0] dark:bg-blue-900/10 dark:text-blue-400 font-semibold'
-                              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200'
-                          }`}
-                        >
-                           <span className="opacity-70">{subItem.icon}</span>
-                           <span className="whitespace-nowrap">{subItem.name}</span>
-                        </Link>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
         </div>
 
         {/* Logout Area */}
         <div className="p-4 border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] shrink-0">
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition-colors ${
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition-colors group relative ${
               isSidebarOpen 
                 ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20'
                 : 'text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10'
             }`}
-            title={!isSidebarOpen ? 'Cerrar Sesión' : undefined}
           >
             <LogOut size={18} />
             {isSidebarOpen && <span className="text-[14px]">Cerrar Sesión</span>}
+            {!isSidebarOpen && (
+              <div className="fixed left-[76px] ml-2 px-2.5 py-1.5 bg-gray-800 dark:bg-gray-700 text-white text-xs font-semibold rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[9999] whitespace-nowrap">
+                Cerrar Sesión
+              </div>
+            )}
           </button>
         </div>
       </motion.aside>
@@ -224,10 +259,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
              <h2 className="text-lg font-semibold text-[#222222] dark:text-gray-100 hidden sm:block" style={{ fontFamily: 'var(--font-display)' }}>
                 {location.pathname === '/' ? 'Control Financiero' : 
                  location.pathname === '/dashboard' ? 'Dashboard General' :
-                 location.pathname === '/alumnos' ? 'Control Escolar' :
-                 location.pathname === '/academico' ? 'Control Académico' :
+                 location.pathname === '/control-escolar' ? 'Control Escolar' :
+                 location.pathname === '/alumnos' ? 'Gestión de Alumnos' :
+                 location.pathname === '/planes-estudio' ? 'Planes de Estudio' :
+                 location.pathname === '/control-academico' ? 'Control Académico' :
+                 location.pathname === '/grupos' ? 'Gestión de Grupos' :
+                 location.pathname === '/docentes' ? 'Gestión de Docentes' :
                  location.pathname === '/rh' ? 'Recursos Humanos' :
                  location.pathname === '/catalogos' ? 'Catálogos' :
+                 location.pathname === '/plantillas' ? 'Plantillas y Documentos' :
                  location.pathname === '/configuracion-app' ? 'Configuración General' :
                  location.pathname === '/usuarios' ? 'Módulo de Usuarios' :
                  'Gestión Universitaria'}

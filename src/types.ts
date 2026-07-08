@@ -509,3 +509,45 @@ export interface InscripcionAcademica {
     };
   };
 }
+
+export interface Docente {
+  id: string;
+  clave_legado: string;
+  nombre_completo: string;
+  rfc: string;
+  curp: string;
+  email: string;
+  estatus: string;
+}
+
+export interface Grupo {
+  id: string;
+  ciclo_id: string;
+  plan_id: string;
+  codigo_grupo: string;
+  grado: string;
+  turno: string;
+  estatus: string;
+  ciclo?: { nombre: string; tipo_periodo?: string };
+  plan?: { nombre: string };
+}
+
+export interface DocenteGrupoAsignatura {
+  id: string;
+  docente_id: string;
+  grupo_id: string;
+  asignatura_id: string;
+  docentes?: Docente;
+  grupos?: Grupo;
+  asignaturas?: Asignatura;
+}
+
+export interface AlumnoGrupo {
+  id: string;
+  alumno_id: string;
+  grupo_id: string;
+  asignatura_id: string;
+  alumnos?: Alumno;
+  grupos?: Grupo;
+  asignaturas?: Asignatura;
+}

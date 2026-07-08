@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Search, Plus, Save, X, Trash2, Copy, Loader2, CheckCircle, AlertCircle, BookOpen } from 'lucide-react';
-import { supabase, savePlantilla, deletePlantilla } from '../lib/supabase';
+import { savePlantilla, deletePlantilla } from '../lib/supabase';
 import { PlantillaPlan } from '../types';
 import { toInputDate } from '../utils';
 import { useAppStore } from '../store/useAppStore';
+import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 
 interface PlantillasConfigProps {
   onBack: () => void;
@@ -16,6 +17,7 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
   const [editForm, setEditForm] = useState<Partial<PlantillaPlan>>({});
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
 
   const showNotification = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -64,16 +66,25 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar esta plantilla?')) return;
-    setSaving(true);
-    const error = await deletePlantilla(id);
-    if (error) {
-      showNotification('error', `Error al eliminar: ${error}`);
-    } else {
-      showNotification('success', 'Plantilla eliminada.');
-      onSave(plantillas.filter(p => p.id !== id));
-    }
-    setSaving(false);
+    setConfirmModal({
+      isOpen: true,
+      title: 'Eliminar Plantilla',
+      message: '¿Estás seguro de eliminar esta plantilla?',
+      type: 'danger',
+      onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setSaving(true);
+        const error = await deletePlantilla(id);
+        if (error) {
+          showNotification('error', `Error al eliminar: ${error}`);
+        } else {
+          showNotification('success', 'Plantilla eliminada.');
+          onSave(plantillas.filter(p => p.id !== id));
+        }
+        setSaving(false);
+      }
+    });
   };
 
   const handleSave = async () => {

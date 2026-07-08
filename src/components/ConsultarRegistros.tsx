@@ -9,6 +9,7 @@ import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAll
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV , toTitleCase} from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
 import { useAppStore } from '../store/useAppStore';
+import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 
 interface Props {
   initialSearchTerm?: string;
@@ -64,6 +65,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
   const [massStatus, setMassStatus] = useState<{ msg: string, isOpen: boolean, results: any[] }>({ msg: '', isOpen: false, results: [] });
   const [isProcessingMass, setIsProcessingMass] = useState(false);
+  const [systemConfirmModal, setSystemConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })) });
 
   const toggleSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle, Trash2 } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid, getMaxFolioCounter, getCyclePrefix , toTitleCase} from '../utils';
+import { formatGrado } from '../utils/formatUtils';
 import { supabase, toDBPlan } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import jsPDF from 'jspdf';
@@ -593,14 +594,14 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                                 alumno_id: alumno.id,
                                 nombre_alumno: alumno.nombre_completo,
                                 licenciatura: alumno.licenciatura,
-                                grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
+                                grado_turno: `${formatGrado(alumno.grado_actual)} / ${alumno.turno}`
                               });
                               setNewPlanSearchTerm(alumno.nombre_completo);
                               setShowNewAlumnoSuggestions(false);
                             }}
                           >
                             <p className="font-bold text-[#222222] text-sm">{toTitleCase(alumno.nombre_completo)}</p>
-                            <p className="text-xs text-[#8e8e93]">{toTitleCase(alumno.licenciatura)} · {alumno.grado_actual}º {alumno.turno}</p>
+                            <p className="text-xs text-[#8e8e93]">{toTitleCase(alumno.licenciatura)} · {formatGrado(alumno.grado_actual)} {alumno.turno}</p>
                           </button>
                         ))
                       ) : (
@@ -890,7 +891,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
     const a = alumnos.find(al => al.id === p.alumno_id);
     return {
       licenciatura: p.licenciatura || (a ? a.licenciatura : ''),
-      grado_turno: p.grado_turno || (a ? `${a.grado_actual} / ${a.turno}` : '')
+      grado_turno: p.grado_turno || (a ? `${formatGrado(a.grado_actual)} / ${a.turno}` : '')
     };
   };
 
@@ -2005,14 +2006,14 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                               alumno_id: alumno.id,
                               nombre_alumno: alumno.nombre_completo,
                               licenciatura: alumno.licenciatura,
-                              grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
+                              grado_turno: `${formatGrado(alumno.grado_actual)} / ${alumno.turno}`
                             });
                             setNewPlanSearchTerm(alumno.nombre_completo);
                             setShowNewAlumnoSuggestions(false);
                           }}
                         >
                           <p className="font-bold text-[#222222] text-sm">{toTitleCase(alumno.nombre_completo)}</p>
-                          <p className="text-xs text-[#8e8e93]">{toTitleCase(alumno.licenciatura)} · {alumno.grado_actual}º {alumno.turno}</p>
+                          <p className="text-xs text-[#8e8e93]">{toTitleCase(alumno.licenciatura)} · {formatGrado(alumno.grado_actual)} {alumno.turno}</p>
                         </button>
                       ))
                     ) : (

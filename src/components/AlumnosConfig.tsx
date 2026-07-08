@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { toTitleCase } from '../utils';
+import { formatGrado } from '../utils/formatUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText, AlertCircle, Wand2, MapPin, ShieldCheck, ShieldX, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -82,7 +83,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
   const [planesEstudioDisponibles, setPlanesEstudioDisponibles] = useState<any[]>([]);
   React.useEffect(() => {
-    supabase.from('planes_estudio').select('id, nombre, clave_legado').order('nombre').then(({data}) => {
+    supabase.from('planes_estudio').select('id, nombre, clave_legado, carreras(nombre)').order('nombre').then(({data}) => {
       if (data) setPlanesEstudioDisponibles(data);
     });
   }, []);
@@ -331,7 +332,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     setEditingId('new');
     setEditForm({
       apellido_paterno: '', apellido_materno: '', nombres: '', nombre_completo: '',
-      licenciatura: '', grado_actual: '1ER', turno: 'MIXTO',
+      licenciatura: '', grado_actual: '1', turno: 'MIXTO',
       estatus: 'ACTIVO', beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
       assignPlanType: 'none', templateId: ''
     });
@@ -557,7 +558,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     if (nextGrade && nextGrade !== alumno.grado_actual) {
       showConfirm(
         "Confirmar Promoción",
-        `¿Promover a ${toTitleCase(alumno.nombre_completo)} de ${alumno.grado_actual} a ${nextGrade}? Esto simulará su inscripción al nuevo ciclo.`,
+        `¿Promover a ${toTitleCase(alumno.nombre_completo)} de ${formatGrado(alumno.grado_actual)} a ${formatGrado(nextGrade)}? Esto simulará su inscripción al nuevo ciclo.`,
         async () => {
           setSaving(true);
           const updated = alumnos.map(a => a.id === alumno.id ? { ...a, grado_actual: nextGrade!, ciclo_ultima_asignacion_grado: activeCicloId } : a);
@@ -589,7 +590,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
           setAlumnos(updated);
           setSaving(false);
-          showNotification('success', `Alumno promovido a ${nextGrade}.`);
+          showNotification('success', `Alumno promovido a ${formatGrado(nextGrade)}.`);
         }
       );
     } else {
@@ -795,27 +796,15 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
   const getNextGrade = (currentGrade: string, licenciatura: string) => {
     if (currentGrade?.includes('EGRESADO')) return currentGrade;
+    if (currentGrade?.includes('POR DEFINIR')) return '1';
+    
     const is8vo = is8voMaxLic(licenciatura);
+    const currentNum = parseInt(currentGrade) || 1;
 
-    const gradeMap: Record<string, string> = {
-      '1ER': '2DO', '2DO': '3ER', '3ER': '4TO', '4TO': '5TO',
-      '5TO': '6TO', '6TO': '7MO', '7MO': '8VO',
-      '8VO': is8vo ? 'EGRESADO' : '9NO',
-      '9NO': '10MO',
-      '10MO': 'EGRESADO'
-    };
-
-    // Fallback if not standard
-    if (!gradeMap[currentGrade]) {
-      const currentGradeNum = currentGrade.replace(/[^0-9]/g, '');
-      if (currentGradeNum) {
-        if (is8vo && Number(currentGradeNum) >= 8) return 'EGRESADO';
-        if (!is8vo && Number(currentGradeNum) >= 10) return 'EGRESADO';
-        return `${Number(currentGradeNum) + 1}VO`;
-      }
-    }
-
-    return gradeMap[currentGrade] || currentGrade;
+    if (is8vo && currentNum >= 8) return 'EGRESADO';
+    if (!is8vo && currentNum >= 10) return 'EGRESADO';
+    
+    return String(currentNum + 1);
   };
 
   const executeBulkPromotion = async () => {
@@ -960,37 +949,26 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
               <h1 className="text-2xl font-bold text-[#222222] dark:text-gray-100">Gestión de Alumnos</h1>
               <p className="text-[#8e8e93] dark:text-[#8e8e93] text-sm mt-1">Administra el padrón de alumnos y promúévelos de grado.</p>
             </div>
-            {mainTableSelected.size > 0 ? (
-              <div className="flex flex-wrap items-center gap-3 bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-[13px]">
-                <span className="text-sm font-bold text-[#1456f0]">{mainTableSelected.size} seleccionados</span>
-                <button onClick={() => setShowBulkStatusModal(true)} className="text-sm font-semibold bg-white border border-indigo-200 text-[#1456f0] px-3 py-1.5 rounded-[8px] shadow-[var(--shadow-subtle)] hover:bg-[#bfdbfe] transition-colors">Cambiar Estatus</button>
-                {!isCoordinador && currentUser.rol !== 'CAJERO' && (
-                  <button onClick={handleBulkDelete} className="text-sm font-semibold bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-[8px] shadow-[var(--shadow-subtle)] hover:bg-red-50 transition-colors">Eliminar</button>
-                )}
-                <button onClick={() => setMainTableSelected(new Set())} className="text-sm text-[#8e8e93] hover:text-[#45515e] font-medium px-2" title="Cancelar selección"><X size={16} /></button>
-              </div>
-            ) : (
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-                <div className="relative w-full sm:w-72">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search size={18} className="text-[#8e8e93]" />
-                  </div>
-                  <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] pl-10 pr-4 py-2 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:ring-2 focus:ring-[#3b82f6] focus:outline-none transition-all"
-                    placeholder="Buscar alumno o licenciatura..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div className="relative w-full sm:w-72">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={18} className="text-[#8e8e93]" />
                 </div>
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[8px] text-sm font-medium border transition-colors w-full sm:w-auto ${showFilters || hasActiveFilters ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-[#1456f0] dark:text-indigo-300' : 'bg-white dark:bg-[#1c2228] border-gray-300 dark:border-gray-600 text-[#45515e] dark:text-gray-300 hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`}
-                >
-                  <Filter size={16} />
-                  Filtros {hasActiveFilters && <span className="bg-[#1456f0] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">!</span>}
-                </button>
+                <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] pl-10 pr-4 py-2 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:ring-2 focus:ring-[#3b82f6] focus:outline-none transition-all"
+                  placeholder="Buscar alumno o licenciatura..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
-            )}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[8px] text-sm font-medium border transition-colors w-full sm:w-auto ${showFilters || hasActiveFilters ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-[#1456f0] dark:text-indigo-300' : 'bg-white dark:bg-[#1c2228] border-gray-300 dark:border-gray-600 text-[#45515e] dark:text-gray-300 hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`}
+              >
+                <Filter size={16} />
+                Filtros {hasActiveFilters && <span className="bg-[#1456f0] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">!</span>}
+              </button>
+            </div>
           </div>
 
           <AnimatePresence>
-            {showFilters && !mainTableSelected.size && (
+            {showFilters && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -1100,7 +1078,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                       </div>
                     </td>
                     <td className="py-2.5 px-3 text-[#45515e] dark:text-gray-300 text-[12px] leading-tight whitespace-normal break-words max-w-[180px]">{toTitleCase(alumno.licenciatura)}</td>
-                    <td className="py-2.5 px-3 font-semibold text-[#1456f0] dark:text-indigo-400 text-xs whitespace-nowrap">{alumno.grado_actual}</td>
+                    <td className="py-2.5 px-3 font-semibold text-[#1456f0] dark:text-indigo-400 text-xs whitespace-nowrap">{formatGrado(alumno.grado_actual)}</td>
                     <td className="py-2.5 px-3 text-[#45515e] dark:text-gray-300 text-xs whitespace-nowrap">{alumno.turno}</td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold shadow-[var(--shadow-subtle)] border tracking-wider ${alumno.estatus === 'BAJA' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/50' : alumno.estatus?.includes('EGRESADO') ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900/50' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/50'}`}>{alumno.estatus || 'ACTIVO'}</span>
@@ -1392,10 +1370,10 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                         onChange={e => {
                           const planId = e.target.value;
                           const plan = planesEstudioDisponibles.find(p => p.id === planId);
-                          setEditForm({ ...editForm, plan_id: planId, licenciatura: plan ? plan.nombre : '' });
+                          setEditForm({ ...editForm, plan_id: planId, licenciatura: plan ? (plan.carreras?.nombre || plan.nombre) : '' });
                         }}>
                         <option value="">-- Seleccionar --</option>
-                        {planesEstudioDisponibles.map(p => <option key={p.id} value={p.id}>{p.clave_legado} - {p.nombre}</option>)}
+                        {planesEstudioDisponibles.map(p => <option key={p.id} value={p.id}>{p.carreras?.nombre || p.nombre} ({p.clave_legado})</option>)}
                       </select>
                     ) : (
                       <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value.toUpperCase() })} />
@@ -1411,9 +1389,9 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                             return g !== '9NO' && g !== '10MO';
                           }
                           return true;
-                        }).map(c => <option key={c} value={c}>{c}</option>)}
+                        }).map(c => <option key={c} value={c}>{formatGrado(c)}</option>)}
                         {editForm.grado_actual && !catalogos.grados.includes(editForm.grado_actual) && (
-                          <option value={editForm.grado_actual}>{editForm.grado_actual} (Mantenido)</option>
+                          <option value={editForm.grado_actual}>{formatGrado(editForm.grado_actual)} (Mantenido)</option>
                         )}
                       </select>
                     ) : (
@@ -1857,8 +1835,8 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                           <div className="text-xs text-[#8e8e93] dark:text-[#8e8e93] font-normal">{toTitleCase(a.licenciatura)} · {a.turno}</div>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="text-[#8e8e93] dark:text-[#8e8e93] line-through mr-2">{a.grado_actual}</span>
-                          <span className="font-bold text-[#1456f0] dark:text-indigo-400 text-base">{getNextGrade(a.grado_actual, a.licenciatura)}</span>
+                          <span className="text-[#8e8e93] dark:text-[#8e8e93] line-through mr-2">{formatGrado(a.grado_actual)}</span>
+                          <span className="font-bold text-[#1456f0] dark:text-indigo-400 text-base">{formatGrado(getNextGrade(a.grado_actual, a.licenciatura))}</span>
                         </td>
                       </tr>
                     ))}
@@ -1952,6 +1930,51 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       {/* ── Modales Externos ── */}
       <ModalSincronizacionGES isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
       <ModalSincronizacionKardex isOpen={showKardexModal} onClose={() => setShowKardexModal(false)} />
+
+      {mainTableSelected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#181C25] border border-[rgba(255,255,255,0.08)] p-2 pr-4 rounded-[30px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 animate-in slide-in-from-bottom-10 fade-in duration-300 flex items-center gap-4 text-white font-sans">
+          
+          <div className="flex items-center gap-3 pl-2">
+            <div className="w-6 h-6 rounded-full bg-[#1456f0] flex items-center justify-center text-xs font-bold text-white shadow-[0_0_10px_rgba(20,86,240,0.5)]">
+              {mainTableSelected.size}
+            </div>
+            <span className="text-sm font-semibold">
+              seleccionados
+            </span>
+          </div>
+
+          <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] mx-1"></div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBulkStatusModal(true)}
+              className="px-4 py-1.5 text-sm font-semibold text-gray-200 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] rounded-lg transition-colors flex items-center gap-2"
+            >
+              Cambiar Estatus
+            </button>
+            
+            {!isCoordinador && currentUser.rol !== 'CAJERO' && (
+              <>
+                <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] mx-2"></div>
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-4 py-1.5 text-sm font-semibold text-[#f87171] bg-[rgba(248,113,113,0.1)] hover:bg-[rgba(248,113,113,0.2)] rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Trash2 size={16} /> Eliminar
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] ml-2"></div>
+          <button 
+            onClick={() => setMainTableSelected(new Set())}
+            className="p-1.5 text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.1)] rounded-full transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
     </div>
   );

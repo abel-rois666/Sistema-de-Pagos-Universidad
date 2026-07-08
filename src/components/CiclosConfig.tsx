@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Edit2, Save, X, CheckCircle, XCircle, Loader2, Trash2,
 import { CicloEscolar } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
+import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 
 interface CiclosConfigProps {
   onBack: () => void;
@@ -20,6 +21,7 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -70,36 +72,54 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`¿Estás seguro de eliminar ${selectedIds.length} ciclos seleccionados? Esta acción es irreversible.`)) return;
-    setBulkSaving(true);
-    try {
-      const { error } = await supabase.from('ciclos_escolares').delete().in('id', selectedIds);
-      if (error) throw error;
-      setCiclos(ciclos.filter(c => !selectedIds.includes(c.id)));
-      setSelectedIds([]);
-      showNotification('success', `${selectedIds.length} ciclos eliminados exitosamente.`);
-    } catch (err: any) {
-      showNotification('error', `Error al eliminar: ${err.message}`);
-    } finally {
-      setBulkSaving(false);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Eliminar Ciclos',
+      message: `¿Estás seguro de eliminar ${selectedIds.length} ciclos seleccionados? Esta acción es irreversible.`,
+      type: 'danger',
+      onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setBulkSaving(true);
+        try {
+          const { error } = await supabase.from('ciclos_escolares').delete().in('id', selectedIds);
+          if (error) throw error;
+          setCiclos(ciclos.filter(c => !selectedIds.includes(c.id)));
+          setSelectedIds([]);
+          showNotification('success', `${selectedIds.length} ciclos eliminados exitosamente.`);
+        } catch (err: any) {
+          showNotification('error', `Error al eliminar: ${err.message}`);
+        } finally {
+          setBulkSaving(false);
+        }
+      }
+    });
   };
 
   const handleBulkTypeChange = async (newType: string) => {
     if (!newType) return;
-    if (!window.confirm(`¿Cambiar el tipo a "${newType}" para los ${selectedIds.length} ciclos seleccionados?`)) return;
-    setBulkSaving(true);
-    try {
-      const { error } = await supabase.from('ciclos_escolares').update({ tipo_periodo: newType }).in('id', selectedIds);
-      if (error) throw error;
-      setCiclos(ciclos.map(c => selectedIds.includes(c.id) ? { ...c, tipo_periodo: newType } : c));
-      setSelectedIds([]);
-      showNotification('success', `Tipo actualizado en ${selectedIds.length} ciclos.`);
-    } catch (err: any) {
-      showNotification('error', `Error al actualizar: ${err.message}`);
-    } finally {
-      setBulkSaving(false);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Cambiar Tipo de Periodo',
+      message: `¿Cambiar el tipo a "${newType}" para los ${selectedIds.length} ciclos seleccionados?`,
+      type: 'warning',
+      onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setBulkSaving(true);
+        try {
+          const { error } = await supabase.from('ciclos_escolares').update({ tipo_periodo: newType }).in('id', selectedIds);
+          if (error) throw error;
+          setCiclos(ciclos.map(c => selectedIds.includes(c.id) ? { ...c, tipo_periodo: newType } : c));
+          setSelectedIds([]);
+          showNotification('success', `Tipo actualizado en ${selectedIds.length} ciclos.`);
+        } catch (err: any) {
+          showNotification('error', `Error al actualizar: ${err.message}`);
+        } finally {
+          setBulkSaving(false);
+        }
+      }
+    });
   };
 
   // Valida que el id sea un UUID v4 real (no un id de mock como 'c1', 'c2')
@@ -210,24 +230,33 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
   };
 
   const handleDelete = async (ciclo: CicloEscolar) => {
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el ciclo ${ciclo.nombre}? Esta acción no se puede deshacer.`)) return;
-    setSaving(true);
-    
-    try {
-      if (isValidUUID(ciclo.id)) {
-        const { error } = await supabase.from('ciclos_escolares').delete().eq('id', ciclo.id);
-        if (error) throw error;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Eliminar Ciclo',
+      message: `¿Estás seguro de que deseas eliminar el ciclo ${ciclo.nombre}? Esta acción no se puede deshacer.`,
+      type: 'danger',
+      onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setSaving(true);
+        
+        try {
+          if (isValidUUID(ciclo.id)) {
+            const { error } = await supabase.from('ciclos_escolares').delete().eq('id', ciclo.id);
+            if (error) throw error;
+          }
+          
+          const updated = ciclos.filter(c => c.id !== ciclo.id);
+          setCiclos(updated);
+          showNotification('success', 'Ciclo eliminado correctamente.');
+        } catch (error: any) {
+          console.warn('[CiclosConfig] delete error:', error.message);
+          showNotification('error', `Error al eliminar: ${error.message}`);
+        }
+        
+        setSaving(false);
       }
-      
-      const updated = ciclos.filter(c => c.id !== ciclo.id);
-      setCiclos(updated);
-      showNotification('success', 'Ciclo eliminado correctamente.');
-    } catch (error: any) {
-      console.warn('[CiclosConfig] delete error:', error.message);
-      showNotification('error', `Error al eliminar: ${error.message}`);
-    }
-    
-    setSaving(false);
+    });
   };
 
   const handleSave = async () => {
@@ -350,6 +379,8 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
         onChange={e => setEditForm({ ...editForm, anio_fin: e.target.value ? Number(e.target.value) : null })}
         title="Año de fin (opcional si el ciclo cruza de año)"
       />
+      
+      <ModalConfirmacion {...confirmModal} />
     </div>
   );
 

@@ -24,6 +24,8 @@ import DarkModeToggle from './components/DarkModeToggle';
 import LoadingSkeleton from './components/LoadingSkeleton';
 import AppLayout from './components/AppLayout';
 import ControlAcademico from './components/ControlAcademico';
+import GruposConfig from './components/GruposConfig';
+import DocentesConfig from './components/DocentesConfig';
 import Dashboard from './components/Dashboard';
 import type { Usuario } from './types';
 
@@ -250,6 +252,24 @@ export default function App() {
               />
             </PageWrapper>
           } />
+          <Route path="/control-escolar" element={
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="text-center bg-white dark:bg-[#1c2228] p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+                <LayoutDashboard size={48} className="mx-auto text-[#1456f0] dark:text-blue-500 mb-4 opacity-50" />
+                <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 font-display">Dashboard: Control Escolar</h2>
+                <p className="text-[#45515e] dark:text-gray-400 mt-2">Próximamente...</p>
+              </div>
+            </div>
+          } />
+          <Route path="/control-academico" element={
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="text-center bg-white dark:bg-[#1c2228] p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+                <LayoutDashboard size={48} className="mx-auto text-[#1456f0] dark:text-blue-500 mb-4 opacity-50" />
+                <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 font-display">Dashboard: Control Académico</h2>
+                <p className="text-[#45515e] dark:text-gray-400 mt-2">Próximamente...</p>
+              </div>
+            </div>
+          } />
           <Route path="/catalogos" element={<PageWrapper keyStr="catalogos"><CatalogosConfig onBack={() => navigate('/')} /></PageWrapper>} />
           <Route path="/plantillas" element={<PageWrapper keyStr="plantillas"><PlantillasConfig onBack={() => navigate('/')} /></PageWrapper>} />
           <Route path="/usuarios" element={<PageWrapper keyStr="usuarios"><UsuariosConfig onBack={() => navigate('/')} /></PageWrapper>} />
@@ -280,25 +300,35 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           {/* Rutas Placeholders para el Sidebar */}
           <Route path="/dashboard" element={
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <LayoutDashboard size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
-                <h2 className="text-2xl font-bold text-gray-500 dark:text-gray-400">Dashboard General</h2>
-                <p className="text-gray-400 dark:text-gray-500 mt-2">Próximamente...</p>
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="text-center bg-white dark:bg-[#1c2228] p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+                <LayoutDashboard size={48} className="mx-auto text-[#1456f0] dark:text-blue-500 mb-4 opacity-50" />
+                <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 font-display">Dashboard General</h2>
+                <p className="text-[#45515e] dark:text-gray-400 mt-2">Próximamente...</p>
               </div>
             </div>
           } />
-          <Route path="/academico" element={
+          <Route path="/planes-estudio" element={
             <PageWrapper keyStr="academico">
               <ControlAcademico />
             </PageWrapper>
           } />
+          <Route path="/grupos" element={
+            <PageWrapper keyStr="grupos">
+              <GruposConfig />
+            </PageWrapper>
+          } />
+          <Route path="/docentes" element={
+            <PageWrapper keyStr="docentes">
+              <DocentesConfig />
+            </PageWrapper>
+          } />
           <Route path="/rh" element={
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Briefcase size={48} className="mx-auto text-gray-300 dark:text-gray-700 mb-4" />
-                <h2 className="text-2xl font-bold text-gray-500 dark:text-gray-400">Recursos Humanos</h2>
-                <p className="text-gray-400 dark:text-gray-500 mt-2">En construcción...</p>
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="text-center bg-white dark:bg-[#1c2228] p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+                <Briefcase size={48} className="mx-auto text-[#1456f0] dark:text-blue-500 mb-4 opacity-50" />
+                <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 font-display">Recursos Humanos</h2>
+                <p className="text-[#45515e] dark:text-gray-400 mt-2">En construcción...</p>
               </div>
             </div>
           } />

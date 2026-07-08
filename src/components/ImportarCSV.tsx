@@ -1,8 +1,11 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, Download, CheckCircle, AlertTriangle, FileText, ChevronRight, ChevronLeft, Loader2, AlertCircle, Eye } from 'lucide-react';
-import { PaymentPlan, Alumno, CicloEscolar } from '../types';
+import { supabase } from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
+import { normalizeGrado } from '../utils/formatUtils';
 import { CSV_HEADERS, generateCSV, downloadCSV, getCyclePrefix } from '../utils';
+import { PaymentPlan, Alumno, CicloEscolar } from '../types';
 
 // ─── Tipos internos ──────────────────────────────────────────────────────────
 interface ParsedRow {
@@ -273,7 +276,7 @@ function buildAlumnoAndPlan(
             nombre_completo: row.nombre_alumno,
             nombre_requiere_revision: !row.apellido_paterno, // marcado si viene de CSV legado
             licenciatura: row.licenciatura || 'POR DEFINIR',
-            grado_actual: row.grado || 'POR DEFINIR',
+            grado_actual: row.grado ? normalizeGrado(row.grado) : 'POR DEFINIR',
             turno: row.turno || 'POR DEFINIR',
             estatus: row.estatus || 'POR DEFINIR',
             beca_porcentaje: row.beca_porcentaje || '0%',
@@ -285,7 +288,7 @@ function buildAlumnoAndPlan(
         alumno = {
             ...alumno,
             licenciatura:   row.licenciatura   || alumno.licenciatura,
-            grado_actual:   row.grado          || alumno.grado_actual,
+            grado_actual:   row.grado          ? normalizeGrado(row.grado) : alumno.grado_actual,
             turno:          row.turno          || alumno.turno,
             estatus:        row.estatus        || alumno.estatus,
             beca_porcentaje: row.beca_porcentaje || alumno.beca_porcentaje,

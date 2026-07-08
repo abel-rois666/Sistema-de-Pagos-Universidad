@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { X, Printer, Download, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { Alumno, PaymentPlan } from '../../types';
 import { calculateStudentTotals, toTitleCase, generateCSV, downloadCSV, extractMonth } from '../../utils';
+import { formatGrado } from '../../utils/formatUtils';
 import { printElement } from '../../lib/printUtils';
 
 interface ModalReporteAlumnosProps {
@@ -93,7 +94,7 @@ export default function ModalReporteAlumnos({ alumnos, activeCyclePlans, cicloNo
     const rows = reportData.map(r => [
       toTitleCase(r.nombre),
       toTitleCase(r.licenciatura),
-      r.grado,
+      formatGrado(r.grado),
       r.estatus,
       r.tienePlan ? 'SÍ' : 'NO',
       r.pagado.toString(),
@@ -223,7 +224,7 @@ export default function ModalReporteAlumnos({ alumnos, activeCyclePlans, cicloNo
                     <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-[rgba(255,255,255,0.02)] transition-colors">
                       <td className="py-3 px-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{toTitleCase(record.nombre)}</td>
                       <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{toTitleCase(record.licenciatura)}</td>
-                      <td className="py-3 px-4 text-sm font-medium text-[#1456f0] dark:text-indigo-400">{record.grado}</td>
+                      <td className="py-3 px-4 text-sm font-medium text-[#1456f0] dark:text-indigo-400">{formatGrado(record.grado)}</td>
                       <td className="py-3 px-4 text-xs">
                         <span className={`px-2 py-0.5 rounded uppercase font-bold border ${record.estatus === 'BAJA' ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50' : record.estatus?.includes('EGRESADO') ? 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/50'}`}>
                           {record.estatus}

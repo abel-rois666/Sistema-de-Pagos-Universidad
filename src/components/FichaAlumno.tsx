@@ -9,6 +9,9 @@ import TabPagos from './tabs/TabPagos';
 import TabServicioSocial from './tabs/TabServicioSocial';
 import TabCertificacion from './tabs/TabCertificacion';
 import TabTitulacion from './tabs/TabTitulacion';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale/es';
+import { formatGrado } from '../utils/formatUtils';
 import TabDatosGenerales from './tabs/TabDatosGenerales';
 import TabHistorialAcademico from './tabs/TabHistorialAcademico';
 
@@ -186,7 +189,7 @@ export default function FichaAlumno({
               onMouseDown={e => { e.preventDefault(); handleSuggestionClick(a); }}
             >
               <span className="font-medium text-[#222222] dark:text-gray-200 block">{toTitleCase(a.nombre_completo)}</span>
-              <span className="text-[#8e8e93] text-xs">{toTitleCase(a.licenciatura)} · {a.grado_actual} · {a.turno}</span>
+              <span className="text-[#8e8e93] text-xs">{toTitleCase(a.licenciatura)} · {formatGrado(a.grado_actual)} · {a.turno}</span>
             </div>
           )) : (
             <div className="p-4 text-sm text-gray-500 text-center">Sin coincidencias</div>
@@ -290,7 +293,7 @@ export default function FichaAlumno({
 
                   <div className="flex flex-wrap gap-1.5 mt-3">
                     <span className="bg-white/10 border border-white/20 text-white/90 text-xs px-2.5 py-1 rounded-[9999px] font-medium">{toTitleCase(selectedAlumno.licenciatura)}</span>
-                    <span className="bg-white/10 border border-white/20 text-white/90 text-xs px-2.5 py-1 rounded-[9999px] font-medium">{activePlan?.grado || selectedAlumno.grado_actual}</span>
+                    <span className="bg-white/10 border border-white/20 text-white/90 text-xs px-2.5 py-1 rounded-[9999px] font-medium">{activePlan?.grado ? formatGrado(activePlan.grado) : formatGrado(selectedAlumno.grado_actual)}</span>
                     <span className="bg-white/10 border border-white/20 text-white/90 text-xs px-2.5 py-1 rounded-[9999px] font-medium">{activePlan?.turno || selectedAlumno.turno}</span>
                     {selectedAlumno.beca_porcentaje && selectedAlumno.beca_porcentaje !== '0%' && (
                       <span className="bg-[#1456f0]/30 border border-[#3b82f6]/50 text-blue-200 text-xs px-2.5 py-1 rounded-[9999px] font-medium">Beca {selectedAlumno.beca_porcentaje}</span>

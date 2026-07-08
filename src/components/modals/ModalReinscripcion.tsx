@@ -4,6 +4,7 @@ import { Loader2, X, RefreshCcw, DollarSign, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CicloEscolar } from '../../types';
 import ModalGenerarCarga from './ModalGenerarCarga';
+import { formatGrado } from '../../utils/formatUtils';
 
 interface ModalReinscripcionProps {
   alumnoId: string;
@@ -31,16 +32,11 @@ const calcularSiguienteGradoYEstatus = (gradoActual: string | null, planNombre: 
     return { nuevoGrado: '1', nuevoEstatus: 'CURSANDO' };
   }
   
-  const match = gradoActual.match(/\d+/);
-  if (match) {
-    const num = parseInt(match[0], 10);
-    if (num >= limite) {
-      return { nuevoGrado: gradoActual, nuevoEstatus: 'EGRESADO' };
-    }
-    return { nuevoGrado: gradoActual.replace(match[0], (num + 1).toString()), nuevoEstatus: 'CURSANDO' };
+  const num = parseInt(gradoActual.replace(/\D/g, ''), 10) || 1;
+  if (num >= limite) {
+    return { nuevoGrado: 'EGRESADO', nuevoEstatus: 'EGRESADO' };
   }
-  
-  return { nuevoGrado: gradoActual, nuevoEstatus: 'CURSANDO' };
+  return { nuevoGrado: String(num + 1), nuevoEstatus: 'CURSANDO' };
 };
 
 export default function ModalReinscripcion({ 

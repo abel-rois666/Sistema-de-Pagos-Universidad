@@ -7,6 +7,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { CatalogoItem, CatalogoTipo } from '../types';
 import { useAppStore } from '../store/useAppStore';
+import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 
 interface CatalogosConfigProps {
     onBack: () => void;
@@ -41,6 +42,7 @@ export default function CatalogosConfig({ onBack }: CatalogosConfigProps) {
     const [newMetaRvoe, setNewMetaRvoe] = useState('');
     const [newMetaRvoeFecha, setNewMetaRvoeFecha] = useState('');
     const [saving, setSaving] = useState(false);
+    const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
     const [importingInfo, setImportingInfo] = useState<{ total: number; skipped: number } | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -243,21 +245,39 @@ export default function CatalogosConfig({ onBack }: CatalogosConfigProps) {
     };
 
     const handleDelete = async (item: CatalogoItem) => {
-        if (!confirm(`¿Eliminar "${item.valor}" del catálogo? Esta acción no se puede deshacer.`)) return;
-        setSaving(true);
+        setConfirmModal({
+            isOpen: true,
+            title: 'Eliminar Catálogo',
+            message: `¿Eliminar "${item.valor}" del catálogo? Esta acción no se puede deshacer.`,
+            type: 'danger',
+            onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                setSaving(true);
+                try {
+                    const { error } = await supabase
+                        .from('catalogos')
+                        .delete()
+                        .eq('id', item.id);
+                    if (error) console.warn('Supabase delete error:', error.message);
+                } catch { /* local fallback */ }
 
-        try {
-            const { error } = await supabase
-                .from('catalogos')
-                .delete()
-                .eq('id', item.id);
-            if (error) console.warn('Supabase delete error:', error.message);
-        } catch { /* local fallback */ }
-
-        const updated = items.filter(i => i.id !== item.id);
-        setItems(updated);
-        setSaving(false);
-        showNotification('success', `"${item.valor}" eliminado.`);
+                const updated = items.filter(i => i.id !== item.id);
+                setItems(updated);
+                
+                // Show temporary toast inside modal wrapper
+                const modalWrapper = document.getElementById('catalogo-modal-content');
+                if (modalWrapper) {
+                    const t = document.createElement('div');
+                    t.className = 'absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg text-sm shadow-lg animate-fade-in-up';
+                    t.textContent = 'Eliminado exitosamente';
+                    modalWrapper.appendChild(t);
+                    setTimeout(() => t.remove(), 2000);
+                }
+                
+                setSaving(false);
+            }
+        });
     };
 
     // ──────────────── RENDER ────────────────
@@ -588,6 +608,7 @@ export default function CatalogosConfig({ onBack }: CatalogosConfigProps) {
                     Puedes reactivarlos cuando los necesites.
                 </p>
             </div>
+            <ModalConfirmacion {...confirmModal} />
         </div>
     );
 }

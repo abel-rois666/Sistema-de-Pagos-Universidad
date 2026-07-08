@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
 import type { Recibo, ReciboDetalle, Alumno } from '../types';
+import { formatGrado } from '../utils/formatUtils';
 
 interface Props {
   recibo: Recibo;
@@ -38,7 +39,7 @@ const SingleReceipt = ({ recibo, detalles, alumno, copyName, logoUrl, licenciatu
 
   const labelAcademico = tipoAcademico === 'ESPECIALIDAD' ? 'DE LA ESPECIALIDAD EN' : 'DE LA LICENCIATURA EN';
   const sufijoPeriodo = tipoPeriodo === 'SEMESTRAL' ? 'SEMESTRE' : 'CUATRIMESTRE';
-  const gradoDisplay = alumno?.grado_actual ? `${alumno.grado_actual} ${sufijoPeriodo}` : '';
+  const gradoDisplay = alumno?.grado_actual ? `${formatGrado(alumno.grado_actual)} ${sufijoPeriodo}` : '';
 
   return (
     <div className="w-full mb-1 border-t-2 border-dashed border-gray-400 pt-1 first:border-0 first:pt-0">
