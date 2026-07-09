@@ -52,46 +52,56 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const isRestrictedRole = currentUser.rol === 'COORDINADOR' || currentUser.rol === 'CAJERO';
+  const isDocente = currentUser.rol === 'DOCENTE';
 
-  let menuItems = [
-    { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-    { 
-      name: 'Control Escolar', 
-      icon: <GraduationCap size={20} />, 
-      path: '/control-escolar',
-      children: [
-        { name: 'Gestión de Alumnos', path: '/alumnos', icon: <Users size={16}/> },
-        { name: 'Grupos', path: '/grupos', icon: <Users size={16}/> },
-        { name: 'Planes de Estudio', path: '/planes-estudio', icon: <BookOpen size={16}/> }
-      ]
-    },
-    { name: 'Control Financiero', icon: <Wallet size={20} />, path: '/' },
-    { 
-      name: 'Control Académico', 
-      icon: <BookOpen size={20} />, 
-      path: '/control-academico',
-      children: [
-        { name: 'Docentes', path: '/docentes', icon: <BookUser size={16}/> }
-      ]
-    },
-    { name: 'Recursos Humanos', icon: <Briefcase size={20} />, path: '/rh' },
-  ];
+  let menuItems: any[] = [];
 
-  if (isRestrictedRole) {
-    menuItems = menuItems.filter(item => item.name === 'Control Financiero');
+  if (isDocente) {
+    menuItems = [
+      { name: 'Captura de Calificaciones', icon: <BookOpen size={20} />, path: '/calificaciones' }
+    ];
   } else {
-    menuItems.push({
-      name: 'Configuración',
-      icon: <Settings size={20} className="transition-transform duration-300 group-hover:rotate-45" />,
-      path: '#',
-      children: [
-        { name: 'Catálogos', path: '/catalogos', icon: <BookOpen size={16}/> },
-        { name: 'Plantillas', path: '/plantillas', icon: <FileText size={16}/> },
-        { name: 'Ciclos Escolares', path: '/ciclos', icon: <Calendar size={16}/> },
-        { name: 'Usuarios', path: '/usuarios', icon: <Users size={16}/> },
-        { name: 'Generales', path: '/configuracion-app', icon: <Settings size={16}/> }
-      ]
-    });
+    menuItems = [
+      { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
+      { 
+        name: 'Control Escolar', 
+        icon: <GraduationCap size={20} />, 
+        path: '/control-escolar',
+        children: [
+          { name: 'Gestión de Alumnos', path: '/alumnos', icon: <Users size={16}/> },
+          { name: 'Grupos', path: '/grupos', icon: <Users size={16}/> },
+          { name: 'Planes de Estudio', path: '/planes-estudio', icon: <BookOpen size={16}/> },
+          { name: 'Calificaciones', path: '/calificaciones', icon: <BookOpen size={16}/> }
+        ]
+      },
+      { name: 'Control Financiero', icon: <Wallet size={20} />, path: '/' },
+      { 
+        name: 'Control Académico', 
+        icon: <BookOpen size={20} />, 
+        path: '/control-academico',
+        children: [
+          { name: 'Docentes', path: '/docentes', icon: <BookUser size={16}/> }
+        ]
+      },
+      { name: 'Recursos Humanos', icon: <Briefcase size={20} />, path: '/rh' },
+    ];
+
+    if (isRestrictedRole) {
+      menuItems = menuItems.filter(item => item.name === 'Control Financiero');
+    } else {
+      menuItems.push({
+        name: 'Configuración',
+        icon: <Settings size={20} className="transition-transform duration-300 group-hover:rotate-45" />,
+        path: '#',
+        children: [
+          { name: 'Catálogos', path: '/catalogos', icon: <BookOpen size={16}/> },
+          { name: 'Plantillas', path: '/plantillas', icon: <FileText size={16}/> },
+          { name: 'Ciclos Escolares', path: '/ciclos', icon: <Calendar size={16}/> },
+          { name: 'Usuarios', path: '/usuarios', icon: <Users size={16}/> },
+          { name: 'Generales', path: '/configuracion-app', icon: <Settings size={16}/> }
+        ]
+      });
+    }
   }
 
   const isActive = (path: string) => {

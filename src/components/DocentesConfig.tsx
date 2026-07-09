@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Docente } from '../types';
 import ModalDocente from './modals/ModalDocente';
-import { Plus, Edit2, Search, Trash2, ChevronUp, ChevronDown, Eye, X } from 'lucide-react';
+import { Plus, Edit2, Search, Trash2, ChevronUp, ChevronDown, Eye, X, Key, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DocentesConfig() {
   const [docentes, setDocentes] = useState<Docente[]>([]);
@@ -17,6 +18,13 @@ export default function DocentesConfig() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
+  
+  // Modal para crear acceso
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+  const [accessDocente, setAccessDocente] = useState<Docente | null>(null);
+  const [accessPassword, setAccessPassword] = useState('');
+  const [accessEmail, setAccessEmail] = useState('');
+  const [isCreatingAccess, setIsCreatingAccess] = useState(false);
 
   useEffect(() => {
     fetchDocentes();
@@ -31,7 +39,7 @@ export default function DocentesConfig() {
       setLoading(true);
       const { data, error } = await supabase
         .from('docentes')
-        .select('*')
+        .select('*, usuarios(id)')
         .order('nombre_completo', { ascending: true });
 
       if (error) {
@@ -107,6 +115,64 @@ export default function DocentesConfig() {
         }
       }
     });
+  };
+
+  const handleCrearAccesoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accessDocente) return;
+    if (accessPassword.length < 8) {
+      toast.error('La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    if (!accessDocente.clave_legado || !accessDocente.clave_legado.trim()) {
+      toast.error('El docente no tiene una Clave asignada, requerida para el usuario');
+      return;
+    }
+
+    setIsCreatingAccess(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const functionUrl = `${supabaseUrl}/functions/v1/manage-users`;
+
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'apikey': anonKey
+        },
+        body: JSON.stringify({
+          action: 'CREATE',
+          username: accessDocente.clave_legado,
+          password: accessPassword,
+          rol: 'DOCENTE',
+          docente_id: accessDocente.id,
+          email: accessEmail
+        })
+      });
+
+      if (!response.ok) {
+        let errMessage = `Error HTTP: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) errMessage = errorData.error;
+        } catch (e) {}
+        throw new Error(errMessage);
+      }
+
+      toast.success('Acceso creado exitosamente');
+      setIsAccessModalOpen(false);
+      setAccessPassword('');
+      fetchDocentes();
+    } catch (error: any) {
+      toast.error('Error al crear acceso: ' + error.message);
+    } finally {
+      setIsCreatingAccess(false);
+    }
   };
 
   const handleSort = (key: string) => {
@@ -242,6 +308,7 @@ export default function DocentesConfig() {
                   <th className="px-6 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#2c333b] transition-colors" onClick={() => handleSort('estatus')}>
                     <div className="flex items-center gap-2">Estatus <SortIcon columnKey="estatus" /></div>
                   </th>
+                  <th className="px-6 py-4 text-center">Acceso</th>
                   <th className="px-6 py-4 text-right">Acciones</th>
                 </tr>
               </thead>
@@ -291,7 +358,42 @@ export default function DocentesConfig() {
                           </span>
                         )}
                       </td>
+                      <td className="px-6 py-4 text-center">
+                        {docente.usuarios && docente.usuarios.length > 0 ? (
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50" title="Usuario activo">
+                              <Key size={14} />
+                              Tiene Acceso
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setAccessDocente(docente);
+                              setAccessPassword('');
+                              setIsAccessModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#1456f0] bg-[#1456f0]/10 hover:bg-[#1456f0]/20 rounded-md transition-colors"
+                          >
+                            <Plus size={14} />
+                            Crear Acceso
+                          </button>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-right">
+                        {(!docente.usuarios || docente.usuarios.length === 0) && (
+                          <button 
+                            onClick={() => {
+                              setAccessDocente(docente);
+                              setAccessEmail(docente.email || '');
+                              setIsAccessModalOpen(true);
+                            }}
+                            className="p-2 text-gray-400 hover:text-amber-500 transition-colors"
+                            title="Crear Acceso"
+                          >
+                            <Key size={18} />
+                          </button>
+                        )}
                         <button 
                           onClick={() => {
                             setSelectedDocente(docente);
@@ -395,6 +497,101 @@ export default function DocentesConfig() {
           </button>
         </div>
       )}
+
+      {/* Modal Crear Acceso Docente */}
+      <AnimatePresence>
+        {isAccessModalOpen && accessDocente && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAccessModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white dark:bg-[#1c2228] rounded-[24px] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white font-display">Crear Acceso al Sistema</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Para el docente: <span className="font-semibold text-gray-700 dark:text-gray-300">{accessDocente.nombre_completo}</span></p>
+                </div>
+                <button
+                  onClick={() => setIsAccessModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2c333b] rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCrearAccesoSubmit} className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre de Usuario (Login)</label>
+                    <input
+                      type="text"
+                      value={accessDocente.clave_legado}
+                      disabled
+                      className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 rounded-xl cursor-not-allowed"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">El usuario es la misma Clave del docente.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Correo Electrónico (Opcional)</label>
+                    <input
+                      type="email"
+                      value={accessEmail}
+                      onChange={(e) => setAccessEmail(e.target.value)}
+                      placeholder="correo@ejemplo.com"
+                      className="w-full px-4 py-2 bg-white dark:bg-[#222b36] border border-gray-300 dark:border-gray-700 focus:border-[#1456f0] dark:focus:border-blue-500 focus:ring-4 focus:ring-[#1456f0]/10 text-gray-900 dark:text-white rounded-xl outline-none transition-all"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Si se deja vacío, se generará uno automático interno.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña Inicial</label>
+                    <input
+                      type="text"
+                      value={accessPassword}
+                      onChange={(e) => setAccessPassword(e.target.value)}
+                      placeholder="Mínimo 8 caracteres"
+                      required
+                      className="w-full px-4 py-2 bg-white dark:bg-[#222b36] border border-gray-300 dark:border-gray-700 focus:border-[#1456f0] dark:focus:border-blue-500 focus:ring-4 focus:ring-[#1456f0]/10 text-gray-900 dark:text-white rounded-xl outline-none transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAccessPassword(Math.random().toString(36).slice(-8))}
+                      className="mt-2 text-xs text-[#1456f0] hover:underline"
+                    >
+                      Generar contraseña aleatoria
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-8 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAccessModalOpen(false)}
+                    className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl font-medium transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreatingAccess || accessPassword.length < 8}
+                    className="flex-1 px-4 py-2 text-white bg-[#1456f0] hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-medium shadow-sm flex items-center justify-center gap-2 transition-colors"
+                  >
+                    {isCreatingAccess ? 'Creando...' : 'Crear Acceso'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

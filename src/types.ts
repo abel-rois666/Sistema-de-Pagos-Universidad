@@ -11,11 +11,12 @@ export interface CicloEscolar {
 export interface Usuario {
   id: string;
   username: string;
-  rol: 'ADMINISTRADOR' | 'COORDINADOR' | 'CAJERO';
+  rol: 'ADMINISTRADOR' | 'COORDINADOR' | 'CAJERO' | 'DOCENTE';
   preferencia_tema?: string;
   ultimo_ciclo_id?: string;
   auth_id?: string | null;
   activo?: boolean | null;
+  docente_id?: string | null;
 }
 
 export interface Alumno {
@@ -491,6 +492,16 @@ export interface InscripcionAcademica {
   calificacion_final?: number | null;
   modificada_manualmente?: boolean;
   observaciones?: string | null;
+
+  bloqueo_p1?: boolean;
+  bloqueo_p2?: boolean;
+  bloqueo_p3?: boolean;
+  bloqueo_final?: boolean;
+  solicitud_p1?: boolean;
+  solicitud_p2?: boolean;
+  solicitud_p3?: boolean;
+  solicitud_final?: boolean;
+
   tipo_evaluacion: string;
   estatus: string;
   created_at?: string;
@@ -518,6 +529,7 @@ export interface Docente {
   curp: string;
   email: string;
   estatus: string;
+  usuarios?: { id: string }[];
 }
 
 export interface Grupo {

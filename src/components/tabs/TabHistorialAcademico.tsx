@@ -131,6 +131,9 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
               modelo,
               carrera_id
             )
+          ),
+          ciclo:ciclos_escolares (
+            nombre
           )
         `)
         .eq('alumno_id', alumno.id)

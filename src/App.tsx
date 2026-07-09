@@ -27,6 +27,7 @@ import ControlAcademico from './components/ControlAcademico';
 import GruposConfig from './components/GruposConfig';
 import DocentesConfig from './components/DocentesConfig';
 import Dashboard from './components/Dashboard';
+import CalificacionesModule from './components/CalificacionesModule';
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -171,6 +172,13 @@ export default function App() {
     const error = await savePlan(updatedPlan);
     if (error) showToast('error', `Error al guardar plan: ${error}`);
   };
+  // Guard para rol DOCENTE (Debe ir antes de los early returns por las reglas de Hooks)
+  useEffect(() => {
+    if (currentUser?.rol === 'DOCENTE' && location.pathname !== '/calificaciones') {
+      navigate('/calificaciones', { replace: true });
+    }
+  }, [currentUser, location.pathname, navigate]);
+
   // Mostrar skeleton mientras se verifica la sesión o se cargan datos
   if (!authChecked || loading) {
     return <LoadingSkeleton type="full" text="Cargando sistema..." />;
@@ -198,8 +206,6 @@ export default function App() {
       fetchCarreras();
     }} />;
   }
-
-
 
   return (
     <>
@@ -316,6 +322,11 @@ export default function App() {
           <Route path="/grupos" element={
             <PageWrapper keyStr="grupos">
               <GruposConfig />
+            </PageWrapper>
+          } />
+          <Route path="/calificaciones" element={
+            <PageWrapper keyStr="calificaciones">
+              <CalificacionesModule />
             </PageWrapper>
           } />
           <Route path="/docentes" element={

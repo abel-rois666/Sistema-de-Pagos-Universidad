@@ -34,14 +34,24 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
 
     try {
-      // El email interno nunca se muestra al usuario.
-      // Es solo el identificador técnico para Supabase Auth.
-      const email = `${username.trim().toLowerCase()}@cuom.sistema`;
+      let loginEmail = username.trim().toLowerCase();
+
+      // Si no parece un correo, intentamos buscar el correo real asociado a ese usuario en Supabase Auth
+      if (!loginEmail.includes('@')) {
+        const { data: lookupEmail } = await supabase.rpc('get_auth_email_by_username', { p_username: loginEmail });
+        
+        if (lookupEmail) {
+          loginEmail = lookupEmail;
+        } else {
+          // Fallback al correo técnico si no se encontró en Auth (o si falla el RPC)
+          loginEmail = `${loginEmail}@cuom.sistema`;
+        }
+      }
 
       // Supabase verifica la contraseña en el servidor — nunca llega al cliente.
       // authData.user.id contiene el UUID del usuario autenticado — lo usamos directamente.
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: loginEmail,
         password,
       });
 
@@ -56,7 +66,7 @@ export default function Login({ onLogin }: LoginProps) {
       // Usamos authData.user.id directamente (evita una segunda llamada a getUser() que puede fallar).
       const { data: perfil, error: perfilError } = await supabase
         .from('usuarios')
-        .select('id, username, rol, preferencia_tema, ultimo_ciclo_id')
+        .select('id, username, rol, preferencia_tema, ultimo_ciclo_id, docente_id')
         .eq('auth_id', authData.user.id)
         .maybeSingle();
 

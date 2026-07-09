@@ -31,15 +31,17 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [errorInput, setErrorInput] = useState('');
 
+  // ── Confirmaciones ────────────────────────────────────────────────────────
+  const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   // ── Formulario ────────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     username: '',
+    email: '',
     password: '',
     rol: 'CAJERO' as 'ADMINISTRADOR' | 'COORDINADOR' | 'CAJERO',
   });
-
-  // ── Confirmación desactivar (inline) ──────────────────────────────────────
-  const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null);
 
   useEffect(() => { fetchUsuarios(); }, []);
 
@@ -103,7 +105,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
   const handleOpenCreate = () => {
     setFormMode('create');
     setEditingUser(null);
-    setFormData({ username: '', password: '', rol: 'CAJERO' });
+    setFormData({ username: '', email: '', password: '', rol: 'CAJERO' });
     setErrorInput('');
     setShowPassword(false);
     setShowModal(true);
@@ -112,7 +114,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
   const handleOpenEdit = (user: Usuario) => {
     setFormMode('edit');
     setEditingUser(user);
-    setFormData({ username: user.username, password: '', rol: user.rol });
+    setFormData({ username: user.username, email: '', password: '', rol: user.rol });
     setErrorInput('');
     setShowPassword(false);
     setShowModal(true);
@@ -121,7 +123,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
   const handleOpenPassword = (user: Usuario) => {
     setFormMode('password');
     setEditingUser(user);
-    setFormData({ username: user.username, password: '', rol: user.rol });
+    setFormData({ username: user.username, email: '', password: '', rol: user.rol });
     setErrorInput('');
     setShowPassword(false);
     setShowModal(true);
@@ -130,7 +132,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
   const closeModal = () => {
     setShowModal(false);
     setEditingUser(null);
-    setFormData({ username: '', password: '', rol: 'CAJERO' });
+    setFormData({ username: '', email: '', password: '', rol: 'CAJERO' });
     setErrorInput('');
   };
 
@@ -148,6 +150,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
 
         await invokeManageUsers('CREATE', {
           username: formData.username.trim(),
+          email: formData.email.trim() || undefined,
           password: formData.password,
           rol: formData.rol,
         });
@@ -158,6 +161,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
         await invokeManageUsers('UPDATE', {
           authId: editingUser.auth_id,
           rol: formData.rol,
+          email: formData.email.trim() || undefined,
         });
 
       } else if (formMode === 'password') {
@@ -200,6 +204,18 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
       setUsuarios(prev => prev.map(u => u.id === user.id ? { ...u, activo: true } : u));
     } catch (error: any) {
       alert(error.message || 'Error al reactivar el usuario.');
+    }
+  };
+
+  // ── Eliminar usuario permanentemente ──────────────────────────────────────
+  const handleDelete = async (user: Usuario) => {
+    if (!user.auth_id) { alert('Este usuario no tiene sesión de Auth vinculada.'); return; }
+    try {
+      await invokeManageUsers('DELETE', { authId: user.auth_id });
+      setUsuarios(prev => prev.filter(u => u.id !== user.id));
+      setConfirmDeleteId(null);
+    } catch (error: any) {
+      alert(error.message || 'Error al eliminar el usuario.');
     }
   };
 
@@ -340,25 +356,22 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
                       {/* Acciones */}
                       <td className="p-4 pr-5">
                         {confirmDeactivateId === u.id ? (
-                          /* Confirmación inline */
+                          /* Confirmación inline Desactivar */
                           <div className="flex items-center gap-2 justify-end flex-wrap">
                             <span className="text-xs text-red-700 dark:text-red-400 font-medium whitespace-nowrap">¿Desactivar?</span>
-                            <button
-                              onClick={() => handleDeactivate(u)}
-                              className="px-3 py-1 bg-red-600 text-white rounded-[8px] text-xs font-bold hover:bg-red-700 transition-colors"
-                            >
-                              Sí
-                            </button>
-                            <button
-                              onClick={() => setConfirmDeactivateId(null)}
-                              className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-[#45515e] dark:text-gray-300 rounded-[8px] text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                            >
-                              No
-                            </button>
+                            <button onClick={() => handleDeactivate(u)} className="px-3 py-1 bg-red-600 text-white rounded-[8px] text-xs font-bold hover:bg-red-700 transition-colors">Sí</button>
+                            <button onClick={() => setConfirmDeactivateId(null)} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-[#45515e] dark:text-gray-300 rounded-[8px] text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">No</button>
+                          </div>
+                        ) : confirmDeleteId === u.id ? (
+                          /* Confirmación inline Eliminar */
+                          <div className="flex items-center gap-2 justify-end flex-wrap">
+                            <span className="text-xs text-red-700 dark:text-red-400 font-medium whitespace-nowrap">¿Borrar para siempre?</span>
+                            <button onClick={() => handleDelete(u)} className="px-3 py-1 bg-red-600 text-white rounded-[8px] text-xs font-bold hover:bg-red-700 transition-colors">Sí</button>
+                            <button onClick={() => setConfirmDeleteId(null)} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-[#45515e] dark:text-gray-300 rounded-[8px] text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">No</button>
                           </div>
                         ) : u.activo === false ? (
-                          /* Usuario inactivo: solo botón reactivar */
-                          <div className="flex justify-end">
+                          /* Usuario inactivo: solo botón reactivar y eliminar */
+                          <div className="flex justify-end gap-1">
                             <button
                               onClick={() => handleReactivate(u)}
                               className="flex items-center gap-1.5 px-3 py-1.5 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-[8px] text-xs font-semibold transition-colors"
@@ -367,9 +380,16 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
                               <UserCheck size={14} />
                               Reactivar
                             </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(u.id)}
+                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-[8px] transition-colors"
+                              title="Eliminar usuario definitivamente"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
                           </div>
                         ) : (
-                          /* Usuario activo: editar, contraseña, desactivar */
+                          /* Usuario activo: editar, contraseña, desactivar, eliminar */
                           <div className="flex justify-end gap-1">
                             <button
                               onClick={() => handleOpenEdit(u)}
@@ -388,10 +408,18 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
                             <button
                               onClick={() => currentUser && u.id !== currentUser.id && setConfirmDeactivateId(u.id)}
                               disabled={currentUser && u.id === currentUser.id}
-                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-[8px] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              className="p-2 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-[8px] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                               title={currentUser && u.id === currentUser.id ? 'No puedes desactivar tu propia cuenta' : 'Desactivar usuario'}
                             >
                               <UserX size={17} />
+                            </button>
+                            <button
+                              onClick={() => currentUser && u.id !== currentUser.id && setConfirmDeleteId(u.id)}
+                              disabled={currentUser && u.id === currentUser.id}
+                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-[8px] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={currentUser && u.id === currentUser.id ? 'No puedes eliminar tu propia cuenta' : 'Eliminar usuario permanentemente'}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                             </button>
                           </div>
                         )}
@@ -432,7 +460,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
                 </div>
               )}
 
-              {/* Username — solo en creación */}
+              {/* Username y Email — solo en creación o edición */}
               {formMode === 'create' && (
                 <div>
                   <label className="block text-sm font-bold text-[#45515e] dark:text-gray-300 mb-1">
@@ -447,7 +475,25 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
                     className="w-full p-3 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[13px] outline-none focus:ring-2 focus:ring-[#3b82f6] transition-shadow bg-[#f2f3f5] dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 font-mono placeholder-gray-400 dark:placeholder-gray-500"
                   />
                   <p className="text-xs text-[#8e8e93] dark:text-[#8e8e93] mt-1">
-                    Solo minúsculas y guiones bajos. El email interno será <span className="font-mono">{formData.username || 'usuario'}@cuom.sistema</span>
+                    Solo minúsculas y guiones bajos.
+                  </p>
+                </div>
+              )}
+
+              {(formMode === 'create' || formMode === 'edit') && (
+                <div>
+                  <label className="block text-sm font-bold text-[#45515e] dark:text-gray-300 mb-1">
+                    Correo Electrónico (Opcional)
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="correo@ejemplo.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full p-3 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[13px] outline-none focus:ring-2 focus:ring-[#3b82f6] transition-shadow bg-[#f2f3f5] dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                  />
+                  <p className="text-xs text-[#8e8e93] dark:text-[#8e8e93] mt-1">
+                    Si se deja vacío, se generará uno automático interno: <span className="font-mono">{formData.username || 'usuario'}@cuom.sistema</span>
                   </p>
                 </div>
               )}
@@ -464,6 +510,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
                     <option value="CAJERO">Cajero — Solo crear/editar planes y cobrar</option>
                     <option value="COORDINADOR">Coordinador — Acceso Limitado</option>
                     <option value="ADMINISTRADOR">Administrador — Acceso Total</option>
+                    <option value="DOCENTE">Docente — Acceso solo a Calificaciones</option>
                   </select>
                 </div>
               )}
