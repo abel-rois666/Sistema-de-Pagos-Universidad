@@ -563,3 +563,41 @@ export interface AlumnoGrupo {
   grupos?: Grupo;
   asignaturas?: Asignatura;
 }
+
+// ── Modulo de Recursos Humanos (NOM-035) ──────────────────────────
+
+export interface Empleado {
+  id: string;
+  nombres: string;
+  apellido_paterno: string;
+  apellido_materno?: string;
+  rfc?: string;
+  curp?: string;
+  clave_puesto?: number;
+  puesto?: string;
+  departamento?: string;
+  tipo_contratacion?: string;
+  tipo_jornada?: string;
+  estatus: string;
+  created_at?: string;
+}
+
+export interface Nom035Evaluacion {
+  id: string;
+  empleado_id: string;
+  tipo_guia?: string;
+  respuestas: Record<string, number>;
+  calificacion_final: number;
+  nivel_riesgo: string;
+  created_at?: string;
+}
+
+export interface Nom035PlanAccion {
+  id: string;
+  titulo: string;
+  descripcion?: string;
+  nivel_intervencion: string;
+  estatus: string;
+  created_at?: string;
+}
+

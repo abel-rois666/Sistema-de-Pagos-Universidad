@@ -28,6 +28,8 @@ import GruposConfig from './components/GruposConfig';
 import DocentesConfig from './components/DocentesConfig';
 import Dashboard from './components/Dashboard';
 import CalificacionesModule from './components/CalificacionesModule';
+import RecursosHumanosConfig from './components/RecursosHumanosConfig';
+import EvaluacionNom035 from './components/EvaluacionNom035';
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -79,7 +81,7 @@ const pageVariants = {
 };
 
 const PageWrapper = ({ children, keyStr, className }: { children: ReactNode, keyStr: string, className?: string }) => (
-  <motion.div key={keyStr} initial="initial" animate="animate" exit="exit" variants={pageVariants} transition={pageVariants.transition as any} className={className || "min-h-screen bg-gray-50 dark:bg-gray-950"}>
+  <motion.div key={keyStr} initial="initial" animate="animate" exit="exit" variants={pageVariants} transition={pageVariants.transition as any} className={className || "bg-gray-50 dark:bg-gray-950"}>
     {children}
   </motion.div>
 );
@@ -335,13 +337,17 @@ export default function App() {
             </PageWrapper>
           } />
           <Route path="/rh" element={
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="text-center bg-white dark:bg-[#1c2228] p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-                <Briefcase size={48} className="mx-auto text-[#1456f0] dark:text-blue-500 mb-4 opacity-50" />
-                <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 font-display">Recursos Humanos</h2>
-                <p className="text-[#45515e] dark:text-gray-400 mt-2">En construcción...</p>
-              </div>
-            </div>
+            <PageWrapper keyStr="rh">
+              <RecursosHumanosConfig 
+                onBack={() => navigate('/')} 
+                onNavigateToEvaluacion={() => navigate('/rh/evaluacion')} 
+              />
+            </PageWrapper>
+          } />
+          <Route path="/rh/evaluacion" element={
+            <PageWrapper keyStr="rh_eval">
+              <EvaluacionNom035 onBack={() => navigate('/rh')} />
+            </PageWrapper>
           } />
           <Route path="*" element={<Dashboard />} />
         </Routes>
