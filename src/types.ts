@@ -586,8 +586,9 @@ export interface Nom035Evaluacion {
   id: string;
   empleado_id: string;
   tipo_guia?: string;
-  respuestas: Record<string, number>;
+  respuestas: Record<string, any>;
   calificacion_final: number;
+  calificacion_desglose?: any;
   nivel_riesgo: string;
   created_at?: string;
 }

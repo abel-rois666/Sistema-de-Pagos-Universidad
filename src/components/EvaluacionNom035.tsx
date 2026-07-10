@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import type { Empleado, Nom035Evaluacion } from '../types';
-import { GUIA_1_PREGUNTAS, GUIA_2_PREGUNTAS } from '../data/nom035Data';
+import { GUIA_1_PREGUNTAS, GUIA_2_PREGUNTAS, GUIA_2_EVALUACION, determinarRiesgo } from '../data/nom035Data';
 
 interface EvaluacionNom035Props {
   onBack: () => void;
@@ -14,14 +14,17 @@ export default function EvaluacionNom035({ onBack }: EvaluacionNom035Props) {
   
   const [tipoGuia, setTipoGuia] = useState<'GUIA_I' | 'GUIA_II'>('GUIA_I');
   
-  // Respuestas: clave es el id de la pregunta como string, valor es el número
-  const [respuestas, setRespuestas] = useState<Record<string, number>>({});
+  // Respuestas: clave es el id de la pregunta como string (o _detalle para textos)
+  const [respuestas, setRespuestas] = useState<Record<string, any>>({});
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [evaluated, setEvaluated] = useState(false);
   const [resultadoGuiaI, setResultadoGuiaI] = useState('');
+  
+  const [filtroClientes, setFiltroClientes] = useState<string | null>(null);
+  const [filtroJefe, setFiltroJefe] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEmpleados();
@@ -53,14 +56,19 @@ export default function EvaluacionNom035({ onBack }: EvaluacionNom035Props) {
     setSelectedEmpleadoId(id);
     setSuccess(false);
     setRespuestas({});
+    setFiltroClientes(null);
+    setFiltroJefe(null);
     if (id) checkPreviousEvaluation(id, tipoGuia);
     else setEvaluated(false);
   };
 
   const handleGuiaChange = (guia: 'GUIA_I' | 'GUIA_II') => {
     setTipoGuia(guia);
-    setSuccess(false);
     setRespuestas({});
+    setError('');
+    setSuccess(false);
+    setFiltroClientes(null);
+    setFiltroJefe(null);
     if (selectedEmpleadoId) checkPreviousEvaluation(selectedEmpleadoId, guia);
   };
 
@@ -126,15 +134,26 @@ export default function EvaluacionNom035({ onBack }: EvaluacionNom035Props) {
         return;
       }
       if (respuestas['1'] === 1) {
+        // Validación del campo de detalle (ahora es array)
+        if (!respuestas['1_detalle'] || !Array.isArray(respuestas['1_detalle']) || respuestas['1_detalle'].length === 0) {
+          setError('Debes especificar al menos un acontecimiento presenciado en la primera pregunta.');
+          return;
+        }
         // Debe contestar todas (15 preguntas)
-        if (Object.keys(respuestas).length < 15) {
+        const answeredCount = Object.keys(respuestas).filter(k => !k.includes('_')).length;
+        if (answeredCount < 15) {
           setError('Debes responder todas las preguntas.');
           return;
         }
       }
     } else {
-      if (Object.keys(respuestas).length < 46) {
-        setError('Debes responder todas las preguntas antes de enviar la evaluación.');
+      let expectedCount = 40;
+      if (filtroClientes === 'Sí') expectedCount += 3;
+      if (filtroJefe === 'Sí') expectedCount += 3;
+      
+      const answeredCount = Object.keys(respuestas).filter(k => !k.includes('_')).length;
+      if (!filtroClientes || !filtroJefe || answeredCount < expectedCount) {
+        setError('Debes responder todas las preguntas aplicables, incluidos los filtros, antes de enviar la evaluación.');
         return;
       }
     }
@@ -154,17 +173,54 @@ export default function EvaluacionNom035({ onBack }: EvaluacionNom035Props) {
     }
 
     try {
-      const { error: dbError } = await supabase
+      let desglose = null;
+
+      if (tipoGuia === 'GUIA_II') {
+        const calificacionDesglose = {
+          categorias: [] as any[],
+          dominios: [] as any[]
+        };
+
+        GUIA_2_EVALUACION.categorias.forEach(cat => {
+          let scoreCat = 0;
+          cat.items.forEach(itemId => {
+            scoreCat += respuestas[itemId.toString()] || 0;
+          });
+          calificacionDesglose.categorias.push({
+            nombre: cat.nombre,
+            puntaje: scoreCat,
+            nivel_riesgo: determinarRiesgo(scoreCat, cat.rangos)
+          });
+        });
+
+        GUIA_2_EVALUACION.dominios.forEach(dom => {
+          let scoreDom = 0;
+          dom.items.forEach(itemId => {
+            scoreDom += respuestas[itemId.toString()] || 0;
+          });
+          calificacionDesglose.dominios.push({
+            nombre: dom.nombre,
+            categoria: dom.categoria,
+            puntaje: scoreDom,
+            nivel_riesgo: determinarRiesgo(scoreDom, dom.rangos)
+          });
+        });
+        
+        desglose = calificacionDesglose;
+      }
+
+      const { error: insertError } = await supabase
         .from('nom035_evaluaciones')
-        .insert({
+        .insert([{
           empleado_id: selectedEmpleadoId,
           tipo_guia: tipoGuia,
           respuestas,
           calificacion_final,
+          calificacion_desglose: desglose,
           nivel_riesgo
-        });
+        }]);
 
-      if (dbError) throw dbError;
+      if (insertError) throw insertError;
       
       setSuccess(true);
       setEvaluated(true);
@@ -202,6 +258,36 @@ export default function EvaluacionNom035({ onBack }: EvaluacionNom035Props) {
         />
         <span className="font-medium text-gray-700 dark:text-gray-300">No</span>
       </label>
+      
+      {preguntaId === 1 && respuestas['1'] === 1 && (
+        <div className="mt-4 p-4 bg-blue-50/50 dark:bg-blue-500/10 rounded-xl border border-blue-100 dark:border-blue-500/20 col-span-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Especifique el acontecimiento (puedes seleccionar varios):
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {['Accidente mortal', 'Pérdida de un miembro', 'Lesión grave', 'Asaltos', 'Actos violentos', 'Secuestro', 'Amenaza de muerte', 'Otro'].map(opt => {
+              const selectedArray = Array.isArray(respuestas['1_detalle']) ? respuestas['1_detalle'] : [];
+              const isSelected = selectedArray.includes(opt);
+              return (
+                <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${isSelected ? 'border-[#1456f0] bg-blue-50 dark:bg-blue-500/20 text-[#1456f0] dark:text-blue-400' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-500/50 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => {
+                      let current = Array.isArray(respuestas['1_detalle']) ? respuestas['1_detalle'] : [];
+                      if (e.target.checked) current = [...current, opt];
+                      else current = current.filter((item: string) => item !== opt);
+                      setRespuestas({ ...respuestas, '1_detalle': current });
+                    }}
+                    className="w-4 h-4 text-[#1456f0] rounded border-gray-300 focus:ring-[#1456f0]"
+                  />
+                  <span className="text-sm font-medium">{opt}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -365,17 +451,127 @@ export default function EvaluacionNom035({ onBack }: EvaluacionNom035Props) {
               })}
 
               {/* GUIA II */}
-              {tipoGuia === 'GUIA_II' && GUIA_2_PREGUNTAS.map(p => (
-                <div key={p.id} className="p-6 hover:bg-gray-50/30 dark:hover:bg-[#1c2228]/30 transition-colors">
-                  <div className="flex gap-3 mb-4">
-                    <span className="text-[#1456f0] font-bold shrink-0">{p.id}.</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">
-                      {p.texto}
-                    </p>
+              {tipoGuia === 'GUIA_II' && GUIA_2_PREGUNTAS.map(p => {
+                // Filtro 1: Atención a clientes
+                if (p.id === 41) {
+                  return (
+                    <React.Fragment key="filtro1">
+                      <div className="p-6 bg-blue-50/50 dark:bg-blue-500/10 border-y border-blue-100 dark:border-blue-500/20">
+                        <div className="flex gap-3 mb-4">
+                          <span className="text-[#1456f0] font-bold shrink-0">Filtro 1.</span>
+                          <p className="font-semibold text-blue-900 dark:text-blue-300">
+                            En mi trabajo debo brindar servicio a clientes o usuarios:
+                          </p>
+                        </div>
+                        <div className="flex gap-4 pl-6">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="filtroClientes" value="Sí" checked={filtroClientes === 'Sí'} onChange={() => setFiltroClientes('Sí')} className="w-4 h-4 text-[#1456f0] focus:ring-[#1456f0]" />
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Sí</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="filtroClientes" value="No" checked={filtroClientes === 'No'} onChange={() => {
+                              setFiltroClientes('No');
+                              // Limpiar respuestas 41-43
+                              const copy = { ...respuestas };
+                              delete copy['41']; delete copy['42']; delete copy['43'];
+                              setRespuestas(copy);
+                            }} className="w-4 h-4 text-[#1456f0] focus:ring-[#1456f0]" />
+                            <span className="font-medium text-gray-700 dark:text-gray-300">No</span>
+                          </label>
+                        </div>
+                      </div>
+                      {filtroClientes === 'Sí' && (
+                        <div className="p-6 hover:bg-gray-50/30 dark:hover:bg-[#1c2228]/30 transition-colors border-b border-gray-100 dark:border-gray-800/50">
+                          <div className="flex gap-3 mb-4">
+                            <span className="text-[#1456f0] font-bold shrink-0">{p.id}.</span>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{p.texto}</p>
+                          </div>
+                          {renderOpcionesGuiaII(p)}
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                }
+                
+                if (p.id === 42 || p.id === 43) {
+                  if (filtroClientes !== 'Sí') return null;
+                  return (
+                    <div key={p.id} className="p-6 hover:bg-gray-50/30 dark:hover:bg-[#1c2228]/30 transition-colors border-b border-gray-100 dark:border-gray-800/50">
+                      <div className="flex gap-3 mb-4">
+                        <span className="text-[#1456f0] font-bold shrink-0">{p.id}.</span>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{p.texto}</p>
+                      </div>
+                      {renderOpcionesGuiaII(p)}
+                    </div>
+                  );
+                }
+
+                // Filtro 2: Supervisión de personal
+                if (p.id === 44) {
+                  return (
+                    <React.Fragment key="filtro2">
+                      <div className="p-6 bg-purple-50/50 dark:bg-purple-500/10 border-y border-purple-100 dark:border-purple-500/20">
+                        <div className="flex gap-3 mb-4">
+                          <span className="text-purple-600 font-bold shrink-0">Filtro 2.</span>
+                          <p className="font-semibold text-purple-900 dark:text-purple-300">
+                            Soy jefe de otros trabajadores:
+                          </p>
+                        </div>
+                        <div className="flex gap-4 pl-6">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="filtroJefe" value="Sí" checked={filtroJefe === 'Sí'} onChange={() => setFiltroJefe('Sí')} className="w-4 h-4 text-purple-600 focus:ring-purple-600" />
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Sí</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="filtroJefe" value="No" checked={filtroJefe === 'No'} onChange={() => {
+                              setFiltroJefe('No');
+                              // Limpiar respuestas 44-46
+                              const copy = { ...respuestas };
+                              delete copy['44']; delete copy['45']; delete copy['46'];
+                              setRespuestas(copy);
+                            }} className="w-4 h-4 text-purple-600 focus:ring-purple-600" />
+                            <span className="font-medium text-gray-700 dark:text-gray-300">No</span>
+                          </label>
+                        </div>
+                      </div>
+                      {filtroJefe === 'Sí' && (
+                        <div className="p-6 hover:bg-gray-50/30 dark:hover:bg-[#1c2228]/30 transition-colors border-b border-gray-100 dark:border-gray-800/50">
+                          <div className="flex gap-3 mb-4">
+                            <span className="text-[#1456f0] font-bold shrink-0">{p.id}.</span>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{p.texto}</p>
+                          </div>
+                          {renderOpcionesGuiaII(p)}
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                }
+
+                if (p.id === 45 || p.id === 46) {
+                  if (filtroJefe !== 'Sí') return null;
+                  return (
+                    <div key={p.id} className="p-6 hover:bg-gray-50/30 dark:hover:bg-[#1c2228]/30 transition-colors border-b border-gray-100 dark:border-gray-800/50">
+                      <div className="flex gap-3 mb-4">
+                        <span className="text-[#1456f0] font-bold shrink-0">{p.id}.</span>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{p.texto}</p>
+                      </div>
+                      {renderOpcionesGuiaII(p)}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={p.id} className="p-6 hover:bg-gray-50/30 dark:hover:bg-[#1c2228]/30 transition-colors border-b border-gray-100 dark:border-gray-800/50 last:border-0">
+                    <div className="flex gap-3 mb-4">
+                      <span className="text-[#1456f0] font-bold shrink-0">{p.id}.</span>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">
+                        {p.texto}
+                      </p>
+                    </div>
+                    {renderOpcionesGuiaII(p)}
                   </div>
-                  {renderOpcionesGuiaII(p)}
-                </div>
-              ))}
+                );
+              })}
 
             </div>
 
