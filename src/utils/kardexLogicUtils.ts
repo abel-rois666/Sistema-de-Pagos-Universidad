@@ -95,7 +95,7 @@ export function analizarObservacionesDGAIR(inscripcionesAprobadas: any[]): Anali
     const esReingreso = bloqueReingreso[periodo] || false;
     
     let id_observacion = 100;
-    let observacion_texto = 'NORMAL / ORDINARIO';
+    let observacion_texto = 'ORDINARIO';
     let requiereRevision = false;
     
     if (esReingreso && cicloMateria === cicloLogico) {
