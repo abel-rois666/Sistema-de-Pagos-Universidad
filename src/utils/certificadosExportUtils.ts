@@ -35,6 +35,14 @@ export async function generarLayoutDGAIR(
     // Comenzamos en la fila 2
     let currentRow = 2;
     
+    // Helper para convertir fechas ISO (YYYY-MM-DD) a dd/mm/aaaa
+    const formatFechaDDMMAAAA = (fecha: string | null | undefined): string => {
+      if (!fecha) return '';
+      const parts = fecha.split('-');
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      return fecha;
+    };
+
     // Obtener información común
     const fechaActual = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
     const numAsignaturasCursadas = inscripcionesAnalizadas.length;
@@ -74,7 +82,7 @@ export async function generarLayoutDGAIR(
         alumno.apellido_paterno || '', // 12. PRIMER APELLIDO
         alumno.apellido_materno || '', // 13. SEGUNDO APELLIDO
         alumno.id_sexo || '', // 14. ID_GÉNERO
-        alumno.fecha_nacimiento || '', // 15. FECHA NACIMIENTO
+        formatFechaDDMMAAAA(alumno.fecha_nacimiento), // 15. FECHA NACIMIENTO
         '', // 16. FOTO
         '', // 17. FIRMA AUTÓGRAFA
         tipoCertificacionId, // 18. ID_TIPO CERTIFICACIÓN
@@ -87,7 +95,7 @@ export async function generarLayoutDGAIR(
         clavePlanSoloNumeros, // 25. CLAVE PLAN ESTUDIOS
         alumno.carrera?.nombre || '', // 26. NOMBRE PLAN ESTUDIOS
         alumno.plan?.rvoe || '', // 27. RVOE
-        alumno.plan?.fecha_rvoe || '', // 28. Fecha_RVOE
+        formatFechaDDMMAAAA(alumno.plan?.fecha_rvoe), // 28. Fecha_RVOE
         alumno.plan?.id_plan_certificacion || '', // 29. ID_ CARRERA
         numAsignaturasCursadas, // 30. Número de ASIGNATURAS cursadas
         promedioGeneral, // 31. PROMEDIO GENERAL
