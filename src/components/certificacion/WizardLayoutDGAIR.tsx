@@ -47,13 +47,23 @@ export default function WizardLayoutDGAIR() {
     loadGlobals();
   }, []);
 
-  const buscarAlumno = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!busqueda.trim()) return;
+  // Búsqueda Dinámica con Debounce
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (busqueda.trim().length >= 3) {
+        buscarAlumnoDinamico(busqueda.trim());
+      } else if (busqueda.trim().length === 0) {
+        setAlumnosList([]);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [busqueda]);
+
+  const buscarAlumnoDinamico = async (q: string) => {
     setLoading(true);
     setError('');
     try {
-      const q = busqueda.trim();
       const { data, error } = await supabase
         .from('alumnos')
         .select(`
@@ -92,27 +102,47 @@ export default function WizardLayoutDGAIR() {
       al.plan = plan;
       al.carrera = carrera;
 
-      // Buscar materias aprobadas (calif >= 6 o depende de carrera)
+      // Buscar TODAS las materias del alumno (aprobadas y reprobadas/cursando)
       const { data: inscData, error: inscErr } = await supabase
         .from('inscripciones_academicas')
         .select(`
           *,
-          asignatura:asignaturas(*),
-          ciclo:ciclos_escolares(*)
+          asignatura:asignaturas(*)
         `)
-        .eq('alumno_id', al.id)
-        .gte('calificacion_final', carrera.calificacion_minima_aprobatoria || 6)
-        .order('ciclo_id', { ascending: true }); // Orden básico inicial
+        .eq('alumno_id', al.id);
       
       if (inscErr) throw inscErr;
 
-      const inscAprobadas = inscData || [];
-      setInscripcionesAprobadas(inscAprobadas);
+      // Filtrar las complementarias
+      const inscValidas = (inscData || []).filter((insc: any) => 
+        !(insc.asignatura?.clasificacion_nombre || '').toUpperCase().includes('COMPLEMENTARI')
+      );
 
-      const totalAsignaturas = plan.total_asignaturas || 0;
+      // Calcular total de asignaturas basándonos EXCLUSIVAMENTE en el kardex (sin complementarias)
+      const totalAsignaturasKardex = inscValidas.length;
+
+      // Filtrar las aprobadas de las válidas
+      const minAprobatoria = carrera.calificacion_minima_aprobatoria || 6;
+      const inscAprobadas = inscValidas.filter((insc: any) => 
+        (insc.calificacion_final || 0) >= minAprobatoria
+      );
+
+      // Ordenar por ciclo las aprobadas para la vista previa DGAIR
+      let inscAprobadasConCiclo = [];
+      if (inscAprobadas.length > 0) {
+        const { data } = await supabase
+          .from('inscripciones_academicas')
+          .select(`*, asignatura:asignaturas(*), ciclo:ciclos_escolares(*)`)
+          .in('id', inscAprobadas.map((ia: any) => ia.id))
+          .order('ciclo_id', { ascending: true });
+        inscAprobadasConCiclo = data || [];
+      }
+
+      setInscripcionesAprobadas(inscAprobadasConCiclo);
+
       let pct = 0;
-      if (totalAsignaturas > 0) {
-        pct = (inscAprobadas.length / totalAsignaturas) * 100;
+      if (totalAsignaturasKardex > 0) {
+        pct = (inscAprobadas.length / totalAsignaturasKardex) * 100;
         if (pct > 100) pct = 100;
       }
       setAvancePorcentaje(pct);
@@ -236,19 +266,18 @@ export default function WizardLayoutDGAIR() {
       {/* PASO 1 */}
       {paso === 1 && (
         <div className="space-y-6">
-          <form onSubmit={buscarAlumno} className="flex gap-4">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+              <Search className={`w-6 h-6 ${loading ? 'text-[#1456f0] animate-pulse' : 'text-gray-400 dark:text-gray-500'}`} />
+            </div>
             <input 
               type="text" 
-              placeholder="Buscar por matrícula o nombre..." 
+              placeholder="Buscar alumno por matrícula o nombre completo..." 
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              className="flex-1 px-6 py-4 text-lg rounded-2xl bg-white dark:bg-[#1c2228] border border-gray-300 dark:border-[rgba(255,255,255,0.1)] text-gray-900 dark:text-white dark:placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-[#1456f0] outline-none transition-all"
+              className="w-full pl-16 pr-6 py-5 text-lg rounded-2xl bg-white dark:bg-[#1c2228] border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white dark:placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-[#1456f0] outline-none transition-all"
             />
-            <button type="submit" disabled={loading} className="px-8 py-4 bg-[#1456f0] text-white rounded-2xl hover:bg-blue-600 flex items-center gap-2 font-bold text-lg shadow-lg shadow-blue-500/20 transition-all">
-              <Search size={24} />
-              Buscar
-            </button>
-          </form>
+          </div>
 
           {alumnosList.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
