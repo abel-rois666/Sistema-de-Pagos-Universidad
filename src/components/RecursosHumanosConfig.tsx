@@ -4,8 +4,47 @@ import { ArrowLeft, Users, FileText, ClipboardList, Plus, Shield, Search, FileBa
 import { useAppStore } from '../store/useAppStore';
 import type { Empleado, Nom035Evaluacion, Nom035PlanAccion } from '../types';
 import ModalEmpleado from './modals/ModalEmpleado';
+import FichaEmpleado from './modals/FichaEmpleado';
 import ModalPlanAccion from './modals/ModalPlanAccion';
 import ModalConfirmacion from './ui/ModalConfirmacion';
+import { toTitleCase } from '../utils';
+
+const calcularEdad = (fechaNacimiento?: string) => {
+  if (!fechaNacimiento) return 'N/A';
+  const hoy = new Date();
+  const nac = new Date(fechaNacimiento);
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const m = hoy.getMonth() - nac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) {
+    edad--;
+  }
+  return edad + ' años';
+};
+
+const calcularAntiguedad = (fechaIngreso?: string) => {
+  if (!fechaIngreso) return 'N/A';
+  const hoy = new Date();
+  const ing = new Date(fechaIngreso);
+  let anios = hoy.getFullYear() - ing.getFullYear();
+  let meses = hoy.getMonth() - ing.getMonth();
+  
+  if (meses < 0 || (meses === 0 && hoy.getDate() < ing.getDate())) {
+    anios--;
+    meses += 12;
+  }
+  if (hoy.getDate() < ing.getDate()) {
+    meses--;
+  }
+  if (meses < 0) {
+    meses = 11;
+  }
+  
+  if (anios === 0 && meses === 0) return 'Reciente';
+  let res = '';
+  if (anios > 0) res += `${anios} año${anios > 1 ? 's' : ''} `;
+  if (meses > 0) res += `${meses} mes${meses > 1 ? 'es' : ''}`;
+  return res.trim();
+};
 
 interface RecursosHumanosConfigProps {
   onBack: () => void;
@@ -30,6 +69,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
   // Modals
   const [showModalEmpleado, setShowModalEmpleado] = useState(false);
   const [editingEmpleado, setEditingEmpleado] = useState<Empleado | null>(null);
+  const [viewingEmpleado, setViewingEmpleado] = useState<Empleado | null>(null);
   
   const [showModalPlan, setShowModalPlan] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Nom035PlanAccion | null>(null);
@@ -184,7 +224,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-medium whitespace-nowrap transition-all ${
               activeTab === 'directorio'
                 ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md'
-                : 'bg-white dark:bg-[#1c2228] text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : 'bg-white dark:bg-[#1c2228] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
             }`}
           >
             <Users size={18} /> Directorio de Empleados
@@ -194,7 +234,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-medium whitespace-nowrap transition-all ${
               activeTab === 'resultados'
                 ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md'
-                : 'bg-white dark:bg-[#1c2228] text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : 'bg-white dark:bg-[#1c2228] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
             }`}
           >
             <FileText size={18} /> Resultados NOM-035
@@ -204,7 +244,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-medium whitespace-nowrap transition-all ${
               activeTab === 'planes'
                 ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md'
-                : 'bg-white dark:bg-[#1c2228] text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                : 'bg-white dark:bg-[#1c2228] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
             }`}
           >
             <ClipboardList size={18} /> Planes de Acción
@@ -229,64 +269,74 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
                         placeholder="Buscar por nombre..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl outline-none focus:ring-2 focus:ring-[#1456f0]"
+                        className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl outline-none focus:ring-2 focus:ring-[#1456f0] placeholder-gray-400 dark:placeholder-gray-500"
                       />
                     </div>
-                    <button
-                      onClick={() => { setEditingEmpleado(null); setShowModalEmpleado(true); }}
-                      className="px-5 py-2 bg-[#1456f0] hover:bg-[#1047c6] text-white font-medium rounded-xl shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap"
-                    >
-                      <Plus size={18} /> Registrar Empleado
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => { setEditingEmpleado(null); setShowModalEmpleado(true); }}
+                        className="px-5 py-2 bg-[#1456f0] hover:bg-[#1047c6] text-white font-medium rounded-xl shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap"
+                      >
+                        <Plus size={18} /> Registrar Empleado
+                      </button>
+                    )}
                   </div>
                   
                   <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-gray-50 dark:bg-[#1c2228] border-b border-gray-100 dark:border-gray-800">
-                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase">Empleado</th>
-                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase">Puesto / Depto</th>
-                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase">Identificadores</th>
-                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase">Contratación</th>
-                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Acciones</th>
+                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Empleado</th>
+                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Puesto / Depto</th>
+                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Detalles Personales</th>
+                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-right">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                         {filteredEmpleados.map(emp => (
-                          <tr key={emp.id} className="hover:bg-gray-50/50 dark:hover:bg-[#1c2228]/50 transition-colors">
+                          <tr
+                            key={emp.id}
+                            onClick={() => setViewingEmpleado(emp)}
+                            className="hover:bg-gray-50/50 dark:hover:bg-[#1c2228]/50 transition-colors cursor-pointer"
+                          >
                             <td className="px-5 py-4">
                               <div className="font-semibold text-gray-900 dark:text-white">
-                                {`${emp.apellido_paterno} ${emp.apellido_materno || ''} ${emp.nombres}`}
+                                {toTitleCase(`${emp.apellido_paterno} ${emp.apellido_materno || ''} ${emp.nombres}`)}
                               </div>
-                              <div className="text-sm text-gray-500">
-                                Estatus: <span className="text-emerald-500 font-medium">{emp.estatus}</span>
+                              <div className="text-sm text-gray-500 flex gap-3 mt-1">
+                                <span>Edad: <strong className="text-gray-700 dark:text-gray-300">{calcularEdad(emp.fecha_nacimiento)}</strong></span>
+                                <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600 self-center"></span>
+                                <span>Estatus: <strong className="text-emerald-500">{emp.estatus}</strong></span>
                               </div>
                             </td>
                             <td className="px-5 py-4">
-                              <div className="text-gray-800 dark:text-gray-200">{emp.puesto || 'N/A'}</div>
-                              <div className="text-sm text-gray-500">{emp.departamento || 'N/A'}</div>
+                              <div className="text-gray-800 dark:text-gray-200 font-medium">{toTitleCase(emp.puesto) || 'N/A'}</div>
+                              <div className="text-sm text-gray-500 mt-1">{toTitleCase(emp.departamento) || 'N/A'}</div>
+                              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium bg-blue-50 dark:bg-blue-500/10 inline-block px-2 py-0.5 rounded">
+                                Antigüedad: {calcularAntiguedad(emp.fecha_ingreso)}
+                              </div>
                             </td>
                             <td className="px-5 py-4">
-                              <div className="text-sm text-gray-600 dark:text-gray-400">RFC: {emp.rfc || 'N/A'}</div>
-                              <div className="text-sm text-gray-600 dark:text-gray-400">CURP: {emp.curp || 'N/A'}</div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">Tel: <span className="font-medium text-gray-800 dark:text-gray-200">{emp.telefono || 'N/A'}</span></div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">RFC: <span className="font-medium text-gray-800 dark:text-gray-200">{emp.rfc || 'N/A'}</span></div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">CURP: <span className="font-medium text-gray-800 dark:text-gray-200">{emp.curp || 'N/A'}</span></div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">Estudios: <span className="font-medium text-gray-800 dark:text-gray-200">{emp.nivel_estudios !== 'Sin formación' && emp.nivel_estudios ? `${emp.nivel_estudios} (${emp.nivel_estudios_estado})` : (emp.nivel_estudios || 'N/A')}</span></div>
                             </td>
-                            <td className="px-5 py-4">
-                              <div className="text-sm text-gray-600 dark:text-gray-400">{emp.tipo_contratacion}</div>
-                              <div className="text-sm text-gray-600 dark:text-gray-400">{emp.tipo_jornada}</div>
-                            </td>
-                            <td className="px-5 py-4 text-right">
-                              <button
-                                onClick={() => { setEditingEmpleado(emp); setShowModalEmpleado(true); }}
-                                className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 rounded-lg transition-colors"
-                              >
-                                Editar
-                              </button>
+                            <td className="px-5 py-4 text-right" onClick={e => e.stopPropagation()}>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => { setEditingEmpleado(emp); setShowModalEmpleado(true); }}
+                                  className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 rounded-lg transition-colors"
+                                >
+                                  Editar
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
                         {filteredEmpleados.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="px-5 py-8 text-center text-gray-500">
+                            <td colSpan={4} className="px-5 py-8 text-center text-gray-500">
                               No se encontraron empleados.
                             </td>
                           </tr>
@@ -333,12 +383,12 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
                             >
                               <div>
                                 <h3 className="font-semibold text-gray-900 dark:text-white mb-0.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                  {grupo.empleado.apellido_paterno} {grupo.empleado.apellido_materno || ''} {grupo.empleado.nombres}
+                                  {toTitleCase(`${grupo.empleado.apellido_paterno} ${grupo.empleado.apellido_materno || ''} ${grupo.empleado.nombres}`)}
                                 </h3>
                                 <p className="text-sm text-gray-500 flex gap-2">
-                                  <span>{grupo.empleado.departamento || 'Sin Depto'}</span>
+                                  <span>{toTitleCase(grupo.empleado.departamento) || 'Sin Depto'}</span>
                                   <span className="text-gray-300 dark:text-gray-600">•</span>
-                                  <span>{grupo.empleado.puesto || 'Sin Puesto'}</span>
+                                  <span>{toTitleCase(grupo.empleado.puesto) || 'Sin Puesto'}</span>
                                 </p>
                               </div>
                               <div className="text-gray-400">
@@ -554,6 +604,19 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
 
         </div>
       </div>
+
+      {viewingEmpleado && (
+        <FichaEmpleado
+          empleado={viewingEmpleado}
+          isAdmin={isAdmin}
+          onClose={() => setViewingEmpleado(null)}
+          onEdit={() => {
+            setEditingEmpleado(viewingEmpleado);
+            setViewingEmpleado(null);
+            setShowModalEmpleado(true);
+          }}
+        />
+      )}
 
       {showModalEmpleado && (
         <ModalEmpleado

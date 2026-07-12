@@ -13,8 +13,9 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
   const [form, setForm] = useState<Partial<Carrera>>({
     nombre: '',
     clave: '',
-    nivel_educativo: 'Licenciatura',
     calificacion_minima_aprobatoria: 6,
+    calificacion_minima: 5,
+    calificacion_maxima: 10,
     activo: true,
   });
   
@@ -29,6 +30,8 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
         clave: carrera.clave || '',
         nivel_educativo: carrera.nivel_educativo || 'Licenciatura',
         calificacion_minima_aprobatoria: carrera.calificacion_minima_aprobatoria ?? 6,
+        calificacion_minima: carrera.calificacion_minima ?? 5,
+        calificacion_maxima: carrera.calificacion_maxima ?? 10,
         activo: carrera.activo !== undefined ? carrera.activo : true,
       });
     }
@@ -55,6 +58,8 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
             clave: form.clave?.trim() || null,
             nivel_educativo: form.nivel_educativo,
             calificacion_minima_aprobatoria: form.calificacion_minima_aprobatoria ?? 6,
+            calificacion_minima: form.calificacion_minima ?? 5,
+            calificacion_maxima: form.calificacion_maxima ?? 10,
             activo: form.activo,
           })
           .eq('id', carrera.id)
@@ -72,6 +77,8 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
             clave: form.clave?.trim() || null,
             nivel_educativo: form.nivel_educativo,
             calificacion_minima_aprobatoria: form.calificacion_minima_aprobatoria ?? 6,
+            calificacion_minima: form.calificacion_minima ?? 5,
+            calificacion_maxima: form.calificacion_maxima ?? 10,
             activo: form.activo,
           }])
           .select()
@@ -187,6 +194,35 @@ export default function ModalCarrera({ carrera, onClose, onSaved }: ModalCarrera
             <p className="text-xs text-gray-400 mt-1">
               {form.nivel_educativo === 'Especialidad' ? 'Especialidades: 8 por defecto' : 'Licenciaturas: 6 por defecto'}
             </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Calificación Mínima Permitida</label>
+              <select
+                disabled={isReadOnly}
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:bg-gray-50 dark:disabled:bg-gray-900"
+                value={form.calificacion_minima ?? 5}
+                onChange={(e) => setForm({ ...form, calificacion_minima: parseInt(e.target.value) || 5 })}
+              >
+                {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Calificación Máxima Permitida</label>
+              <select
+                disabled={isReadOnly}
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:bg-gray-50 dark:disabled:bg-gray-900"
+                value={form.calificacion_maxima ?? 10}
+                onChange={(e) => setForm({ ...form, calificacion_maxima: parseInt(e.target.value) || 10 })}
+              >
+                {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 pt-2">

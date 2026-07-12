@@ -213,6 +213,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
         // ── Datos personales opcionales ──
         fecha_nacimiento: newExtras.fecha_nacimiento || null,
         sexo: (newExtras.sexo === 'H' || newExtras.sexo === 'M') ? newExtras.sexo : null,
+        id_sexo: newExtras.sexo === 'H' ? 251 : (newExtras.sexo === 'M' ? 250 : null),
         estado_nacimiento: newExtras.estado_nacimiento ? (getStateAbbr(newExtras.estado_nacimiento) || newExtras.estado_nacimiento) : null,
         nacionalidad: newExtras.nacionalidad || 'MEXICANA',
         curp: newExtras.curp ? newExtras.curp.toUpperCase() : null,

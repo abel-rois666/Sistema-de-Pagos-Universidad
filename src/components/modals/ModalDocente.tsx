@@ -161,9 +161,9 @@ export default function ModalDocente({ isOpen, onClose, docente, onDocenteSaved,
               <input
                 type="text"
                 value={form.clave_legado}
-                onChange={e => setForm({ ...form, clave_legado: e.target.value })}
+                onChange={e => setForm({ ...form, clave_legado: e.target.value.toUpperCase() })}
                 disabled={isReadOnly || !!docente}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-[#1456f0] focus:border-[#1456f0] dark:bg-gray-800 dark:text-white disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-[#1456f0] focus:border-[#1456f0] dark:bg-gray-800 dark:text-white disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-900 uppercase"
                 placeholder="Ej. PF0001"
                 required
               />
@@ -176,9 +176,9 @@ export default function ModalDocente({ isOpen, onClose, docente, onDocenteSaved,
               <input
                 type="text"
                 value={form.nombre_completo}
-                onChange={e => setForm({ ...form, nombre_completo: e.target.value })}
+                onChange={e => setForm({ ...form, nombre_completo: e.target.value.toUpperCase() })}
                 disabled={isReadOnly}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-[#1456f0] focus:border-[#1456f0] dark:bg-gray-800 dark:text-white disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-[#1456f0] focus:border-[#1456f0] dark:bg-gray-800 dark:text-white disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-900 uppercase"
                 placeholder="Ej. Juan Pérez García"
                 required
               />
@@ -192,7 +192,7 @@ export default function ModalDocente({ isOpen, onClose, docente, onDocenteSaved,
                 <input
                   type="text"
                   value={form.rfc}
-                  onChange={e => setForm({ ...form, rfc: e.target.value })}
+                  onChange={e => setForm({ ...form, rfc: e.target.value.toUpperCase() })}
                   disabled={isReadOnly}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-[#1456f0] focus:border-[#1456f0] dark:bg-gray-800 dark:text-white uppercase disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-900"
                   placeholder="Ej. PEGJ800101"
@@ -205,7 +205,7 @@ export default function ModalDocente({ isOpen, onClose, docente, onDocenteSaved,
                 <input
                   type="text"
                   value={form.curp}
-                  onChange={e => setForm({ ...form, curp: e.target.value })}
+                  onChange={e => setForm({ ...form, curp: e.target.value.toUpperCase() })}
                   disabled={isReadOnly}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:ring-[#1456f0] focus:border-[#1456f0] dark:bg-gray-800 dark:text-white uppercase disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-900"
                   placeholder="Ej. PEGJ800101HDFRNR05"

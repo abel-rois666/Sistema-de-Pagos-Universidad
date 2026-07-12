@@ -6,6 +6,7 @@ import { Plus, Edit2, Search, Trash2, ChevronUp, ChevronDown, Eye, X, Key, Loade
 import toast from 'react-hot-toast';
 import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toTitleCase } from '../utils';
 
 export default function DocentesConfig() {
   const [docentes, setDocentes] = useState<Docente[]>([]);
@@ -340,7 +341,7 @@ export default function DocentesConfig() {
                         {docente.clave_legado}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-[#222222] dark:text-gray-200 font-medium">{docente.nombre_completo}</div>
+                        <div className="text-[#222222] dark:text-gray-200 font-medium">{toTitleCase(docente.nombre_completo)}</div>
                         <div className="text-xs text-[#8e8e93] mt-0.5">{docente.email || 'Sin correo'}</div>
                       </td>
                       <td className="px-6 py-4">

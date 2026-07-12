@@ -2,8 +2,22 @@ import React, { useState, useRef } from 'react';
 import { AppConfig, DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { updateAppConfig } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
-import { Save, Image as ImageIcon, Type, ArrowLeft, Upload, Trash2, UserCheck, Database } from 'lucide-react';
+import { Save, Image as ImageIcon, Type, ArrowLeft, Upload, Trash2, UserCheck, Database, MapPin, Hash } from 'lucide-react';
 import ModalSincronizacionAcademica from './modals/ModalSincronizacionAcademica';
+
+const ESTADOS_MEXICO = [
+  { id: '01', nombre: 'Aguascalientes' }, { id: '02', nombre: 'Baja California' }, { id: '03', nombre: 'Baja California Sur' },
+  { id: '04', nombre: 'Campeche' }, { id: '05', nombre: 'Coahuila de Zaragoza' }, { id: '06', nombre: 'Colima' },
+  { id: '07', nombre: 'Chiapas' }, { id: '08', nombre: 'Chihuahua' }, { id: '09', nombre: 'Ciudad de México' },
+  { id: '10', nombre: 'Durango' }, { id: '11', nombre: 'Guanajuato' }, { id: '12', nombre: 'Guerrero' },
+  { id: '13', nombre: 'Hidalgo' }, { id: '14', nombre: 'Jalisco' }, { id: '15', nombre: 'México' },
+  { id: '16', nombre: 'Michoacán de Ocampo' }, { id: '17', nombre: 'Morelos' }, { id: '18', nombre: 'Nayarit' },
+  { id: '19', nombre: 'Nuevo León' }, { id: '20', nombre: 'Oaxaca' }, { id: '21', nombre: 'Puebla' },
+  { id: '22', nombre: 'Querétaro' }, { id: '23', nombre: 'Quintana Roo' }, { id: '24', nombre: 'San Luis Potosí' },
+  { id: '25', nombre: 'Sinaloa' }, { id: '26', nombre: 'Sonora' }, { id: '27', nombre: 'Tabasco' },
+  { id: '28', nombre: 'Tamaulipas' }, { id: '29', nombre: 'Tlaxcala' }, { id: '30', nombre: 'Veracruz de Ignacio de la Llave' },
+  { id: '31', nombre: 'Yucatán' }, { id: '32', nombre: 'Zacatecas' }
+];
 
 interface Props {
   onBack: () => void;
@@ -17,13 +31,19 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
     directorNombre: 'LIC. ARTURO RODRIGUEZ ISLAS',
     directorCargo: 'DIRECTOR DE CONTROL ESCOLAR',
     claveInstitucion: '',
-  };
+    claveDgair: '20181',
+    claveEntidadUniversidad: '',
+  } as any;
   
   const [title, setTitle]                   = useState(config.title);
   const [logoUrl, setLogoUrl]               = useState(config.logoUrl);
   const [directorNombre, setDirectorNombre] = useState(config.directorNombre);
   const [directorCargo, setDirectorCargo]   = useState(config.directorCargo);
   const [claveInstitucion, setClaveInstitucion] = useState(config.claveInstitucion || '');
+  const [claveDgair, setClaveDgair] = useState(config.claveDgair || '20181');
+  const [claveEntidadUniversidad, setClaveEntidadUniversidad] = useState(config.claveEntidadUniversidad || '');
+  // No necesitamos un estado separado para el nombre de la entidad, lo derivamos de la clave
+
   const [loading, setLoading] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(config.logoUrl || null);
   const [isModalSyncOpen, setIsModalSyncOpen] = useState(false);
@@ -55,11 +75,12 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
   const handleSave = async () => {
     setLoading(true);
     setError(null);
-    const err = await updateAppConfig(title, logoUrl, directorNombre, directorCargo, claveInstitucion);
+    const nombreEntidadUniversidad = ESTADOS_MEXICO.find(e => e.id === claveEntidadUniversidad)?.nombre || '';
+    const err = await updateAppConfig(title, logoUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad);
     if (err) {
       setError(err);
     } else {
-      setAppConfig({ title, logoUrl, directorNombre, directorCargo, claveInstitucion, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
+      setAppConfig({ title, logoUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
       onBack();
     }
     setLoading(false);
@@ -205,6 +226,33 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
                   onChange={e => setClaveInstitucion(e.target.value)}
                   placeholder="Ej. 1234567890"
                 />
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <Hash size={18} className="text-indigo-500" /> Clave DGAIR
+                </label>
+                <input
+                  type="text"
+                  className={INPUT}
+                  value={claveDgair}
+                  onChange={e => setClaveDgair(e.target.value)}
+                  placeholder="Ej. 20181"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <MapPin size={18} className="text-indigo-500" /> Entidad Federativa de la Institución
+                </label>
+                <select
+                  className={INPUT}
+                  value={claveEntidadUniversidad}
+                  onChange={e => setClaveEntidadUniversidad(e.target.value)}
+                >
+                  <option value="">Selecciona una entidad...</option>
+                  {ESTADOS_MEXICO.map(estado => (
+                    <option key={estado.id} value={estado.id}>{estado.nombre} ({estado.id})</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

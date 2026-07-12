@@ -3,6 +3,16 @@ import { X, Save, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { PlanEstudio, Carrera } from '../../types';
 
+const TIPO_PERIODO_MAP: Record<string, number> = {
+  'SEMESTRAL': 91,
+  'BIMESTRAL': 92,
+  'CUATRIMESTRAL': 93,
+  'TETRAMESTRAL': 94,
+  'TRIMESTRAL': 260,
+  'MODULAR': 261,
+  'ANUAL': 262
+};
+
 interface ModalPlanEstudioProps {
   plan?: PlanEstudio | null;
   carreraIdActiva?: string;
@@ -19,10 +29,11 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
     fecha_rvoe: '',
     carrera_id: carreraIdActiva || (carreras[0]?.id ?? ''),
     licenciatura_id: carreraIdActiva || (carreras[0]?.id ?? ''),
-    tipo_periodo: 'Semestral',
+    tipo_periodo: 'SEMESTRAL',
     modelo: 'RIGIDO',
     creditos_obligatorios: 0,
     estatus: 'ACTIVO',
+    id_plan_certificacion: undefined,
   });
   
   const [loading, setLoading] = useState(false);
@@ -37,10 +48,11 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         fecha_rvoe: plan.fecha_rvoe || '',
         carrera_id: plan.carrera_id || plan.licenciatura_id || '',
         licenciatura_id: plan.licenciatura_id || plan.carrera_id || '',
-        tipo_periodo: plan.tipo_periodo || 'Semestral',
+        tipo_periodo: plan.tipo_periodo?.toUpperCase() || 'SEMESTRAL',
         modelo: plan.modelo || 'RIGIDO',
         creditos_obligatorios: plan.creditos_obligatorios !== undefined && plan.creditos_obligatorios !== null ? plan.creditos_obligatorios : 0,
         estatus: plan.estatus || 'ACTIVO',
+        id_plan_certificacion: plan.id_plan_certificacion || undefined,
       });
     } else {
       // Reset form if no plan (creating new)
@@ -51,10 +63,11 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         fecha_rvoe: '',
         carrera_id: carreraIdActiva || (carreras[0]?.id ?? ''),
         licenciatura_id: carreraIdActiva || (carreras[0]?.id ?? ''),
-        tipo_periodo: 'Semestral',
+        tipo_periodo: 'SEMESTRAL',
         modelo: 'RIGIDO',
         creditos_obligatorios: 0,
         estatus: 'ACTIVO',
+        id_plan_certificacion: undefined,
       });
     }
   }, [plan]);
@@ -91,11 +104,13 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         rvoe: form.rvoe?.trim() || null,
         fecha_rvoe: form.fecha_rvoe || null,
         tipo_periodo: form.tipo_periodo,
+        id_tipo_periodo: TIPO_PERIODO_MAP[form.tipo_periodo?.toUpperCase() || ''] || null,
         modelo: form.modelo,
         creditos_obligatorios: form.creditos_obligatorios,
         carrera_id: form.carrera_id,
         licenciatura_id: form.licenciatura_id, // Mismo ID por retrocompatibilidad
         estatus: form.estatus,
+        id_plan_certificacion: form.id_plan_certificacion || null,
       };
 
       if (plan?.id) {
@@ -129,7 +144,7 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] bg-gray-50/50 dark:bg-[#1c2228]/50">
           <h2 className="text-lg font-bold text-[#222222] dark:text-gray-100">
@@ -169,27 +184,29 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Nombre del Plan <span className="text-red-500">*</span></label>
-            <input
-              type="text"
-              autoFocus
-              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 uppercase"
-              placeholder="Ej. PLAN 2024"
-              value={form.nombre}
-              onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })}
-            />
-          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Nombre del Plan <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                autoFocus
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 uppercase"
+                placeholder="Ej. PLAN 2024"
+                value={form.nombre}
+                onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })}
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Clave (Opcional)</label>
-            <input
-              type="text"
-              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 uppercase"
-              placeholder="Ej. PL24"
-              value={form.clave_legado}
-              onChange={(e) => setForm({ ...form, clave_legado: e.target.value.toUpperCase() })}
-            />
+            <div>
+              <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Clave (Opcional)</label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 uppercase"
+                placeholder="Ej. PL24"
+                value={form.clave_legado}
+                onChange={(e) => setForm({ ...form, clave_legado: e.target.value.toUpperCase() })}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -222,8 +239,13 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
                 value={form.tipo_periodo}
                 onChange={(e) => setForm({ ...form, tipo_periodo: e.target.value })}
               >
-                <option value="Semestral">Semestral</option>
-                <option value="Cuatrimestral">Cuatrimestral</option>
+                <option value="SEMESTRAL">Semestral</option>
+                <option value="BIMESTRAL">Bimestral</option>
+                <option value="CUATRIMESTRAL">Cuatrimestral</option>
+                <option value="TETRAMESTRAL">Tetramestral</option>
+                <option value="TRIMESTRAL">Trimestral</option>
+                <option value="MODULAR">Modular</option>
+                <option value="ANUAL">Anual</option>
               </select>
             </div>
             <div>
@@ -235,6 +257,33 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
               >
                 <option value="RIGIDO">RIGIDO</option>
                 <option value="FLEXIBLE">FLEXIBLE</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">ID de Carrera</label>
+              <select
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100"
+                value={form.id_plan_certificacion || ''}
+                onChange={(e) => setForm({ ...form, id_plan_certificacion: e.target.value ? parseInt(e.target.value) : undefined })}
+              >
+                <option value="">-- Ninguno --</option>
+                {Array.from({ length: 50 }, (_, i) => i + 1).map(num => (
+                  <option key={num} value={num}>{num}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Estatus</label>
+              <select
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100"
+                value={form.estatus}
+                onChange={(e) => setForm({ ...form, estatus: e.target.value })}
+              >
+                <option value="ACTIVO">ACTIVO</option>
+                <option value="INACTIVO">INACTIVO</option>
               </select>
             </div>
           </div>

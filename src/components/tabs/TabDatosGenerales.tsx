@@ -836,6 +836,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     if ('sexo' in payload) {
       const s = payload.sexo as string | null;
       (payload as any).sexo = (s === 'H' || s === 'M') ? s : null;
+      (payload as any).id_sexo = (s === 'H') ? 251 : (s === 'M' ? 250 : null);
     }
 
     // Convertir los 3 campos de estado (nombre largo) → abreviatura GES 4 al persistir

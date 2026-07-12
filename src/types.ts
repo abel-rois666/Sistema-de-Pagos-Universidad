@@ -67,6 +67,7 @@ export interface Alumno {
   celular?: string | null;
   email?: string | null;
   sexo?: 'H' | 'M' | null;
+  id_sexo?: number | null;
 
   // Datos nuevos
   discapacidad?: string | null;
@@ -231,6 +232,9 @@ export interface AppConfig {
   directorNombre: string;
   directorCargo: string;
   claveInstitucion?: string;
+  claveDgair?: string;
+  nombreEntidadUniversidad?: string;
+  claveEntidadUniversidad?: string;
   constanciaParams: ConstanciaParams;
 }
 
@@ -444,6 +448,8 @@ export interface Carrera {
   clave?: string;
   nivel_educativo?: string;
   calificacion_minima_aprobatoria?: number;
+  calificacion_minima?: number;
+  calificacion_maxima?: number;
   activo: boolean;
   created_at?: string;
 }
@@ -460,6 +466,8 @@ export interface PlanEstudio {
   estatus: string;
   creditos_obligatorios?: number;
   tipo_periodo?: string;
+  id_tipo_periodo?: number;
+  id_plan_certificacion?: number;
   modelo?: string;
   created_at: string;
 }
@@ -571,6 +579,16 @@ export interface Empleado {
   nombres: string;
   apellido_paterno: string;
   apellido_materno?: string;
+  fecha_nacimiento?: string;
+  sexo?: string;
+  estado_civil?: string;
+  nivel_estudios?: string;
+  nivel_estudios_estado?: string;
+  direccion?: string;
+  telefono?: string;
+  fecha_ingreso?: string;
+  documentos_entregados?: Record<string, boolean>;
+  enlace_drive?: string | null;
   rfc?: string;
   curp?: string;
   clave_puesto?: number;
