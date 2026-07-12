@@ -60,9 +60,9 @@ export async function generarLayoutDGAIR(
       const mat = item.materia;
       
       const fila = [
-        config.clave_dgair || '', // 1. ID_Institución
-        config.clave_institucion || '', // 2. Clave_Campus
-        config.clave_entidad_federativa || '', // 3. ID_Entidad Federativa
+        config.claveDgair || '', // 1. ID_Institución
+        config.claveInstitucion || '', // 2. Clave_Campus
+        config.claveEntidadUniversidad || '', // 3. ID_Entidad Federativa
         responsable.curp || '', // 4. CURP_Responsable
         responsable.nombres || '', // 5. Nombre
         responsable.apellido_paterno || '', // 6. Primer Apellido
@@ -80,8 +80,8 @@ export async function generarLayoutDGAIR(
         tipoCertificacionId, // 18. ID_TIPO CERTIFICACIÓN
         tipoCertificacionTexto, // 19. TIPO CERTIFICACIÓN
         fechaActual, // 20. FECHA (Expedición)
-        config.clave_entidad_universidad || '', // 21. ID_LUGAR EXPEDICIÓN
-        config.nombre_entidad_universidad || '', // 22. LUGAR EXPEDICIÓN
+        config.claveEntidadUniversidad || '', // 21. ID_LUGAR EXPEDICIÓN
+        config.nombreEntidadUniversidad || '', // 22. LUGAR EXPEDICIÓN
         alumno.plan?.id_tipo_periodo || '', // 23. ID_TIPO PERIODO
         totalAsignaturasLayout || '', // 24. TOTAL de Asignaturas
         clavePlanSoloNumeros, // 25. CLAVE PLAN ESTUDIOS
