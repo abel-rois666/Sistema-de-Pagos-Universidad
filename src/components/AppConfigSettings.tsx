@@ -216,6 +216,7 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
                   placeholder="Ej. DIRECTORA GENERAL"
                 />
               </div>
+              <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   <Hash size={18} className="text-indigo-500" /> ID_Institución (Clave DGAIR)
                 </label>
