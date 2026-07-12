@@ -88,12 +88,11 @@ export default function WizardLayoutDGAIR() {
     }
   };
 
-  const seleccionarAlumno = async (al: any) => {
+  const seleccionarAlumno = async (al: any, prog: any) => {
     try {
       setLoading(true);
       setError('');
-      // Extraer su plan actual de los programas
-      const prog = al.alumno_programas?.[0];
+      
       if (!prog || !prog.planes_estudio) {
         throw new Error('El alumno no tiene un plan de estudios asignado válido.');
       }
@@ -103,14 +102,15 @@ export default function WizardLayoutDGAIR() {
       al.plan = plan;
       al.carrera = carrera;
 
-      // Buscar TODAS las materias del alumno (aprobadas y reprobadas/cursando)
+      // Buscar TODAS las materias del alumno QUE PERTENEZCAN AL PLAN SELECCIONADO
       const { data: inscData, error: inscErr } = await supabase
         .from('inscripciones_academicas')
         .select(`
           *,
-          asignatura:asignaturas(*)
+          asignatura:asignaturas!inner(*)
         `)
-        .eq('alumno_id', al.id);
+        .eq('alumno_id', al.id)
+        .eq('asignatura.plan_id', plan.id);
       
       if (inscErr) throw inscErr;
 
@@ -287,13 +287,26 @@ export default function WizardLayoutDGAIR() {
 
           {alumnosList.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {alumnosList.map(al => (
-                <div key={al.id} onClick={() => seleccionarAlumno(al)} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-[#1456f0] hover:bg-blue-50 dark:hover:bg-[#1456f0]/10 transition">
-                  <p className="font-bold text-gray-900 dark:text-white">{al.nombre_completo}</p>
-                  <p className="text-sm text-gray-500">Matrícula: {al.matricula || 'N/A'}</p>
-                  <p className="text-xs text-blue-600 font-medium mt-1">Plan: {al.alumno_programas?.[0]?.planes_estudio?.nombre || 'Sin Plan Asignado'}</p>
-                </div>
-              ))}
+              {alumnosList.flatMap(al => {
+                const programas = al.alumno_programas || [];
+                if (programas.length === 0) {
+                  return [
+                    <div key={al.id} onClick={() => seleccionarAlumno(al, null)} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-[#1456f0] hover:bg-blue-50 dark:hover:bg-[#1456f0]/10 transition">
+                      <p className="font-bold text-gray-900 dark:text-white">{al.nombre_completo}</p>
+                      <p className="text-sm text-gray-500">Matrícula: {al.matricula || 'N/A'}</p>
+                      <p className="text-xs text-rose-600 font-medium mt-1">Sin Plan Asignado</p>
+                    </div>
+                  ];
+                }
+                return programas.map((prog: any, idx: number) => (
+                  <div key={`${al.id}-${idx}`} onClick={() => seleccionarAlumno(al, prog)} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:border-[#1456f0] hover:bg-blue-50 dark:hover:bg-[#1456f0]/10 transition relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-2 h-full bg-[#1456f0] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <p className="font-bold text-gray-900 dark:text-white">{al.nombre_completo}</p>
+                    <p className="text-sm text-gray-500">Matrícula: {al.matricula || 'N/A'}</p>
+                    <p className="text-xs text-[#1456f0] dark:text-blue-400 font-bold mt-1 bg-blue-50 dark:bg-blue-900/30 inline-block px-2 py-0.5 rounded">Plan: {prog.planes_estudio?.nombre || 'Desconocido'}</p>
+                  </div>
+                ));
+              })}
             </div>
           )}
         </div>
