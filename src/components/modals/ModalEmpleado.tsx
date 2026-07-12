@@ -110,9 +110,11 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
   // Auto-fill titulo_academico
   useEffect(() => {
     const validLevels = ['Licenciatura', 'Especialidad', 'Maestría', 'Doctorado'];
+    const validStates = ['Terminado', 'Titulado'];
     
-    // Si cambia a un nivel que no requiere título, lo limpiamos y no hacemos más
-    if (form.nivel_estudios && !validLevels.includes(form.nivel_estudios)) {
+    // Si cambia a un nivel que no requiere título o está incompleto, lo limpiamos y ocultamos
+    if ((form.nivel_estudios && !validLevels.includes(form.nivel_estudios)) || 
+        (form.nivel_estudios_estado && !validStates.includes(form.nivel_estudios_estado))) {
       if (form.titulo_academico) {
         setForm(prev => ({ ...prev, titulo_academico: '' }));
       }
@@ -484,7 +486,8 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                   </div>
                 )}
                 
-                {['Licenciatura', 'Especialidad', 'Maestría', 'Doctorado'].includes(form.nivel_estudios || '') && (
+                {['Licenciatura', 'Especialidad', 'Maestría', 'Doctorado'].includes(form.nivel_estudios || '') && 
+                 ['Terminado', 'Titulado'].includes(form.nivel_estudios_estado || '') && (
                   <div className="space-y-2 md:col-span-1">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Título Académico</label>
                     <input
