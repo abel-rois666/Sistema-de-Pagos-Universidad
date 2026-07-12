@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getAppConfig } from '../../lib/supabase';
 import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft } from 'lucide-react';
 import { analizarObservacionesDGAIR, AnalisisMateriaDGAIR } from '../../utils/kardexLogicUtils';
 import { generarLayoutDGAIR } from '../../utils/certificadosExportUtils';
@@ -33,8 +34,8 @@ export default function WizardLayoutDGAIR() {
     // Cargar config general y firmantes al montar
     const loadGlobals = async () => {
       try {
-        const { data: cData } = await supabase.from('configuracion_app').select('*').limit(1).single();
-        if (cData) setConfigApp(cData as AppConfig);
+        const config = await getAppConfig();
+        setConfigApp(config);
 
         const { data: fData } = await supabase.from('empleados').select('*').eq('firmante_certificados', true).eq('estatus', 'activo');
         if (fData) {
