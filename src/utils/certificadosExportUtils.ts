@@ -62,7 +62,7 @@ export async function generarLayoutDGAIR(
       const fila = [
         config.claveDgair || '', // 1. ID_Institución
         config.claveInstitucion || '', // 2. Clave_Campus
-        config.claveEntidadUniversidad || '', // 3. ID_Entidad Federativa
+        config.claveEntidadFederativa || '', // 3. ID_Entidad Federativa
         responsable.curp || '', // 4. CURP_Responsable
         responsable.nombres || '', // 5. Nombre
         responsable.apellido_paterno || '', // 6. Primer Apellido

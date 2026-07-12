@@ -42,6 +42,7 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
   const [claveInstitucion, setClaveInstitucion] = useState(config.claveInstitucion || '');
   const [claveDgair, setClaveDgair] = useState(config.claveDgair || '20181');
   const [claveEntidadUniversidad, setClaveEntidadUniversidad] = useState(config.claveEntidadUniversidad || '');
+  const [claveEntidadFederativa, setClaveEntidadFederativa] = useState(config.claveEntidadFederativa || '');
   // No necesitamos un estado separado para el nombre de la entidad, lo derivamos de la clave
 
   const [loading, setLoading] = useState(false);
@@ -76,11 +77,11 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
     setLoading(true);
     setError(null);
     const nombreEntidadUniversidad = ESTADOS_MEXICO.find(e => e.id === claveEntidadUniversidad)?.nombre || '';
-    const err = await updateAppConfig(title, logoUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad);
+    const err = await updateAppConfig(title, logoUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa);
     if (err) {
       setError(err);
     } else {
-      setAppConfig({ title, logoUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
+      setAppConfig({ title, logoUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
       onBack();
     }
     setLoading(false);
@@ -251,6 +252,21 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
                   <option value="">Selecciona una entidad...</option>
                   {ESTADOS_MEXICO.map(estado => (
                     <option key={estado.id} value={estado.id}>{estado.nombre} ({estado.id})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <MapPin size={18} className="text-indigo-500" /> ID_Entidad Federativa (DGAIR)
+                </label>
+                <select
+                  className={INPUT}
+                  value={claveEntidadFederativa}
+                  onChange={e => setClaveEntidadFederativa(e.target.value)}
+                >
+                  <option value="">Seleccione el estado...</option>
+                  {ESTADOS_MEXICO.map(e => (
+                    <option key={e.id} value={e.id}>{e.nombre}</option>
                   ))}
                 </select>
               </div>

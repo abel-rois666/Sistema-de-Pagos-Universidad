@@ -511,6 +511,7 @@ export const getAppConfig = async (): Promise<import('../types').AppConfig> => {
     if (item.id === 'clave_dgair')        config.claveDgair      = item.valor;
     if (item.id === 'nombre_entidad_universidad') config.nombreEntidadUniversidad = item.valor;
     if (item.id === 'clave_entidad_universidad')  config.claveEntidadUniversidad  = item.valor;
+    if (item.id === 'clave_entidad_federativa')   config.claveEntidadFederativa   = item.valor;
     if (item.id === 'constancia_ss_params') {
       try { config.constanciaParams = { ...DEFAULT_PARAMS, ...JSON.parse(item.valor) }; } catch {}
     }
@@ -528,6 +529,7 @@ export const updateAppConfig = async (
   claveDgair?: string,
   nombreEntidadUniversidad?: string,
   claveEntidadUniversidad?: string,
+  claveEntidadFederativa?: string,
 ): Promise<string | null> => {
   const { error: err1 } = await supabase.from('configuracion_app').upsert({ id: 'app_title',       valor: title,          updated_at: new Date().toISOString() });
   if (err1) return err1.message;
@@ -552,6 +554,10 @@ export const updateAppConfig = async (
   }
   if (claveEntidadUniversidad !== undefined) {
     const { error } = await supabase.from('configuracion_app').upsert({ id: 'clave_entidad_universidad', valor: claveEntidadUniversidad, updated_at: new Date().toISOString() });
+    if (error) return error.message;
+  }
+  if (claveEntidadFederativa !== undefined) {
+    const { error } = await supabase.from('configuracion_app').upsert({ id: 'clave_entidad_federativa', valor: claveEntidadFederativa, updated_at: new Date().toISOString() });
     if (error) return error.message;
   }
   return null;

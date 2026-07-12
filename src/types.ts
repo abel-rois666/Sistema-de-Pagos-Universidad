@@ -235,6 +235,7 @@ export interface AppConfig {
   claveDgair?: string;
   nombreEntidadUniversidad?: string;
   claveEntidadUniversidad?: string;
+  claveEntidadFederativa?: string;
   constanciaParams: ConstanciaParams;
 }
 
