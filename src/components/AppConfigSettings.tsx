@@ -216,21 +216,8 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
                   placeholder="Ej. DIRECTORA GENERAL"
                 />
               </div>
-              <div className="md:col-span-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  <Type size={18} className="text-indigo-500" /> Clave de la Institución
-                </label>
-                <input
-                  type="text"
-                  className={INPUT}
-                  value={claveInstitucion}
-                  onChange={e => setClaveInstitucion(e.target.value)}
-                  placeholder="Ej. 1234567890"
-                />
-              </div>
-              <div>
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  <Hash size={18} className="text-indigo-500" /> Clave DGAIR
+                  <Hash size={18} className="text-indigo-500" /> ID_Institución (Clave DGAIR)
                 </label>
                 <input
                   type="text"
@@ -240,33 +227,45 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
                   placeholder="Ej. 20181"
                 />
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  <MapPin size={18} className="text-indigo-500" /> Entidad Federativa de la Institución
+                  <Type size={18} className="text-indigo-500" /> Clave_Campus (Clave Institución)
                 </label>
-                <select
+                <input
+                  type="text"
                   className={INPUT}
-                  value={claveEntidadUniversidad}
-                  onChange={e => setClaveEntidadUniversidad(e.target.value)}
-                >
-                  <option value="">Selecciona una entidad...</option>
-                  {ESTADOS_MEXICO.map(estado => (
-                    <option key={estado.id} value={estado.id}>{estado.nombre} ({estado.id})</option>
-                  ))}
-                </select>
+                  value={claveInstitucion}
+                  onChange={e => setClaveInstitucion(e.target.value)}
+                  placeholder="Ej. 090552"
+                />
               </div>
               <div className="md:col-span-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  <MapPin size={18} className="text-indigo-500" /> ID_Entidad Federativa (DGAIR)
+                  <MapPin size={18} className="text-indigo-500" /> ID_Entidad Federativa
                 </label>
                 <select
                   className={INPUT}
                   value={claveEntidadFederativa}
                   onChange={e => setClaveEntidadFederativa(e.target.value)}
                 >
-                  <option value="">Seleccione el estado...</option>
+                  <option value="">Seleccione la Entidad Federativa...</option>
                   {ESTADOS_MEXICO.map(e => (
-                    <option key={e.id} value={e.id}>{e.nombre}</option>
+                    <option key={e.id} value={e.id}>{e.nombre} ({e.id})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <MapPin size={18} className="text-indigo-500" /> LUGAR EXPEDICIÓN (Esto define el ID_LUGAR EXPEDICIÓN automáticamente)
+                </label>
+                <select
+                  className={INPUT}
+                  value={claveEntidadUniversidad}
+                  onChange={e => setClaveEntidadUniversidad(e.target.value)}
+                >
+                  <option value="">Seleccione el Lugar de Expedición...</option>
+                  {ESTADOS_MEXICO.map(estado => (
+                    <option key={estado.id} value={estado.id}>{estado.nombre} (ID: {estado.id})</option>
                   ))}
                 </select>
               </div>
