@@ -197,18 +197,38 @@ export default function WizardLayoutDGAIR() {
       )}
 
       {/* Stepper Visual */}
-      <div className="flex items-center justify-between my-8 relative">
-        <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 dark:bg-gray-700 -z-10 -translate-y-1/2"></div>
+      <div className="flex items-center justify-between my-12 relative px-4">
+        <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-200 dark:bg-gray-800 -z-10 -translate-y-1/2 rounded-full"></div>
+        
+        {/* Progreso Activo Línea */}
+        <div className="absolute top-1/2 left-0 h-1 bg-[#1456f0] -z-10 -translate-y-1/2 rounded-full transition-all duration-500" style={{ width: paso === 1 ? '0%' : paso === 2 ? '50%' : '100%' }}></div>
+
         {[
           { num: 1, label: 'Búsqueda Alumno' },
           { num: 2, label: 'Cálculo Avance' },
           { num: 3, label: 'Vista Previa Kardex' }
         ].map((step) => (
-          <div key={step.num} className="flex flex-col items-center gap-2 bg-white dark:bg-[#181e25] px-4">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 ${paso === step.num ? 'border-[#1456f0] bg-[#1456f0] text-white' : paso > step.num ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 text-gray-400'}`}>
-              {paso > step.num ? <CheckCircle size={16} /> : step.num}
+          <div key={step.num} className={`flex flex-col items-center gap-3 px-6 py-4 rounded-2xl shadow-sm border-2 transition-all duration-300 ${
+            paso === step.num 
+              ? 'border-[#1456f0] bg-white dark:bg-[#1456f0]/10 dark:border-[#1456f0]/50 scale-105' 
+              : paso > step.num
+                ? 'border-emerald-500 bg-white dark:bg-emerald-900/10 dark:border-emerald-500/30'
+                : 'border-gray-200 bg-white dark:bg-[#1c2228] dark:border-gray-800'
+          }`}>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg border-2 transition-all duration-300 ${
+              paso === step.num 
+                ? 'border-[#1456f0] bg-[#1456f0] text-white shadow-lg shadow-blue-500/30' 
+                : paso > step.num 
+                  ? 'border-emerald-500 bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' 
+                  : 'border-gray-300 text-gray-400 dark:border-gray-700'
+            }`}>
+              {paso > step.num ? <CheckCircle size={24} /> : step.num}
             </div>
-            <span className={`text-xs font-medium ${paso >= step.num ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>{step.label}</span>
+            <span className={`text-sm font-bold ${
+              paso === step.num ? 'text-[#1456f0] dark:text-blue-400' 
+              : paso > step.num ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-gray-500 dark:text-gray-500'
+            }`}>{step.label}</span>
           </div>
         ))}
       </div>
@@ -222,10 +242,10 @@ export default function WizardLayoutDGAIR() {
               placeholder="Buscar por matrícula o nombre..." 
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-[#1c2228] border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-[#1456f0] outline-none"
+              className="flex-1 px-6 py-4 text-lg rounded-2xl bg-white dark:bg-[#1c2228] border border-gray-300 dark:border-[rgba(255,255,255,0.1)] text-gray-900 dark:text-white dark:placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-[#1456f0] outline-none transition-all"
             />
-            <button type="submit" disabled={loading} className="px-6 py-3 bg-[#1456f0] text-white rounded-xl hover:bg-blue-600 flex items-center gap-2 font-medium">
-              <Search size={20} />
+            <button type="submit" disabled={loading} className="px-8 py-4 bg-[#1456f0] text-white rounded-2xl hover:bg-blue-600 flex items-center gap-2 font-bold text-lg shadow-lg shadow-blue-500/20 transition-all">
+              <Search size={24} />
               Buscar
             </button>
           </form>
