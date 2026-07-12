@@ -597,6 +597,9 @@ export interface Empleado {
   tipo_contratacion?: string;
   tipo_jornada?: string;
   estatus: string;
+  firmante_certificados?: boolean;
+  firmante_titulos?: boolean;
+  titulo_academico?: string;
   created_at?: string;
 }
 

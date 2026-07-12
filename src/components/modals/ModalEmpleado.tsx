@@ -3,6 +3,7 @@ import { X, Save, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Empleado } from '../../types';
 import DrivePicker from '../DrivePicker';
 import { toTitleCase } from '../../utils';
+import { supabase } from '../../lib/supabase';
 
 interface ModalEmpleadoProps {
   empleado?: Empleado | null;
@@ -73,6 +74,9 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
     tipo_contratacion: '',
     tipo_jornada: '',
     estatus: 'activo',
+    firmante_certificados: false,
+    firmante_titulos: false,
+    titulo_academico: '',
     documentos_entregados: {},
     enlace_drive: null
   });
@@ -94,11 +98,40 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
         departamento: empleado.departamento || '',
         tipo_contratacion: empleado.tipo_contratacion || '',
         tipo_jornada: empleado.tipo_jornada || '',
+        firmante_certificados: empleado.firmante_certificados || false,
+        firmante_titulos: empleado.firmante_titulos || false,
+        titulo_academico: empleado.titulo_academico || '',
         documentos_entregados: empleado.documentos_entregados || {},
         enlace_drive: empleado.enlace_drive || null
       });
     }
   }, [empleado]);
+
+  // Auto-fill titulo_academico
+  useEffect(() => {
+    const validLevels = ['Licenciatura', 'Especialidad', 'Maestría', 'Doctorado'];
+    
+    // Si cambia a un nivel que no requiere título, lo limpiamos y no hacemos más
+    if (form.nivel_estudios && !validLevels.includes(form.nivel_estudios)) {
+      if (form.titulo_academico) {
+        setForm(prev => ({ ...prev, titulo_academico: '' }));
+      }
+      return;
+    }
+
+    if (form.nivel_estudios_estado === 'Terminado' || form.nivel_estudios_estado === 'Titulado') {
+      const isFem = form.sexo === 'Femenino';
+      let prefix = '';
+      if (form.nivel_estudios === 'Licenciatura') prefix = 'Lic.';
+      else if (form.nivel_estudios === 'Especialidad') prefix = 'Esp.';
+      else if (form.nivel_estudios === 'Maestría') prefix = isFem ? 'Mtra.' : 'Mtro.';
+      else if (form.nivel_estudios === 'Doctorado') prefix = isFem ? 'Dra.' : 'Dr.';
+
+      if (prefix && (!form.titulo_academico || ['Lic.', 'Esp.', 'Mtro.', 'Mtra.', 'Dr.', 'Dra.'].includes(form.titulo_academico))) {
+        setForm(prev => ({ ...prev, titulo_academico: prefix }));
+      }
+    }
+  }, [form.nivel_estudios, form.nivel_estudios_estado, form.sexo]);
 
   const handlePuestoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const puestoNombre = e.target.value;
@@ -148,6 +181,29 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
     setLoading(true);
 
     try {
+      // Validaciones de Firmantes Autorizados en Supabase
+      if (form.firmante_certificados) {
+        let query = supabase.from('empleados').select('id', { count: 'exact' }).eq('firmante_certificados', true);
+        if (form.id) query = query.neq('id', form.id);
+        const { count, error: countErr } = await query;
+        
+        if (countErr) throw new Error('Error al validar firmante de certificados.');
+        if (count && count >= 1) {
+          throw new Error('Ya existe un empleado asignado como Firmante Autorizado de Certificados.');
+        }
+      }
+
+      if (form.firmante_titulos) {
+        let query = supabase.from('empleados').select('id', { count: 'exact' }).eq('firmante_titulos', true);
+        if (form.id) query = query.neq('id', form.id);
+        const { count, error: countErr } = await query;
+        
+        if (countErr) throw new Error('Error al validar firmantes de títulos.');
+        if (count && count >= 2) {
+          throw new Error('Ya existen 2 empleados asignados como Firmantes Autorizados de Títulos. Desactiva uno primero.');
+        }
+      }
+
       const finalForm = { ...form };
       if (finalForm.nivel_estudios === 'Sin formación') {
         finalForm.nivel_estudios_estado = null;
@@ -428,6 +484,19 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                   </div>
                 )}
                 
+                {['Licenciatura', 'Especialidad', 'Maestría', 'Doctorado'].includes(form.nivel_estudios || '') && (
+                  <div className="space-y-2 md:col-span-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Título Académico</label>
+                    <input
+                      type="text"
+                      value={form.titulo_academico || ''}
+                      onChange={e => setForm({...form, titulo_academico: e.target.value})}
+                      placeholder="Ej. Lic. Mtro. Dr."
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
+                    />
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">RFC</label>
                   <input
@@ -534,6 +603,32 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                     <option value="Mixta">Mixta (Combinada)</option>
                   </select>
                 </div>
+                
+                {['Director', 'Subdirector', 'Rector', 'Responsable de Expedición'].includes(form.puesto || '') && (
+                  <div className="md:col-span-2 mt-4 space-y-4 p-4 border border-[#1456f0]/20 bg-[#1456f0]/5 rounded-xl">
+                    <h4 className="text-sm font-semibold text-[#1456f0] dark:text-[#3872fa]">Permisos de Firmante Autorizado</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.firmante_certificados || false}
+                          onChange={e => setForm({ ...form, firmante_certificados: e.target.checked })}
+                          className="w-5 h-5 rounded border-gray-300 text-[#1456f0] focus:ring-[#1456f0]"
+                        />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Firmante de Certificados</span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.firmante_titulos || false}
+                          onChange={e => setForm({ ...form, firmante_titulos: e.target.checked })}
+                          className="w-5 h-5 rounded border-gray-300 text-[#1456f0] focus:ring-[#1456f0]"
+                        />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Firmante de Títulos</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
