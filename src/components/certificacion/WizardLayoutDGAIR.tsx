@@ -23,6 +23,7 @@ export default function WizardLayoutDGAIR() {
   const [tipoCertificacionId, setTipoCertificacionId] = useState<number>(79);
   const [tipoCertificacionTexto, setTipoCertificacionTexto] = useState<string>('TOTAL');
   const [avancePorcentaje, setAvancePorcentaje] = useState(0);
+  const [totalAsignaturasManual, setTotalAsignaturasManual] = useState<number>(0);
 
   // Paso 3: Análisis de Materias
   const [inscripcionesAprobadas, setInscripcionesAprobadas] = useState<any[]>([]);
@@ -139,21 +140,7 @@ export default function WizardLayoutDGAIR() {
       }
 
       setInscripcionesAprobadas(inscAprobadasConCiclo);
-
-      let pct = 0;
-      if (totalAsignaturasKardex > 0) {
-        pct = (inscAprobadas.length / totalAsignaturasKardex) * 100;
-        if (pct > 100) pct = 100;
-      }
-      setAvancePorcentaje(pct);
-
-      if (pct >= 100) {
-        setTipoCertificacionId(79);
-        setTipoCertificacionTexto('TOTAL');
-      } else {
-        setTipoCertificacionId(80);
-        setTipoCertificacionTexto('PARCIAL');
-      }
+      setTotalAsignaturasManual(totalAsignaturasKardex);
 
       setAlumnoSel(al);
       setPaso(2);
@@ -179,6 +166,24 @@ export default function WizardLayoutDGAIR() {
     setAnalisisDGAIR(nuevoAnalisis);
   };
 
+  // Recalcular el avance cuando cambia el total manual o las aprobadas
+  useEffect(() => {
+    let pct = 0;
+    if (totalAsignaturasManual > 0) {
+      pct = (inscripcionesAprobadas.length / totalAsignaturasManual) * 100;
+      if (pct > 100) pct = 100;
+    }
+    setAvancePorcentaje(pct);
+
+    if (pct >= 100) {
+      setTipoCertificacionId(79);
+      setTipoCertificacionTexto('TOTAL');
+    } else {
+      setTipoCertificacionId(80);
+      setTipoCertificacionTexto('PARCIAL');
+    }
+  }, [totalAsignaturasManual, inscripcionesAprobadas.length]);
+
   const handleGenerarExcel = async () => {
     if (!configApp) {
       alert('Falta configuración de la app.');
@@ -198,7 +203,8 @@ export default function WizardLayoutDGAIR() {
         configApp,
         responsable,
         tipoCertificacionId,
-        tipoCertificacionTexto
+        tipoCertificacionTexto,
+        totalAsignaturasManual
       );
       alert('Documento generado con éxito.');
     } catch (err: any) {
@@ -303,7 +309,16 @@ export default function WizardLayoutDGAIR() {
                 <p><span className="text-gray-500">Nombre:</span> <span className="font-medium text-gray-800 dark:text-gray-200">{alumnoSel.nombre_completo}</span></p>
                 <p><span className="text-gray-500">Matrícula:</span> <span className="font-medium text-gray-800 dark:text-gray-200">{alumnoSel.matricula}</span></p>
                 <p><span className="text-gray-500">Plan de Estudios:</span> <span className="font-medium text-gray-800 dark:text-gray-200">{alumnoSel.plan?.nombre}</span></p>
-                <p><span className="text-gray-500">Total Asignaturas del Plan:</span> <span className="font-medium text-gray-800 dark:text-gray-200">{alumnoSel.plan?.total_asignaturas || 0}</span></p>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Total Asignaturas del Plan:</span>
+                  <input 
+                    type="number" 
+                    min="1"
+                    className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-[#1c2228] font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
+                    value={totalAsignaturasManual}
+                    onChange={(e) => setTotalAsignaturasManual(parseInt(e.target.value) || 0)}
+                  />
+                </div>
                 <p><span className="text-gray-500">Materias Aprobadas:</span> <span className="font-medium text-emerald-600">{inscripcionesAprobadas.length}</span></p>
               </div>
               <div className="mt-4">

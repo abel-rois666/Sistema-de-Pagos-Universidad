@@ -8,7 +8,8 @@ export async function generarLayoutDGAIR(
   config: AppConfig,
   responsable: Empleado,
   tipoCertificacionId: number,
-  tipoCertificacionTexto: string
+  tipoCertificacionTexto: string,
+  totalAsignaturasLayout: number
 ) {
   try {
     // 1. Obtener la plantilla base de Excel desde public
@@ -79,7 +80,7 @@ export async function generarLayoutDGAIR(
         config.clave_entidad_universidad || '', // 21. ID_LUGAR EXPEDICIÓN
         config.nombre_entidad_universidad || '', // 22. LUGAR EXPEDICIÓN
         alumno.plan?.id_tipo_periodo || '', // 23. ID_TIPO PERIODO
-        alumno.plan?.total_asignaturas || '', // 24. TOTAL de Asignaturas
+        totalAsignaturasLayout || '', // 24. TOTAL de Asignaturas
         clavePlanSoloNumeros, // 25. CLAVE PLAN ESTUDIOS
         alumno.carrera?.nombre || '', // 26. NOMBRE PLAN ESTUDIOS
         alumno.plan?.rvoe || '', // 27. RVOE
