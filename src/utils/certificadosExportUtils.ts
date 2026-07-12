@@ -1,4 +1,5 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import type { AnalisisMateriaDGAIR } from './kardexLogicUtils';
 import type { AppConfig, Empleado } from '../types';
 
@@ -20,17 +21,19 @@ export async function generarLayoutDGAIR(
     const arrayBuffer = await response.arrayBuffer();
 
     // 2. Leer el workbook preservando toda su estructura (hojas extras, etc)
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
 
     // La hoja principal a editar debe llamarse estrictamente "MIS CERTIFICADOS"
     const sheetName = 'MIS CERTIFICADOS';
-    const sheet = workbook.Sheets[sheetName];
+    const sheet = workbook.getWorksheet(sheetName);
     if (!sheet) {
       throw new Error(`La plantilla no contiene la hoja "${sheetName}"`);
     }
 
     // 3. Preparar los datos mapeados a las 37 columnas
-    const matrizDatos: any[][] = [];
+    // Comenzamos en la fila 2
+    let currentRow = 2;
     
     // Obtener información común
     const fechaActual = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -96,14 +99,19 @@ export async function generarLayoutDGAIR(
         item.observacion_texto // 37. OBSERVACIONES
       ];
       
-      matrizDatos.push(fila);
+      const row = sheet.getRow(currentRow);
+      fila.forEach((val, index) => {
+        row.getCell(index + 1).value = val;
+      });
+      row.commit();
+      
+      currentRow++;
     }
 
-    // 4. Inyectar datos a partir de A2 (evita sobreescribir A1 que son encabezados)
-    XLSX.utils.sheet_add_aoa(sheet, matrizDatos, { origin: "A2" });
-
     // 5. Exportar archivo
-    XLSX.writeFile(workbook, `LAYOUT_DGAIR_${alumno.matricula || 'SIN_MATRICULA'}.xlsx`);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, `LAYOUT_DGAIR_${alumno.matricula || 'SIN_MATRICULA'}.xlsx`);
     
   } catch (error) {
     console.error('Error al generar Excel DGAIR:', error);
