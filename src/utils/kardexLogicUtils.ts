@@ -40,13 +40,11 @@ export function analizarObservacionesDGAIR(inscripcionesAprobadas: any[]): Anali
     bloquesMap[periodo].push(mat);
   }
 
-  // 2. Ordenar bloques por numero_periodo
-  const numerosBloque = Object.keys(bloquesMap).map(Number).sort((a, b) => a - b);
-  
-  // 3. Analizar ciclos por bloque
+  // 2. Analizar ciclos por bloque (Moda)
   const bloqueCicloLogico: Record<number, string> = {};
+  const numerosBloqueOriginales = Object.keys(bloquesMap).map(Number);
   
-  numerosBloque.forEach((numBloque) => {
+  numerosBloqueOriginales.forEach((numBloque) => {
     const materias = bloquesMap[numBloque];
     const frecuencias: Record<string, number> = {};
     let maxFreq = 0;
@@ -64,7 +62,14 @@ export function analizarObservacionesDGAIR(inscripcionesAprobadas: any[]): Anali
     bloqueCicloLogico[numBloque] = moda;
   });
 
-  // 4. Detectar saltos de ciclo entre bloques consecutivos
+  // 3. Ordenar bloques por ciclo (del más antiguo al más reciente)
+  const numerosBloque = numerosBloqueOriginales.sort((a, b) => {
+    const cicloA = bloqueCicloLogico[a] || '';
+    const cicloB = bloqueCicloLogico[b] || '';
+    return cicloA.localeCompare(cicloB);
+  });
+
+  // 4. Detectar saltos de ciclo entre bloques consecutivos (usando el nuevo orden cronológico)
   const bloqueReingreso: Record<number, boolean> = {};
   for (let i = 1; i < numerosBloque.length; i++) {
     const numPrev = numerosBloque[i - 1];
@@ -72,7 +77,7 @@ export function analizarObservacionesDGAIR(inscripcionesAprobadas: any[]): Anali
     const cicloPrev = bloqueCicloLogico[numPrev];
     const cicloCurr = bloqueCicloLogico[numCurr];
     
-    // Si la diferencia de periodo es > 1 (ej. no tomó el semestre 3 y pasó al 4, es un reingreso evidente)
+    // Si la diferencia de periodo es > 1 (ej. no tomó el semestre 3 y pasó al 4)
     // O si los ciclos no son consecutivos temporalmente
     let salto = false;
     if (numCurr > numPrev + 1) {
@@ -84,41 +89,63 @@ export function analizarObservacionesDGAIR(inscripcionesAprobadas: any[]): Anali
     bloqueReingreso[numCurr] = salto;
   }
 
-  // 5. Asignación Final
+  // 5. Asignación Final y Ordenamiento Interno por clave_legado
   const resultadoFinal: AnalisisMateriaDGAIR[] = [];
   
-  // Mantenemos el orden original de las materias que se pasaron
-  for (const materia of inscripcionesAprobadas) {
-    const periodo = materia.asignatura?.numero_periodo || 0;
-    const cicloLogico = bloqueCicloLogico[periodo];
-    const cicloMateria = materia.ciclo?.nombre || 'SIN CICLO';
-    const esReingreso = bloqueReingreso[periodo] || false;
+  // Recorremos los bloques en su orden cronológico
+  numerosBloque.forEach(numBloque => {
+    const materiasDelBloque = bloquesMap[numBloque];
     
-    let id_observacion = 100;
-    let observacion_texto = 'ORDINARIO';
-    let requiereRevision = false;
-    
-    if (esReingreso && cicloMateria === cicloLogico) {
-      id_observacion = 75;
-      observacion_texto = 'REINGRESO';
-    } else if (cicloMateria === cicloLogico) {
-      id_observacion = 100;
-      observacion_texto = 'NORMAL / ORDINARIO';
-    } else if (cicloMateria !== cicloLogico) {
-      id_observacion = 71;
-      observacion_texto = 'EXAMEN EXTRAORDINARIO';
-      requiereRevision = true;
-    }
-    
-    resultadoFinal.push({
-      materia,
-      id_observacion,
-      observacion_texto,
-      requiereRevision,
-      esReingreso,
-      cicloLogico
+    // Ordenar las materias dentro del bloque por clave_legado (ascendente)
+    materiasDelBloque.sort((a, b) => {
+      const claveA = a.asignatura?.clave_legado || '';
+      const claveB = b.asignatura?.clave_legado || '';
+      return claveA.localeCompare(claveB, undefined, { numeric: true, sensitivity: 'base' });
     });
-  }
+
+    materiasDelBloque.forEach(materia => {
+      const periodo = numBloque;
+      const cicloLogico = bloqueCicloLogico[periodo];
+      const cicloMateria = materia.ciclo?.nombre || 'SIN CICLO';
+      const esReingreso = bloqueReingreso[periodo] || false;
+      
+      let id_observacion = 100;
+      let observacion_texto = 'ORDINARIO';
+      let requiereRevision = false;
+      
+      // Regla de Extraordinario explícito
+      const tipoEval = (materia.tipo_evaluacion || '').toUpperCase();
+      const esExtra = tipoEval.includes('EXTRAORDINARIO');
+
+      if (esReingreso && cicloMateria === cicloLogico) {
+        id_observacion = 75;
+        observacion_texto = 'REINGRESO';
+      } else if (cicloMateria === cicloLogico && !esExtra) {
+        id_observacion = 100;
+        observacion_texto = 'ORDINARIO';
+      } else if (cicloMateria !== cicloLogico || esExtra) {
+        // Si el ciclo es inconsistente, revisar tipo_evaluacion para asentar EXAMEN EXTRAORDINARIO
+        if (esExtra && materia.calificacion_final) {
+          id_observacion = 71;
+          observacion_texto = 'EXAMEN EXTRAORDINARIO';
+        } else {
+          // Si es inconsistente pero no dice extraordinario en la base de datos, lo ponemos como sugerencia de revisión
+          id_observacion = 71;
+          observacion_texto = 'EXAMEN EXTRAORDINARIO';
+          requiereRevision = true;
+        }
+      }
+      
+      resultadoFinal.push({
+        materia,
+        id_observacion,
+        observacion_texto,
+        requiereRevision,
+        esReingreso,
+        cicloLogico
+      });
+    });
+  });
 
   return resultadoFinal;
 }
