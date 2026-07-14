@@ -294,25 +294,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       
       const tipo = (reg.tipo_evaluacion || 'ORDINARIO').toUpperCase();
       if (tipo === 'ORDINARIO') {
-        if (!grupo.ordinario) {
-          // Primer registro ordinario: es el ciclo original de la materia
-          grupo.ordinario = reg;
-        } else {
-          // Ya existía un ordinario previo → este es un recursamiento/reinscripción
-          // Conservamos el primero como referencia de ciclo, pero si este tiene mejor calificación lo usamos como display
-          const califPrev = parseFloat(grupo.ordinario.calificacion_final ?? 0);
-          const califNew = parseFloat(reg.calificacion_final ?? 0);
-          if (califNew > califPrev) {
-            // Mover el viejo a extras y poner el nuevo como ordinario, PERO preservar el ciclo del original
-            const cicloOriginal = grupo.ordinario.ciclo;
-            const cicloLegadoOriginal = grupo.ordinario.ciclo_legado;
-            const cicloIdOriginal = grupo.ordinario.ciclo_id;
-            grupo.extras.push(grupo.ordinario);
-            grupo.ordinario = { ...reg, ciclo: cicloOriginal, ciclo_legado: cicloLegadoOriginal, ciclo_id: cicloIdOriginal };
-          } else {
-            grupo.extras.push(reg);
-          }
-        }
+        grupo.ordinario = reg;
       } else {
         grupo.extras.push(reg);
       }

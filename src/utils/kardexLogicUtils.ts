@@ -40,24 +40,26 @@ export function analizarObservacionesDGAIR(inscripcionesAprobadas: any[]): Anali
     bloquesMap[periodo].push(mat);
   }
 
-  // 2. Analizar ciclos por bloque (El ciclo más antiguo)
+  // 2. Analizar ciclos por bloque (Moda)
   const bloqueCicloLogico: Record<number, string> = {};
   const numerosBloqueOriginales = Object.keys(bloquesMap).map(Number);
   
   numerosBloqueOriginales.forEach((numBloque) => {
     const materias = bloquesMap[numBloque];
-    let cicloMasAntiguo = '';
+    const frecuencias: Record<string, number> = {};
+    let maxFreq = 0;
+    let moda = '';
     
     materias.forEach(m => {
       const ciclo = m.ciclo?.nombre || 'SIN CICLO';
-      if (ciclo !== 'SIN CICLO') {
-        if (!cicloMasAntiguo || ciclo.localeCompare(cicloMasAntiguo) < 0) {
-          cicloMasAntiguo = ciclo;
-        }
+      frecuencias[ciclo] = (frecuencias[ciclo] || 0) + 1;
+      if (frecuencias[ciclo] > maxFreq) {
+        maxFreq = frecuencias[ciclo];
+        moda = ciclo;
       }
     });
     
-    bloqueCicloLogico[numBloque] = cicloMasAntiguo || 'SIN CICLO';
+    bloqueCicloLogico[numBloque] = moda;
   });
 
   // 3. Ordenar bloques por ciclo (del más antiguo al más reciente)
