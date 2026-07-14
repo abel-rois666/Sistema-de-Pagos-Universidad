@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, getAppConfig } from '../../lib/supabase';
 import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft, UserPlus, X, Settings, Users, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { analizarObservacionesDGAIR, AnalisisMateriaDGAIR } from '../../utils/kardexLogicUtils';
 import { generarLayoutDGAIR, AlumnoExportData } from '../../utils/certificadosExportUtils';
 import type { AppConfig, Empleado } from '../../types';
@@ -223,16 +224,16 @@ export default function WizardLayoutDGAIR() {
 
   const handleGenerarExcelMasivo = async () => {
     if (!configApp) {
-      alert('Falta configuración de la app.');
+      toast.error('Falta configuración de la app.');
       return;
     }
     const responsable = firmantes.find(f => f.id === firmanteSelId);
     if (!responsable) {
-      alert('Debe seleccionar un firmante.');
+      toast.error('Debe seleccionar un firmante.');
       return;
     }
     if (queue.length === 0) {
-      alert('La cola está vacía.');
+      toast.error('La cola está vacía.');
       return;
     }
 
@@ -247,9 +248,9 @@ export default function WizardLayoutDGAIR() {
       }));
 
       await generarLayoutDGAIR(alumnosData, configApp, responsable);
-      alert('Documento generado con éxito.');
+      toast.success('Documento generado con éxito.');
     } catch (err: any) {
-      alert('Error al generar Excel: ' + err.message);
+      toast.error('Error al generar Excel: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -440,7 +441,7 @@ export default function WizardLayoutDGAIR() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => setPaso(1)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2 text-sm font-medium transition-colors">
+              <button onClick={() => setPaso(1)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2 text-sm font-medium transition-colors">
                 <ChevronLeft size={16}/> Volver a Cola
               </button>
               <button onClick={handleGenerarExcelMasivo} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 text-sm font-bold shadow-md transition-colors">

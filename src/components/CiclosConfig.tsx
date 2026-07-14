@@ -153,23 +153,6 @@ export default function CiclosConfig({ onBack }: CiclosConfigProps) {
         if (descRaw) {
           formattedName = descRaw.split(' ')[0];
         }
-
-        // FIX: Corregir inconsistencias donde el periodo numérico no coincide con el texto
-        // Ej: "2013-1 tiene periodo 2" -> se forma como 2013-2 pero la descripción dice SEMESTRE 1
-        // Ej: "2005-2 tiene periodo 1" -> se forma como 2005-1 pero la descripción dice SEMESTRE 2
-        const denomStr = (row.denom_periodo || '').toUpperCase();
-        const textoCompleto = `${descRaw} ${denomStr}`;
-        
-        if (formattedName.endsWith('-2') && /(SEMESTRE|CUATRIMESTRE|PERIODO)\s*1\b/i.test(textoCompleto)) {
-          formattedName = formattedName.replace('-2', '-1');
-        } else if (formattedName.endsWith('-1') && /(SEMESTRE|CUATRIMESTRE|PERIODO)\s*2\b/i.test(textoCompleto)) {
-          formattedName = formattedName.replace('-1', '-2');
-        }
-        
-        // Excepciones hardcodeadas de emergencia (basadas en el año si el regex falla)
-        if (formattedName === '2013-2' && textoCompleto.includes('2013-1')) formattedName = '2013-1';
-        if (formattedName === '2005-1' && textoCompleto.includes('2005-2')) formattedName = '2005-2';
-
         if (!formattedName) return;
 
         let tipo = 'Semestral';
