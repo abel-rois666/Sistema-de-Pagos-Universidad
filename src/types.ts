@@ -3,8 +3,10 @@ export interface CicloEscolar {
   nombre: string;
   meses_abarca: string;
   anio: number;
-  anio_fin?: number | null;  // Año de fin (para ciclos que abarcan 2 años)
-  tipo_periodo?: string | null; // Semestral, Cuatrimestral, etc.
+  anio_fin?: number | null;
+  tipo_periodo?: string | null;
+  fecha_inicio?: string;
+  fecha_termino?: string;
   activo: boolean;
 }
 
@@ -469,6 +471,8 @@ export interface PlanEstudio {
   tipo_periodo?: string;
   id_tipo_periodo?: number;
   id_plan_certificacion?: number;
+  id_autorizacion_reconocimiento?: number; // Nuevo
+  autorizacion_reconocimiento?: string; // Nuevo
   modelo?: string;
   created_at: string;
 }

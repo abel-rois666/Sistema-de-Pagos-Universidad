@@ -72,7 +72,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           { name: 'Grupos', path: '/grupos', icon: <Users size={16}/> },
           { name: 'Planes de Estudio', path: '/planes-estudio', icon: <BookOpen size={16}/> },
           { name: 'Calificaciones', path: '/calificaciones', icon: <BookOpen size={16}/> },
-          { name: 'Certificación', path: '/certificacion', icon: <FileText size={16}/> }
+          { name: 'Certificación', path: '/certificacion', icon: <FileText size={16}/> },
+          { name: 'Titulación', path: '/titulacion', icon: <FileText size={16}/> }
         ]
       },
       { name: 'Control Financiero', icon: <Wallet size={20} />, path: '/' },

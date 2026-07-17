@@ -31,6 +31,7 @@ import CalificacionesModule from './components/CalificacionesModule';
 import RecursosHumanosConfig from './components/RecursosHumanosConfig';
 import EvaluacionNom035 from './components/EvaluacionNom035';
 import WizardLayoutDGAIR from './components/certificacion/WizardLayoutDGAIR';
+import WizardLayoutTitulacion from './components/titulacion/WizardLayoutTitulacion';
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -280,6 +281,7 @@ export default function App() {
             </div>
           } />
           <Route path="/certificacion" element={<PageWrapper keyStr="certificacion"><WizardLayoutDGAIR /></PageWrapper>} />
+          <Route path="/titulacion" element={<PageWrapper keyStr="titulacion"><WizardLayoutTitulacion /></PageWrapper>} />
           <Route path="/catalogos" element={<PageWrapper keyStr="catalogos"><CatalogosConfig onBack={() => navigate('/')} /></PageWrapper>} />
           <Route path="/plantillas" element={<PageWrapper keyStr="plantillas"><PlantillasConfig onBack={() => navigate('/')} /></PageWrapper>} />
           <Route path="/usuarios" element={<PageWrapper keyStr="usuarios"><UsuariosConfig onBack={() => navigate('/')} /></PageWrapper>} />
