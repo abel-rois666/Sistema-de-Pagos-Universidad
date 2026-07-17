@@ -1,9 +1,9 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import type { AppConfig, Empleado } from '../types';
 
 export interface TitulacionAlumnoData {
-  alumno: any; // Incluye carrera, plan, inscripciones, ficha_titulacion, servicio_social, etc.
+  alumno: any;
   configuracion: {
     correo: string;
     modalidad_id: string;
@@ -12,10 +12,12 @@ export interface TitulacionAlumnoData {
     antecedente_inicio: string;
     antecedente_fin: string;
     cedula_especialidad: string;
+    folio_control: string;
+    id_autorizacion: string;
+    fundamento_legal_ss: string;
   };
 }
 
-// Catálogo Oficial de Entidades Federativas
 const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
   'AGUASCALIENTES': { id: '01', nombre: 'AGUASCALIENTES' },
   'BAJA CALIFORNIA': { id: '02', nombre: 'BAJA CALIFORNIA' },
@@ -74,22 +76,32 @@ const MODALIDADES_TITULACION: Record<string, string> = {
   '6': 'OTRO'
 };
 
+const AUTORIZACIONES_RECONOCIMIENTO: Record<string, string> = {
+  '1': 'RVOE FEDERAL',
+  '2': 'RVOE ESTATAL',
+  '3': 'AUTORIZACIÓN FEDERAL',
+  '4': 'AUTORIZACIÓN ESTATAL',
+  '5': 'ACTA DE SESIÓN',
+  '6': 'ACUERDO DE INCORPORACIÓN',
+  '7': 'ACUERDO SECRETARIAL SEP',
+  '8': 'DECRETO DE CREACIÓN',
+  '9': 'OTRO'
+};
+
 const FUNDAMENTOS_SERVICIO_SOCIAL: Record<string, string> = {
-  '1': 'ARTÍCULO 52 DE LA LEY REGLAMENTARIA DEL ARTÍCULO 5 CONSTITUCIONAL RELATIVO AL EJERCICIO DE LAS PROFESIONES EN EL DISTRITO FEDERAL',
-  '2': 'ARTÍCULO 55 DE LA LEY REGLAMENTARIA DEL ARTÍCULO 5 CONSTITUCIONAL RELATIVO AL EJERCICIO DE LAS PROFESIONES EN EL DISTRITO FEDERAL',
-  '3': 'ARTÍCULO 91 DEL REGLAMENTO DE LA LEY REGLAMENTARIA DEL ARTÍCULO 5 CONSTITUCIONAL RELATIVO AL EJERCICIO DE LAS PROFESIONES EN EL DISTRITO FEDERAL',
-  '4': 'ACUERDO NÚMERO 286 EMITIDO POR LA SECRETARÍA DE EDUCACIÓN PÚBLICA',
-  '5': 'EL CUMPLIMIENTO DEL SERVICIO SOCIAL NO ES EXIGIBLE PARA LA TITULACIÓN / OBTENCIÓN DE GRADO'
+  '1': 'ART. 52 LRART. 5 CONST',
+  '2': 'ART. 55 LRART. 5 CONST',
+  '3': 'ART. 91 RLRART. 5 CONST',
+  '4': 'ART. 10 REGLAMENTO PARA LA PRESTACIÓN DEL SERVICIO SOCIAL DE LOS ESTUDIANTES DE LAS INSTITUCIONES DE EDUCACIÓN SUPERIOR EN LA REPÚBLICA MEXICANA',
+  '5': 'NO APLICA'
 };
 
 const TIPOS_ANTECEDENTE: Record<string, { id: string, desc: string }> = {
-  'DOCTORADO': { id: '1', desc: 'DOCTORADO' },
-  'ESPECIALIDAD': { id: '2', desc: 'MAESTRÍA O ESPECIALIDAD' },
-  'MAESTRIA': { id: '2', desc: 'MAESTRÍA O ESPECIALIDAD' },
-  'MAESTRÍA': { id: '2', desc: 'MAESTRÍA O ESPECIALIDAD' },
-  'LICENCIATURA': { id: '4', desc: 'LICENCIATURA' },
-  'PREPARATORIA': { id: '6', desc: 'BACHILLERATO' },
-  'BACHILLERATO': { id: '6', desc: 'BACHILLERATO' }
+  'DOCTORADO': { id: '1', desc: 'MAESTRÍA' },
+  'ESPECIALIDAD': { id: '2', desc: 'LICENCIATURA' },
+  'MAESTRIA': { id: '2', desc: 'LICENCIATURA' },
+  'MAESTRÍA': { id: '2', desc: 'LICENCIATURA' },
+  'LICENCIATURA': { id: '4', desc: 'BACHILLERATO' }
 };
 
 function formatFechaDDMMAAAA(fechaIso?: string | null): string {
@@ -121,13 +133,14 @@ export async function generarLayoutTitulacionDGAIR(
     }
     const arrayBuffer = await response.arrayBuffer();
 
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
 
-    const matrizDatos: any[][] = [];
+    const worksheet = workbook.worksheets[0]; // La primera pestaña
 
     const fechaActual = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+    let currentRow = 4; // Empezamos en la fila 4
 
     for (const data of alumnosData) {
       const { alumno, configuracion } = data;
@@ -135,15 +148,13 @@ export async function generarLayoutTitulacionDGAIR(
       const plan = alumno.plan || {};
       const nivel = (carrera.nivel_educativo || '').toUpperCase();
       
-      // Folio Control
-      const fNivel = nivel.charAt(0) || 'X';
-      const fCarrera = (carrera.nombre || '').charAt(0) || 'X';
-      const folioControl = `${fNivel}${fCarrera}-000-0000`;
+      // Folio Control (Manual del frontend)
+      const folioControl = (configuracion.folio_control || '').toUpperCase();
 
       // Nombre Carrera
       const nombreCarreraFull = `${nivel} EN ${carrera.nombre || ''}`.toUpperCase();
 
-      // Fechas Inicio y Fin Ciclos
+      // Fechas Inicio y Fin Ciclos (Obtenidas de tabla ciclos_escolares: fecha_inicio y fecha_termino)
       let fInicioCiclo = '';
       let fFinCiclo = '';
       if (alumno.inscripciones && alumno.inscripciones.length > 0) {
@@ -151,41 +162,41 @@ export async function generarLayoutTitulacionDGAIR(
         const fechasFin: Date[] = [];
         alumno.inscripciones.forEach((i: any) => {
           if (i.ciclo) {
-            if (i.ciclo.fecha_inicio) fechasInicio.push(new Date(i.ciclo.fecha_inicio));
-            if (i.ciclo.fecha_termino) fechasFin.push(new Date(i.ciclo.fecha_termino));
+            // Convertimos las fechas string a objetos Date (asumiendo formato YYYY-MM-DD o ISO)
+            if (i.ciclo.fecha_inicio) fechasInicio.push(new Date(i.ciclo.fecha_inicio + 'T00:00:00'));
+            if (i.ciclo.fecha_termino) fechasFin.push(new Date(i.ciclo.fecha_termino + 'T00:00:00'));
           }
         });
         if (fechasInicio.length > 0) {
           const minDate = new Date(Math.min(...fechasInicio.map(d => d.getTime())));
-          fInicioCiclo = formatFechaDDMMAAAA(minDate.toISOString().split('T')[0]);
+          const isoStr = minDate.toISOString().split('T')[0];
+          fInicioCiclo = formatFechaDDMMAAAA(isoStr);
         }
         if (fechasFin.length > 0) {
           const maxDate = new Date(Math.max(...fechasFin.map(d => d.getTime())));
-          fFinCiclo = formatFechaDDMMAAAA(maxDate.toISOString().split('T')[0]);
+          const isoStr = maxDate.toISOString().split('T')[0];
+          fFinCiclo = formatFechaDDMMAAAA(isoStr);
         }
       }
 
       // Servicio Social
       let cumplioSS = '0';
-      let idSS = '';
-      let descSS = '';
+      let idSS = configuracion.fundamento_legal_ss || '';
+      let descSS = idSS ? FUNDAMENTOS_SERVICIO_SOCIAL[idSS] || '' : '';
 
       if (nivel === 'LICENCIATURA') {
         const ss = alumno.servicio_social;
         if (ss && ss.estatus === 'LIBERADO') {
           cumplioSS = '1';
-          if (ss.variante_legal === 'ART_52') idSS = '1';
-          else if (ss.variante_legal === 'ART_55') idSS = '2';
-          else if (ss.variante_legal === 'ART_91') idSS = '3';
         }
       } else {
         cumplioSS = '0';
-        idSS = '5';
+        // idSS ya vendrá de configuracion o lo forzamos a 5 si aplica en el frontend
       }
 
-      if (idSS && FUNDAMENTOS_SERVICIO_SOCIAL[idSS]) {
-        descSS = FUNDAMENTOS_SERVICIO_SOCIAL[idSS];
-      }
+      // Autorizacion Reconocimiento
+      const idAut = configuracion.id_autorizacion || '';
+      const descAut = idAut ? AUTORIZACIONES_RECONOCIMIENTO[idAut] || '' : '';
 
       // Entidades
       const entidadProcedencia = getEntidadInfo(alumno.estado_escolaridad);
@@ -193,21 +204,15 @@ export async function generarLayoutTitulacionDGAIR(
       // Tipo Antecedente
       let idTipoAnt = '';
       let descTipoAnt = '';
-      if (nivel === 'LICENCIATURA') {
-        idTipoAnt = '6'; // Bachillerato
-        descTipoAnt = 'BACHILLERATO';
-      } else if (nivel === 'ESPECIALIDAD' || nivel === 'MAESTRÍA' || nivel === 'MAESTRIA') {
-        idTipoAnt = '4'; // Licenciatura
-        descTipoAnt = 'LICENCIATURA';
-      } else if (nivel === 'DOCTORADO') {
-        idTipoAnt = '2'; // Maestría
-        descTipoAnt = 'MAESTRÍA O ESPECIALIDAD';
+      if (TIPOS_ANTECEDENTE[nivel]) {
+        idTipoAnt = TIPOS_ANTECEDENTE[nivel].id;
+        descTipoAnt = TIPOS_ANTECEDENTE[nivel].desc;
       }
 
       // Modalidad Desc
       const descModalidad = MODALIDADES_TITULACION[configuracion.modalidad_id] || '';
 
-      const fila = [
+      const filaDatos = [
         folioControl, // 1
         firmante1.clave_puesto || '', // 2
         (firmante1.puesto || '').toUpperCase(), // 3
@@ -229,8 +234,8 @@ export async function generarLayoutTitulacionDGAIR(
         nombreCarreraFull, // 19
         fInicioCiclo, // 20
         fFinCiclo, // 21
-        plan.id_autorizacion_reconocimiento || '', // 22
-        (plan.autorizacion_reconocimiento || '').toUpperCase(), // 23
+        idAut, // 22
+        descAut.toUpperCase(), // 23
         (plan.rvoe || '').toUpperCase(), // 24
         (alumno.curp || '').toUpperCase(), // 25
         (alumno.nombres || '').toUpperCase(), // 26
@@ -257,14 +262,20 @@ export async function generarLayoutTitulacionDGAIR(
         nivel === 'ESPECIALIDAD' ? configuracion.cedula_especialidad : '' // 47
       ];
 
-      matrizDatos.push(fila.map(f => typeof f === 'string' ? f.toUpperCase() : f));
+      // Inyectar en exceljs manteniendo formato
+      const row = worksheet.getRow(currentRow);
+      filaDatos.forEach((val, index) => {
+        const cell = row.getCell(index + 1);
+        cell.value = typeof val === 'string' ? val.toUpperCase() : val;
+        // Preservar estilo si existe en la celda original (exceljs lo hace por defecto, pero asegurarse)
+      });
+      row.commit();
+      
+      currentRow++;
     }
 
-    XLSX.utils.sheet_add_aoa(sheet, matrizDatos, { origin: "A4" });
-
-    const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, `LAYOUT_TITULACION_DGAIR_${new Date().getTime()}.xlsx`);
 
   } catch (error) {
