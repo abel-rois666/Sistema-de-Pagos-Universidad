@@ -31,9 +31,10 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
     licenciatura_id: carreraIdActiva || (carreras[0]?.id ?? ''),
     tipo_periodo: 'SEMESTRAL',
     modelo: 'RIGIDO',
-    creditos_obligatorios: 0,
     estatus: 'ACTIVO',
     id_plan_certificacion: undefined,
+    id_autorizacion_reconocimiento: undefined,
+    autorizacion_reconocimiento: '',
   });
   
   const [loading, setLoading] = useState(false);
@@ -53,6 +54,8 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         creditos_obligatorios: plan.creditos_obligatorios !== undefined && plan.creditos_obligatorios !== null ? plan.creditos_obligatorios : 0,
         estatus: plan.estatus || 'ACTIVO',
         id_plan_certificacion: plan.id_plan_certificacion || undefined,
+        id_autorizacion_reconocimiento: (plan as any).id_autorizacion_reconocimiento || undefined,
+        autorizacion_reconocimiento: (plan as any).autorizacion_reconocimiento || '',
       });
     } else {
       // Reset form if no plan (creating new)
@@ -68,6 +71,8 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         creditos_obligatorios: 0,
         estatus: 'ACTIVO',
         id_plan_certificacion: undefined,
+        id_autorizacion_reconocimiento: undefined,
+        autorizacion_reconocimiento: '',
       });
     }
   }, [plan]);
@@ -111,6 +116,8 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         licenciatura_id: form.licenciatura_id, // Mismo ID por retrocompatibilidad
         estatus: form.estatus,
         id_plan_certificacion: form.id_plan_certificacion || null,
+        id_autorizacion_reconocimiento: form.id_autorizacion_reconocimiento || null,
+        autorizacion_reconocimiento: form.autorizacion_reconocimiento || null,
       };
 
       if (plan?.id) {
@@ -228,6 +235,32 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
                 value={form.fecha_rvoe ? (form.fecha_rvoe.includes('/') ? form.fecha_rvoe.split('/').reverse().join('-') : form.fecha_rvoe.split('T')[0]) : ''}
                 onChange={(e) => setForm({ ...form, fecha_rvoe: e.target.value })}
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Autorización / Reconocimiento DGAIR</label>
+              <select
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.12)] rounded-[10px] px-4 py-2.5 outline-none focus:ring-2 focus:ring-[#1456f0] bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100"
+                value={form.id_autorizacion_reconocimiento || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const label = val ? e.target.options[e.target.selectedIndex].text.replace(/^\d+\s-\s/, '') : '';
+                  setForm({ ...form, id_autorizacion_reconocimiento: val ? parseInt(val) : undefined, autorizacion_reconocimiento: label });
+                }}
+              >
+                <option value="">(SIN SELECCIONAR)</option>
+                <option value="1">1 - RVOE FEDERAL</option>
+                <option value="2">2 - RVOE ESTATAL</option>
+                <option value="3">3 - AUTORIZACIÓN FEDERAL</option>
+                <option value="4">4 - AUTORIZACIÓN ESTATAL</option>
+                <option value="5">5 - ACTA DE SESIÓN</option>
+                <option value="6">6 - ACUERDO DE INCORPORACIÓN</option>
+                <option value="7">7 - ACUERDO SECRETARIAL SEP</option>
+                <option value="8">8 - DECRETO DE CREACIÓN</option>
+                <option value="9">9 - OTRO</option>
+              </select>
             </div>
           </div>
 

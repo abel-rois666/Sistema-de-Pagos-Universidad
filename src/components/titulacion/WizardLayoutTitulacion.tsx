@@ -133,7 +133,7 @@ export default function WizardLayoutTitulacion() {
       const newItem: TitulacionAlumnoData = {
         alumno: alumnoObj,
         configuracion: {
-          correo: 'CONTROL.ESCOLAR@CUOM.EDU.MX',
+          correo: 'control.escolar@cuom.edu.mx',
           modalidad_id: '',
           fecha_examen: '',
           fecha_exencion: '',
@@ -426,7 +426,7 @@ export default function WizardLayoutTitulacion() {
 
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">Correo Electrónico</label>
-                        <input type="email" value={item.configuracion.correo} onChange={e => updateConfig(item.alumno.uid, 'correo', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] uppercase" />
+                        <input type="email" value={item.configuracion.correo} onChange={e => updateConfig(item.alumno.uid, 'correo', e.target.value.toLowerCase())} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] lowercase" />
                       </div>
 
                       <div>
@@ -473,22 +473,6 @@ export default function WizardLayoutTitulacion() {
                       ) : <div />}
 
                       {/* Fila 3: Autorización y SS */}
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Autorización Reconocimiento</label>
-                        <select value={item.configuracion.id_autorizacion} onChange={e => updateConfig(item.alumno.uid, 'id_autorizacion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]">
-                          <option value="">(SIN SELECCIONAR)</option>
-                          <option value="1">1 - RVOE FEDERAL</option>
-                          <option value="2">2 - RVOE ESTATAL</option>
-                          <option value="3">3 - AUTORIZACIÓN FEDERAL</option>
-                          <option value="4">4 - AUTORIZACIÓN ESTATAL</option>
-                          <option value="5">5 - ACTA DE SESIÓN</option>
-                          <option value="6">6 - ACUERDO DE INCORPORACIÓN</option>
-                          <option value="7">7 - ACUERDO SECRETARIAL SEP</option>
-                          <option value="8">8 - DECRETO DE CREACIÓN</option>
-                          <option value="9">9 - OTRO</option>
-                        </select>
-                      </div>
-
                       {item.alumno.carrera?.nivel_educativo === 'LICENCIATURA' ? (
                         <div className="md:col-span-2">
                           <label className="block text-xs font-bold text-gray-500 mb-1">Fundamento Legal Servicio Social</label>

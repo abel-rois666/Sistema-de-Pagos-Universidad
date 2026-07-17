@@ -40,6 +40,7 @@ const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
   'ESTADO DE MEXICO': { id: '15', nombre: 'MÉXICO' },
   'MÉXICO': { id: '15', nombre: 'MÉXICO' },
   'MEXICO': { id: '15', nombre: 'MÉXICO' },
+  'MEX': { id: '15', nombre: 'MÉXICO' },
   'MICHOACÁN': { id: '16', nombre: 'MICHOACÁN DE OCAMPO' },
   'MICHOACÁN DE OCAMPO': { id: '16', nombre: 'MICHOACÁN DE OCAMPO' },
   'MICHOACAN': { id: '16', nombre: 'MICHOACÁN DE OCAMPO' },
@@ -61,9 +62,12 @@ const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
   'TLAXCALA': { id: '29', nombre: 'TLAXCALA' },
   'VERACRUZ': { id: '30', nombre: 'VERACRUZ DE IGNACIO DE LA LLAVE' },
   'VERACRUZ DE IGNACIO DE LA LLAVE': { id: '30', nombre: 'VERACRUZ DE IGNACIO DE LA LLAVE' },
+  'VER': { id: '30', nombre: 'VERACRUZ DE IGNACIO DE LA LLAVE' },
   'YUCATÁN': { id: '31', nombre: 'YUCATÁN' },
   'YUCATAN': { id: '31', nombre: 'YUCATÁN' },
+  'YUC': { id: '31', nombre: 'YUCATÁN' },
   'ZACATECAS': { id: '32', nombre: 'ZACATECAS' },
+  'ZAC': { id: '32', nombre: 'ZACATECAS' },
   'EXTRANJERO': { id: '33', nombre: 'EXTRANJERO' }
 };
 
@@ -241,7 +245,7 @@ export async function generarLayoutTitulacionDGAIR(
         (alumno.nombres || '').toUpperCase(), // 26
         (alumno.apellido_paterno || '').toUpperCase(), // 27
         (alumno.apellido_materno || '').toUpperCase(), // 28
-        (configuracion.correo || '').toUpperCase(), // 29
+        (configuracion.correo || '').toLowerCase(), // 29
         fechaActual, // 30
         configuracion.modalidad_id || '', // 31
         descModalidad, // 32
@@ -266,8 +270,12 @@ export async function generarLayoutTitulacionDGAIR(
       const row = worksheet.getRow(currentRow);
       filaDatos.forEach((val, index) => {
         const cell = row.getCell(index + 1);
-        cell.value = typeof val === 'string' ? val.toUpperCase() : val;
-        // Preservar estilo si existe en la celda original (exceljs lo hace por defecto, pero asegurarse)
+        if (index === 28) {
+          // Correo en minúsculas
+          cell.value = typeof val === 'string' ? val.toLowerCase() : val;
+        } else {
+          cell.value = typeof val === 'string' ? val.toUpperCase() : val;
+        }
       });
       row.commit();
       
