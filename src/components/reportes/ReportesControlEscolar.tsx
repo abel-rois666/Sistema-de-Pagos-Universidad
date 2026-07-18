@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 
 export const ReportesControlEscolar: React.FC = () => {
-  const { alumnos, ciclos, catalogos, activeCicloId } = useAppStore();
+  const { alumnos, ciclos, catalogos, activeCicloId, plans } = useAppStore();
 
   // Estados de Filtros
-  const [selectedCiclo, setSelectedCiclo] = useState<string>(activeCicloId);
+  const [selectedCiclo, setSelectedCiclo] = useState<string>('TODOS');
   const [selectedLicenciatura, setSelectedLicenciatura] = useState<string>('TODAS');
   const [selectedTurno, setSelectedTurno] = useState<string>('TODOS');
   
@@ -29,8 +29,11 @@ export const ReportesControlEscolar: React.FC = () => {
   // Alumnos filtrados
   const filteredAlumnos = useMemo(() => {
     return alumnos.filter(a => {
-      // Filtrar por ciclo (asumimos ciclo_ultima_asignacion_grado como indicador principal actual)
-      if (selectedCiclo !== 'TODOS' && a.ciclo_ultima_asignacion_grado !== selectedCiclo) return false;
+      // Filtrar por ciclo usando el plan de pagos o el campo directo
+      if (selectedCiclo !== 'TODOS') {
+        const hasPlanInCiclo = plans.some(p => p.alumno_id === a.id && p.ciclo_id === selectedCiclo);
+        if (!hasPlanInCiclo && a.ciclo_ultima_asignacion_grado !== selectedCiclo) return false;
+      }
       
       // Filtrar por licenciatura
       if (selectedLicenciatura !== 'TODAS' && a.licenciatura !== selectedLicenciatura) return false;
@@ -40,7 +43,7 @@ export const ReportesControlEscolar: React.FC = () => {
       
       return true;
     }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
-  }, [alumnos, selectedCiclo, selectedLicenciatura, selectedTurno]);
+  }, [alumnos, selectedCiclo, selectedLicenciatura, selectedTurno, plans]);
 
   const nombreCicloSeleccionado = ciclos.find(c => c.id === selectedCiclo)?.nombre || 'Todos los Ciclos';
 
