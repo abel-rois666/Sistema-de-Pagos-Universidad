@@ -15,10 +15,13 @@ export interface TitulacionAlumnoData {
     folio_control: string;
     id_autorizacion: string;
     fundamento_legal_ss: string;
+    escuela_procedencia: string;
+    id_tipo_antecedente: string;
+    entidad_federativa_antecedente: string;
   };
 }
 
-const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
+export const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
   'AGUASCALIENTES': { id: '01', nombre: 'AGUASCALIENTES' },
   'BAJA CALIFORNIA': { id: '02', nombre: 'BAJA CALIFORNIA' },
   'BAJA CALIFORNIA SUR': { id: '03', nombre: 'BAJA CALIFORNIA SUR' },
@@ -100,6 +103,15 @@ const FUNDAMENTOS_SERVICIO_SOCIAL: Record<string, string> = {
   '3': 'ART. 91 RLRART. 5 CONST',
   '4': 'ART. 10 REGLAMENTO PARA LA PRESTACIÓN DEL SERVICIO SOCIAL DE LOS ESTUDIANTES DE LAS INSTITUCIONES DE EDUCACIÓN SUPERIOR EN LA REPÚBLICA MEXICANA',
   '5': 'NO APLICA'
+};
+
+export const TIPOS_ANTECEDENTE_CATALOGO: Record<string, string> = {
+  '1': 'MAESTRÍA',
+  '2': 'LICENCIATURA',
+  '3': 'ESPECIALIDAD',
+  '4': 'BACHILLERATO',
+  '5': 'PROFESIONAL TÉCNICO',
+  '6': 'TÉCNICO SUPERIOR UNIVERSITARIO'
 };
 
 const TIPOS_ANTECEDENTE: Record<string, { id: string, desc: string }> = {
@@ -227,15 +239,18 @@ export async function generarLayoutTitulacionDGAIR(
       const descAut = idAut ? AUTORIZACIONES_RECONOCIMIENTO[idAut] || '' : '';
 
       // Entidades
-      const entidadProcedencia = getEntidadInfo(alumno.estado_escolaridad);
+      // Entidades
+      const idEntidadManual = configuracion.entidad_federativa_antecedente;
+      const entidadProcedencia = idEntidadManual 
+        ? Object.values(ENTIDADES_CATALOGO).find(e => e.id === idEntidadManual) || { id: '', nombre: '' }
+        : getEntidadInfo(alumno.estado_escolaridad);
       
       // Tipo Antecedente
-      let idTipoAnt = '';
-      let descTipoAnt = '';
-      if (TIPOS_ANTECEDENTE[nivel]) {
+      let idTipoAnt = configuracion.id_tipo_antecedente || '';
+      if (!idTipoAnt && TIPOS_ANTECEDENTE[nivel]) {
         idTipoAnt = TIPOS_ANTECEDENTE[nivel].id;
-        descTipoAnt = TIPOS_ANTECEDENTE[nivel].desc;
       }
+      const descTipoAnt = idTipoAnt ? (TIPOS_ANTECEDENTE_CATALOGO[idTipoAnt] || '') : '';
 
       // Modalidad Desc
       const descModalidad = MODALIDADES_TITULACION[configuracion.modalidad_id] || '';
@@ -280,7 +295,7 @@ export async function generarLayoutTitulacionDGAIR(
         descSS, // 37
         config.claveEntidadUniversidad || '', // 38
         (config.nombreEntidadUniversidad || '').toUpperCase(), // 39
-        (alumno.escuela_procedencia || '').toUpperCase(), // 40
+        (configuracion.escuela_procedencia || alumno.escuela_procedencia || '').toUpperCase(), // 40
         idTipoAnt, // 41
         descTipoAnt, // 42
         entidadProcedencia.id || '', // 43

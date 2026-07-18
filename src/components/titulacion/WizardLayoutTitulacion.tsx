@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase, getAppConfig } from '../../lib/supabase';
 import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft, UserPlus, X, Settings, Users, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { generarLayoutTitulacionDGAIR, TitulacionAlumnoData } from '../../utils/titulacionExportUtils';
+import { generarLayoutTitulacionDGAIR, TitulacionAlumnoData, ENTIDADES_CATALOGO, TIPOS_ANTECEDENTE_CATALOGO } from '../../utils/titulacionExportUtils';
 import type { AppConfig, Empleado } from '../../types';
 
 function generateFolioPrefix(nivel: string, carreraNombre: string) {
@@ -160,6 +160,14 @@ export default function WizardLayoutTitulacion() {
         defaultModalidadId = '6'; // OTRO
       }
 
+      let defaultIdTipoAnt = '';
+      if (nivel === 'DOCTORADO') defaultIdTipoAnt = '1';
+      else if (['ESPECIALIDAD', 'MAESTRIA', 'MAESTRÍA'].includes(nivel)) defaultIdTipoAnt = '2';
+      else if (nivel === 'LICENCIATURA') defaultIdTipoAnt = '4';
+
+      const entidadProcedenciaObj = Object.values(ENTIDADES_CATALOGO).find(e => e.nombre === (al.estado_escolaridad || '').trim().toUpperCase() || e.id === parseInt(al.estado_escolaridad || '', 10).toString().padStart(2, '0'));
+      const defaultIdEntidadAnt = entidadProcedenciaObj ? entidadProcedenciaObj.id : '';
+
       const newItem: TitulacionAlumnoData = {
         alumno: alumnoObj,
         configuracion: {
@@ -172,7 +180,10 @@ export default function WizardLayoutTitulacion() {
           cedula_especialidad: '',
           folio_control: defaultFolio,
           id_autorizacion: defaultIdAut,
-          fundamento_legal_ss: defaultIdSS
+          fundamento_legal_ss: defaultIdSS,
+          escuela_procedencia: al.escuela_procedencia || '',
+          id_tipo_antecedente: defaultIdTipoAnt,
+          entidad_federativa_antecedente: defaultIdEntidadAnt
         }
       };
 
@@ -221,16 +232,71 @@ export default function WizardLayoutTitulacion() {
       if (!q.configuracion.modalidad_id) {
         warnings.push(`Modalidad no seleccionada para ${q.alumno.nombre_completo}`);
       }
-      if (!q.alumno.estado_escolaridad) {
+      if (!q.alumno.estado_escolaridad && !q.configuracion.entidad_federativa_antecedente) {
         warnings.push(`Falta Entidad Federativa de procedencia para ${q.alumno.nombre_completo}`);
       }
-      if (q.alumno.carrera?.nivel_educativo === 'LICENCIATURA' && q.alumno.servicio_social?.estatus === 'LIBERADO' && !q.alumno.servicio_social?.variante_legal) {
+      if (q.alumno.carrera?.nivel_educativo?.toUpperCase() === 'LICENCIATURA' && q.alumno.servicio_social?.estatus === 'LIBERADO' && !q.alumno.servicio_social?.variante_legal) {
         warnings.push(`Falta variante de Servicio Social para ${q.alumno.nombre_completo}`);
+      }
+      
+      // Validación cronológica de fechas
+      const f1Str = q.configuracion.antecedente_inicio;
+      const f2Str = q.configuracion.antecedente_fin;
+      const f3Str = q.configuracion.fecha_examen || q.configuracion.fecha_exencion;
+
+      let fInicioCarrera: Date | null = null;
+      let fFinCarrera: Date | null = null;
+      if (q.alumno.inscripciones && q.alumno.inscripciones.length > 0) {
+        const fechasInicio: Date[] = [];
+        const fechasFin: Date[] = [];
+        q.alumno.inscripciones.forEach((i: any) => {
+          if (i.ciclo) {
+            if (i.ciclo.fecha_inicio) fechasInicio.push(new Date(i.ciclo.fecha_inicio + 'T00:00:00'));
+            if (i.ciclo.fecha_termino) fechasFin.push(new Date(i.ciclo.fecha_termino + 'T00:00:00'));
+          }
+        });
+        if (fechasInicio.length > 0) fInicioCarrera = new Date(Math.min(...fechasInicio.map(d => d.getTime())));
+        if (fechasFin.length > 0) fFinCarrera = new Date(Math.max(...fechasFin.map(d => d.getTime())));
+      }
+
+      if (f1Str && f2Str) {
+        if (new Date(f1Str + 'T00:00:00') > new Date(f2Str + 'T00:00:00')) {
+          warnings.push(`La Fecha Inicio Antecedente no puede ser mayor a la Fecha Término Antecedente para ${q.alumno.nombre_completo}`);
+        }
+      }
+
+      if (f2Str && fInicioCarrera) {
+        if (new Date(f2Str + 'T00:00:00') > fInicioCarrera) {
+          warnings.push(`La Fecha Término Antecedente no puede ser mayor a la Fecha Inicio de Carrera para ${q.alumno.nombre_completo}`);
+        }
+      }
+
+      if (fInicioCarrera && fFinCarrera) {
+        if (fInicioCarrera > fFinCarrera) {
+          warnings.push(`Las fechas de inicio y fin de carrera (obtenidas de los ciclos escolares) son inconsistentes para ${q.alumno.nombre_completo}`);
+        }
+      }
+
+      if (fFinCarrera && f3Str) {
+        if (fFinCarrera > new Date(f3Str + 'T00:00:00')) {
+          warnings.push(`La Fecha Término de Carrera no puede ser mayor a la Fecha Examen/Exención para ${q.alumno.nombre_completo}`);
+        }
+      }
+
+      if (f3Str) {
+        const fExpedicion = new Date(); // Fecha actual por defecto al exportar
+        fExpedicion.setHours(0, 0, 0, 0);
+        if (new Date(f3Str + 'T00:00:00') > fExpedicion) {
+          warnings.push(`La Fecha Examen/Exención no puede ser mayor a la Fecha de Expedición (Hoy) para ${q.alumno.nombre_completo}`);
+        }
       }
     });
 
     if (warnings.length > 0) {
-      toast.error(`ADVERTENCIA: Faltan campos en algunos alumnos. El archivo se generará con esos campos vacíos. Recuerda llenarlos manualmente en el Excel final:\n- ${warnings.join('\n- ')}`, { duration: 6000 });
+      const errorMsg = `ADVERTENCIA CRÍTICA: Faltan campos o existen errores de cronología en las fechas.\n- ${warnings.join('\n- ')}\n\nPor favor, revisa y corrige estos datos antes de exportar.`;
+      toast.error(errorMsg, { duration: 8000 });
+      setLoading(false);
+      return;
     }
 
     try {
@@ -495,11 +561,35 @@ export default function WizardLayoutTitulacion() {
                         <input type="date" value={item.configuracion.antecedente_fin} onChange={e => updateConfig(item.alumno.uid, 'antecedente_fin', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                       </div>
 
-                      {['ESPECIALIDAD', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO'].includes(item.alumno.carrera?.nivel_educativo || '') ? (
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1">Cédula Profesional (Obligatorio)</label>
-                          <input type="text" value={item.configuracion.cedula_especialidad} onChange={e => updateConfig(item.alumno.uid, 'cedula_especialidad', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" placeholder="Núm. de Cédula" />
-                        </div>
+                      {['ESPECIALIDAD', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO'].includes((item.alumno.carrera?.nivel_educativo || '').toUpperCase()) ? (
+                        <>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Institución de Procedencia</label>
+                            <input type="text" value={item.configuracion.escuela_procedencia} onChange={e => updateConfig(item.alumno.uid, 'escuela_procedencia', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] uppercase" placeholder="Ej. UNIVERSIDAD NACIONAL AUTONOMA DE MÉXICO" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Cédula Profesional Antecedente (Obligatorio)</label>
+                            <input type="text" value={item.configuracion.cedula_especialidad} onChange={e => updateConfig(item.alumno.uid, 'cedula_especialidad', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" placeholder="Núm. de Cédula" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Tipo de Antecedente</label>
+                            <select value={item.configuracion.id_tipo_antecedente} onChange={e => updateConfig(item.alumno.uid, 'id_tipo_antecedente', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]">
+                              <option value="">(SIN SELECCIONAR)</option>
+                              {Object.entries(TIPOS_ANTECEDENTE_CATALOGO).map(([id, nombre]) => (
+                                <option key={id} value={id}>{id} - {nombre}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Entidad Federativa Antecedente</label>
+                            <select value={item.configuracion.entidad_federativa_antecedente} onChange={e => updateConfig(item.alumno.uid, 'entidad_federativa_antecedente', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]">
+                              <option value="">(SELECCIONE UNA ENTIDAD)</option>
+                              {Array.from(new Set(Object.values(ENTIDADES_CATALOGO).map(e => JSON.stringify(e)))).map(str => JSON.parse(str)).sort((a,b) => parseInt(a.id) - parseInt(b.id)).map(e => (
+                                <option key={e.id} value={e.id}>{e.id} - {e.nombre}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </>
                       ) : <div />}
 
                       {/* Fila 3: Autorización y SS */}
