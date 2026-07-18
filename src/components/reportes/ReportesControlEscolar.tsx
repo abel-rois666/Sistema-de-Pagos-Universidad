@@ -12,7 +12,8 @@ import {
   EyeOff,
   User,
   GraduationCap,
-  Clock
+  Clock,
+  CheckCircle
 } from 'lucide-react';
 
 export const ReportesControlEscolar: React.FC = () => {
@@ -22,6 +23,7 @@ export const ReportesControlEscolar: React.FC = () => {
   const [selectedCiclo, setSelectedCiclo] = useState<string>('TODOS');
   const [selectedLicenciatura, setSelectedLicenciatura] = useState<string>('TODAS');
   const [selectedTurno, setSelectedTurno] = useState<string>('TODOS');
+  const [selectedEstatus, setSelectedEstatus] = useState<string>('TODOS');
   
   // Estado para mostrar correo
   const [showEmail, setShowEmail] = useState<boolean>(true);
@@ -41,18 +43,24 @@ export const ReportesControlEscolar: React.FC = () => {
       // Filtrar por turno
       if (selectedTurno !== 'TODOS' && a.turno !== selectedTurno) return false;
       
+      // Filtrar por estatus
+      if (selectedEstatus !== 'TODOS' && a.estatus !== selectedEstatus) return false;
+      
       return true;
     }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
-  }, [alumnos, selectedCiclo, selectedLicenciatura, selectedTurno, plans]);
+  }, [alumnos, selectedCiclo, selectedLicenciatura, selectedTurno, selectedEstatus, plans]);
 
   const nombreCicloSeleccionado = ciclos.find(c => c.id === selectedCiclo)?.nombre || 'Todos los Ciclos';
+  
+  // Lista única de estatus para el selector
+  const estatusList = useMemo(() => Array.from(new Set(alumnos.map(a => a.estatus).filter(Boolean))).sort(), [alumnos]);
 
   // Exportar a CSV
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
     
     // Cabeceras
-    const headers = ["Nombre Completo", "Licenciatura", "Turno", "Teléfonos"];
+    const headers = ["Nombre Completo", "Licenciatura", "Turno", "Estatus", "Teléfonos"];
     if (showEmail) headers.push("Correo Electrónico");
     csvContent += headers.join(",") + "\n";
 
@@ -63,6 +71,7 @@ export const ReportesControlEscolar: React.FC = () => {
         `"${a.nombre_completo}"`,
         `"${a.licenciatura}"`,
         `"${a.turno}"`,
+        `"${a.estatus || ''}"`,
         `"${telefonos}"`
       ];
       if (showEmail) row.push(`"${a.email || ''}"`);
@@ -92,13 +101,13 @@ export const ReportesControlEscolar: React.FC = () => {
     doc.text(`Turno: ${selectedTurno === 'TODOS' ? 'Todos' : selectedTurno}`, 14, 35);
     
     // Columnas
-    const head = [['Nombre Completo', 'Licenciatura', 'Turno', 'Teléfonos']];
+    const head = [['Nombre Completo', 'Licenciatura', 'Turno', 'Estatus', 'Teléfonos']];
     if (showEmail) head[0].push('Correo Electrónico');
     
     // Datos
     const data = filteredAlumnos.map(a => {
       const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const row = [a.nombre_completo, a.licenciatura, a.turno, telefonos];
+      const row = [a.nombre_completo, a.licenciatura, a.turno, a.estatus || '', telefonos];
       if (showEmail) row.push(a.email || '');
       return row;
     });
@@ -181,6 +190,22 @@ export const ReportesControlEscolar: React.FC = () => {
             ))}
           </select>
         </div>
+
+        <div className="flex-1">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+            <CheckCircle size={16}/> Estatus
+          </label>
+          <select 
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+            value={selectedEstatus}
+            onChange={(e) => setSelectedEstatus(e.target.value)}
+          >
+            <option value="TODOS">Todos los Estatus</option>
+            {estatusList.map(est => (
+              <option key={est} value={est}>{est}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="flex justify-between items-center mb-4">
@@ -226,6 +251,7 @@ export const ReportesControlEscolar: React.FC = () => {
               <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Nombre Completo</th>
               <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Licenciatura</th>
               <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Turno</th>
+              <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Estatus</th>
               <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Teléfonos</th>
               {showEmail && <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Correo Electrónico</th>}
             </tr>
@@ -237,6 +263,15 @@ export const ReportesControlEscolar: React.FC = () => {
                   <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">{a.nombre_completo}</td>
                   <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{a.licenciatura}</td>
                   <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{a.turno}</td>
+                  <td className="p-3 text-sm">
+                    <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                      a.estatus === 'ACTIVO' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 
+                      a.estatus === 'INACTIVO' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 
+                      'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                    }`}>
+                      {a.estatus || 'S/E'}
+                    </span>
+                  </td>
                   <td className="p-3 text-sm text-gray-600 dark:text-gray-400">
                     {[a.telefono, a.celular].filter(Boolean).join(" / ") || '-'}
                   </td>
