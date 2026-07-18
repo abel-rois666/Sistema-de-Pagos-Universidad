@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { Alumno } from '../../types';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { 
   FileText, 
   Printer, 
@@ -103,8 +103,8 @@ export const ReportesControlEscolar: React.FC = () => {
       return row;
     });
 
-    // Generar tabla usando el tipado genérico any para bypassear el warning de autotable si ocurre
-    (doc as any).autoTable({
+    // Generar tabla
+    autoTable(doc, {
       startY: 40,
       head: head,
       body: data,
