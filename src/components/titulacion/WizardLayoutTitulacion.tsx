@@ -141,12 +141,19 @@ export default function WizardLayoutTitulacion() {
 
       const modalidadTexto = fichaTitulacionData?.[0]?.modalidad?.toUpperCase() || '';
       let defaultModalidadId = '';
-      if (modalidadTexto.includes('TESIS')) defaultModalidadId = '1';
-      else if (modalidadTexto.includes('PROMEDIO')) defaultModalidadId = '2';
-      else if (modalidadTexto.includes('POSGRADO') || modalidadTexto.includes('MAESTR')) defaultModalidadId = '3';
-      else if (modalidadTexto.includes('EXPERIENCIA') || modalidadTexto.includes('PROFESIONAL')) defaultModalidadId = '4';
-      else if (modalidadTexto.includes('CENEVAL')) defaultModalidadId = '5';
-      else if (modalidadTexto) defaultModalidadId = '6'; // OTRO
+      if (modalidadTexto.includes('TESIS')) {
+        defaultModalidadId = '1';
+      } else if (modalidadTexto.includes('RENDIMIENTO') || modalidadTexto.includes('PROMEDIO')) {
+        defaultModalidadId = '2';
+      } else if (modalidadTexto.includes('POSGRADO')) {
+        defaultModalidadId = '3';
+      } else if (modalidadTexto.includes('EXPERIENCIA LABORAL')) {
+        defaultModalidadId = '4';
+      } else if (modalidadTexto.includes('CENEVAL')) {
+        defaultModalidadId = '5';
+      } else if (modalidadTexto.includes('INFORME') || modalidadTexto) {
+        defaultModalidadId = '6'; // OTRO
+      }
 
       const newItem: TitulacionAlumnoData = {
         alumno: alumnoObj,
@@ -453,8 +460,8 @@ export default function WizardLayoutTitulacion() {
                           <option value="">(SIN SELECCIONAR)</option>
                           <option value="1">1 - POR TESIS</option>
                           <option value="2">2 - POR PROMEDIO</option>
-                          <option value="3">3 - POR ESTUDIOS DE POSGRADO</option>
-                          <option value="4">4 - POR EXPERIENCIA PROFESIONAL</option>
+                          <option value="3">3 - POR ESTUDIOS DE POSGRADOS</option>
+                          <option value="4">4 - POR EXPERIENCIA LABORAL</option>
                           <option value="5">5 - POR CENEVAL</option>
                           <option value="6">6 - OTRO</option>
                         </select>

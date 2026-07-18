@@ -31,6 +31,8 @@ const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
   'CIUDAD DE MÉXICO': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
   'CIUDAD DE MEXICO': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
   'CDMX': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
+  'DF': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
+  'D.F.': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
   'DURANGO': { id: '10', nombre: 'DURANGO' },
   'GUANAJUATO': { id: '11', nombre: 'GUANAJUATO' },
   'GUERRERO': { id: '12', nombre: 'GUERRERO' },
@@ -74,8 +76,8 @@ const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
 const MODALIDADES_TITULACION: Record<string, string> = {
   '1': 'POR TESIS',
   '2': 'POR PROMEDIO',
-  '3': 'POR ESTUDIOS DE POSGRADO',
-  '4': 'POR EXPERIENCIA PROFESIONAL',
+  '3': 'POR ESTUDIOS DE POSGRADOS',
+  '4': 'POR EXPERIENCIA LABORAL',
   '5': 'POR CENEVAL',
   '6': 'OTRO'
 };
