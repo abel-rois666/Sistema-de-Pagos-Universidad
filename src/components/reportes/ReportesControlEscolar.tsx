@@ -144,7 +144,7 @@ export const ReportesControlEscolar: React.FC = () => {
             onChange={(e) => setSelectedCiclo(e.target.value)}
           >
             <option value="TODOS">Todos los Ciclos</option>
-            {ciclos.map(c => (
+            {[...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre)).map(c => (
               <option key={c.id} value={c.id}>{c.nombre} {c.tipo_periodo ? `(${c.tipo_periodo})` : ''}</option>
             ))}
           </select>
