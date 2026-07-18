@@ -182,8 +182,9 @@ export default function WizardLayoutTitulacion() {
         if (fechasInicio.length > 0) defFInicioCarrera = new Date(Math.min(...fechasInicio.map(d => d.getTime()))).toISOString().split('T')[0];
         if (fechasFin.length > 0) defFFinCarrera = new Date(Math.max(...fechasFin.map(d => d.getTime()))).toISOString().split('T')[0];
       }
-      
-      const defFechaExpedicion = new Date().toISOString().split('T')[0];
+      const d = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const defFechaExpedicion = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
       const newItem: TitulacionAlumnoData = {
         alumno: alumnoObj,
@@ -545,19 +546,7 @@ export default function WizardLayoutTitulacion() {
                         </select>
                       </div>
 
-                      {item.configuracion.modalidad_id === '1' ? (
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Examen Profesional</label>
-                          <input type="date" value={item.configuracion.fecha_examen} onChange={e => updateConfig(item.alumno.uid, 'fecha_examen', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
-                        </div>
-                      ) : item.configuracion.modalidad_id !== '' ? (
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Exención de Examen</label>
-                          <input type="date" value={item.configuracion.fecha_exencion} onChange={e => updateConfig(item.alumno.uid, 'fecha_exencion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
-                        </div>
-                      ) : <div />}
-
-                      {/* Fila 2 */}
+                      {/* Fechas Cronológicas */}
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Inicio Antecedente (Opcional)</label>
                         <input type="date" value={item.configuracion.antecedente_inicio} onChange={e => updateConfig(item.alumno.uid, 'antecedente_inicio', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
@@ -568,7 +557,6 @@ export default function WizardLayoutTitulacion() {
                         <input type="date" value={item.configuracion.antecedente_fin} onChange={e => updateConfig(item.alumno.uid, 'antecedente_fin', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                       </div>
 
-                      {/* Nuevas Fechas Editables */}
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Inicio de Carrera <span className="text-red-500">*</span></label>
                         <input type="date" value={item.configuracion.fecha_inicio_carrera} onChange={e => updateConfig(item.alumno.uid, 'fecha_inicio_carrera', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.fecha_inicio_carrera ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`} />
@@ -578,6 +566,18 @@ export default function WizardLayoutTitulacion() {
                         <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Término de Carrera <span className="text-red-500">*</span></label>
                         <input type="date" value={item.configuracion.fecha_termino_carrera} onChange={e => updateConfig(item.alumno.uid, 'fecha_termino_carrera', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.fecha_termino_carrera ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`} />
                       </div>
+
+                      {item.configuracion.modalidad_id === '1' ? (
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Examen Profesional <span className="text-red-500">*</span></label>
+                          <input type="date" value={item.configuracion.fecha_examen} onChange={e => updateConfig(item.alumno.uid, 'fecha_examen', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
+                        </div>
+                      ) : item.configuracion.modalidad_id !== '' ? (
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Exención de Examen <span className="text-red-500">*</span></label>
+                          <input type="date" value={item.configuracion.fecha_exencion} onChange={e => updateConfig(item.alumno.uid, 'fecha_exencion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
+                        </div>
+                      ) : <div />}
 
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">Fecha de Expedición <span className="text-red-500">*</span></label>
