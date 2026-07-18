@@ -117,10 +117,32 @@ function formatFechaDDMMAAAA(fechaIso?: string | null): string {
 
 function getEntidadInfo(estadoName?: string | null): { id: string, nombre: string } {
   if (!estadoName) return { id: '', nombre: '' };
-  const normalized = estadoName.trim().toUpperCase();
+  let normalized = estadoName.trim().toUpperCase();
+
+  // If it's a numeric ID like "15" or "09" or "9"
+  const asNumber = parseInt(normalized, 10);
+  if (!isNaN(asNumber) && asNumber >= 1 && asNumber <= 33) {
+    const padded = asNumber.toString().padStart(2, '0');
+    const found = Object.values(ENTIDADES_CATALOGO).find(e => e.id === padded);
+    if (found) return found;
+  }
+
+  // Remove accents for searching
+  normalized = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // Direct match
   if (ENTIDADES_CATALOGO[normalized]) {
     return ENTIDADES_CATALOGO[normalized];
   }
+
+  // Find in keys by removing accents from keys too
+  for (const key of Object.keys(ENTIDADES_CATALOGO)) {
+    const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (normalized === normalizedKey || normalizedKey.includes(normalized) || normalized.includes(normalizedKey)) {
+      return ENTIDADES_CATALOGO[key];
+    }
+  }
+
   return { id: '', nombre: '' };
 }
 

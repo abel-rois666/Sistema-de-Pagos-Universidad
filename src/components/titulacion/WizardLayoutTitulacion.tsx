@@ -105,11 +105,20 @@ export default function WizardLayoutTitulacion() {
       if (queue.find(q => q.alumno.uid === uid)) throw new Error('El alumno ya está en la cola.');
 
       // Obtener historial e inscripciones para las fechas
-      const { data: inscData } = await supabase
+      const { data: inscDataRaw } = await supabase
         .from('inscripciones_academicas')
-        .select(`*, ciclo:ciclos_escolares(*)`)
+        .select(`*, ciclo:ciclos_escolares(*), asignatura:asignaturas(*)`)
+        .eq('alumno_id', al.id);
+        
+      const inscData = (inscDataRaw || []).filter((i: any) => i.asignatura?.plan_id === plan.id);
+
+      // Obtener ficha de titulación
+      const { data: fichaTitulacionData } = await supabase
+        .from('ficha_titulacion')
+        .select('*')
         .eq('alumno_id', al.id)
-        .eq('asignatura.plan_id', plan.id);
+        .order('created_at', { ascending: false })
+        .limit(1);
 
       // Obtener servicio social
       const { data: ssData } = await supabase
@@ -130,11 +139,20 @@ export default function WizardLayoutTitulacion() {
 
       const defaultIdAut = plan?.id_autorizacion_reconocimiento?.toString() || '';
 
+      const modalidadTexto = fichaTitulacionData?.[0]?.modalidad?.toUpperCase() || '';
+      let defaultModalidadId = '';
+      if (modalidadTexto.includes('TESIS')) defaultModalidadId = '1';
+      else if (modalidadTexto.includes('PROMEDIO')) defaultModalidadId = '2';
+      else if (modalidadTexto.includes('POSGRADO') || modalidadTexto.includes('MAESTR')) defaultModalidadId = '3';
+      else if (modalidadTexto.includes('EXPERIENCIA') || modalidadTexto.includes('PROFESIONAL')) defaultModalidadId = '4';
+      else if (modalidadTexto.includes('CENEVAL')) defaultModalidadId = '5';
+      else if (modalidadTexto) defaultModalidadId = '6'; // OTRO
+
       const newItem: TitulacionAlumnoData = {
         alumno: alumnoObj,
         configuracion: {
           correo: 'control.escolar@cuom.edu.mx',
-          modalidad_id: '',
+          modalidad_id: defaultModalidadId,
           fecha_examen: '',
           fecha_exencion: '',
           antecedente_inicio: '',
