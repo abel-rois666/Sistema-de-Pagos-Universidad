@@ -287,7 +287,7 @@ export async function generarLayoutTitulacionDGAIR(
         entidadProcedencia.nombre || '', // 44
         formatFechaDDMMAAAA(configuracion.antecedente_inicio), // 45
         formatFechaDDMMAAAA(configuracion.antecedente_fin), // 46
-        nivel === 'ESPECIALIDAD' ? configuracion.cedula_especialidad : '' // 47
+        ['ESPECIALIDAD', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO'].includes(nivel) ? configuracion.cedula_especialidad : '' // 47
       ];
 
       // Inyectar en exceljs manteniendo formato

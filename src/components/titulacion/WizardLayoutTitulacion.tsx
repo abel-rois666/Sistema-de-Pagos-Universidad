@@ -133,9 +133,14 @@ export default function WizardLayoutTitulacion() {
       const defaultFolio = generateFolioPrefix(carrera?.nivel_educativo || '', carrera?.nombre || '');
       
       let defaultIdSS = '';
-      if (ssData?.[0]?.variante_legal === 'ART_52') defaultIdSS = '1';
-      else if (ssData?.[0]?.variante_legal === 'ART_55') defaultIdSS = '2';
-      else if (ssData?.[0]?.variante_legal === 'ART_91') defaultIdSS = '3';
+      const nivel = carrera?.nivel_educativo?.toUpperCase() || '';
+      if (['ESPECIALIDAD', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO'].includes(nivel)) {
+        defaultIdSS = '5';
+      } else {
+        if (ssData?.[0]?.variante_legal === 'ART_52') defaultIdSS = '1';
+        else if (ssData?.[0]?.variante_legal === 'ART_55') defaultIdSS = '2';
+        else if (ssData?.[0]?.variante_legal === 'ART_91') defaultIdSS = '3';
+      }
 
       const defaultIdAut = plan?.id_autorizacion_reconocimiento?.toString() || '';
 
@@ -490,7 +495,7 @@ export default function WizardLayoutTitulacion() {
                         <input type="date" value={item.configuracion.antecedente_fin} onChange={e => updateConfig(item.alumno.uid, 'antecedente_fin', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                       </div>
 
-                      {item.alumno.carrera?.nivel_educativo === 'ESPECIALIDAD' ? (
+                      {['ESPECIALIDAD', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO'].includes(item.alumno.carrera?.nivel_educativo || '') ? (
                         <div>
                           <label className="block text-xs font-bold text-gray-500 mb-1">Cédula Profesional (Obligatorio)</label>
                           <input type="text" value={item.configuracion.cedula_especialidad} onChange={e => updateConfig(item.alumno.uid, 'cedula_especialidad', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" placeholder="Núm. de Cédula" />
@@ -498,19 +503,17 @@ export default function WizardLayoutTitulacion() {
                       ) : <div />}
 
                       {/* Fila 3: Autorización y SS */}
-                      {item.alumno.carrera?.nivel_educativo === 'LICENCIATURA' ? (
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-bold text-gray-500 mb-1">Fundamento Legal Servicio Social</label>
-                          <select value={item.configuracion.fundamento_legal_ss} onChange={e => updateConfig(item.alumno.uid, 'fundamento_legal_ss', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] truncate">
-                            <option value="">(SIN SELECCIONAR)</option>
-                            <option value="1">1 - ART. 52 LRART. 5 CONST</option>
-                            <option value="2">2 - ART. 55 LRART. 5 CONST</option>
-                            <option value="3">3 - ART. 91 RLRART. 5 CONST</option>
-                            <option value="4">4 - ART. 10 REGLAMENTO PARA LA PRESTACIÓN DEL SERVICIO SOCIAL...</option>
-                            <option value="5">5 - NO APLICA</option>
-                          </select>
-                        </div>
-                      ) : <div className="md:col-span-2" />}
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Fundamento Legal Servicio Social</label>
+                        <select value={item.configuracion.fundamento_legal_ss} onChange={e => updateConfig(item.alumno.uid, 'fundamento_legal_ss', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] truncate ${!item.configuracion.fundamento_legal_ss ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`}>
+                          <option value="">(SIN SELECCIONAR)</option>
+                          <option value="1">1 - ART. 52 LRART. 5 CONST</option>
+                          <option value="2">2 - ART. 55 LRART. 5 CONST</option>
+                          <option value="3">3 - ART. 91 RLRART. 5 CONST</option>
+                          <option value="4">4 - ART. 10 REGLAMENTO PARA LA PRESTACIÓN DEL SERVICIO SOCIAL...</option>
+                          <option value="5">5 - NO APLICA</option>
+                        </select>
+                      </div>
 
                       {/* Warnings de Datos Base */}
                       <div className="col-span-1 md:col-span-2 lg:col-span-3 space-y-2 mt-2">
