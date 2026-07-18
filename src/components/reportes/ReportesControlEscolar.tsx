@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { MultiSelectFilter } from '../MultiSelectFilter';
 import { useAppStore } from '../../store/useAppStore';
 import { Alumno } from '../../types';
 import jsPDF from 'jspdf';
@@ -21,9 +22,10 @@ export const ReportesControlEscolar: React.FC = () => {
 
   // Estados de Filtros
   const [selectedCiclo, setSelectedCiclo] = useState<string>('TODOS');
-  const [selectedLicenciatura, setSelectedLicenciatura] = useState<string>('TODAS');
+  const [selectedLicenciaturas, setSelectedLicenciaturas] = useState<string[]>([]);
   const [selectedTurno, setSelectedTurno] = useState<string>('TODOS');
   const [selectedEstatus, setSelectedEstatus] = useState<string>('TODOS');
+  const [selectedTipoPlan, setSelectedTipoPlan] = useState<string>('TODOS');
   
   // Estado para mostrar correo
   const [showEmail, setShowEmail] = useState<boolean>(true);
@@ -37,8 +39,8 @@ export const ReportesControlEscolar: React.FC = () => {
         if (!hasPlanInCiclo && a.ciclo_ultima_asignacion_grado !== selectedCiclo) return false;
       }
       
-      // Filtrar por licenciatura
-      if (selectedLicenciatura !== 'TODAS' && a.licenciatura !== selectedLicenciatura) return false;
+      // Filtrar por licenciatura (MultiSelect)
+      if (selectedLicenciaturas.length > 0 && !selectedLicenciaturas.includes(a.licenciatura)) return false;
       
       // Filtrar por turno
       if (selectedTurno !== 'TODOS' && a.turno !== selectedTurno) return false;
@@ -46,14 +48,26 @@ export const ReportesControlEscolar: React.FC = () => {
       // Filtrar por estatus
       if (selectedEstatus !== 'TODOS' && a.estatus !== selectedEstatus) return false;
       
+      // Filtrar por tipo de plan
+      if (selectedTipoPlan !== 'TODOS') {
+        const studentPlans = plans.filter(p => p.alumno_id === a.id);
+        if (studentPlans.length > 0) {
+          const matches = studentPlans.some(p => p.tipo_plan && p.tipo_plan === selectedTipoPlan);
+          if (!matches) return false;
+        } else {
+          return false; // Si no tiene planes y se está filtrando estrictamente por un tipo de plan
+        }
+      }
+      
       return true;
     }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
-  }, [alumnos, selectedCiclo, selectedLicenciatura, selectedTurno, selectedEstatus, plans]);
+  }, [alumnos, selectedCiclo, selectedLicenciaturas, selectedTurno, selectedEstatus, selectedTipoPlan, plans]);
 
   const nombreCicloSeleccionado = ciclos.find(c => c.id === selectedCiclo)?.nombre || 'Todos los Ciclos';
   
-  // Lista única de estatus para el selector
+  // Lista única de estatus y tipo de plan para los selectores
   const estatusList = useMemo(() => Array.from(new Set(alumnos.map(a => a.estatus).filter(Boolean))).sort(), [alumnos]);
+  const tipoPlanList = useMemo(() => Array.from(new Set(plans.map(p => p.tipo_plan).filter(Boolean))).sort(), [plans]);
 
   // Exportar a CSV
   const handleExportCSV = () => {
@@ -97,7 +111,7 @@ export const ReportesControlEscolar: React.FC = () => {
     
     doc.setFontSize(11);
     doc.text(`Ciclo: ${nombreCicloSeleccionado}`, 14, 23);
-    doc.text(`Licenciatura: ${selectedLicenciatura === 'TODAS' ? 'Todas' : selectedLicenciatura}`, 14, 29);
+    doc.text(`Licenciatura: ${selectedLicenciaturas.length === 0 ? 'Todas' : selectedLicenciaturas.join(', ')}`, 14, 29);
     doc.text(`Turno: ${selectedTurno === 'TODOS' ? 'Todos' : selectedTurno}`, 14, 35);
     
     // Columnas
@@ -148,7 +162,7 @@ export const ReportesControlEscolar: React.FC = () => {
             <Clock size={16}/> Ciclo Escolar
           </label>
           <select 
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
             value={selectedCiclo}
             onChange={(e) => setSelectedCiclo(e.target.value)}
           >
@@ -159,18 +173,32 @@ export const ReportesControlEscolar: React.FC = () => {
           </select>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-[200px] z-20">
           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
             <GraduationCap size={16}/> Licenciatura
           </label>
+          <div className="w-full h-[42px]">
+            <MultiSelectFilter 
+              label={selectedLicenciaturas.length === 0 ? "Todas las Licenciaturas" : "Varias Licenciaturas"}
+              options={catalogos.licenciaturas}
+              selected={selectedLicenciaturas}
+              onChange={setSelectedLicenciaturas}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-[150px]">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+            <FileText size={16}/> Tipo de Plan
+          </label>
           <select 
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
-            value={selectedLicenciatura}
-            onChange={(e) => setSelectedLicenciatura(e.target.value)}
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
+            value={selectedTipoPlan}
+            onChange={(e) => setSelectedTipoPlan(e.target.value)}
           >
-            <option value="TODAS">Todas las Licenciaturas</option>
-            {catalogos.licenciaturas.map(lic => (
-              <option key={lic} value={lic}>{lic}</option>
+            <option value="TODOS">Todos los Planes</option>
+            {tipoPlanList.map(t => (
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
@@ -180,7 +208,7 @@ export const ReportesControlEscolar: React.FC = () => {
             <User size={16}/> Turno
           </label>
           <select 
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
             value={selectedTurno}
             onChange={(e) => setSelectedTurno(e.target.value)}
           >
@@ -196,7 +224,7 @@ export const ReportesControlEscolar: React.FC = () => {
             <CheckCircle size={16}/> Estatus
           </label>
           <select 
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
             value={selectedEstatus}
             onChange={(e) => setSelectedEstatus(e.target.value)}
           >
