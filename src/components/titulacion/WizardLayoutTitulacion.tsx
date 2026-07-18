@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, getAppConfig } from '../../lib/supabase';
-import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft, UserPlus, X, Settings, Users, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft, UserPlus, X, Settings, Users, Save, ChevronDown, ChevronUp, ShieldCheck, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { generarLayoutTitulacionDGAIR, TitulacionAlumnoData, ENTIDADES_CATALOGO, TIPOS_ANTECEDENTE_CATALOGO } from '../../utils/titulacionExportUtils';
 import type { AppConfig, Empleado } from '../../types';
@@ -128,7 +128,7 @@ export default function WizardLayoutTitulacion() {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      const alumnoObj = { ...al, plan, carrera, uid, inscripciones: inscData || [], servicio_social: ssData?.[0] };
+      const alumnoObj = { ...al, plan, carrera, uid, inscripciones: inscData || [], servicio_social: ssData?.[0], doc_curp: fichaTitulacionData?.[0]?.doc_curp };
 
       const defaultFolio = generateFolioPrefix(carrera?.nivel_educativo || '', carrera?.nombre || '');
       
@@ -223,16 +223,75 @@ export default function WizardLayoutTitulacion() {
     if (expandedId === uid) setExpandedId(null);
   };
 
-  const updateConfig = (uid: string, campo: string, valor: string) => {
-    setQueue(prev => prev.map(item => {
-      if (item.alumno.uid === uid) {
-        return {
-          ...item,
-          configuracion: { ...item.configuracion, [campo]: valor }
-        };
+  const updateConfig = (uid: string, field: string, value: string) => {
+    setQueue(prev => prev.map(q => {
+      if (q.alumno.uid === uid) {
+        return { ...q, configuracion: { ...q.configuracion, [field]: value } };
       }
-      return item;
+      return q;
     }));
+  };
+
+  const handleValidarCurp = async (uid: string) => {
+    const item = queue.find(q => q.alumno.uid === uid);
+    if (!item) return;
+
+    const curpInput = (item.alumno.curp || '').toUpperCase().trim();
+    if (curpInput.length !== 18) {
+      toast.error('La CURP debe tener exactamente 18 caracteres antes de validar.');
+      return;
+    }
+
+    const apiKey = import.meta.env.VITE_RAPIDAPI_CURP_KEY as string | undefined;
+    if (!apiKey || apiKey === 'TU_API_KEY_AQUI') {
+      toast.error('Configura VITE_RAPIDAPI_CURP_KEY en el archivo .env para usar esta función.');
+      return;
+    }
+
+    const normStr = (s: string) =>
+      (s ?? '').toUpperCase().replace(/Ñ/g, 'X').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, '');
+
+    await toast.promise(
+      (async () => {
+        const HOST = 'curp-mexico1.p.rapidapi.com';
+        const res = await fetch(`https://${HOST}/porCurp/${encodeURIComponent(curpInput)}`, {
+          method: 'GET',
+          headers: { 'x-rapidapi-host': HOST, 'x-rapidapi-key': apiKey, 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!res.ok) throw new Error('HTTP Error');
+        const data = await res.json();
+        const esErrorRENAPO = data?.error === true || (typeof data?.message === 'string' && data.message.toLowerCase().includes('no encontr'));
+        if (esErrorRENAPO) throw new Error('no_encontrada');
+
+        const curpOficial = (data?.curp ?? data?.data?.curp ?? data?.result?.curp ?? data?.CURP)?.toString().toUpperCase();
+
+        if (curpOficial && curpOficial.length === 18) {
+          setQueue(prev => prev.map(q => q.alumno.uid === uid ? { ...q, alumno: { ...q.alumno, curp: curpOficial, doc_curp: 'APROBADO' } } : q));
+          return;
+        }
+
+        const ap1API = data?.primerApellido ?? data?.apellidoPaterno ?? data?.data?.primerApellido ?? '';
+        const nombreAPI = data?.nombres ?? data?.nombre ?? data?.data?.nombres ?? '';
+
+        const ap1Local = normStr(item.alumno.apellido_paterno ?? '').slice(0, 5);
+        const ap1Remote = normStr(ap1API).slice(0, 5);
+        const nomLocal = normStr(item.alumno.nombres ?? '').slice(0, 3);
+        const nomRemote = normStr(nombreAPI).slice(0, 3);
+
+        const coincideBase = !curpOficial || normStr(curpInput.slice(0, 16)) === normStr(curpOficial.slice(0, 16));
+        if (curpOficial && !coincideBase) throw new Error('no_coincide');
+        if ((ap1API || nombreAPI) && ap1Local !== ap1Remote && nomLocal !== nomRemote) throw new Error('no_coincide');
+
+        setQueue(prev => prev.map(q => q.alumno.uid === uid ? { ...q, alumno: { ...q.alumno, doc_curp: 'APROBADO' } } : q));
+      })(),
+      {
+        loading: 'Consultando RENAPO...',
+        success: 'CURP verificada correctamente',
+        error: (err: any) => err.message === 'no_encontrada' ? 'CURP no existe en RENAPO' : 'Los datos no coinciden'
+      }
+    );
   };
 
   const handleExportar = async () => {
@@ -531,6 +590,22 @@ export default function WizardLayoutTitulacion() {
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">Correo Electrónico</label>
                         <input type="email" value={item.configuracion.correo} onChange={e => updateConfig(item.alumno.uid, 'correo', e.target.value.toLowerCase())} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] lowercase" />
+                      </div>
+
+                      <div className="md:col-span-2 lg:col-span-1">
+                        <label className="block text-xs font-bold text-gray-500 mb-1">CURP Oficial</label>
+                        <div className="flex items-center gap-2">
+                          <input type="text" readOnly value={item.alumno.curp || ''} className="w-full p-2 text-sm font-mono border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-[#151a1f] uppercase text-gray-500" />
+                          {item.alumno.doc_curp === 'APROBADO' ? (
+                            <div title="CURP Validada en RENAPO" className="flex items-center justify-center text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 w-10 h-10 rounded-lg shrink-0 cursor-default">
+                              <ShieldCheck size={20} />
+                            </div>
+                          ) : (
+                            <button title="Verificar en RENAPO" onClick={() => handleValidarCurp(item.alumno.uid)} className="flex items-center justify-center text-white bg-[#1456f0] hover:bg-blue-600 w-10 h-10 rounded-lg shrink-0 transition-colors">
+                              <ShieldAlert size={20} />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div>
