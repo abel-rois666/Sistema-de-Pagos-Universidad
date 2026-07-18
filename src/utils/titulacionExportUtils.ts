@@ -18,6 +18,9 @@ export interface TitulacionAlumnoData {
     escuela_procedencia: string;
     id_tipo_antecedente: string;
     entidad_federativa_antecedente: string;
+    fecha_inicio_carrera: string;
+    fecha_termino_carrera: string;
+    fecha_expedicion: string;
   };
 }
 
@@ -194,30 +197,10 @@ export async function generarLayoutTitulacionDGAIR(
       // Nombre Carrera
       const nombreCarreraFull = `${nivel} EN ${carrera.nombre || ''}`.toUpperCase();
 
-      // Fechas Inicio y Fin Ciclos (Obtenidas de tabla ciclos_escolares: fecha_inicio y fecha_termino)
-      let fInicioCiclo = '';
-      let fFinCiclo = '';
-      if (alumno.inscripciones && alumno.inscripciones.length > 0) {
-        const fechasInicio: Date[] = [];
-        const fechasFin: Date[] = [];
-        alumno.inscripciones.forEach((i: any) => {
-          if (i.ciclo) {
-            // Convertimos las fechas string a objetos Date (asumiendo formato YYYY-MM-DD o ISO)
-            if (i.ciclo.fecha_inicio) fechasInicio.push(new Date(i.ciclo.fecha_inicio + 'T00:00:00'));
-            if (i.ciclo.fecha_termino) fechasFin.push(new Date(i.ciclo.fecha_termino + 'T00:00:00'));
-          }
-        });
-        if (fechasInicio.length > 0) {
-          const minDate = new Date(Math.min(...fechasInicio.map(d => d.getTime())));
-          const isoStr = minDate.toISOString().split('T')[0];
-          fInicioCiclo = formatFechaDDMMAAAA(isoStr);
-        }
-        if (fechasFin.length > 0) {
-          const maxDate = new Date(Math.max(...fechasFin.map(d => d.getTime())));
-          const isoStr = maxDate.toISOString().split('T')[0];
-          fFinCiclo = formatFechaDDMMAAAA(isoStr);
-        }
-      }
+      // Fechas
+      const fInicioCiclo = formatFechaDDMMAAAA(configuracion.fecha_inicio_carrera);
+      const fFinCiclo = formatFechaDDMMAAAA(configuracion.fecha_termino_carrera);
+      const fechaExpedicionStr = formatFechaDDMMAAAA(configuracion.fecha_expedicion);
 
       // Servicio Social
       let cumplioSS = '0';
@@ -285,7 +268,7 @@ export async function generarLayoutTitulacionDGAIR(
         (alumno.apellido_paterno || '').toUpperCase(), // 27
         (alumno.apellido_materno || '').toUpperCase(), // 28
         (configuracion.correo || '').toLowerCase(), // 29
-        fechaActual, // 30
+        fechaExpedicionStr, // 30
         configuracion.modalidad_id || '', // 31
         descModalidad, // 32
         configuracion.modalidad_id === '1' ? formatFechaDDMMAAAA(configuracion.fecha_examen) : '', // 33

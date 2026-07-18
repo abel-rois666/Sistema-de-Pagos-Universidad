@@ -168,6 +168,23 @@ export default function WizardLayoutTitulacion() {
       const entidadProcedenciaObj = Object.values(ENTIDADES_CATALOGO).find(e => e.nombre === (al.estado_escolaridad || '').trim().toUpperCase() || e.id === parseInt(al.estado_escolaridad || '', 10).toString().padStart(2, '0'));
       const defaultIdEntidadAnt = entidadProcedenciaObj ? entidadProcedenciaObj.id : '';
 
+      let defFInicioCarrera = '';
+      let defFFinCarrera = '';
+      if (inscData && inscData.length > 0) {
+        const fechasInicio: Date[] = [];
+        const fechasFin: Date[] = [];
+        inscData.forEach((i: any) => {
+          if (i.ciclo) {
+            if (i.ciclo.fecha_inicio) fechasInicio.push(new Date(i.ciclo.fecha_inicio + 'T00:00:00'));
+            if (i.ciclo.fecha_termino) fechasFin.push(new Date(i.ciclo.fecha_termino + 'T00:00:00'));
+          }
+        });
+        if (fechasInicio.length > 0) defFInicioCarrera = new Date(Math.min(...fechasInicio.map(d => d.getTime()))).toISOString().split('T')[0];
+        if (fechasFin.length > 0) defFFinCarrera = new Date(Math.max(...fechasFin.map(d => d.getTime()))).toISOString().split('T')[0];
+      }
+      
+      const defFechaExpedicion = new Date().toISOString().split('T')[0];
+
       const newItem: TitulacionAlumnoData = {
         alumno: alumnoObj,
         configuracion: {
@@ -183,7 +200,10 @@ export default function WizardLayoutTitulacion() {
           fundamento_legal_ss: defaultIdSS,
           escuela_procedencia: al.escuela_procedencia || '',
           id_tipo_antecedente: defaultIdTipoAnt,
-          entidad_federativa_antecedente: defaultIdEntidadAnt
+          entidad_federativa_antecedente: defaultIdEntidadAnt,
+          fecha_inicio_carrera: defFInicioCarrera,
+          fecha_termino_carrera: defFFinCarrera,
+          fecha_expedicion: defFechaExpedicion
         }
       };
 
@@ -244,20 +264,8 @@ export default function WizardLayoutTitulacion() {
       const f2Str = q.configuracion.antecedente_fin;
       const f3Str = q.configuracion.fecha_examen || q.configuracion.fecha_exencion;
 
-      let fInicioCarrera: Date | null = null;
-      let fFinCarrera: Date | null = null;
-      if (q.alumno.inscripciones && q.alumno.inscripciones.length > 0) {
-        const fechasInicio: Date[] = [];
-        const fechasFin: Date[] = [];
-        q.alumno.inscripciones.forEach((i: any) => {
-          if (i.ciclo) {
-            if (i.ciclo.fecha_inicio) fechasInicio.push(new Date(i.ciclo.fecha_inicio + 'T00:00:00'));
-            if (i.ciclo.fecha_termino) fechasFin.push(new Date(i.ciclo.fecha_termino + 'T00:00:00'));
-          }
-        });
-        if (fechasInicio.length > 0) fInicioCarrera = new Date(Math.min(...fechasInicio.map(d => d.getTime())));
-        if (fechasFin.length > 0) fFinCarrera = new Date(Math.max(...fechasFin.map(d => d.getTime())));
-      }
+      let fInicioCarrera: Date | null = q.configuracion.fecha_inicio_carrera ? new Date(q.configuracion.fecha_inicio_carrera + 'T00:00:00') : null;
+      let fFinCarrera: Date | null = q.configuracion.fecha_termino_carrera ? new Date(q.configuracion.fecha_termino_carrera + 'T00:00:00') : null;
 
       if (f1Str && f2Str) {
         if (new Date(f1Str + 'T00:00:00') > new Date(f2Str + 'T00:00:00')) {
@@ -283,11 +291,10 @@ export default function WizardLayoutTitulacion() {
         }
       }
 
-      if (f3Str) {
-        const fExpedicion = new Date(); // Fecha actual por defecto al exportar
-        fExpedicion.setHours(0, 0, 0, 0);
+      if (f3Str && q.configuracion.fecha_expedicion) {
+        const fExpedicion = new Date(q.configuracion.fecha_expedicion + 'T00:00:00');
         if (new Date(f3Str + 'T00:00:00') > fExpedicion) {
-          warnings.push(`La Fecha Examen/Exención no puede ser mayor a la Fecha de Expedición (Hoy) para ${q.alumno.nombre_completo}`);
+          warnings.push(`La Fecha Examen/Exención no puede ser mayor a la Fecha de Expedición para ${q.alumno.nombre_completo}`);
         }
       }
     });
@@ -317,7 +324,7 @@ export default function WizardLayoutTitulacion() {
         <div className="flex items-center gap-4">
           <FileSpreadsheet className="w-8 h-8 text-[#1456f0]" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Wizard DGAIR: Titulación</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Wizard DGP: Titulación</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Generación de Layout de Títulos</p>
           </div>
         </div>
@@ -559,6 +566,22 @@ export default function WizardLayoutTitulacion() {
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Término Antecedente <span className="text-red-500">*</span></label>
                         <input type="date" value={item.configuracion.antecedente_fin} onChange={e => updateConfig(item.alumno.uid, 'antecedente_fin', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
+                      </div>
+
+                      {/* Nuevas Fechas Editables */}
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Inicio de Carrera <span className="text-red-500">*</span></label>
+                        <input type="date" value={item.configuracion.fecha_inicio_carrera} onChange={e => updateConfig(item.alumno.uid, 'fecha_inicio_carrera', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.fecha_inicio_carrera ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`} />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Término de Carrera <span className="text-red-500">*</span></label>
+                        <input type="date" value={item.configuracion.fecha_termino_carrera} onChange={e => updateConfig(item.alumno.uid, 'fecha_termino_carrera', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.fecha_termino_carrera ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`} />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Fecha de Expedición <span className="text-red-500">*</span></label>
+                        <input type="date" value={item.configuracion.fecha_expedicion} onChange={e => updateConfig(item.alumno.uid, 'fecha_expedicion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                       </div>
 
                       {['ESPECIALIDAD', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO'].includes((item.alumno.carrera?.nivel_educativo || '').toUpperCase()) ? (
