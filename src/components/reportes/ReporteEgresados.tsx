@@ -66,7 +66,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
         const { data, error } = await supabase
           .from('inscripciones_academicas')
-          .select('alumno_id, ciclo_id'); 
+          .select('alumno_id, ciclo_id, ciclo_legado'); 
 
         if (error) throw error;
         
@@ -75,23 +75,28 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           return acc;
         }, {} as Record<string, string>);
 
-        const ultimosCiclos: Record<string, { id: string, weight: number }> = {};
+        const ultimosCiclos: Record<string, { nombre: string, weight: number }> = {};
 
         (data || []).forEach(ins => {
           if (!egresadosIds.includes(ins.alumno_id)) return;
-          if (!ins.ciclo_id) return;
           
-          const nombreCiclo = ciclosMap[ins.ciclo_id];
+          let nombreCiclo = ins.ciclo_legado;
+          if (!nombreCiclo && ins.ciclo_id) {
+            nombreCiclo = ciclosMap[ins.ciclo_id];
+          }
+          
+          if (!nombreCiclo) return;
+          
           const weight = getCicloWeight(nombreCiclo);
 
           if (!ultimosCiclos[ins.alumno_id] || weight > ultimosCiclos[ins.alumno_id].weight) {
-            ultimosCiclos[ins.alumno_id] = { id: ins.ciclo_id, weight };
+            ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, weight };
           }
         });
 
         const finalMap: Record<string, string> = {};
         Object.keys(ultimosCiclos).forEach(alumnoId => {
-          finalMap[alumnoId] = ultimosCiclos[alumnoId].id;
+          finalMap[alumnoId] = ultimosCiclos[alumnoId].nombre;
         });
 
         setCiclosEgresoMap(finalMap);
@@ -122,18 +127,12 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
   }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap]);
 
-  const ciclosEgresoUnicosIds = useMemo(() => {
-    const ids = new Set(Object.values(ciclosEgresoMap));
-    return Array.from(ids);
+  const ciclosEgresoOptions = useMemo(() => {
+    const nombres = new Set(Object.values(ciclosEgresoMap));
+    return Array.from(nombres).sort((a, b) => b.localeCompare(a)); 
   }, [ciclosEgresoMap]);
 
-  const ciclosEgresoOptions = useMemo(() => {
-    return ciclos
-      .filter(c => ciclosEgresoUnicosIds.includes(c.id))
-      .sort((a, b) => b.nombre.localeCompare(a.nombre)); 
-  }, [ciclos, ciclosEgresoUnicosIds]);
-
-  const nombreCicloSeleccionado = ciclos.find(c => c.id === selectedCicloEgreso)?.nombre || 'Todos los Ciclos';
+  const nombreCicloSeleccionado = selectedCicloEgreso === 'TODOS' ? 'Todos los Ciclos' : selectedCicloEgreso;
 
   // Exportar a CSV
   const handleExportCSV = () => {
@@ -145,7 +144,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
     filteredEgresados.forEach(a => {
       const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const cicloEgresoNombre = ciclos.find(c => c.id === ciclosEgresoMap[a.id])?.nombre || 'Desconocido';
+      const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Desconocido';
       const row = [
         `"${a.nombre_completo}"`,
         `"${a.licenciatura}"`,
@@ -187,7 +186,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     
     const data = filteredEgresados.map(a => {
       const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const cicloEgresoNombre = ciclos.find(c => c.id === ciclosEgresoMap[a.id])?.nombre || 'Desconocido';
+      const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Desconocido';
       const row = [a.nombre_completo, a.licenciatura, a.estatus || '', cicloEgresoNombre, telefonos];
       if (showEmail) row.push(a.email || '');
       return row;
@@ -245,8 +244,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                 onChange={(e) => setSelectedCicloEgreso(e.target.value)}
               >
                 <option value="TODOS">Todos los Ciclos</option>
-                {ciclosEgresoOptions.map(c => (
-                  <option key={c.id} value={c.id}>{c.nombre} {c.tipo_periodo ? `(${c.tipo_periodo})` : ''}</option>
+                {ciclosEgresoOptions.map(nombre => (
+                  <option key={nombre} value={nombre}>{nombre}</option>
                 ))}
               </select>
             </div>
@@ -333,7 +332,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                 {filteredEgresados.length > 0 ? (
                   filteredEgresados.map((a) => {
                     const esTitulado = a.estatus === 'EGRESADO TITULADO';
-                    const cicloEgresoNombre = ciclos.find(c => c.id === ciclosEgresoMap[a.id])?.nombre || 'Desconocido';
+                    const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Desconocido';
                     
                     return (
                       <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
