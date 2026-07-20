@@ -13,12 +13,16 @@ import {
   EyeOff,
   Clock,
   ArrowLeft,
-  Loader2
+  Loader2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface Props {
   onBack: () => void;
 }
+
+const PAGE_SIZE = 50;
 
 // Función auxiliar para determinar el peso del ciclo (mayor es más reciente)
 const getCicloWeight = (cicloNombre?: string): number => {
@@ -37,12 +41,13 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const { alumnos, ciclos, catalogos } = useAppStore();
   
   const [loading, setLoading] = useState(true);
-  const [ciclosEgresoMap, setCiclosEgresoMap] = useState<Record<string, string>>({}); // { alumno_id: ciclo_id }
+  const [ciclosEgresoMap, setCiclosEgresoMap] = useState<Record<string, string>>({});
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Estados de Filtros
   const [selectedCicloEgreso, setSelectedCicloEgreso] = useState<string>('TODOS');
   const [selectedLicenciaturas, setSelectedLicenciaturas] = useState<string[]>([]);
-  const [selectedSegmento, setSelectedSegmento] = useState<string>('TODOS'); // TODOS, TITULADOS, NO_TITULADOS
+  const [selectedSegmento, setSelectedSegmento] = useState<string>('TODOS');
   
   // Estado para mostrar correo
   const [showEmail, setShowEmail] = useState<boolean>(true);
@@ -52,7 +57,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     return alumnos.filter(a => a.estatus === 'EGRESADO' || a.estatus === 'EGRESADO TITULADO');
   }, [alumnos]);
 
-  // 2. Fetch de inscripciones_academicas solo para egresados
+  // 2. Fetch PAGINADO de inscripciones_academicas para superar el límite de 1000 filas de Supabase
   useEffect(() => {
     const fetchCiclosEgreso = async () => {
       setLoading(true);
@@ -60,47 +65,71 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         const egresadosIds = egresadosBase.map(a => a.id);
         
         if (egresadosIds.length === 0) {
+          setCiclosEgresoMap({});
           setLoading(false);
           return;
         }
 
-        const { data, error } = await supabase
-          .from('inscripciones_academicas')
-          .select('alumno_id, ciclo_id, ciclo_legado, asignaturas(numero_periodo)'); 
+        // Crear un Set para lookup rápido
+        const egresadosSet = new Set(egresadosIds);
 
-        if (error) throw error;
-        
         const ciclosMap = ciclos.reduce((acc, c) => {
           acc[c.id] = c.nombre;
           return acc;
         }, {} as Record<string, string>);
 
-        // Guardamos el ciclo asociado al numero_periodo más alto de la retícula
         const ultimosCiclos: Record<string, { nombre: string, maxPeriodo: number, weight: number }> = {};
 
-        (data || []).forEach((ins: any) => {
-          if (!egresadosIds.includes(ins.alumno_id)) return;
-          
-          let nombreCiclo = ins.ciclo_legado;
-          if (!nombreCiclo && ins.ciclo_id) {
-            nombreCiclo = ciclosMap[ins.ciclo_id];
-          }
-          
-          if (!nombreCiclo) return;
-          
-          const weight = getCicloWeight(nombreCiclo);
-          const numPeriodo = ins.asignaturas?.numero_periodo || 1;
+        // Fetch paginado: traer en bloques de 5000 hasta agotar resultados
+        const BATCH_SIZE = 5000;
+        let offset = 0;
+        let hasMore = true;
 
-          if (!ultimosCiclos[ins.alumno_id]) {
-            ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
-          } else {
-            // Si el periodo de esta materia es mayor al que tenemos, o es el mismo pero en un ciclo más reciente
-            if (numPeriodo > ultimosCiclos[ins.alumno_id].maxPeriodo || 
-               (numPeriodo === ultimosCiclos[ins.alumno_id].maxPeriodo && weight > ultimosCiclos[ins.alumno_id].weight)) {
-              ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
-            }
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('inscripciones_academicas')
+            .select('alumno_id, ciclo_id, ciclo_legado, asignaturas(numero_periodo)')
+            .range(offset, offset + BATCH_SIZE - 1);
+
+          if (error) throw error;
+
+          if (!data || data.length === 0) {
+            hasMore = false;
+            break;
           }
-        });
+
+          data.forEach((ins: any) => {
+            if (!egresadosSet.has(ins.alumno_id)) return;
+            
+            // Priorizar ciclo_legado (viene del Kardex GES), fallback a ciclo_id
+            let nombreCiclo = ins.ciclo_legado;
+            if (!nombreCiclo && ins.ciclo_id) {
+              nombreCiclo = ciclosMap[ins.ciclo_id];
+            }
+            
+            if (!nombreCiclo) return;
+            
+            const weight = getCicloWeight(nombreCiclo);
+            const numPeriodo = ins.asignaturas?.numero_periodo || 1;
+
+            if (!ultimosCiclos[ins.alumno_id]) {
+              ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+            } else {
+              const prev = ultimosCiclos[ins.alumno_id];
+              // El periodo más alto gana; si empatan, el ciclo más reciente gana
+              if (numPeriodo > prev.maxPeriodo || 
+                 (numPeriodo === prev.maxPeriodo && weight > prev.weight)) {
+                ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+              }
+            }
+          });
+
+          if (data.length < BATCH_SIZE) {
+            hasMore = false;
+          } else {
+            offset += BATCH_SIZE;
+          }
+        }
 
         const finalMap: Record<string, string> = {};
         Object.keys(ultimosCiclos).forEach(alumnoId => {
@@ -135,6 +164,16 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
   }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap]);
 
+  // Reset de página al cambiar filtros
+  useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento]);
+
+  // Paginación
+  const totalPages = Math.max(1, Math.ceil(filteredEgresados.length / PAGE_SIZE));
+  const paginatedEgresados = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredEgresados.slice(start, start + PAGE_SIZE);
+  }, [filteredEgresados, currentPage]);
+
   const ciclosEgresoOptions = useMemo(() => {
     const nombres = new Set<string>(Object.values(ciclosEgresoMap));
     return Array.from(nombres).sort((a, b) => b.localeCompare(a)); 
@@ -142,7 +181,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   const nombreCicloSeleccionado = selectedCicloEgreso === 'TODOS' ? 'Todos los Ciclos' : selectedCicloEgreso;
 
-  // Exportar a CSV
+  // Exportar a CSV (exporta TODOS los filtrados, no solo la página actual)
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
     
@@ -173,7 +212,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     document.body.removeChild(link);
   };
 
-  // Exportar a PDF
+  // Exportar a PDF (exporta TODOS los filtrados)
   const handleExportPDF = (action: 'download' | 'print') => {
     const doc = new jsPDF();
     
@@ -328,6 +367,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
             <table className="w-full text-left border-collapse">
               <thead className="bg-gray-50 dark:bg-[#2a3441] sticky top-0 z-10 shadow-sm">
                 <tr>
+                  <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">#</th>
                   <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Nombre Completo</th>
                   <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Licenciatura</th>
                   <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Estatus</th>
@@ -337,13 +377,15 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-transparent">
-                {filteredEgresados.length > 0 ? (
-                  filteredEgresados.map((a) => {
+                {paginatedEgresados.length > 0 ? (
+                  paginatedEgresados.map((a, idx) => {
                     const esTitulado = a.estatus === 'EGRESADO TITULADO';
-                    const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Desconocido';
+                    const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
+                    const rowNumber = (currentPage - 1) * PAGE_SIZE + idx + 1;
                     
                     return (
                       <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        <td className="p-3 text-xs text-gray-400 dark:text-gray-500 tabular-nums">{rowNumber}</td>
                         <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">{a.nombre_completo}</td>
                         <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{a.licenciatura}</td>
                         <td className="p-3 text-sm">
@@ -365,7 +407,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={showEmail ? 6 : 5} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={showEmail ? 7 : 6} className="p-8 text-center text-gray-500 dark:text-gray-400">
                       <Filter size={32} className="mx-auto mb-2 opacity-50" />
                       No se encontraron egresados con los filtros seleccionados
                     </td>
@@ -374,6 +416,56 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               </tbody>
             </table>
           </div>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} – {Math.min(currentPage * PAGE_SIZE, filteredEgresados.length)} de {filteredEgresados.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 7) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 4) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 3) {
+                    pageNum = totalPages - 6 + i;
+                  } else {
+                    pageNum = currentPage - 3 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === pageNum 
+                          ? 'bg-purple-600 text-white shadow-sm' 
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
