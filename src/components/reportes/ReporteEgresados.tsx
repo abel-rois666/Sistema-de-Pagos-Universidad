@@ -13,16 +13,12 @@ import {
   EyeOff,
   Clock,
   ArrowLeft,
-  Loader2,
-  ChevronLeft,
-  ChevronRight
+  Loader2
 } from 'lucide-react';
 
 interface Props {
   onBack: () => void;
 }
-
-const PAGE_SIZE = 50;
 
 // Función auxiliar para determinar el peso del ciclo (mayor es más reciente)
 const getCicloWeight = (cicloNombre?: string): number => {
@@ -42,7 +38,10 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   
   const [loading, setLoading] = useState(true);
   const [ciclosEgresoMap, setCiclosEgresoMap] = useState<Record<string, string>>({});
-  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Paginación
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Estados de Filtros
   const [selectedCicloEgreso, setSelectedCicloEgreso] = useState<string>('TODOS');
@@ -57,7 +56,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     return alumnos.filter(a => a.estatus === 'EGRESADO' || a.estatus === 'EGRESADO TITULADO');
   }, [alumnos]);
 
-  // 2. Fetch PAGINADO de inscripciones_academicas para superar el límite de 1000 filas de Supabase
+  // 2. Fetch de inscripciones_academicas SOLO para egresados, en lotes
   useEffect(() => {
     const fetchCiclosEgreso = async () => {
       setLoading(true);
@@ -70,9 +69,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           return;
         }
 
-        // Crear un Set para lookup rápido
-        const egresadosSet = new Set(egresadosIds);
-
+        // Mapa de ciclo_id -> nombre para resolver el FK
         const ciclosMap = ciclos.reduce((acc, c) => {
           acc[c.id] = c.nombre;
           return acc;
@@ -80,54 +77,59 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
         const ultimosCiclos: Record<string, { nombre: string, maxPeriodo: number, weight: number }> = {};
 
-        // Fetch paginado: traer en bloques de 5000 hasta agotar resultados
-        const BATCH_SIZE = 5000;
-        let offset = 0;
-        let hasMore = true;
+        // Fetch en lotes de 50 alumnos usando .in() para filtrar directamente en Supabase
+        const BATCH = 50;
+        for (let i = 0; i < egresadosIds.length; i += BATCH) {
+          const batch = egresadosIds.slice(i, i + BATCH);
+          
+          // Traer TODAS las inscripciones de este lote de alumnos (sin límite de 1000)
+          let offset = 0;
+          let hasMore = true;
+          while (hasMore) {
+            const { data, error } = await supabase
+              .from('inscripciones_academicas')
+              .select('alumno_id, ciclo_id, ciclo_legado, asignatura_id, asignaturas(numero_periodo)')
+              .in('alumno_id', batch)
+              .range(offset, offset + 4999);
 
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from('inscripciones_academicas')
-            .select('alumno_id, ciclo_id, ciclo_legado, asignaturas(numero_periodo)')
-            .range(offset, offset + BATCH_SIZE - 1);
-
-          if (error) throw error;
-
-          if (!data || data.length === 0) {
-            hasMore = false;
-            break;
-          }
-
-          data.forEach((ins: any) => {
-            if (!egresadosSet.has(ins.alumno_id)) return;
-            
-            // Priorizar ciclo_legado (viene del Kardex GES), fallback a ciclo_id
-            let nombreCiclo = ins.ciclo_legado;
-            if (!nombreCiclo && ins.ciclo_id) {
-              nombreCiclo = ciclosMap[ins.ciclo_id];
+            if (error) {
+              console.error('Error fetching inscripciones:', error);
+              break;
             }
-            
-            if (!nombreCiclo) return;
-            
-            const weight = getCicloWeight(nombreCiclo);
-            const numPeriodo = ins.asignaturas?.numero_periodo || 1;
 
-            if (!ultimosCiclos[ins.alumno_id]) {
-              ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
-            } else {
-              const prev = ultimosCiclos[ins.alumno_id];
-              // El periodo más alto gana; si empatan, el ciclo más reciente gana
-              if (numPeriodo > prev.maxPeriodo || 
-                 (numPeriodo === prev.maxPeriodo && weight > prev.weight)) {
-                ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+            if (!data || data.length === 0) {
+              hasMore = false;
+              break;
+            }
+
+            data.forEach((ins: any) => {
+              // Resolver el nombre del ciclo: priorizar ciclo_legado, luego resolver FK
+              let nombreCiclo = ins.ciclo_legado;
+              if (!nombreCiclo && ins.ciclo_id) {
+                nombreCiclo = ciclosMap[ins.ciclo_id];
               }
-            }
-          });
+              if (!nombreCiclo) return;
 
-          if (data.length < BATCH_SIZE) {
-            hasMore = false;
-          } else {
-            offset += BATCH_SIZE;
+              const weight = getCicloWeight(nombreCiclo);
+              const numPeriodo = ins.asignaturas?.numero_periodo || 1;
+
+              if (!ultimosCiclos[ins.alumno_id]) {
+                ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+              } else {
+                const prev = ultimosCiclos[ins.alumno_id];
+                // El periodo más alto gana; si empatan, el ciclo más reciente gana
+                if (numPeriodo > prev.maxPeriodo || 
+                   (numPeriodo === prev.maxPeriodo && weight > prev.weight)) {
+                  ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+                }
+              }
+            });
+
+            if (data.length < 5000) {
+              hasMore = false;
+            } else {
+              offset += 5000;
+            }
           }
         }
 
@@ -165,14 +167,15 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap]);
 
   // Reset de página al cambiar filtros
-  useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento]);
+  useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, itemsPerPage]);
 
   // Paginación
-  const totalPages = Math.max(1, Math.ceil(filteredEgresados.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredEgresados.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, filteredEgresados.length);
   const paginatedEgresados = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredEgresados.slice(start, start + PAGE_SIZE);
-  }, [filteredEgresados, currentPage]);
+    return filteredEgresados.slice(startIndex, endIndex);
+  }, [filteredEgresados, startIndex, endIndex]);
 
   const ciclosEgresoOptions = useMemo(() => {
     const nombres = new Set<string>(Object.values(ciclosEgresoMap));
@@ -181,7 +184,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   const nombreCicloSeleccionado = selectedCicloEgreso === 'TODOS' ? 'Todos los Ciclos' : selectedCicloEgreso;
 
-  // Exportar a CSV (exporta TODOS los filtrados, no solo la página actual)
+  // Exportar a CSV (exporta TODOS los filtrados)
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
     
@@ -191,7 +194,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
     filteredEgresados.forEach(a => {
       const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Desconocido';
+      const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
       const row = [
         `"${a.nombre_completo}"`,
         `"${a.licenciatura}"`,
@@ -231,9 +234,9 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     const head = [['Nombre Completo', 'Licenciatura', 'Estatus', 'Ciclo Egreso', 'Teléfonos']];
     if (showEmail) head[0].push('Correo');
     
-    const data = filteredEgresados.map(a => {
+    const tableData = filteredEgresados.map(a => {
       const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Desconocido';
+      const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
       const row = [a.nombre_completo, a.licenciatura, a.estatus || '', cicloEgresoNombre, telefonos];
       if (showEmail) row.push(a.email || '');
       return row;
@@ -242,7 +245,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     autoTable(doc, {
       startY: 40,
       head: head,
-      body: data,
+      body: tableData,
       theme: 'grid',
       styles: { fontSize: 8 },
       headStyles: { fillColor: [147, 51, 234] },
@@ -381,7 +384,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                   paginatedEgresados.map((a, idx) => {
                     const esTitulado = a.estatus === 'EGRESADO TITULADO';
                     const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
-                    const rowNumber = (currentPage - 1) * PAGE_SIZE + idx + 1;
+                    const rowNumber = startIndex + idx + 1;
                     
                     return (
                       <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
@@ -417,51 +420,67 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
             </table>
           </div>
 
-          {/* Paginación */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} – {Math.min(currentPage * PAGE_SIZE, filteredEgresados.length)} de {filteredEgresados.length}
-              </span>
-              <div className="flex items-center gap-1">
+          {/* Paginación estilo AlumnosConfig */}
+          {filteredEgresados.length > 0 && (
+            <div className="p-4 border-t border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50 flex flex-col md:flex-row items-center justify-between gap-4 rounded-b-xl mt-0">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium">Mostrar</span>
+                <select
+                  className="border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-md text-sm p-1.5 bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 outline-none focus:ring-2 focus:ring-[#3b82f6] font-medium cursor-pointer"
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium">alumnos</span>
+              </div>
+              <div className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium bg-white dark:bg-[#1c2228] px-3 py-1.5 rounded-[8px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] shadow-[var(--shadow-subtle)]">
+                Mostrando <span className="text-gray-900 dark:text-gray-100 font-bold">{startIndex + 1}</span> a <span className="text-gray-900 dark:text-gray-100 font-bold">{endIndex}</span> de <span className="text-gray-900 dark:text-gray-100 font-bold">{filteredEgresados.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  className="px-4 py-1.5 text-sm border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] disabled:opacity-40 hover:bg-white dark:hover:bg-gray-700 text-[#45515e] dark:text-gray-300 font-bold transition-all shadow-[var(--shadow-subtle)] hover:shadow active:scale-95"
                 >
-                  <ChevronLeft size={18} />
+                  Anterior
                 </button>
-                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalPages <= 7) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 4) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 3) {
-                    pageNum = totalPages - 6 + i;
-                  } else {
-                    pageNum = currentPage - 3 + i;
-                  }
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
-                        currentPage === pageNum 
-                          ? 'bg-purple-600 text-white shadow-sm' 
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[#45515e] dark:text-gray-300 font-medium">Página</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages || 1}
+                    value={currentPage || ''}
+                    title="Ir a página"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setCurrentPage(val as any);
+                        return;
+                      }
+                      let p = parseInt(val, 10);
+                      if (isNaN(p)) return;
+                      if (p > totalPages) p = totalPages;
+                      if (p < 1) p = 1;
+                      setCurrentPage(p);
+                    }}
+                    onBlur={() => {
+                      if (!currentPage || currentPage < 1) setCurrentPage(1);
+                    }}
+                    className="w-16 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-md p-1.5 text-center text-sm font-bold bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] transition-all"
+                  />
+                  <span className="text-sm text-[#45515e] dark:text-gray-300 font-medium">de {totalPages || 1}</span>
+                </div>
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  className="px-4 py-1.5 text-sm border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] disabled:opacity-40 hover:bg-white dark:hover:bg-gray-700 text-[#45515e] dark:text-gray-300 font-bold transition-all shadow-[var(--shadow-subtle)] hover:shadow active:scale-95"
                 >
-                  <ChevronRight size={18} />
+                  Siguiente
                 </button>
               </div>
             </div>
