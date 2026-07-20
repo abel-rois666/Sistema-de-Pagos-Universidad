@@ -66,7 +66,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
         const { data, error } = await supabase
           .from('inscripciones_academicas')
-          .select('alumno_id, ciclo_id, ciclo_legado'); 
+          .select('alumno_id, ciclo_id, ciclo_legado, asignaturas(numero_periodo)'); 
 
         if (error) throw error;
         
@@ -75,9 +75,10 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           return acc;
         }, {} as Record<string, string>);
 
-        const ultimosCiclos: Record<string, { nombre: string, weight: number }> = {};
+        // Guardamos el ciclo asociado al numero_periodo más alto de la retícula
+        const ultimosCiclos: Record<string, { nombre: string, maxPeriodo: number, weight: number }> = {};
 
-        (data || []).forEach(ins => {
+        (data || []).forEach((ins: any) => {
           if (!egresadosIds.includes(ins.alumno_id)) return;
           
           let nombreCiclo = ins.ciclo_legado;
@@ -88,9 +89,16 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           if (!nombreCiclo) return;
           
           const weight = getCicloWeight(nombreCiclo);
+          const numPeriodo = ins.asignaturas?.numero_periodo || 1;
 
-          if (!ultimosCiclos[ins.alumno_id] || weight > ultimosCiclos[ins.alumno_id].weight) {
-            ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, weight };
+          if (!ultimosCiclos[ins.alumno_id]) {
+            ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+          } else {
+            // Si el periodo de esta materia es mayor al que tenemos, o es el mismo pero en un ciclo más reciente
+            if (numPeriodo > ultimosCiclos[ins.alumno_id].maxPeriodo || 
+               (numPeriodo === ultimosCiclos[ins.alumno_id].maxPeriodo && weight > ultimosCiclos[ins.alumno_id].weight)) {
+              ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+            }
           }
         });
 
@@ -128,7 +136,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap]);
 
   const ciclosEgresoOptions = useMemo(() => {
-    const nombres = new Set(Object.values(ciclosEgresoMap));
+    const nombres = new Set<string>(Object.values(ciclosEgresoMap));
     return Array.from(nombres).sort((a, b) => b.localeCompare(a)); 
   }, [ciclosEgresoMap]);
 
