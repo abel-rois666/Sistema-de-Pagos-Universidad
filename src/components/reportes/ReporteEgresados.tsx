@@ -121,73 +121,75 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
         const ultimosCiclos: Record<string, { nombre: string, maxPeriodo: number, weight: number }> = {};
         const certMap: Record<string, string> = {};
-        const BATCH = 50;
+        const BATCH = 200;
 
+        // 1. Fetch de Fichas de Certificación (En paralelo para todos los lotes)
+        const certPromises = [];
+        for (let i = 0; i < egresadosIds.length; i += 500) {
+          certPromises.push(
+            supabase.from('ficha_certificacion')
+              .select('alumno_id, tramite_completado')
+              .in('alumno_id', egresadosIds.slice(i, i + 500))
+          );
+        }
+
+        // 2. Fetch de Inscripciones Académicas (En paralelo para todos los lotes)
+        const insPromises = [];
         for (let i = 0; i < egresadosIds.length; i += BATCH) {
           const batch = egresadosIds.slice(i, i + BATCH);
-          
-          // ---- A. Cargar Ciclo de Egreso ----
-          let offset = 0;
-          let hasMore = true;
-          const BATCH_ROWS = 1000;
-          
-          while (hasMore) {
-            const { data, error } = await supabase
-              .from('inscripciones_academicas')
-              .select('alumno_id, ciclo_id, ciclo_legado, asignatura_id, asignaturas(numero_periodo)')
-              .in('alumno_id', batch)
-              .range(offset, offset + BATCH_ROWS - 1);
+          insPromises.push((async () => {
+            let offset = 0;
+            let hasMore = true;
+            const BATCH_ROWS = 1000;
+            
+            while (hasMore) {
+              const { data, error } = await supabase
+                .from('inscripciones_academicas')
+                .select('alumno_id, ciclo_id, ciclo_legado, asignatura_id, asignaturas(numero_periodo)')
+                .in('alumno_id', batch)
+                .range(offset, offset + BATCH_ROWS - 1);
 
-            if (error) {
-              console.error('Error fetching inscripciones:', error);
-              break;
-            }
-
-            if (!data || data.length === 0) {
-              hasMore = false;
-              break;
-            }
-
-            data.forEach((ins: any) => {
-              let nombreCiclo = ins.ciclo_legado;
-              if (!nombreCiclo && ins.ciclo_id) {
-                nombreCiclo = ciclosMap[ins.ciclo_id];
+              if (error || !data || data.length === 0) {
+                if (error) console.error('Error fetching inscripciones:', error);
+                hasMore = false;
+                break;
               }
-              if (!nombreCiclo) return;
 
-              const weight = getCicloWeight(nombreCiclo);
-              const numPeriodo = ins.asignaturas?.numero_periodo || 1;
+              data.forEach((ins: any) => {
+                let nombreCiclo = ins.ciclo_legado;
+                if (!nombreCiclo && ins.ciclo_id) nombreCiclo = ciclosMap[ins.ciclo_id];
+                if (!nombreCiclo) return;
 
-              if (!ultimosCiclos[ins.alumno_id]) {
-                ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
-              } else {
-                const prev = ultimosCiclos[ins.alumno_id];
-                if (numPeriodo > prev.maxPeriodo || 
-                   (numPeriodo === prev.maxPeriodo && weight > prev.weight)) {
+                const weight = getCicloWeight(nombreCiclo);
+                const numPeriodo = ins.asignaturas?.numero_periodo || 1;
+
+                if (!ultimosCiclos[ins.alumno_id]) {
                   ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+                } else {
+                  const prev = ultimosCiclos[ins.alumno_id];
+                  if (numPeriodo > prev.maxPeriodo || (numPeriodo === prev.maxPeriodo && weight > prev.weight)) {
+                    ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
+                  }
                 }
-              }
-            });
+              });
 
-            if (data.length < BATCH_ROWS) {
-              hasMore = false;
-            } else {
-              offset += BATCH_ROWS;
+              if (data.length < BATCH_ROWS) hasMore = false;
+              else offset += BATCH_ROWS;
             }
-          }
+          })());
+        }
 
-          // ---- B. Cargar estado de Certificación ----
-          const { data: certData, error: certError } = await supabase
-            .from('ficha_certificacion')
-            .select('alumno_id, tramite_completado')
-            .in('alumno_id', batch);
-          
-          if (!certError && certData) {
-            certData.forEach((c: any) => {
+        // Ejecutar todas las peticiones concurrentemente
+        const certResults = await Promise.all(certPromises);
+        await Promise.all(insPromises);
+
+        certResults.forEach(res => {
+          if (!res.error && res.data) {
+            res.data.forEach((c: any) => {
               certMap[c.alumno_id] = c.tramite_completado ? 'Completado' : 'En curso';
             });
           }
-        }
+        });
 
         const finalCiclosMap: Record<string, string> = {};
         Object.keys(ultimosCiclos).forEach(alumnoId => {
