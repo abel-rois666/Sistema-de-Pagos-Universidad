@@ -239,3 +239,28 @@ html, body, #root {
   background: rgba(255, 255, 255, 0.1);
   color: #e5e7eb;
 }
+
+/* Custom Scrollbar Global */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.4);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.7);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(75, 85, 99, 0.5);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(75, 85, 99, 0.8);
+}
+

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
   ArrowLeft, Plus, Search, Edit2, Loader2, Shield,
   Eye, EyeOff, UserX, UserCheck, KeyRound,
@@ -186,36 +187,36 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
 
   // ── Desactivar usuario (soft delete) ──────────────────────────────────────
   const handleDeactivate = async (user: Usuario) => {
-    if (!user.auth_id) { alert('Este usuario no tiene sesión de Auth vinculada.'); return; }
+    if (!user.auth_id) { toast.error('Este usuario no tiene sesión de Auth vinculada.'); return; }
     try {
       await invokeManageUsers('DEACTIVATE', { authId: user.auth_id });
       setUsuarios(prev => prev.map(u => u.id === user.id ? { ...u, activo: false } : u));
       setConfirmDeactivateId(null);
     } catch (error: any) {
-      alert(error.message || 'Error al desactivar el usuario.');
+      toast.error(error.message || 'Error al desactivar el usuario.');
     }
   };
 
   // ── Reactivar usuario ─────────────────────────────────────────────────────
   const handleReactivate = async (user: Usuario) => {
-    if (!user.auth_id) { alert('Este usuario no tiene sesión de Auth vinculada.'); return; }
+    if (!user.auth_id) { toast.error('Este usuario no tiene sesión de Auth vinculada.'); return; }
     try {
       await invokeManageUsers('REACTIVATE', { authId: user.auth_id });
       setUsuarios(prev => prev.map(u => u.id === user.id ? { ...u, activo: true } : u));
     } catch (error: any) {
-      alert(error.message || 'Error al reactivar el usuario.');
+      toast.error(error.message || 'Error al reactivar el usuario.');
     }
   };
 
   // ── Eliminar usuario permanentemente ──────────────────────────────────────
   const handleDelete = async (user: Usuario) => {
-    if (!user.auth_id) { alert('Este usuario no tiene sesión de Auth vinculada.'); return; }
+    if (!user.auth_id) { toast.error('Este usuario no tiene sesión de Auth vinculada.'); return; }
     try {
       await invokeManageUsers('DELETE', { authId: user.auth_id });
       setUsuarios(prev => prev.filter(u => u.id !== user.id));
       setConfirmDeleteId(null);
     } catch (error: any) {
-      alert(error.message || 'Error al eliminar el usuario.');
+      toast.error(error.message || 'Error al eliminar el usuario.');
     }
   };
 

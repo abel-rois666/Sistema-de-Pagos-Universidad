@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
   Briefcase, Plus, Pencil, Calendar, Loader2,
   CheckCircle2, Clock, Ban, ChevronDown, Trash2, AlertTriangle, FileText,
@@ -128,7 +129,7 @@ export default function TabServicioSocial({
       .update({ estatus: 'LIBERADO', updated_at: new Date().toISOString() })
       .eq('alumno_id', alumnoId);
     setMarcandoLibre(false);
-    if (error) { alert('Error al actualizar: ' + error.message); return; }
+    if (error) { toast.error('Error al actualizar: ' + error.message); return; }
     setRegistros(prev => prev.map(r => ({ ...r, estatus: 'LIBERADO' as const })));
     setConfirmando(false);
     setShowDropdown(false);
@@ -139,7 +140,7 @@ export default function TabServicioSocial({
       .from('servicio_social')
       .update({ estatus: 'EN_CURSO', updated_at: new Date().toISOString() })
       .eq('alumno_id', alumnoId);
-    if (error) { alert('Error al actualizar: ' + error.message); return; }
+    if (error) { toast.error('Error al actualizar: ' + error.message); return; }
     setRegistros(prev => prev.map(r => ({ ...r, estatus: 'EN_CURSO' as const })));
   };
 
@@ -149,7 +150,7 @@ export default function TabServicioSocial({
     setDeleting(true);
     const { error } = await supabase.from('servicio_social').delete().eq('id', deleteTarget.id);
     setDeleting(false);
-    if (error) { alert('Error al eliminar: ' + error.message); return; }
+    if (error) { toast.error('Error al eliminar: ' + error.message); return; }
     setRegistros(prev => prev.filter(r => r.id !== deleteTarget.id));
     setDeleteTarget(null);
     setDeleteStep(1);

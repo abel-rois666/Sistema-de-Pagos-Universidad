@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, GraduationCap, ScrollText, ClipboardList, BookOpen } from 'lucide-react';
 import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '../types';
 import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
@@ -149,7 +150,7 @@ export default function FichaAlumno({
   // ── Monedero ──────────────────────────────────────────────────────────────
   const handleUpdateMonederoClick = () => {
     const v = parseFloat(tempMonedero);
-    if (isNaN(v) || v < 0) { alert('Introduce una cantidad válida y mayor o igual a cero.'); return; }
+    if (isNaN(v) || v < 0) { toast.error('Introduce una cantidad válida y mayor o igual a cero.'); return; }
     setShowConfirmMonedero(true);
   };
   const executeUpdateMonedero = async () => {
@@ -157,7 +158,7 @@ export default function FichaAlumno({
     setGuardandoMonedero(true);
     const { error } = await supabase.from('alumnos').update({ saldo_a_favor: parseFloat(tempMonedero) }).eq('id', selectedAlumno.id);
     setGuardandoMonedero(false);
-    if (error) { alert('Error al actualizar monedero: ' + error.message); setShowConfirmMonedero(false); }
+    if (error) { toast.error('Error al actualizar monedero: ' + error.message); setShowConfirmMonedero(false); }
     else { onRefreshAlumnos?.(); setEditingMonedero(false); setShowConfirmMonedero(false); }
   };
 

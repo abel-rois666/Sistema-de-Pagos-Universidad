@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
 import {
   Award, Loader2, Save, CheckCircle2, Clock, Ban,
   AlertCircle, ChevronDown, X, Edit3, CalendarDays, Flag, Lock, Trash2, AlertTriangle,
@@ -224,7 +225,7 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
     const { error } = await supabase.from('ficha_certificacion').delete().eq('id', ficha.id);
     setResetting(false);
     if (error) {
-      alert('Error al eliminar la ficha: ' + error.message + '\n\nRevisa que tengas permisos de DELETE en la tabla ficha_certificacion en Supabase (RLS).');
+      toast.error('Error al eliminar la ficha: ' + error.message + '\n\nRevisa que tengas permisos de DELETE en la tabla ficha_certificacion en Supabase (RLS).', { duration: 6000 });
       return;
     }
     setFicha(null);

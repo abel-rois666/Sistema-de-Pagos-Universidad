@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, Check, FileText, ArrowLeft } from 'lucide-react';
 import { downloadElementAsPDF, generatePDFBlob } from '../lib/printUtils';
 import JSZip from 'jszip';
@@ -122,7 +123,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
       
     if (listToExport.length === 0) return;
     if (listToExport.length > 100) {
-      alert(`Actualmente solo se pueden exportar un máximo de 100 recibos por lote. Has intentado exportar ${listToExport.length}. Por favor, utiliza los filtros o selecciona manualmente una porción más pequeña.`);
+      toast.error(`Actualmente solo se pueden exportar un máximo de 100 recibos por lote. Has intentado exportar ${listToExport.length}. Por favor, utiliza los filtros o selecciona manualmente una porción más pequeña.`);
       return;
     }
 
@@ -161,7 +162,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
       URL.revokeObjectURL(url);
     } catch(e) {
       console.error(e);
-      alert("Error al comprimir el archivo ZIP.");
+      toast.error("Error al comprimir el archivo ZIP.");
     }
 
     setMassStatus({ isOpen: false, msg: '', results: [] });
@@ -204,7 +205,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
             });
             if(onDataRefresh) onDataRefresh();
          } else {
-            alert('Error guardando nota: ' + (error as any).message);
+            toast.error('Error guardando nota: ' + (error as any).message);
          }
          setGuardandoObs(false);
          setEditandoObsId(null);
@@ -222,7 +223,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
          setGuardandoConcepto(true);
          const textToSave = tempConceptoText.trim();
          if (!textToSave) {
-           alert('El concepto no puede estar vacío');
+           toast.error('El concepto no puede estar vacío');
            setGuardandoConcepto(false);
            return;
          }
@@ -237,7 +238,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
             });
             if(onDataRefresh) onDataRefresh();
          } else {
-            alert('Error guardando concepto: ' + (error as any).message);
+            toast.error('Error guardando concepto: ' + (error as any).message);
          }
          setGuardandoConcepto(false);
          setEditandoConceptoId(null);
@@ -255,7 +256,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
          setGuardandoSubtotal(true);
          const newMonto = Number(tempSubtotalMonto);
          if (isNaN(newMonto) || newMonto < 0) {
-           alert('El monto ingresado es inválido');
+           toast.error('El monto ingresado es inválido');
            setGuardandoSubtotal(false);
            return;
          }
@@ -270,7 +271,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
            .eq('id', id);
 
          if (errorUpdateDetalle) {
-            alert('Error guardando monto: ' + (errorUpdateDetalle as any).message);
+            toast.error('Error guardando monto: ' + (errorUpdateDetalle as any).message);
             setGuardandoSubtotal(false);
             return;
          }
@@ -285,7 +286,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
            .eq('id', reciboId);
 
          if (errorUpdateRecibo) {
-            alert('Aviso: Se actualizó el concepto pero hubo un error recalculando el total del recibo en BD: ' + (errorUpdateRecibo as any).message);
+            toast.error('Aviso: Se actualizó el concepto pero hubo un error recalculando el total del recibo en BD: ' + (errorUpdateRecibo as any).message);
          }
 
          // Actualizamos de forma reactiva local
@@ -318,7 +319,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
 
   const handleAddConcepto = async (reciboId: string) => {
     if (!newConceptoText.trim() || Number(newConceptoMonto) <= 0) {
-      alert("Introduce un nombre y un monto válido superior a $0");
+      toast.error("Introduce un nombre y un monto válido superior a $0");
       return;
     }
 
@@ -345,7 +346,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
           .single();
 
         if (errInsert || !insertado) {
-          alert("Error al guardar concepto: " + (errInsert as any).message);
+          toast.error("Error al guardar concepto: " + (errInsert as any).message);
           setGuardandoNewConcept(false);
           setConfirmModal({ ...confirmModal, isOpen: false });
           return;
@@ -360,7 +361,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
           .eq('id', reciboId);
 
         if (errUpdateTotal) {
-          alert("Aviso: El concepto se creó, pero falló recalculando el total maestro en Base de Datos: " + errUpdateTotal.message);
+          toast.error("Aviso: El concepto se creó, pero falló recalculando el total maestro en Base de Datos: " + errUpdateTotal.message);
         }
 
         setReciboSeleccionado(prev => {
@@ -397,7 +398,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
       if (!window.confirm(`¿Estás seguro de desvincular este cobro del Plan #${idx}? Su estatus en el plan regresará a PENDIENTE.`)) return;
 
       const { error } = await supabase.from('recibos_detalles').update({ indice_concepto_plan: null, observaciones: null }).eq('id', detalleId);
-      if (error) { alert('Error: ' + error.message); return; }
+      if (error) { toast.error('Error: ' + error.message); return; }
 
       const { data: planes } = await supabase.from('planes_pago').select('*')
           .eq('alumno_id', reciboSeleccionado.alumno_id)
@@ -454,7 +455,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
     );
     setLinking(false);
     if (err) {
-      alert('Error vinculando: ' + err);
+      toast.error('Error vinculando: ' + err);
     } else {
       setVincularDetalle(null);
       setVincularSeleccion([]);
@@ -510,7 +511,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
       await downloadElementAsPDF(printRef.current, fileName);
     } catch (err) {
       console.error('Error generando PDF', err);
-      alert('Error generando PDF');
+      toast.error('Error generando PDF');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -576,7 +577,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
         setReciboSeleccionado(prev => prev ? { ...prev, estatus: 'CANCELADO' } : null);
       }
     } else {
-      alert('Error cancelando recibo: ' + err);
+      toast.error('Error cancelando recibo: ' + err);
     }
   };
 
@@ -605,7 +606,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
       .eq('id', id);
 
     if (error) {
-      alert('Error al actualizar opciones de factura: ' + error.message);
+      toast.error('Error al actualizar opciones de factura: ' + error.message);
       return;
     }
 
@@ -782,11 +783,11 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
       }
 
       setRepairProgress('');
-      alert('¡Reparación completada con éxito!');
+      toast.success('¡Reparación completada con éxito!');
       cargarRecibos();
     } catch (e: any) {
       console.error(e);
-      alert('Error en reparación: ' + e.message);
+      toast.error('Error en reparación: ' + e.message);
       setRepairProgress('');
     } finally {
       setLoading(false);
@@ -1683,7 +1684,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                      if (!f) return;
                      const err = await updateReciboFactura(facturarRecibo.id, f);
                      if (err) {
-                        alert(`Error guardando factura: ${err}`);
+                        toast.error(`Error guardando factura: ${err}`);
                      } else {
                         // Actualizamos en local para no tener que refrescar toda la data
                         const rIndex = recibos.findIndex(r => r.id === facturarRecibo.id);
@@ -1745,7 +1746,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                 <button 
                   onClick={async () => {
                      const { error } = await supabase.from('recibos').update({ forma_pago: formaPagoInput, banco: bancoInput || 'NO APLICA' }).eq('id', editingFormaPago.id);
-                     if (error) { alert('Error: ' + error.message); return; }
+                     if (error) { toast.error('Error: ' + error.message); return; }
                      
                      const rIndex = recibos.findIndex(r => r.id === editingFormaPago.id);
                      if (rIndex > -1) {
@@ -1794,7 +1795,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                 <button 
                   onClick={async () => {
                      const { error } = await supabase.from('recibos').update({ fecha_pago: fechaPagoInput }).eq('id', editingFechaPago.id);
-                     if (error) { alert('Error: ' + error.message); return; }
+                     if (error) { toast.error('Error: ' + error.message); return; }
                      
                      const rIndex = recibos.findIndex(r => r.id === editingFechaPago.id);
                      if (rIndex > -1) {

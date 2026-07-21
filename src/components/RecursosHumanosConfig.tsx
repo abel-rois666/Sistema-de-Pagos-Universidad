@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Users, FileText, ClipboardList, Plus, Shield, Search, FileBarChart2, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
@@ -111,7 +112,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
       setEditingEmpleado(null);
       fetchData();
     } catch (error: any) {
-      alert(`Error al guardar empleado: ${error.message}`);
+      toast.error(`Error al guardar empleado: ${error.message}`);
     }
   };
 
@@ -129,7 +130,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
       setEditingPlan(null);
       fetchData();
     } catch (error: any) {
-      alert(`Error al guardar plan: ${error.message}`);
+      toast.error(`Error al guardar plan: ${error.message}`);
     }
   };
 
@@ -140,7 +141,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
       if (error) throw error;
       fetchData();
     } catch (error: any) {
-      alert(`Error al eliminar evaluación: ${error.message}`);
+      toast.error(`Error al eliminar evaluación: ${error.message}`);
     } finally {
       setEvaluacionToDelete(null);
     }

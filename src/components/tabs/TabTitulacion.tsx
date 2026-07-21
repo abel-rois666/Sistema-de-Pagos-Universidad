@@ -578,7 +578,7 @@ export default function TabTitulacion({
     const { error } = await supabase.from('ficha_titulacion').delete().eq('id', ficha.id);
     setResetting(false);
     if (error) {
-      alert('Error al eliminar la ficha: ' + error.message + '\n\nRevisa que tengas permisos de DELETE en la tabla ficha_titulacion en Supabase (RLS).');
+      toast.error('Error al eliminar la ficha: ' + error.message + '\n\nRevisa que tengas permisos de DELETE en la tabla ficha_titulacion en Supabase (RLS).', { duration: 6000 });
       return;
     }
     setFicha(null);
