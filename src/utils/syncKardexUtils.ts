@@ -88,18 +88,39 @@ export async function syncAlumnoKardex(
     });
   }
 
-  if (registrosMapeados.length === 0) {
+  // Deduplicación para evitar el error "duplicate key value violates unique constraint"
+  const registrosUnicos = new Map<string, any>();
+  for (const reg of registrosMapeados) {
+    const key = `${reg.alumno_id}_${reg.asignatura_id}_${reg.ciclo_id || reg.ciclo_legado || 'NULL'}`;
+    const existente = registrosUnicos.get(key);
+    
+    if (!existente) {
+      registrosUnicos.set(key, reg);
+    } else {
+      // Priorizar el registro con mayor calificación o que esté aprobado
+      const califActual = existente.calificacion_final || 0;
+      const califNueva = reg.calificacion_final || 0;
+      
+      if (califNueva > califActual || (reg.estatus === 'APROBADA' && existente.estatus !== 'APROBADA')) {
+        registrosUnicos.set(key, reg);
+      }
+    }
+  }
+  
+  const registrosFinales = Array.from(registrosUnicos.values());
+
+  if (registrosFinales.length === 0) {
     return { success: false, message: 'No se pudo mapear ninguna materia. Verifica que los planes y materias coincidan con el GES.' };
   }
 
   // 3. Delete old records and insert new ones
   await supabase.from('inscripciones_academicas').delete().eq('alumno_id', alumno.id);
-  const { error: insertError } = await supabase.from('inscripciones_academicas').insert(registrosMapeados);
+  const { error: insertError } = await supabase.from('inscripciones_academicas').insert(registrosFinales);
 
   if (insertError) throw insertError;
 
   // 4. AUTO-REGISTRAR TODOS LOS PLANES DETECTADOS en alumno_programas
-  const planIdsImportados = [...new Set(registrosMapeados.map(r => r.asignatura_id).map(asigId => {
+  const planIdsImportados = [...new Set(registrosFinales.map(r => r.asignatura_id).map(asigId => {
     const asig = asignaturas.find(a => a.id === asigId);
     return asig?.plan_id;
   }).filter(Boolean))] as string[];
@@ -130,8 +151,8 @@ export async function syncAlumnoKardex(
 
   return {
     success: true,
-    message: `Sincronizado: ${registrosMapeados.length} registros.`,
-    registrosAfectados: registrosMapeados.length,
+    message: `Sincronizado: ${registrosFinales.length} registros.`,
+    registrosAfectados: registrosFinales.length,
     planesAfectados: planIdsImportados.length
   };
 }
