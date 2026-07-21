@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MultiSelectFilter } from '../MultiSelectFilter';
 import { useAppStore } from '../../store/useAppStore';
 import { supabase } from '../../lib/supabase';
@@ -9,14 +10,13 @@ import {
   Printer, 
   Download, 
   Filter, 
-  Eye, 
-  EyeOff,
   Clock,
   ArrowLeft,
   Loader2,
   ChevronUp,
   ChevronDown,
-  Layers
+  Layers,
+  Columns
 } from 'lucide-react';
 
 interface Props {
@@ -49,10 +49,11 @@ const toTitleCase = (str: string) => {
   }).join(' ');
 };
 
-type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email';
+type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email' | 'pagoTitulacion';
 
 export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
-  const { alumnos, ciclos, catalogos } = useAppStore();
+  const navigate = useNavigate();
+  const { alumnos, ciclos, catalogos, plans } = useAppStore();
   
   const [loading, setLoading] = useState(true);
   const [ciclosEgresoMap, setCiclosEgresoMap] = useState<Record<string, string>>({});
@@ -68,8 +69,29 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'nombre', direction: 'asc' });
   const [groupByCiclo, setGroupByCiclo] = useState<boolean>(false);
   
-  // Estado para mostrar correo
-  const [showEmail, setShowEmail] = useState<boolean>(true);
+  // Configuración de columnas
+  const [showColMenu, setShowColMenu] = useState(false);
+  const colMenuRef = useRef<HTMLDivElement>(null);
+  const [visibleCols, setVisibleCols] = useState({
+    nombre: true,
+    licenciatura: true,
+    estatus: true,
+    ciclo: true,
+    telefonos: true,
+    email: false,
+    pagoTitulacion: true
+  });
+
+  // Cerrar menú de columnas al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (colMenuRef.current && !colMenuRef.current.contains(event.target as Node)) {
+        setShowColMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // 1. Filtrar los egresados base de la lista global
   const egresadosBase = useMemo(() => {
@@ -166,7 +188,52 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     fetchCiclosEgreso();
   }, [egresadosBase, ciclos]);
 
-  // 3. Filtrar y ordenar egresados
+  // 3. Evaluar Pago de Titulación
+  const pagoTitulacionMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (!plans) return map;
+    
+    egresadosBase.forEach(a => {
+      const planTitulacion = plans.find(p => p.alumno_id === a.id && p.tipo_plan === 'Titulación');
+      if (!planTitulacion) {
+        map[a.id] = 'Sin plan';
+      } else {
+        let isPagado = true;
+        let hasConcepts = false;
+        
+        if (planTitulacion.detalles && planTitulacion.detalles.length > 0) {
+          hasConcepts = true;
+          for (const d of planTitulacion.detalles) {
+             if (d.estatus !== 'PAGADO') {
+               isPagado = false;
+               break;
+             }
+          }
+        } else {
+          for (let i = 1; i <= 15; i++) {
+            const concepto = (planTitulacion as any)[`concepto_${i}`];
+            const est = (planTitulacion as any)[`estatus_${i}`];
+            if (concepto) {
+              hasConcepts = true;
+              if (est !== 'PAGADO') {
+                isPagado = false;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!hasConcepts) {
+          map[a.id] = 'Sin plan';
+        } else {
+          map[a.id] = isPagado ? 'Pago completo' : 'Pago en curso';
+        }
+      }
+    });
+    return map;
+  }, [egresadosBase, plans]);
+
+  // 4. Filtrar y ordenar egresados
   const filteredEgresados = useMemo(() => {
     let result = egresadosBase.filter(a => {
       if (selectedLicenciaturas.length > 0 && !selectedLicenciaturas.includes(a.licenciatura)) return false;
@@ -182,7 +249,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     });
 
     result.sort((a, b) => {
-      // Si se agrupa por ciclo, ordenar primero por ciclo descendente (los más recientes primero)
+      // Si se agrupa por ciclo, ordenar primero por ciclo descendente
       if (groupByCiclo) {
         const cicloA = ciclosEgresoMap[a.id] || 'Sin Kardex';
         const cicloB = ciclosEgresoMap[b.id] || 'Sin Kardex';
@@ -215,13 +282,17 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           valA = a.email || '';
           valB = b.email || '';
           break;
+        case 'pagoTitulacion':
+          valA = pagoTitulacionMap[a.id] || 'Sin plan';
+          valB = pagoTitulacionMap[b.id] || 'Sin plan';
+          break;
       }
       const cmp = valA.localeCompare(valB);
       return sortConfig.direction === 'asc' ? cmp : -cmp;
     });
 
     return result;
-  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, sortConfig, groupByCiclo]);
+  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, pagoTitulacionMap, sortConfig, groupByCiclo]);
 
   // Reset de página al cambiar filtros
   useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, itemsPerPage, sortConfig, groupByCiclo]);
@@ -257,21 +328,30 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
     
-    const headers = ["Nombre Completo", "Licenciatura", "Estatus", "Ciclo de Egreso", "Teléfonos"];
-    if (showEmail) headers.push("Correo Electrónico");
+    const headers = [];
+    if (visibleCols.nombre) headers.push("Nombre Completo");
+    if (visibleCols.licenciatura) headers.push("Licenciatura");
+    if (visibleCols.estatus) headers.push("Estatus");
+    if (visibleCols.ciclo) headers.push("Ciclo de Egreso");
+    if (visibleCols.telefonos) headers.push("Teléfonos");
+    if (visibleCols.email) headers.push("Correo Electrónico");
+    if (visibleCols.pagoTitulacion) headers.push("Pago Titulación");
+    
     csvContent += headers.join(",") + "\n";
 
     filteredEgresados.forEach(a => {
-      const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
-      const row = [
-        `"${toTitleCase(a.nombre_completo)}"`,
-        `"${toTitleCase(a.licenciatura)}"`,
-        `"${toTitleCase(a.estatus || '')}"`,
-        `"${cicloEgresoNombre}"`,
-        `"${telefonos}"`
-      ];
-      if (showEmail) row.push(`"${(a.email || '').toLowerCase()}"`);
+      const row = [];
+      if (visibleCols.nombre) row.push(`"${toTitleCase(a.nombre_completo)}"`);
+      if (visibleCols.licenciatura) row.push(`"${toTitleCase(a.licenciatura)}"`);
+      if (visibleCols.estatus) row.push(`"${toTitleCase(a.estatus || '')}"`);
+      if (visibleCols.ciclo) row.push(`"${ciclosEgresoMap[a.id] || 'Sin Kardex'}"`);
+      if (visibleCols.telefonos) {
+        const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
+        row.push(`"${telefonos}"`);
+      }
+      if (visibleCols.email) row.push(`"${(a.email || '').toLowerCase()}"`);
+      if (visibleCols.pagoTitulacion) row.push(`"${pagoTitulacionMap[a.id] || 'Sin plan'}"`);
+      
       csvContent += row.join(",") + "\n";
     });
 
@@ -300,8 +380,14 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     if (selectedSegmento === 'NO_TITULADOS') segmentoText = 'Egresados No Titulados';
     doc.text(`Segmento: ${segmentoText}`, 14, 35);
     
-    const head = [['Nombre Completo', 'Licenciatura', 'Estatus', 'Ciclo Egreso', 'Teléfonos']];
-    if (showEmail) head[0].push('Correo');
+    const head = [];
+    if (visibleCols.nombre) head.push('Nombre Completo');
+    if (visibleCols.licenciatura) head.push('Licenciatura');
+    if (visibleCols.estatus) head.push('Estatus');
+    if (visibleCols.ciclo) head.push('Ciclo Egreso');
+    if (visibleCols.telefonos) head.push('Teléfonos');
+    if (visibleCols.email) head.push('Correo');
+    if (visibleCols.pagoTitulacion) head.push('Pago Titulación');
     
     const tableData: any[] = [];
     let currentCiclo: string | null = null;
@@ -314,26 +400,28 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         currentCiclo = cicloEgresoNombre;
         tableData.push([{ 
           content: `Ciclo de Egreso: ${currentCiclo}`, 
-          colSpan: showEmail ? 6 : 5, 
+          colSpan: head.length, 
           styles: { fillColor: [243, 232, 255], textColor: [107, 33, 168], fontStyle: 'bold', halign: 'center' } 
         }]);
       }
 
-      const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const row = [
-        toTitleCase(a.nombre_completo), 
-        toTitleCase(a.licenciatura), 
-        toTitleCase(a.estatus || ''), 
-        cicloEgresoNombre, 
-        telefonos
-      ];
-      if (showEmail) row.push((a.email || '').toLowerCase());
+      const row = [];
+      if (visibleCols.nombre) row.push(toTitleCase(a.nombre_completo));
+      if (visibleCols.licenciatura) row.push(toTitleCase(a.licenciatura));
+      if (visibleCols.estatus) row.push(toTitleCase(a.estatus || ''));
+      if (visibleCols.ciclo) row.push(cicloEgresoNombre);
+      if (visibleCols.telefonos) {
+        row.push([a.telefono, a.celular].filter(Boolean).join(" / "));
+      }
+      if (visibleCols.email) row.push((a.email || '').toLowerCase());
+      if (visibleCols.pagoTitulacion) row.push(pagoTitulacionMap[a.id] || 'Sin plan');
+      
       tableData.push(row);
     });
 
     autoTable(doc, {
       startY: 40,
-      head: head,
+      head: [head],
       body: tableData,
       theme: 'grid',
       styles: { fontSize: 8 },
@@ -346,6 +434,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       window.open(doc.output('bloburl'), '_blank');
     }
   };
+
+  const visibleColCount = Object.values(visibleCols).filter(Boolean).length + 1; // +1 for the "#" column
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-[#1c2228] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
@@ -382,7 +472,6 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                 value={selectedCicloEgreso}
                 onChange={(e) => {
                   setSelectedCicloEgreso(e.target.value);
-                  // Si selecciona un ciclo en particular, agrupar no tiene tanto sentido
                   if (e.target.value !== 'TODOS') setGroupByCiclo(false);
                 }}
               >
@@ -426,26 +515,50 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-purple-50 dark:bg-purple-900/30 px-3 py-1 rounded-full border border-purple-100 dark:border-purple-800/30">
-                {filteredEgresados.length} Egresados Encontrados
+                {filteredEgresados.length} Egresados
               </span>
               
               <button 
                 onClick={() => setGroupByCiclo(!groupByCiclo)}
                 disabled={selectedCicloEgreso !== 'TODOS'}
-                className={`flex items-center gap-2 text-sm px-3 py-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${groupByCiclo ? 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300 border border-fuchsia-200 dark:border-fuchsia-800' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-600'}`}
+                className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${groupByCiclo ? 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300 border border-fuchsia-200 dark:border-fuchsia-800' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-600'}`}
                 title={selectedCicloEgreso !== 'TODOS' ? "Solo disponible al ver todos los ciclos" : "Agrupar lista por ciclo de egreso"}
               >
                 <Layers size={16}/>
                 {groupByCiclo ? 'Agrupado por Ciclo' : 'Agrupar por Ciclo'}
               </button>
 
-              <button 
-                onClick={() => setShowEmail(!showEmail)}
-                className={`flex items-center gap-2 text-sm px-3 py-1 rounded-full transition-colors ${showEmail ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-600'}`}
-              >
-                {showEmail ? <EyeOff size={16}/> : <Eye size={16}/>}
-                {showEmail ? 'Ocultar Correo' : 'Mostrar Correo'}
-              </button>
+              <div className="relative" ref={colMenuRef}>
+                <button 
+                  onClick={() => setShowColMenu(!showColMenu)}
+                  className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-full transition-colors bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-600"
+                >
+                  <Columns size={16}/> Columnas
+                </button>
+                {showColMenu && (
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-[#252d36] border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 p-2 py-3 flex flex-col gap-1.5">
+                    {Object.entries({
+                      nombre: 'Nombre Completo',
+                      licenciatura: 'Licenciatura',
+                      estatus: 'Estatus',
+                      ciclo: 'Ciclo Egreso',
+                      telefonos: 'Teléfonos',
+                      email: 'Correo Electrónico',
+                      pagoTitulacion: 'Pago de Titulación'
+                    }).map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-3 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg cursor-pointer transition-colors text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <input 
+                          type="checkbox"
+                          checked={visibleCols[key as keyof typeof visibleCols]}
+                          onChange={() => setVisibleCols(prev => ({ ...prev, [key]: !prev[key as keyof typeof visibleCols] }))}
+                          className="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500 focus:ring-offset-0 bg-white dark:bg-[#1c2228] w-4 h-4 cursor-pointer"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             
             <div className="flex gap-2">
@@ -470,37 +583,47 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-transparent">
             <table className="w-full text-left border-collapse">
               <thead className="bg-gray-50 dark:bg-[#2a3441] sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">#</th>
-                  <th 
-                    className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    onClick={() => handleSort('nombre')}
-                  >
-                    Nombre Completo <SortIcon columnKey="nombre" />
-                  </th>
-                  <th 
-                    className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    onClick={() => handleSort('licenciatura')}
-                  >
-                    Licenciatura <SortIcon columnKey="licenciatura" />
-                  </th>
-                  <th 
-                    className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    onClick={() => handleSort('estatus')}
-                  >
-                    Estatus <SortIcon columnKey="estatus" />
-                  </th>
-                  <th 
-                    className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    onClick={() => handleSort('ciclo')}
-                  >
-                    Ciclo Egreso <SortIcon columnKey="ciclo" />
-                  </th>
-                  <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Teléfonos</th>
-                  {showEmail && (
+                  {visibleCols.nombre && (
+                    <th 
+                      className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleSort('nombre')}
+                    >
+                      Nombre Completo <SortIcon columnKey="nombre" />
+                    </th>
+                  )}
+                  {visibleCols.licenciatura && (
+                    <th 
+                      className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleSort('licenciatura')}
+                    >
+                      Licenciatura <SortIcon columnKey="licenciatura" />
+                    </th>
+                  )}
+                  {visibleCols.estatus && (
+                    <th 
+                      className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleSort('estatus')}
+                    >
+                      Estatus <SortIcon columnKey="estatus" />
+                    </th>
+                  )}
+                  {visibleCols.ciclo && (
+                    <th 
+                      className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleSort('ciclo')}
+                    >
+                      Ciclo Egreso <SortIcon columnKey="ciclo" />
+                    </th>
+                  )}
+                  {visibleCols.telefonos && (
+                    <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Teléfonos</th>
+                  )}
+                  {visibleCols.email && (
                     <th 
                       className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleSort('email')}
@@ -508,13 +631,22 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                       Correo Electrónico <SortIcon columnKey="email" />
                     </th>
                   )}
+                  {visibleCols.pagoTitulacion && (
+                    <th 
+                      className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleSort('pagoTitulacion')}
+                    >
+                      Pago Titulación <SortIcon columnKey="pagoTitulacion" />
+                    </th>
+                  )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-transparent">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {paginatedEgresados.length > 0 ? (
                   paginatedEgresados.map((a, idx) => {
                     const esTitulado = a.estatus === 'EGRESADO TITULADO';
                     const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
+                    const pagoTitulacion = pagoTitulacionMap[a.id] || 'Sin plan';
                     const rowNumber = startIndex + idx + 1;
                     
                     const globalIdx = startIndex + idx;
@@ -525,36 +657,67 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                       <React.Fragment key={a.id}>
                         {showGroupHeader && (
                           <tr className="bg-purple-50 dark:bg-purple-900/20">
-                            <td colSpan={showEmail ? 7 : 6} className="p-3 text-sm font-bold text-purple-800 dark:text-purple-300 border-y border-purple-100 dark:border-purple-800/50">
+                            <td colSpan={visibleColCount} className="p-3 text-sm font-bold text-purple-800 dark:text-purple-300 border-y border-purple-100 dark:border-purple-800/50">
                               Ciclo de Egreso: {cicloEgresoNombre}
                             </td>
                           </tr>
                         )}
                         <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                           <td className="p-3 text-xs text-gray-400 dark:text-gray-500 tabular-nums">{rowNumber}</td>
-                          <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">{toTitleCase(a.nombre_completo)}</td>
-                          <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{toTitleCase(a.licenciatura)}</td>
-                          <td className="p-3 text-sm">
-                            <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                              esTitulado 
-                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' 
-                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                            }`}>
-                              {toTitleCase(a.estatus || '')}
-                            </span>
-                          </td>
-                          <td className="p-3 text-sm text-gray-600 dark:text-gray-400 font-semibold">{cicloEgresoNombre}</td>
-                          <td className="p-3 text-sm text-gray-600 dark:text-gray-400">
-                            {[a.telefono, a.celular].filter(Boolean).join(" / ") || '-'}
-                          </td>
-                          {showEmail && <td className="p-3 text-sm text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{(a.email || '').toLowerCase() || '-'}</td>}
+                          {visibleCols.nombre && (
+                            <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
+                              <span 
+                                onClick={() => navigate('/ficha-alumno', { state: { alumnoId: a.id, fromAlumnos: true } })}
+                                className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                                title="Ver ficha del alumno"
+                              >
+                                {toTitleCase(a.nombre_completo)}
+                              </span>
+                            </td>
+                          )}
+                          {visibleCols.licenciatura && (
+                            <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{toTitleCase(a.licenciatura)}</td>
+                          )}
+                          {visibleCols.estatus && (
+                            <td className="p-3 text-sm">
+                              <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                                esTitulado 
+                                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' 
+                                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              }`}>
+                                {toTitleCase(a.estatus || '')}
+                              </span>
+                            </td>
+                          )}
+                          {visibleCols.ciclo && (
+                            <td className="p-3 text-sm text-gray-600 dark:text-gray-400 font-semibold">{cicloEgresoNombre}</td>
+                          )}
+                          {visibleCols.telefonos && (
+                            <td className="p-3 text-sm text-gray-600 dark:text-gray-400">
+                              {[a.telefono, a.celular].filter(Boolean).join(" / ") || '-'}
+                            </td>
+                          )}
+                          {visibleCols.email && (
+                            <td className="p-3 text-sm text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{(a.email || '').toLowerCase() || '-'}</td>
+                          )}
+                          {visibleCols.pagoTitulacion && (
+                            <td className="p-3 text-sm">
+                              <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                                pagoTitulacion === 'Pago completo' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                pagoTitulacion === 'Pago en curso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                              }`}>
+                                {pagoTitulacion}
+                              </span>
+                            </td>
+                          )}
                         </tr>
                       </React.Fragment>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={showEmail ? 7 : 6} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={visibleColCount} className="p-8 text-center text-gray-500 dark:text-gray-400">
                       <Filter size={32} className="mx-auto mb-2 opacity-50" />
                       No se encontraron egresados con los filtros seleccionados
                     </td>
