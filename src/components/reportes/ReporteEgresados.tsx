@@ -82,15 +82,17 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         for (let i = 0; i < egresadosIds.length; i += BATCH) {
           const batch = egresadosIds.slice(i, i + BATCH);
           
-          // Traer TODAS las inscripciones de este lote de alumnos (sin límite de 1000)
+          // Traer TODAS las inscripciones de este lote de alumnos
           let offset = 0;
           let hasMore = true;
+          const BATCH_ROWS = 1000;
+          
           while (hasMore) {
             const { data, error } = await supabase
               .from('inscripciones_academicas')
               .select('alumno_id, ciclo_id, ciclo_legado, asignatura_id, asignaturas(numero_periodo)')
               .in('alumno_id', batch)
-              .range(offset, offset + 4999);
+              .range(offset, offset + BATCH_ROWS - 1);
 
             if (error) {
               console.error('Error fetching inscripciones:', error);
@@ -125,10 +127,10 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               }
             });
 
-            if (data.length < 5000) {
+            if (data.length < BATCH_ROWS) {
               hasMore = false;
             } else {
-              offset += 5000;
+              offset += BATCH_ROWS;
             }
           }
         }
