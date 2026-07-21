@@ -49,7 +49,7 @@ const toTitleCase = (str: string) => {
   }).join(' ');
 };
 
-type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email' | 'pagoTitulacion';
+type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email' | 'pagoTitulacion' | 'certificacion';
 
 export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const navigate = useNavigate();
@@ -57,6 +57,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   
   const [loading, setLoading] = useState(true);
   const [ciclosEgresoMap, setCiclosEgresoMap] = useState<Record<string, string>>({});
+  const [certificacionMap, setCertificacionMap] = useState<Record<string, string>>({});
   
   // Paginación
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -79,7 +80,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     ciclo: true,
     telefonos: true,
     email: false,
-    pagoTitulacion: true
+    pagoTitulacion: true,
+    certificacion: true
   });
 
   // Cerrar menú de columnas al hacer clic fuera
@@ -98,15 +100,16 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     return alumnos.filter(a => a.estatus === 'EGRESADO' || a.estatus === 'EGRESADO TITULADO');
   }, [alumnos]);
 
-  // 2. Fetch de inscripciones_academicas SOLO para egresados, en lotes
+  // 2. Fetch de inscripciones_academicas y fichas de certificacion SOLO para egresados, en lotes
   useEffect(() => {
-    const fetchCiclosEgreso = async () => {
+    const fetchDatosExternos = async () => {
       setLoading(true);
       try {
         const egresadosIds = egresadosBase.map(a => a.id);
         
         if (egresadosIds.length === 0) {
           setCiclosEgresoMap({});
+          setCertificacionMap({});
           setLoading(false);
           return;
         }
@@ -117,11 +120,13 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         }, {} as Record<string, string>);
 
         const ultimosCiclos: Record<string, { nombre: string, maxPeriodo: number, weight: number }> = {};
+        const certMap: Record<string, string> = {};
         const BATCH = 50;
 
         for (let i = 0; i < egresadosIds.length; i += BATCH) {
           const batch = egresadosIds.slice(i, i + BATCH);
           
+          // ---- A. Cargar Ciclo de Egreso ----
           let offset = 0;
           let hasMore = true;
           const BATCH_ROWS = 1000;
@@ -170,22 +175,39 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               offset += BATCH_ROWS;
             }
           }
+
+          // ---- B. Cargar estado de Certificación ----
+          const { data: certData, error: certError } = await supabase
+            .from('ficha_certificacion')
+            .select('alumno_id, tramite_completado')
+            .in('alumno_id', batch);
+          
+          if (!certError && certData) {
+            certData.forEach((c: any) => {
+              certMap[c.alumno_id] = c.tramite_completado ? 'Completado' : 'En curso';
+            });
+          }
         }
 
-        const finalMap: Record<string, string> = {};
+        const finalCiclosMap: Record<string, string> = {};
         Object.keys(ultimosCiclos).forEach(alumnoId => {
-          finalMap[alumnoId] = ultimosCiclos[alumnoId].nombre;
+          finalCiclosMap[alumnoId] = ultimosCiclos[alumnoId].nombre;
         });
 
-        setCiclosEgresoMap(finalMap);
+        egresadosIds.forEach(id => {
+          if (!certMap[id]) certMap[id] = 'Sin iniciar';
+        });
+
+        setCiclosEgresoMap(finalCiclosMap);
+        setCertificacionMap(certMap);
       } catch (err) {
-        console.error("Error al obtener ciclos de egreso:", err);
+        console.error("Error al obtener datos externos:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCiclosEgreso();
+    fetchDatosExternos();
   }, [egresadosBase, ciclos]);
 
   // 3. Evaluar Pago de Titulación
@@ -206,7 +228,6 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           for (const d of planTitulacion.detalles) {
              const est = d.estatus || '';
              const upper = est.toUpperCase();
-             // Es pagado si dice PAGADO o si tiene texto y no dice RESTA (p.ej. un folio manual)
              const pagado = upper.includes('PAGADO') || (est.trim().length > 0 && !upper.includes('RESTA'));
              if (!pagado) {
                isPagado = false;
@@ -292,13 +313,17 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           valA = pagoTitulacionMap[a.id] || 'Sin plan';
           valB = pagoTitulacionMap[b.id] || 'Sin plan';
           break;
+        case 'certificacion':
+          valA = certificacionMap[a.id] || 'Sin iniciar';
+          valB = certificacionMap[b.id] || 'Sin iniciar';
+          break;
       }
       const cmp = valA.localeCompare(valB);
       return sortConfig.direction === 'asc' ? cmp : -cmp;
     });
 
     return result;
-  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, pagoTitulacionMap, sortConfig, groupByCiclo]);
+  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, pagoTitulacionMap, certificacionMap, sortConfig, groupByCiclo]);
 
   // Reset de página al cambiar filtros
   useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, itemsPerPage, sortConfig, groupByCiclo]);
@@ -342,6 +367,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     if (visibleCols.telefonos) headers.push("Teléfonos");
     if (visibleCols.email) headers.push("Correo Electrónico");
     if (visibleCols.pagoTitulacion) headers.push("Pago Titulación");
+    if (visibleCols.certificacion) headers.push("Certificación");
     
     csvContent += headers.join(",") + "\n";
 
@@ -357,6 +383,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       }
       if (visibleCols.email) row.push(`"${(a.email || '').toLowerCase()}"`);
       if (visibleCols.pagoTitulacion) row.push(`"${pagoTitulacionMap[a.id] || 'Sin plan'}"`);
+      if (visibleCols.certificacion) row.push(`"${certificacionMap[a.id] || 'Sin iniciar'}"`);
       
       csvContent += row.join(",") + "\n";
     });
@@ -394,6 +421,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     if (visibleCols.telefonos) head.push('Teléfonos');
     if (visibleCols.email) head.push('Correo');
     if (visibleCols.pagoTitulacion) head.push('Pago Titulación');
+    if (visibleCols.certificacion) head.push('Certificación');
     
     const tableData: any[] = [];
     let currentCiclo: string | null = null;
@@ -421,6 +449,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       }
       if (visibleCols.email) row.push((a.email || '').toLowerCase());
       if (visibleCols.pagoTitulacion) row.push(pagoTitulacionMap[a.id] || 'Sin plan');
+      if (visibleCols.certificacion) row.push(certificacionMap[a.id] || 'Sin iniciar');
       
       tableData.push(row);
     });
@@ -464,7 +493,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       {loading ? (
         <div className="flex-1 flex flex-col items-center justify-center">
           <Loader2 className="animate-spin text-purple-600 mb-4" size={48} />
-          <p className="text-gray-500">Calculando ciclos de egreso desde el historial académico...</p>
+          <p className="text-gray-500">Analizando ciclos, titulaciones y certificaciones de alumnos...</p>
         </div>
       ) : (
         <>
@@ -550,7 +579,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                       ciclo: 'Ciclo Egreso',
                       telefonos: 'Teléfonos',
                       email: 'Correo Electrónico',
-                      pagoTitulacion: 'Pago de Titulación'
+                      pagoTitulacion: 'Pago de Titulación',
+                      certificacion: 'Certificación DGAIR'
                     }).map(([key, label]) => (
                       <label key={key} className="flex items-center gap-3 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg cursor-pointer transition-colors text-sm font-medium text-gray-700 dark:text-gray-300">
                         <input 
@@ -645,6 +675,14 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                       Pago Titulación <SortIcon columnKey="pagoTitulacion" />
                     </th>
                   )}
+                  {visibleCols.certificacion && (
+                    <th 
+                      className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleSort('certificacion')}
+                    >
+                      Certificación <SortIcon columnKey="certificacion" />
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -653,6 +691,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                     const esTitulado = a.estatus === 'EGRESADO TITULADO';
                     const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
                     const pagoTitulacion = pagoTitulacionMap[a.id] || 'Sin plan';
+                    const certificacionStatus = certificacionMap[a.id] || 'Sin iniciar';
                     const rowNumber = startIndex + idx + 1;
                     
                     const globalIdx = startIndex + idx;
@@ -714,6 +753,17 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                                 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                               }`}>
                                 {pagoTitulacion}
+                              </span>
+                            </td>
+                          )}
+                          {visibleCols.certificacion && (
+                            <td className="p-3 text-sm">
+                              <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                                certificacionStatus === 'Completado' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                certificacionStatus === 'En curso' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' :
+                                'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                              }`}>
+                                {certificacionStatus}
                               </span>
                             </td>
                           )}
