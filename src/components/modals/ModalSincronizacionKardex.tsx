@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
 import { syncAlumnoKardex } from '../../utils/syncKardexUtils';
+import ModalConfirmacion, { ModalConfirmacionProps } from '../ui/ModalConfirmacion';
 
 interface Props {
   isOpen: boolean;
@@ -48,6 +49,7 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
   const [alumnosConKardex, setAlumnosConKardex] = useState<Set<string>>(new Set());
   const [sobreescribir, setSobreescribir] = useState(false);
   const [cargandoEstado, setCargandoEstado] = useState(true);
+  const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
 
   // Reiniciar estado al abrir y calcular quiénes ya tienen Kardex instantáneamente
   useEffect(() => {
@@ -76,8 +78,20 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
       return;
     }
 
-    const confirmar = window.confirm(`¿Estás seguro de sincronizar el Kardex de ${alumnosAProcesar.length} alumnos?`);
-    if (!confirmar) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Sincronizar Kardex',
+      message: `¿Estás seguro de sincronizar el Kardex de ${alumnosAProcesar.length} alumnos?`,
+      type: 'warning',
+      onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        await ejecutarSincronizacion();
+      }
+    });
+  };
+
+  const ejecutarSincronizacion = async () => {
 
     setProcesando(true);
     setProgreso(0);
@@ -334,6 +348,7 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
           </div>
         </motion.div>
       </div>
+      <ModalConfirmacion {...confirmModal} />
     </AnimatePresence>
   );
 }
