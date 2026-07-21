@@ -166,12 +166,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 if (!isSidebarOpen) {
                   setIsSidebarOpen(true);
                   setOpenMenus(prev => ({ ...prev, [item.name]: true }));
-                  if (item.path !== '#') navigate(item.path);
                 } else {
                   setOpenMenus(prev => ({ ...prev, [item.name]: !prev[item.name] }));
-                  if (item.path !== '#' && !openMenus[item.name]) {
-                    navigate(item.path);
-                  }
                 }
               }
             };
@@ -188,7 +184,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`${active && !hasChildren ? 'text-[#1456f0] dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300'}`}>
+                    <div 
+                      onClick={(e) => {
+                        if (hasChildren && isSidebarOpen && item.path !== '#') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(item.path);
+                        }
+                      }}
+                      className={`${active && !hasChildren ? 'text-[#1456f0] dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300'} ${hasChildren && isSidebarOpen ? 'cursor-pointer hover:text-[#1456f0] dark:hover:text-blue-400 transition-colors' : ''}`}
+                      title={hasChildren && isSidebarOpen ? `Ir a ${item.name}` : undefined}
+                    >
                       {item.icon}
                     </div>
                     {isSidebarOpen && <span className="whitespace-nowrap text-[14.5px]">{item.name}</span>}

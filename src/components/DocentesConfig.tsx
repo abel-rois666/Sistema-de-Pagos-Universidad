@@ -20,6 +20,20 @@ export default function DocentesConfig() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
   
+  const [currentPage, setCurrentPage] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('docentes_currentPage');
+      return saved ? parseInt(saved, 10) : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  useEffect(() => {
+    sessionStorage.setItem('docentes_currentPage', currentPage.toString());
+  }, [currentPage]);
+
   // Modal para crear acceso
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   const [accessDocente, setAccessDocente] = useState<Docente | null>(null);
@@ -215,6 +229,14 @@ export default function DocentesConfig() {
     return result;
   }, [docentes, searchQuery, omitirInactivos, sortConfig]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, omitirInactivos, sortConfig]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedDocentes = filteredAndSortedDocentes.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(filteredAndSortedDocentes.length / itemsPerPage);
+
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
       setSelectedIds(filteredAndSortedDocentes.map(d => d.id));
@@ -327,7 +349,7 @@ export default function DocentesConfig() {
                     </td>
                   </tr>
                 ) : (
-                  filteredAndSortedDocentes.map((docente) => (
+                  paginatedDocentes.map((docente) => (
                     <tr key={docente.id} className={`hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors group ${selectedIds.includes(docente.id) ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>
                       <td className="px-4 py-4">
                         <input 
@@ -431,6 +453,33 @@ export default function DocentesConfig() {
               </tbody>
             </table>
           </div>
+          
+          {filteredAndSortedDocentes.length > itemsPerPage && (
+            <div className="flex items-center justify-between mt-4 bg-white dark:bg-[#1c2228] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, filteredAndSortedDocentes.length)} de {filteredAndSortedDocentes.length}
+              </span>
+              <div className="flex items-center gap-4">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-[8px] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 font-bold shadow-sm transition-colors text-gray-700 dark:text-gray-300"
+                >
+                  Anterior
+                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Página {currentPage} de {totalPages || 1}</span>
+                </div>
+                <button
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-[8px] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 font-bold shadow-sm transition-colors text-gray-700 dark:text-gray-300"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

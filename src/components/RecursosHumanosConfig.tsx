@@ -62,6 +62,21 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
   const [planes, setPlanes] = useState<Nom035PlanAccion[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const [currentPage, setCurrentPage] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('rh_currentPage');
+      return saved ? parseInt(saved, 10) : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    sessionStorage.setItem('rh_currentPage', currentPage.toString());
+  }, [currentPage]);
 
   const currentUser = useAppStore(state => state.currentUser);
   const isAdmin = currentUser?.rol === 'ADMINISTRADOR';
@@ -152,9 +167,43 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
     setEvaluacionToDelete(id);
   };
 
-  const filteredEmpleados = empleados.filter(e => 
-    `${e.nombres} ${e.apellido_paterno} ${e.apellido_materno || ''}`.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAndSortedEmpleados = React.useMemo(() => {
+    let result = empleados.filter(e => 
+      `${e.nombres} ${e.apellido_paterno} ${e.apellido_materno || ''}`.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (sortConfig) {
+      result.sort((a: any, b: any) => {
+        const valA = a[sortConfig.key]?.toString().toLowerCase() || '';
+        const valB = b[sortConfig.key]?.toString().toLowerCase() || '';
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [empleados, searchTerm, sortConfig]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortConfig]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedEmpleados = filteredAndSortedEmpleados.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(filteredAndSortedEmpleados.length / itemsPerPage);
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const SortIcon = ({ columnKey }: { columnKey: string }) => {
+    if (sortConfig?.key !== columnKey) return null;
+    return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="inline" /> : <ChevronDown size={14} className="inline" />;
+  };
 
   // Agrupación de evaluaciones por empleado
   const evaluacionesPorEmpleado = React.useMemo(() => {
@@ -287,14 +336,20 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-gray-50 dark:bg-[#1c2228] border-b border-gray-100 dark:border-gray-800">
-                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Empleado</th>
-                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Puesto / Depto</th>
-                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Detalles Personales</th>
+                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onClick={() => handleSort('apellido_paterno')}>
+                            <div className="flex items-center gap-2">Empleado <SortIcon columnKey="apellido_paterno" /></div>
+                          </th>
+                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onClick={() => handleSort('puesto')}>
+                            <div className="flex items-center gap-2">Puesto / Depto <SortIcon columnKey="puesto" /></div>
+                          </th>
+                          <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onClick={() => handleSort('telefono')}>
+                            <div className="flex items-center gap-2">Detalles Personales <SortIcon columnKey="telefono" /></div>
+                          </th>
                           <th className="px-5 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-right">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {filteredEmpleados.map(emp => (
+                        {paginatedEmpleados.map(emp => (
                           <tr
                             key={emp.id}
                             onClick={() => setViewingEmpleado(emp)}
@@ -335,7 +390,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
                             </td>
                           </tr>
                         ))}
-                        {filteredEmpleados.length === 0 && (
+                        {filteredAndSortedEmpleados.length === 0 && (
                           <tr>
                             <td colSpan={4} className="px-5 py-8 text-center text-gray-500">
                               No se encontraron empleados.
@@ -345,6 +400,33 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
                       </tbody>
                     </table>
                   </div>
+                  
+                  {filteredAndSortedEmpleados.length > itemsPerPage && (
+                    <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-gray-800">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, filteredAndSortedEmpleados.length)} de {filteredAndSortedEmpleados.length}
+                      </span>
+                      <div className="flex items-center gap-4">
+                        <button
+                          disabled={currentPage === 1}
+                          onClick={() => setCurrentPage(p => p - 1)}
+                          className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-[8px] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 font-bold shadow-sm transition-colors text-gray-700 dark:text-gray-300"
+                        >
+                          Anterior
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Página {currentPage} de {totalPages || 1}</span>
+                        </div>
+                        <button
+                          disabled={currentPage === totalPages || totalPages === 0}
+                          onClick={() => setCurrentPage(p => p + 1)}
+                          className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-[8px] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 font-bold shadow-sm transition-colors text-gray-700 dark:text-gray-300"
+                        >
+                          Siguiente
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
