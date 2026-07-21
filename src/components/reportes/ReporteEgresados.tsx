@@ -204,7 +204,11 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         if (planTitulacion.detalles && planTitulacion.detalles.length > 0) {
           hasConcepts = true;
           for (const d of planTitulacion.detalles) {
-             if (d.estatus !== 'PAGADO') {
+             const est = d.estatus || '';
+             const upper = est.toUpperCase();
+             // Es pagado si dice PAGADO o si tiene texto y no dice RESTA (p.ej. un folio manual)
+             const pagado = upper.includes('PAGADO') || (est.trim().length > 0 && !upper.includes('RESTA'));
+             if (!pagado) {
                isPagado = false;
                break;
              }
@@ -212,10 +216,12 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         } else {
           for (let i = 1; i <= 15; i++) {
             const concepto = (planTitulacion as any)[`concepto_${i}`];
-            const est = (planTitulacion as any)[`estatus_${i}`];
-            if (concepto) {
+            const est = (planTitulacion as any)[`estatus_${i}`] || '';
+            if (concepto && concepto.trim().length > 0) {
               hasConcepts = true;
-              if (est !== 'PAGADO') {
+              const upper = est.toUpperCase();
+              const pagado = upper.includes('PAGADO') || (est.trim().length > 0 && !upper.includes('RESTA'));
+              if (!pagado) {
                 isPagado = false;
                 break;
               }
