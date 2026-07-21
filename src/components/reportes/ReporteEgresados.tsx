@@ -13,7 +13,10 @@ import {
   EyeOff,
   Clock,
   ArrowLeft,
-  Loader2
+  Loader2,
+  ChevronUp,
+  ChevronDown,
+  Layers
 } from 'lucide-react';
 
 interface Props {
@@ -33,6 +36,21 @@ const getCicloWeight = (cicloNombre?: string): number => {
   return -1;
 };
 
+// Función auxiliar para Altas y Bajas (Title Case)
+const toTitleCase = (str: string) => {
+  if (!str) return '';
+  const lowers = ['de', 'la', 'del', 'las', 'los', 'y', 'en', 'el', 'a', 'por', 'para', 'con'];
+  return str.split(' ').map((word, index) => {
+    const lowerWord = word.toLowerCase();
+    if (index !== 0 && lowers.includes(lowerWord)) {
+      return lowerWord;
+    }
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+};
+
+type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email';
+
 export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const { alumnos, ciclos, catalogos } = useAppStore();
   
@@ -41,12 +59,14 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   
   // Paginación
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(50);
 
-  // Estados de Filtros
+  // Estados de Filtros y Ordenamiento
   const [selectedCicloEgreso, setSelectedCicloEgreso] = useState<string>('TODOS');
   const [selectedLicenciaturas, setSelectedLicenciaturas] = useState<string[]>([]);
   const [selectedSegmento, setSelectedSegmento] = useState<string>('TODOS');
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'nombre', direction: 'asc' });
+  const [groupByCiclo, setGroupByCiclo] = useState<boolean>(false);
   
   // Estado para mostrar correo
   const [showEmail, setShowEmail] = useState<boolean>(true);
@@ -69,20 +89,17 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           return;
         }
 
-        // Mapa de ciclo_id -> nombre para resolver el FK
         const ciclosMap = ciclos.reduce((acc, c) => {
           acc[c.id] = c.nombre;
           return acc;
         }, {} as Record<string, string>);
 
         const ultimosCiclos: Record<string, { nombre: string, maxPeriodo: number, weight: number }> = {};
-
-        // Fetch en lotes de 50 alumnos usando .in() para filtrar directamente en Supabase
         const BATCH = 50;
+
         for (let i = 0; i < egresadosIds.length; i += BATCH) {
           const batch = egresadosIds.slice(i, i + BATCH);
           
-          // Traer TODAS las inscripciones de este lote de alumnos
           let offset = 0;
           let hasMore = true;
           const BATCH_ROWS = 1000;
@@ -105,7 +122,6 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
             }
 
             data.forEach((ins: any) => {
-              // Resolver el nombre del ciclo: priorizar ciclo_legado, luego resolver FK
               let nombreCiclo = ins.ciclo_legado;
               if (!nombreCiclo && ins.ciclo_id) {
                 nombreCiclo = ciclosMap[ins.ciclo_id];
@@ -119,7 +135,6 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                 ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
               } else {
                 const prev = ultimosCiclos[ins.alumno_id];
-                // El periodo más alto gana; si empatan, el ciclo más reciente gana
                 if (numPeriodo > prev.maxPeriodo || 
                    (numPeriodo === prev.maxPeriodo && weight > prev.weight)) {
                   ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
@@ -151,11 +166,10 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     fetchCiclosEgreso();
   }, [egresadosBase, ciclos]);
 
-  // 3. Filtrar egresados
+  // 3. Filtrar y ordenar egresados
   const filteredEgresados = useMemo(() => {
-    return egresadosBase.filter(a => {
+    let result = egresadosBase.filter(a => {
       if (selectedLicenciaturas.length > 0 && !selectedLicenciaturas.includes(a.licenciatura)) return false;
-      
       if (selectedSegmento === 'TITULADOS' && a.estatus !== 'EGRESADO TITULADO') return false;
       if (selectedSegmento === 'NO_TITULADOS' && a.estatus !== 'EGRESADO') return false;
       
@@ -165,11 +179,52 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       }
       
       return true;
-    }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
-  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap]);
+    });
+
+    result.sort((a, b) => {
+      // Si se agrupa por ciclo, ordenar primero por ciclo descendente (los más recientes primero)
+      if (groupByCiclo) {
+        const cicloA = ciclosEgresoMap[a.id] || 'Sin Kardex';
+        const cicloB = ciclosEgresoMap[b.id] || 'Sin Kardex';
+        const weightA = getCicloWeight(cicloA);
+        const weightB = getCicloWeight(cicloB);
+        if (weightA !== weightB) return weightB - weightA;
+        if (cicloA !== cicloB) return cicloA.localeCompare(cicloB);
+      }
+      
+      let valA = '';
+      let valB = '';
+      switch (sortConfig.key) {
+        case 'nombre':
+          valA = a.nombre_completo || '';
+          valB = b.nombre_completo || '';
+          break;
+        case 'licenciatura':
+          valA = a.licenciatura || '';
+          valB = b.licenciatura || '';
+          break;
+        case 'estatus':
+          valA = a.estatus || '';
+          valB = b.estatus || '';
+          break;
+        case 'ciclo':
+          valA = ciclosEgresoMap[a.id] || 'Sin Kardex';
+          valB = ciclosEgresoMap[b.id] || 'Sin Kardex';
+          break;
+        case 'email':
+          valA = a.email || '';
+          valB = b.email || '';
+          break;
+      }
+      const cmp = valA.localeCompare(valB);
+      return sortConfig.direction === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
+  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, sortConfig, groupByCiclo]);
 
   // Reset de página al cambiar filtros
-  useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, itemsPerPage, sortConfig, groupByCiclo]);
 
   // Paginación
   const totalPages = Math.max(1, Math.ceil(filteredEgresados.length / itemsPerPage));
@@ -186,7 +241,19 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   const nombreCicloSeleccionado = selectedCicloEgreso === 'TODOS' ? 'Todos los Ciclos' : selectedCicloEgreso;
 
-  // Exportar a CSV (exporta TODOS los filtrados)
+  const handleSort = (key: SortKey) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
+    if (sortConfig.key !== columnKey) return null;
+    return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="ml-1 inline" /> : <ChevronDown size={14} className="ml-1 inline" />;
+  };
+
+  // Exportar a CSV
   const handleExportCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
     
@@ -198,13 +265,13 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
       const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
       const row = [
-        `"${a.nombre_completo}"`,
-        `"${a.licenciatura}"`,
-        `"${a.estatus}"`,
+        `"${toTitleCase(a.nombre_completo)}"`,
+        `"${toTitleCase(a.licenciatura)}"`,
+        `"${toTitleCase(a.estatus || '')}"`,
         `"${cicloEgresoNombre}"`,
         `"${telefonos}"`
       ];
-      if (showEmail) row.push(`"${a.email || ''}"`);
+      if (showEmail) row.push(`"${(a.email || '').toLowerCase()}"`);
       csvContent += row.join(",") + "\n";
     });
 
@@ -217,7 +284,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     document.body.removeChild(link);
   };
 
-  // Exportar a PDF (exporta TODOS los filtrados)
+  // Exportar a PDF
   const handleExportPDF = (action: 'download' | 'print') => {
     const doc = new jsPDF();
     
@@ -236,12 +303,32 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     const head = [['Nombre Completo', 'Licenciatura', 'Estatus', 'Ciclo Egreso', 'Teléfonos']];
     if (showEmail) head[0].push('Correo');
     
-    const tableData = filteredEgresados.map(a => {
-      const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
+    const tableData: any[] = [];
+    let currentCiclo: string | null = null;
+
+    filteredEgresados.forEach(a => {
       const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
-      const row = [a.nombre_completo, a.licenciatura, a.estatus || '', cicloEgresoNombre, telefonos];
-      if (showEmail) row.push(a.email || '');
-      return row;
+      
+      // Insertar fila de agrupador si corresponde
+      if (groupByCiclo && cicloEgresoNombre !== currentCiclo) {
+        currentCiclo = cicloEgresoNombre;
+        tableData.push([{ 
+          content: `Ciclo de Egreso: ${currentCiclo}`, 
+          colSpan: showEmail ? 6 : 5, 
+          styles: { fillColor: [243, 232, 255], textColor: [107, 33, 168], fontStyle: 'bold', halign: 'center' } 
+        }]);
+      }
+
+      const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
+      const row = [
+        toTitleCase(a.nombre_completo), 
+        toTitleCase(a.licenciatura), 
+        toTitleCase(a.estatus || ''), 
+        cicloEgresoNombre, 
+        telefonos
+      ];
+      if (showEmail) row.push((a.email || '').toLowerCase());
+      tableData.push(row);
     });
 
     autoTable(doc, {
@@ -293,7 +380,11 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               <select 
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
                 value={selectedCicloEgreso}
-                onChange={(e) => setSelectedCicloEgreso(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCicloEgreso(e.target.value);
+                  // Si selecciona un ciclo en particular, agrupar no tiene tanto sentido
+                  if (e.target.value !== 'TODOS') setGroupByCiclo(false);
+                }}
               >
                 <option value="TODOS">Todos los Ciclos</option>
                 {ciclosEgresoOptions.map(nombre => (
@@ -337,9 +428,20 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               <span className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-purple-50 dark:bg-purple-900/30 px-3 py-1 rounded-full border border-purple-100 dark:border-purple-800/30">
                 {filteredEgresados.length} Egresados Encontrados
               </span>
+              
+              <button 
+                onClick={() => setGroupByCiclo(!groupByCiclo)}
+                disabled={selectedCicloEgreso !== 'TODOS'}
+                className={`flex items-center gap-2 text-sm px-3 py-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${groupByCiclo ? 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300 border border-fuchsia-200 dark:border-fuchsia-800' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-600'}`}
+                title={selectedCicloEgreso !== 'TODOS' ? "Solo disponible al ver todos los ciclos" : "Agrupar lista por ciclo de egreso"}
+              >
+                <Layers size={16}/>
+                {groupByCiclo ? 'Agrupado por Ciclo' : 'Agrupar por Ciclo'}
+              </button>
+
               <button 
                 onClick={() => setShowEmail(!showEmail)}
-                className={`flex items-center gap-2 text-sm px-3 py-1 rounded-full transition-colors ${showEmail ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}
+                className={`flex items-center gap-2 text-sm px-3 py-1 rounded-full transition-colors ${showEmail ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-600'}`}
               >
                 {showEmail ? <EyeOff size={16}/> : <Eye size={16}/>}
                 {showEmail ? 'Ocultar Correo' : 'Mostrar Correo'}
@@ -373,12 +475,39 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               <thead className="bg-gray-50 dark:bg-[#2a3441] sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">#</th>
-                  <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Nombre Completo</th>
-                  <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Licenciatura</th>
-                  <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Estatus</th>
-                  <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Ciclo Egreso</th>
+                  <th 
+                    className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    onClick={() => handleSort('nombre')}
+                  >
+                    Nombre Completo <SortIcon columnKey="nombre" />
+                  </th>
+                  <th 
+                    className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    onClick={() => handleSort('licenciatura')}
+                  >
+                    Licenciatura <SortIcon columnKey="licenciatura" />
+                  </th>
+                  <th 
+                    className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    onClick={() => handleSort('estatus')}
+                  >
+                    Estatus <SortIcon columnKey="estatus" />
+                  </th>
+                  <th 
+                    className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    onClick={() => handleSort('ciclo')}
+                  >
+                    Ciclo Egreso <SortIcon columnKey="ciclo" />
+                  </th>
                   <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Teléfonos</th>
-                  {showEmail && <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Correo Electrónico</th>}
+                  {showEmail && (
+                    <th 
+                      className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => handleSort('email')}
+                    >
+                      Correo Electrónico <SortIcon columnKey="email" />
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-transparent">
@@ -388,26 +517,39 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                     const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
                     const rowNumber = startIndex + idx + 1;
                     
+                    const globalIdx = startIndex + idx;
+                    const prevCiclo = globalIdx > 0 ? (ciclosEgresoMap[filteredEgresados[globalIdx - 1].id] || 'Sin Kardex') : null;
+                    const showGroupHeader = groupByCiclo && cicloEgresoNombre !== prevCiclo;
+                    
                     return (
-                      <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                        <td className="p-3 text-xs text-gray-400 dark:text-gray-500 tabular-nums">{rowNumber}</td>
-                        <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">{a.nombre_completo}</td>
-                        <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{a.licenciatura}</td>
-                        <td className="p-3 text-sm">
-                          <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                            esTitulado 
-                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' 
-                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          }`}>
-                            {a.estatus}
-                          </span>
-                        </td>
-                        <td className="p-3 text-sm text-gray-600 dark:text-gray-400 font-semibold">{cicloEgresoNombre}</td>
-                        <td className="p-3 text-sm text-gray-600 dark:text-gray-400">
-                          {[a.telefono, a.celular].filter(Boolean).join(" / ") || '-'}
-                        </td>
-                        {showEmail && <td className="p-3 text-sm text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{a.email || '-'}</td>}
-                      </tr>
+                      <React.Fragment key={a.id}>
+                        {showGroupHeader && (
+                          <tr className="bg-purple-50 dark:bg-purple-900/20">
+                            <td colSpan={showEmail ? 7 : 6} className="p-3 text-sm font-bold text-purple-800 dark:text-purple-300 border-y border-purple-100 dark:border-purple-800/50">
+                              Ciclo de Egreso: {cicloEgresoNombre}
+                            </td>
+                          </tr>
+                        )}
+                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                          <td className="p-3 text-xs text-gray-400 dark:text-gray-500 tabular-nums">{rowNumber}</td>
+                          <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">{toTitleCase(a.nombre_completo)}</td>
+                          <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{toTitleCase(a.licenciatura)}</td>
+                          <td className="p-3 text-sm">
+                            <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                              esTitulado 
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' 
+                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                            }`}>
+                              {toTitleCase(a.estatus || '')}
+                            </span>
+                          </td>
+                          <td className="p-3 text-sm text-gray-600 dark:text-gray-400 font-semibold">{cicloEgresoNombre}</td>
+                          <td className="p-3 text-sm text-gray-600 dark:text-gray-400">
+                            {[a.telefono, a.celular].filter(Boolean).join(" / ") || '-'}
+                          </td>
+                          {showEmail && <td className="p-3 text-sm text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{(a.email || '').toLowerCase() || '-'}</td>}
+                        </tr>
+                      </React.Fragment>
                     );
                   })
                 ) : (
@@ -422,7 +564,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
             </table>
           </div>
 
-          {/* Paginación estilo AlumnosConfig */}
+          {/* Paginación */}
           {filteredEgresados.length > 0 && (
             <div className="p-4 border-t border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50 flex flex-col md:flex-row items-center justify-between gap-4 rounded-b-xl mt-0">
               <div className="flex items-center gap-3">
