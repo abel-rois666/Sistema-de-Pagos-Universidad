@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
 import {
   GraduationCap, Loader2, Save, CheckCircle2, Clock, Ban,
   AlertCircle, ChevronDown, FileCheck, X, Edit3, CalendarDays, Flag, Lock, Trash2, AlertTriangle,
@@ -100,7 +101,7 @@ async function validarRequisitoIngles(alumnoId: string, calificacionMinima: numb
       .limit(1)
       .maybeSingle();
 
-    if (!historialTop?.asignaturas?.plan_id) return false;
+    if (!(historialTop?.asignaturas as any)?.plan_id) return false;
     const planId = (historialTop.asignaturas as any).plan_id;
 
     const { data: materiasInglesPlan } = await supabase

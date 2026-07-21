@@ -259,7 +259,7 @@ export default function ModalSincronizacionAcademica({ isOpen, onClose }: Props)
         if (item.matricula && mapMatriculaToId[item.matricula]) {
           const alumno_id = mapMatriculaToId[item.matricula];
           updateBatches.push(
-            supabase.from('alumnos').update({ numero_legado: item.numero_alumno }).eq('id', alumno_id)
+            Promise.resolve(supabase.from('alumnos').update({ numero_legado: item.numero_alumno }).eq('id', alumno_id))
           );
           alumnosActualizados++;
         }

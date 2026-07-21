@@ -449,6 +449,8 @@ export interface Carrera {
   id: string;
   nombre: string;
   clave?: string;
+  rvoe?: string;
+  fecha_rvoe?: string;
   nivel_educativo?: string;
   calificacion_minima_aprobatoria?: number;
   calificacion_minima?: number;

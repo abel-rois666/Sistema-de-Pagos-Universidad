@@ -9,9 +9,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   grupoId: string | null;
+  isNewGroup?: boolean;
 }
 
-export default function ModalConfiguracionGrupo({ isOpen, onClose, grupoId }: Props) {
+export default function ModalConfiguracionGrupo({ isOpen, onClose, grupoId, isNewGroup }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
