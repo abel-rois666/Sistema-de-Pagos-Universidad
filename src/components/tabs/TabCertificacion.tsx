@@ -21,7 +21,10 @@ function businessDaysLeft(end: Date): number {
   while (c < end) { c.setDate(c.getDate() + 1); if (c.getDay() !== 0 && c.getDay() !== 6) count++; }
   return count;
 }
-function toInputDate(d: Date) { return d.toISOString().slice(0,10); }
+function toInputDate(d: Date) { 
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0,10); 
+}
 
 function checkRequisitos(draft: typeof BLANK, esEspecialidad: boolean): boolean {
   const base =
@@ -152,10 +155,10 @@ interface Props {
   alumnoId: string;
   esEspecialidad: boolean;
   onEstatusChange?: (e: 'SIN_INICIAR'|'EN_CURSO'|'COMPLETADO') => void;
+  onUpdate?: () => void;
 }
 
-// ── Componente ────────────────────────────────────────────────────────────────
-export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusChange }: Props) {
+export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusChange, onUpdate }: Props) {
   const [ficha, setFicha]       = useState<FichaCertificacion|null>(null);
   const [draft, setDraft]       = useState(BLANK);
   const [loading, setLoading]   = useState(true);
@@ -190,10 +193,17 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
     setDraft(p => ({ ...p, [field]: val }));
 
   const handleFechaInicio = (val: string) => {
+    let termino = null;
+    if (val) {
+      const d = new Date(val + 'T12:00:00');
+      if (!isNaN(d.getTime())) {
+        termino = toInputDate(addBusinessDays(d, 70));
+      }
+    }
     setDraft(p => ({
       ...p,
       fecha_inicio_tramite: val || null,
-      fecha_termino_tramite: val ? toInputDate(addBusinessDays(new Date(val + 'T12:00:00'), 70)) : null,
+      fecha_termino_tramite: termino,
     }));
   };
 
@@ -208,6 +218,7 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
     setSaving(false); setEditing(false); setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     load();
+    onUpdate?.();
   };
 
   const handleCancel = () => {
@@ -216,6 +227,18 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
       const { id: _i, alumno_id: _a, created_at: _c, updated_at: _u, ...r } = ficha;
       setDraft(r as typeof BLANK);
     } else setDraft({ ...BLANK });
+  };
+
+  const handleMarcarCompletados = () => {
+    setDraft(p => ({
+      ...p,
+      pago_certificado: 'COMPLETADO',
+      doc_acta_nacimiento: 'APROBADO',
+      doc_curp: 'APROBADO',
+      doc_antecedente: 'APROBADO',
+      ...(esEspecialidad ? { doc_titulo_profesional: 'APROBADO', doc_cedula_profesional: 'APROBADO' } : {})
+    }));
+    setEditing(true);
   };
 
   // ── Reset total ─────────────────────────────────────────────────────
@@ -269,7 +292,8 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
         <div className="flex flex-col items-end gap-2">
           {saved && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 rounded-[8px]"><CheckCircle2 size={13}/> Guardado</span>}
           {editing ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button onClick={handleMarcarCompletados} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 rounded-[8px] transition-colors"><CheckCircle2 size={14}/> Completar Requisitos</button>
               <button onClick={handleCancel} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[8px] transition-colors"><X size={14}/> Cancelar</button>
               <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-60 rounded-[8px] shadow-sm transition-colors active:scale-95">
                 {saving ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Guardar

@@ -82,7 +82,7 @@ export default function ModalReinscripcion({
             turno: ultimoPlan.turno,
           };
           
-          for (let i = 1; i <= 15; i++) {
+          for (let i = 1; i <= 18; i++) {
             if (ultimoPlan[`concepto_${i}`]) {
               nuevoPlan[`concepto_${i}`] = ultimoPlan[`concepto_${i}`];
               nuevoPlan[`cantidad_${i}`] = ultimoPlan[`cantidad_${i}`];

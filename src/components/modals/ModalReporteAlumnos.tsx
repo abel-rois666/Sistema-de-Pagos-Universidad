@@ -33,7 +33,7 @@ export default function ModalReporteAlumnos({ alumnos, activeCyclePlans, cicloNo
   const mesesDisponibles = useMemo(() => {
     const meses = new Set<string>();
     activeCyclePlans.forEach(plan => {
-      for (let i = 1; i <= 15; i++) {
+      for (let i = 1; i <= 18; i++) {
         const fecha = plan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
         if (fecha) {
           const m = extractMonth(fecha);

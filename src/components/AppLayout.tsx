@@ -175,7 +175,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             return (
               <div key={item.name} className="flex flex-col">
                 <Link
-                  to={item.path !== '#' ? item.path : '#'}
+                  to={hasChildren ? '#' : (item.path !== '#' ? item.path : '#')}
                   onClick={hasChildren ? handleItemClick : undefined}
                   className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
                     active && !hasChildren

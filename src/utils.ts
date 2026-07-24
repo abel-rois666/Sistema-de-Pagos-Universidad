@@ -48,7 +48,7 @@ export const calculateStudentTotals = (plan: PaymentPlan, studentEstatus?: strin
     }
   };
 
-  for (let i = 1; i <= 15; i++) {
+  for (let i = 1; i <= 18; i++) {
     const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
     const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
     const fecha = plan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;

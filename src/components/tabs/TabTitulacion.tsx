@@ -445,7 +445,7 @@ export default function TabTitulacion({
     }
     // Plan existe → al menos EN_CURSO
     let hasConcepts = false, allPaid = true;
-    for (let i = 1; i <= 15; i++) {
+    for (let i = 1; i <= 18; i++) {
       const cant = planTit[`cantidad_${i}`] as number | undefined;
       const est  = planTit[`estatus_${i}`]  as string | undefined;
       if (!cant) continue;

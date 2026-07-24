@@ -249,6 +249,7 @@ export default function App() {
                 onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
                 onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
                 onBackToAlumnos={navState.fromAlumnos ? () => { setSelectedAlumnoId(null); navigate('/alumnos'); } : undefined}
+                onBackToReporteEgresados={navState.fromReporteEgresados ? () => { setSelectedAlumnoId(null); navigate('/reporte-egresados'); } : undefined}
               />
             </PageWrapper>
           } />

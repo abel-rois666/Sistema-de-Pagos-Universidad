@@ -210,7 +210,7 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
           </div>
           <div>
             {renderSlotHeader(11)}
-            {[11, 12, 13, 14, 15].map(n => renderSlotInput(n))}
+            {[11, 12, 13, 14, 15, 16, 17, 18].map(n => renderSlotInput(n))}
           </div>
         </div>
       </div>
@@ -277,9 +277,9 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
               {!plantilla.descripcion && <div className="flex-1"></div>}
 
               <div className="flex flex-wrap gap-2 text-xs text-[#8e8e93] font-medium mb-4">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].filter(i => plantilla[`concepto_${i}` as keyof PlantillaPlan]).length > 0
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].filter(i => plantilla[`concepto_${i}` as keyof PlantillaPlan]).length > 0
                   ? <span className="bg-[#f2f3f5] border border-[#e5e7eb] px-2 py-1 rounded">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].filter(i => plantilla[`concepto_${i}` as keyof PlantillaPlan]).length} conceptos configurados
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].filter(i => plantilla[`concepto_${i}` as keyof PlantillaPlan]).length} conceptos configurados
                     </span>
                   : <span className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-1 rounded">Sin conceptos</span>
                 }

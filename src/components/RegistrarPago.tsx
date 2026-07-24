@@ -151,7 +151,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
         return; // Retornar temprano para saltar el fallback
       }
 
-      for (let i = 1; i <= 15; i++) {
+      for (let i = 1; i <= 18; i++) {
         const conceptoName = planActual[`concepto_${i}` as keyof PaymentPlan] as string;
         const cantidad = planActual[`cantidad_${i}` as keyof PaymentPlan] as number;
         const estatus = planActual[`estatus_${i}` as keyof PaymentPlan] as string;

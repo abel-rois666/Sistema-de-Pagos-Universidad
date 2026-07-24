@@ -124,7 +124,7 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
     const montoPorPago = Number((dtn / pagosADividir).toFixed(2));
     
     const updates: any = {};
-    for (let i = 1; i <= 15; i++) {
+    for (let i = 1; i <= 18; i++) {
        if (i <= pagosADividir) {
           updates[`concepto_${i}`] = i === 1 ? '1ER PAGO' : i === 2 ? '2DO PAGO' : i === 3 ? '3ER PAGO' : i === 4 ? '4TO PAGO' : i === 5 ? '5TO PAGO' : i === 6 ? '6TO PAGO' : i === 7 ? '7MO PAGO' : i === 8 ? '8VO PAGO' : i === 9 ? '9NO PAGO' : i === 10 ? '10MO PAGO' : i === 11 ? '11VO PAGO' : i === 12 ? '12VO PAGO' : i === 13 ? '13VO PAGO' : i === 14 ? '14VO PAGO' : i === 15 ? '15VO PAGO' : `${i}VO PAGO`;
           updates[`cantidad_${i}`] = montoPorPago;
@@ -229,7 +229,7 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
 interface PlanPagosProps {
   initialAlumnoId?: string | null;
   onBack: () => void;
-  onSavePlan: (plan: PaymentPlan) => void;
+  onSavePlan: (plan: PaymentPlan) => Promise<void> | void;
   onDeletePlan?: (planId: string) => void;
   onGoToPagos?: (alumnoId: string, conceptoIdx: number, planId?: string) => void;
   onViewReceipt?: (folio: string, alumnoId: string) => void;
@@ -284,6 +284,8 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
 
   // Modal States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
   const [isEditPlanModalOpen, setIsEditPlanModalOpen] = useState(false);
   const [isNewPlanModalOpen, setIsNewPlanModalOpen] = useState(false);
   const [deleteConfirmPlanId, setDeleteConfirmPlanId] = useState<string | null>(null);
@@ -685,9 +687,9 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                     >
                       <option value="Cuatrimestral">Cuatrimestral (Hasta 7 pagos)</option>
                       <option value="Semestral">Semestral (Hasta 9 pagos)</option>
-                      <option value="Titulación">Titulación (Hasta 15 pagos)</option>
-                      <option value="Especialidad Completa">Especialidad Completa (Hasta 15 pagos)</option>
-                      <option value="Especialidad Cuatrimestral">Especialidad Cuatrimestral (Hasta 15 pagos)</option>
+                      <option value="Titulación">Titulación (Hasta 18 pagos)</option>
+                      <option value="Especialidad Completa">Especialidad Completa (Hasta 18 pagos)</option>
+                      <option value="Especialidad Cuatrimestral">Especialidad Cuatrimestral (Hasta 18 pagos)</option>
                     </select>
                   </div>
                   <div>
@@ -1078,8 +1080,10 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
   };
 
   const handleSavePlanStructure = async () => {
+    setIsSavingPlan(true);
+    try {
     const indicesToFree: number[] = [];
-    for (let i = 1; i <= 15; i++) {
+    for (let i = 1; i <= 18; i++) {
         const estatusKey = `estatus_${i}` as keyof PaymentPlan;
         const oldStatus = selectedPlan[estatusKey] as string || '';
         const newStatus = editForm[estatusKey] as string || 'PENDIENTE';
@@ -1108,15 +1112,18 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
     }
 
     const formToSave = { ...editForm };
-    for (let i = 1; i <= 15; i++) {
+    for (let i = 1; i <= 18; i++) {
        const key = `estatus_${i}` as keyof PaymentPlan;
        if (typeof formToSave[key] === 'string' && (formToSave[key] as string).trim() === '') {
            (formToSave as any)[key] = 'PENDIENTE';
        }
     }
 
-    onSavePlan(formToSave as PaymentPlan);
+    await onSavePlan(formToSave as PaymentPlan);
     setIsEditPlanModalOpen(false);
+    } finally {
+      setIsSavingPlan(false);
+    }
   };
 
   const Td = ({ children, className = "" }: { children?: React.ReactNode, className?: string }) => (
@@ -1224,7 +1231,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
   const planType = selectedPlan.tipo_plan || 'Cuatrimestral';
   // Modificado: Calcular los máximos pagos requeridos
   const isExtendedPlan = planType === 'Titulación' || planType.includes('Especialidad');
-  const maxPayments = isExtendedPlan ? 15 : planType === 'Semestral' ? 9 : 7;
+  const maxPayments = isExtendedPlan ? 18 : planType === 'Semestral' ? 9 : 7;
   const paymentIndices = Array.from({ length: maxPayments }, (_, i) => i + 1);
 
   // Pestañas dinámicas para estudiantes con múltiples planes
@@ -1689,9 +1696,9 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   >
                     <option value="Cuatrimestral">Cuatrimestral (Hasta 7 pagos)</option>
                     <option value="Semestral">Semestral (Hasta 9 pagos)</option>
-                    <option value="Titulación">Titulación (Hasta 15 pagos)</option>
-                    <option value="Especialidad Completa">Especialidad Completa (Hasta 15 pagos)</option>
-                    <option value="Especialidad Cuatrimestral">Especialidad Cuatrimestral (Hasta 15 pagos)</option>
+                    <option value="Titulación">Titulación (Hasta 18 pagos)</option>
+                    <option value="Especialidad Completa">Especialidad Completa (Hasta 18 pagos)</option>
+                    <option value="Especialidad Cuatrimestral">Especialidad Cuatrimestral (Hasta 18 pagos)</option>
                   </select>
                 </div>
                 <div className="md:col-span-2">
@@ -1825,7 +1832,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
               <h4 className="font-bold text-[#222222] mb-4 border-b pb-2">Pagos Programados</h4>
 
               <div className="space-y-4">
-                {Array.from({ length: editForm.tipo_plan === 'Titulación' || editForm.tipo_plan?.includes('Especialidad') ? 15 : editForm.tipo_plan === 'Semestral' ? 9 : 7 }, (_, i) => i + 1).map(i => {
+                {Array.from({ length: editForm.tipo_plan === 'Titulación' || editForm.tipo_plan?.includes('Especialidad') ? 18 : editForm.tipo_plan === 'Semestral' ? 9 : 7 }, (_, i) => i + 1).map(i => {
                   return (
                     <div key={i} className="flex gap-4 items-end bg-[#f2f3f5] p-4 rounded-[8px] border border-[#f2f3f5]">
                       <div className="w-12 text-center font-bold text-[#8e8e93] pt-2">#{i}</div>
@@ -1887,9 +1894,11 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 </button>
                 <button
                   onClick={handleSavePlanStructure}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[8px] font-medium transition-colors flex items-center gap-2"
+                  disabled={isSavingPlan}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[8px] font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
-                  <Save size={18} /> Guardar Cambios
+                  {isSavingPlan ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                  {isSavingPlan ? 'Procesando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </div>
@@ -2054,9 +2063,9 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   >
                     <option value="Cuatrimestral">Cuatrimestral (Hasta 7 pagos)</option>
                     <option value="Semestral">Semestral (Hasta 9 pagos)</option>
-                    <option value="Titulación">Titulación (Hasta 15 pagos)</option>
-                    <option value="Especialidad Completa">Especialidad Completa (Hasta 15 pagos)</option>
-                    <option value="Especialidad Cuatrimestral">Especialidad Cuatrimestral (Hasta 15 pagos)</option>
+                    <option value="Titulación">Titulación (Hasta 18 pagos)</option>
+                    <option value="Especialidad Completa">Especialidad Completa (Hasta 18 pagos)</option>
+                    <option value="Especialidad Cuatrimestral">Especialidad Cuatrimestral (Hasta 18 pagos)</option>
                   </select>
                 </div>
                 <div>

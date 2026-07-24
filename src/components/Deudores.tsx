@@ -116,7 +116,7 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
     filteredPlans.forEach(plan => {
       const alumno = alumnos.find(a => a.id === plan.alumno_id || a.nombre_completo === plan.nombre_alumno);
       const alumnoId = alumno?.id || plan.alumno_id || '';
-      for (let i = 1; i <= 15; i++) {
+      for (let i = 1; i <= 18; i++) {
         const concepto = plan[`concepto_${i}` as keyof PaymentPlan] as string | undefined;
         const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
         const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;

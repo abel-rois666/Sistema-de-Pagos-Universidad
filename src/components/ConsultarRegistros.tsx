@@ -84,36 +84,45 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
     }
   };
 
-  const executeMassCancel = async () => {
+  const executeMassCancel = () => {
     if (selectedReceiptIds.size === 0) return;
-    if (!window.confirm(`¿Estás seguro de cancelar ${selectedReceiptIds.size} recibos seleccionados de forma permanente?`)) return;
     
-    setIsProcessingMass(true);
-    const results: any[] = [];
-    let successCount = 0;
-    let errorCount = 0;
+    setSystemConfirmModal({
+      isOpen: true,
+      title: 'Cancelar Recibos Masivamente',
+      message: `¿Estás seguro de cancelar ${selectedReceiptIds.size} recibos seleccionados de forma permanente?`,
+      type: 'danger',
+      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setIsProcessingMass(true);
+        const results: any[] = [];
+        let successCount = 0;
+        let errorCount = 0;
 
-    for (const id of Array.from(selectedReceiptIds)) {
-       const folio = String(recibos.find(r => r.id === id)?.folio || id);
-       setMassStatus({ isOpen: true, msg: `Cancelando recibo #${folio}...`, results });
-       const err = await cancelarRecibo(id as string);
-       if (!err) {
-         successCount++;
-         results.push({ folio, status: 'Éxito', note: 'Cancelado correctamente' });
-       } else {
-         errorCount++;
-         results.push({ folio, status: 'Error', note: err ? String(err) : 'Error desconocido' });
-       }
-    }
+        for (const id of Array.from(selectedReceiptIds)) {
+           const folio = String(recibos.find(r => r.id === id)?.folio || id);
+           setMassStatus({ isOpen: true, msg: `Cancelando recibo #${folio}...`, results });
+           const err = await cancelarRecibo(id as string);
+           if (!err) {
+             successCount++;
+             results.push({ folio, status: 'Éxito', note: 'Cancelado correctamente' });
+           } else {
+             errorCount++;
+             results.push({ folio, status: 'Error', note: err ? String(err) : 'Error desconocido' });
+           }
+        }
 
-    cargarRecibos();
-    setSelectedReceiptIds(new Set());
-    setMassStatus({ 
-       isOpen: true, 
-       msg: `Proceso completado. Éxitos: ${successCount}, Errores: ${errorCount}.`, 
-       results 
+        cargarRecibos();
+        setSelectedReceiptIds(new Set());
+        setMassStatus({ 
+           isOpen: true, 
+           msg: `Proceso completado. Éxitos: ${successCount}, Errores: ${errorCount}.`, 
+           results 
+        });
+        setIsProcessingMass(false);
+      }
     });
-    setIsProcessingMass(false);
   };
 
   const executeMassExportZIP = async () => {
@@ -393,36 +402,45 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
     });
   };
 
-  const handleUnlinkDetail = async (detalleId: string, idx: number) => {
+  const handleUnlinkDetail = (detalleId: string, idx: number) => {
       if (!reciboSeleccionado) return;
-      if (!window.confirm(`¿Estás seguro de desvincular este cobro del Plan #${idx}? Su estatus en el plan regresará a PENDIENTE.`)) return;
+      
+      setSystemConfirmModal({
+        isOpen: true,
+        title: 'Desvincular Cobro',
+        message: `¿Estás seguro de desvincular este cobro del Plan #${idx}? Su estatus en el plan regresará a PENDIENTE.`,
+        type: 'warning',
+        onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+        onConfirm: async () => {
+          setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+          const { error } = await supabase.from('recibos_detalles').update({ indice_concepto_plan: null, observaciones: null }).eq('id', detalleId);
+          if (error) { toast.error('Error: ' + error.message); return; }
 
-      const { error } = await supabase.from('recibos_detalles').update({ indice_concepto_plan: null, observaciones: null }).eq('id', detalleId);
-      if (error) { toast.error('Error: ' + error.message); return; }
-
-      const { data: planes } = await supabase.from('planes_pago').select('*')
-          .eq('alumno_id', reciboSeleccionado.alumno_id)
-          .eq('ciclo_id', reciboSeleccionado.ciclo_id);
-          
-      if (planes && planes.length > 0) {
-          const currentEstatus = planes[0][`estatus_${idx}` as keyof PaymentPlan] as string || '';
-          let newEstatus = 'PENDIENTE';
-          const rx = new RegExp(`(.*?)((?:F-${reciboSeleccionado.folio_fiscal}|R-${reciboSeleccionado.folio}))\\b.*?(\\(.*?\\))?(;|$)`, 'i');
-          if (rx.test(currentEstatus)) {
-               const modified = currentEstatus.replace(rx, '').trim();
-               newEstatus = modified.length > 0 && modified !== ';' ? modified : 'PENDIENTE';
+          const { data: planes } = await supabase.from('planes_pago').select('*')
+              .eq('alumno_id', reciboSeleccionado.alumno_id)
+              .eq('ciclo_id', reciboSeleccionado.ciclo_id);
+              
+          if (planes && planes.length > 0) {
+              const currentEstatus = planes[0][`estatus_${idx}` as keyof PaymentPlan] as string || '';
+              let newEstatus = 'PENDIENTE';
+              const rx = new RegExp(`(.*?)((?:F-${reciboSeleccionado.folio_fiscal}|R-${reciboSeleccionado.folio}))\\b.*?(\\(.*?\\))?(;|$)`, 'i');
+              if (rx.test(currentEstatus)) {
+                   const modified = currentEstatus.replace(rx, '').trim();
+                   newEstatus = modified.length > 0 && modified !== ';' ? modified : 'PENDIENTE';
+              }
+              await supabase.from('planes_pago').update({ [`estatus_${idx}`]: newEstatus }).eq('id', planes[0].id);
           }
-          await supabase.from('planes_pago').update({ [`estatus_${idx}`]: newEstatus }).eq('id', planes[0].id);
-      }
 
-      setReciboSeleccionado(prev => {
-          if (!prev) return prev;
-          return {
-              ...prev,
-              recibos_detalles: prev.recibos_detalles.map(dd => dd.id === detalleId ? { ...dd, indice_concepto_plan: null as any, observaciones: null as any } : dd)
-          };
+          setReciboSeleccionado(prev => {
+              if (!prev) return prev;
+              return {
+                  ...prev,
+                  recibos_detalles: prev.recibos_detalles.map(dd => dd.id === detalleId ? { ...dd, indice_concepto_plan: null as any, observaciones: null as any } : dd)
+              };
+          });
+          if (onDataRefresh) onDataRefresh();
+        }
       });
-      if (onDataRefresh) onDataRefresh();
   };
 
   useEffect(() => {
@@ -568,230 +586,243 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
     cargarRecibos();
   }, [alumnos]);
 
-  const handleCancelar = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de cancelar este recibo? El estatus del Plan de Pagos NO se revertirá automáticamente.')) return;
-    const err = await cancelarRecibo(id);
-    if (!err) {
-      cargarRecibos();
-      if (reciboSeleccionado?.id === id) {
-        setReciboSeleccionado(prev => prev ? { ...prev, estatus: 'CANCELADO' } : null);
+  const handleCancelar = (id: string) => {
+    setSystemConfirmModal({
+      isOpen: true,
+      title: 'Cancelar Recibo',
+      message: '¿Estás seguro de cancelar este recibo? El estatus del Plan de Pagos NO se revertirá automáticamente.',
+      type: 'danger',
+      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+        const err = await cancelarRecibo(id);
+        if (!err) {
+          cargarRecibos();
+          if (reciboSeleccionado?.id === id) {
+            setReciboSeleccionado(prev => prev ? { ...prev, estatus: 'CANCELADO' } : null);
+          }
+        } else {
+          toast.error('Error cancelando recibo: ' + err);
+        }
       }
-    } else {
-      toast.error('Error cancelando recibo: ' + err);
-    }
+    });
   };
 
   const handleToggleFactura = async (id: string, currentRequiereFactura: boolean, currentFacturaEstatus: string) => {
     const newStatus = !currentRequiereFactura;
     
-    // Si se desea desactivar y ya tiene un folio, confirmar
-    if (!newStatus && currentFacturaEstatus === 'FACTURADO') {
-       if (!window.confirm("Este recibo ya tiene un folio fiscal asignado. Si quitas la opción de factura, perderás el folio fiscal registrado en este recibo. ¿Deseas continuar?")) {
-         return;
-       }
-    }
-
-    const newEstatusFactura = newStatus ? 'PENDIENTE' : 'NO APLICA';
-    const updatePayload: any = {
-        requiere_factura: newStatus,
-        estatus_factura: newEstatusFactura,
-    };
-    if (!newStatus) {
-        updatePayload.folio_fiscal = null;
-    }
-
-    const { error } = await supabase
-      .from('recibos')
-      .update(updatePayload)
-      .eq('id', id);
-
-    if (error) {
-      toast.error('Error al actualizar opciones de factura: ' + error.message);
-      return;
-    }
-
-    setReciboSeleccionado(prev => {
-      if (!prev) return prev;
-      return { ...prev, ...updatePayload };
-    });
-
-    setRecibos(oldRecibos => oldRecibos.map(r => {
-      if (r.id === id) {
-        return { ...r, ...updatePayload };
-      }
-      return r;
-    }));
-  };
-
-  const handleRepararHistoricos = async () => {
-    if (!window.confirm('¿Estás seguro de ejecutar la reparación masiva? Esto reasignará los recibos mal vinculados a sus ciclos históricos empleando cercanía de fechas.')) return;
-    
-    setLoading(true);
-    setRepairProgress('Obteniendo planes de pago...');
-    try {
-      // Fetch planes_pago
-      const { data: planes, error: planesErr } = await fetchAllSupabase(() => supabase.from('planes_pago').select('*'));
-      if (planesErr) throw planesErr;
-      const planesMutables = JSON.parse(JSON.stringify(planes || []));
-
-      // Fetch recibos safely with pagination NO JOINS to avoid timeout
-      setRepairProgress('Descargando recibos (fase 1/2)...');
-      let allRecibos: any[] = [];
-      let fetchMoreR = true;
-      let fromR = 0;
-      const stepR = 2000;
-      
-      while (fetchMoreR) {
-         setRepairProgress(`Descargando recibos... (${allRecibos.length})`);
-         const { data: chunk, error: err } = await supabase
-            .from('recibos')
-            .select('*')
-            .range(fromR, fromR + stepR - 1);
-            
-         if (err) throw err;
-         if (chunk && chunk.length > 0) {
-            allRecibos = [...allRecibos, ...chunk];
-            fromR += stepR;
-         } else {
-            fetchMoreR = false;
-         }
+    const executeToggle = async () => {
+      const newEstatusFactura = newStatus ? 'PENDIENTE' : 'NO APLICA';
+      const updatePayload: any = {
+          requiere_factura: newStatus,
+          estatus_factura: newEstatusFactura,
+      };
+      if (!newStatus) {
+          updatePayload.folio_fiscal = null;
       }
 
-      setRepairProgress('Descargando detalles (fase 2/2)...');
-      let allDetalles: any[] = [];
-      let fetchMoreD = true;
-      let fromD = 0;
-      const stepD = 5000;
-      
-      while (fetchMoreD) {
-         setRepairProgress(`Descargando detalles... (${allDetalles.length})`);
-         const { data: chunk, error: err } = await supabase
-            .from('recibos_detalles')
-            .select('*')
-            .range(fromD, fromD + stepD - 1);
-            
-         if (err) throw err;
-         if (chunk && chunk.length > 0) {
-            allDetalles = [...allDetalles, ...chunk];
-            fromD += stepD;
-         } else {
-            fetchMoreD = false;
-         }
+      const { error } = await supabase
+        .from('recibos')
+        .update(updatePayload)
+        .eq('id', id);
+
+      if (error) {
+        toast.error('Error al actualizar opciones de factura: ' + error.message);
+        return;
       }
 
-      setRepairProgress('Uniendo datos en memoria...');
-      const detallesMap: Record<string, any[]> = {};
-      allDetalles.forEach(d => {
-         if (!detallesMap[d.recibo_id]) detallesMap[d.recibo_id] = [];
-         detallesMap[d.recibo_id].push(d);
+      setReciboSeleccionado(prev => {
+        if (!prev) return prev;
+        return { ...prev, ...updatePayload };
       });
 
-      const joinedRecibos = allRecibos.map(r => ({
-          ...r,
-          recibos_detalles: detallesMap[r.id] || []
-      }));
-
-      setRepairProgress('Analizando mejores coincidencias temporales...');
-
-      const parseDateToMs = (dStr: string) => {
-        if (!dStr) return 0;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return new Date(dStr).getTime() || 0;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
-            const [d, m, y] = dStr.split('/');
-            return new Date(Number(y), Number(m)-1, Number(d)).getTime() || 0;
+      setRecibos(oldRecibos => oldRecibos.map(r => {
+        if (r.id === id) {
+          return { ...r, ...updatePayload };
         }
-        return new Date(dStr).getTime() || 0;
-      };
+        return r;
+      }));
+    };
 
-      const planesToUpdate: Record<string, any> = {};
-      const recibosToUpdate: any[] = [];
-      const detallesToUpdate: any[] = [];
+    // Si se desea desactivar y ya tiene un folio, confirmar
+    if (!newStatus && currentFacturaEstatus === 'FACTURADO') {
+       setSystemConfirmModal({
+         isOpen: true,
+         title: 'Remover Factura',
+         message: "Este recibo ya tiene un folio fiscal asignado. Si quitas la opción de factura, perderás el folio fiscal registrado en este recibo. ¿Deseas continuar?",
+         type: 'warning',
+         onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+         onConfirm: async () => {
+           setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+           await executeToggle();
+         }
+       });
+       return;
+    }
+    
+    await executeToggle();
+  };
 
-      for (const r of joinedRecibos) {
-         if (r.estatus !== 'ACTIVO') continue;
+  const handleRepararHistoricos = () => {
+    setSystemConfirmModal({
+      isOpen: true,
+      title: 'Reparación Masiva',
+      message: '¿Estás seguro de ejecutar la reparación masiva? Esto reasignará los recibos mal vinculados a sus ciclos históricos empleando cercanía de fechas.',
+      type: 'warning',
+      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+        
+        setLoading(true);
+        setRepairProgress('Obteniendo planes de pago...');
+        try {
+          // Fetch planes_pago
+          const { data: planes, error: planesErr } = await fetchAllSupabase(() => supabase.from('planes_pago').select('*'));
+          if (planesErr) throw planesErr;
+          const planesMutables = JSON.parse(JSON.stringify(planes || []));
 
-         const studentPlanes = planesMutables.filter((p: any) => p.alumno_id === r.alumno_id);
-         if (studentPlanes.length === 0) continue;
+          // Fetch recibos safely with pagination NO JOINS to avoid timeout
+          setRepairProgress('Descargando recibos (fase 1/2)...');
+          let allRecibos: any[] = [];
+          let fetchMoreR = true;
+          let rOffset = 0;
+          const R_LIMIT = 5000;
+          while (fetchMoreR) {
+              const { data, error } = await supabase.from('recibos').select('id, alumno_id, fecha_pago, estatus, ciclo_id').range(rOffset, rOffset + R_LIMIT - 1);
+              if (error) throw error;
+              if (data && data.length > 0) {
+                  allRecibos = [...allRecibos, ...data];
+                  rOffset += R_LIMIT;
+              } else {
+                  fetchMoreR = false;
+              }
+          }
 
-         let changedCiclo = false;
-         let newCicloId = r.ciclo_id;
+          setRepairProgress('Descargando detalles (fase 2/2)...');
+          let allDetalles: any[] = [];
+          let fetchMoreD = true;
+          let dOffset = 0;
+          const D_LIMIT = 5000;
+          while (fetchMoreD) {
+              const { data, error } = await supabase.from('recibos_detalles').select('id, recibo_id, concepto, indice_concepto_plan').not('indice_concepto_plan', 'is', null).range(dOffset, dOffset + D_LIMIT - 1);
+              if (error) throw error;
+              if (data && data.length > 0) {
+                  allDetalles = [...allDetalles, ...data];
+                  dOffset += D_LIMIT;
+              } else {
+                  fetchMoreD = false;
+              }
+          }
 
-         r.recibos_detalles.forEach((d: any) => {
-             let bestMatch: any = null;
-             const fechaReciboMs = new Date(r.fecha_pago).getTime();
+          setRepairProgress('Cruzando datos en memoria...');
+          const joinedRecibos = allRecibos.map(r => {
+             const det = allDetalles.filter(d => d.recibo_id === r.id);
+             return { ...r, recibos_detalles: det };
+          }).filter(r => r.recibos_detalles.length > 0);
 
-             studentPlanes.forEach((plan: any) => {
-                 for(let j=1; j<=9; j++) {
-                     const conc = plan[`concepto_${j}`];
-                     if (conc && conc.toUpperCase() === d.concepto.toUpperCase()) {
-                         const fpMs = parseDateToMs(plan[`fecha_${j}`]);
-                         const diff = fpMs === 0 ? 9999999999999 : Math.abs(fechaReciboMs - fpMs);
-                         if (!bestMatch || diff < bestMatch.diff) {
-                             bestMatch = { planId: plan.id, index: j, diff };
+          setRepairProgress('Analizando mejores coincidencias temporales...');
+
+          const parseDateToMs = (dStr: string) => {
+            if (!dStr) return 0;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return new Date(dStr).getTime() || 0;
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
+                const [d, m, y] = dStr.split('/');
+                return new Date(Number(y), Number(m)-1, Number(d)).getTime() || 0;
+            }
+            return new Date(dStr).getTime() || 0;
+          };
+
+          const planesToUpdate: Record<string, any> = {};
+          const recibosToUpdate: any[] = [];
+          const detallesToUpdate: any[] = [];
+
+          for (const r of joinedRecibos) {
+             if (r.estatus !== 'ACTIVO') continue;
+
+             const studentPlanes = planesMutables.filter((p: any) => p.alumno_id === r.alumno_id);
+             if (studentPlanes.length === 0) continue;
+
+             let changedCiclo = false;
+             let newCicloId = r.ciclo_id;
+
+             r.recibos_detalles.forEach((d: any) => {
+                 let bestMatch: any = null;
+                 const fechaReciboMs = new Date(r.fecha_pago).getTime();
+
+                 studentPlanes.forEach((plan: any) => {
+                     for(let j=1; j<=9; j++) {
+                         const conc = plan[`concepto_${j}`];
+                         if (conc && conc.toUpperCase() === d.concepto.toUpperCase()) {
+                             const fpMs = parseDateToMs(plan[`fecha_${j}`]);
+                             const diff = fpMs === 0 ? 9999999999999 : Math.abs(fechaReciboMs - fpMs);
+                             if (!bestMatch || diff < bestMatch.diff) {
+                                 bestMatch = { planId: plan.id, index: j, diff };
+                             }
+                         }
+                     }
+                 });
+
+                 if (bestMatch) {
+                     const oldPlanId = planesMutables.find((p:any) => p.ciclo_id === r.ciclo_id)?.id;
+                     const oldIndex = d.indice_concepto_plan;
+
+                     if (oldPlanId !== bestMatch.planId || oldIndex !== bestMatch.index) {
+                         if (oldPlanId && oldIndex) {
+                             if (!planesToUpdate[oldPlanId]) planesToUpdate[oldPlanId] = {};
+                             planesToUpdate[oldPlanId][`estatus_${oldIndex}`] = 'PENDIENTE';
+                             const oldP = planesMutables.find((p:any) => p.id === oldPlanId);
+                             if (oldP) oldP[`estatus_${oldIndex}`] = 'PENDIENTE';
+                         }
+
+                         if (!planesToUpdate[bestMatch.planId]) planesToUpdate[bestMatch.planId] = {};
+                         planesToUpdate[bestMatch.planId][`estatus_${bestMatch.index}`] = 'PAGADO';
+                         const newP = planesMutables.find((p:any) => p.id === bestMatch.planId);
+                         if (newP) newP[`estatus_${bestMatch.index}`] = 'PAGADO';
+
+                         detallesToUpdate.push({ id: d.id, indice_concepto_plan: bestMatch.index });
+                         if (newP && newCicloId !== newP.ciclo_id) {
+                             newCicloId = newP.ciclo_id;
+                             changedCiclo = true;
                          }
                      }
                  }
              });
 
-             if (bestMatch) {
-                 const oldPlanId = planesMutables.find((p:any) => p.ciclo_id === r.ciclo_id)?.id;
-                 const oldIndex = d.indice_concepto_plan;
+             if (changedCiclo) recibosToUpdate.push({ id: r.id, ciclo_id: newCicloId });
+          }
 
-                 if (oldPlanId !== bestMatch.planId || oldIndex !== bestMatch.index) {
-                     if (oldPlanId && oldIndex) {
-                         if (!planesToUpdate[oldPlanId]) planesToUpdate[oldPlanId] = {};
-                         planesToUpdate[oldPlanId][`estatus_${oldIndex}`] = 'PENDIENTE';
-                         const oldP = planesMutables.find((p:any) => p.id === oldPlanId);
-                         if (oldP) oldP[`estatus_${oldIndex}`] = 'PENDIENTE';
-                     }
+          setRepairProgress(`Procesando actualizaciones...`);
+          
+          const UPDATE_CHUNK = 20; // 20 concurrent updates max to prevent connection pool exhaustion
+          const planIds = Object.keys(planesToUpdate);
+          
+          for (let k = 0; k < planIds.length; k += UPDATE_CHUNK) {
+             setRepairProgress(`Actualizando planes... ${k}/${planIds.length}`);
+             await Promise.all(planIds.slice(k, k + UPDATE_CHUNK).map(id => supabase.from('planes_pago').update(planesToUpdate[id]).eq('id', id)));
+          }
+          
+          for (let k = 0; k < detallesToUpdate.length; k += UPDATE_CHUNK) {
+             setRepairProgress(`Actualizando detalles... ${k}/${detallesToUpdate.length}`);
+             await Promise.all(detallesToUpdate.slice(k, k + UPDATE_CHUNK).map(d => supabase.from('recibos_detalles').update({ indice_concepto_plan: d.indice_concepto_plan }).eq('id', d.id)));
+          }
+          
+          for (let k = 0; k < recibosToUpdate.length; k += UPDATE_CHUNK) {
+             setRepairProgress(`Actualizando recibos... ${k}/${recibosToUpdate.length}`);
+             await Promise.all(recibosToUpdate.slice(k, k + UPDATE_CHUNK).map(r => supabase.from('recibos').update({ ciclo_id: r.ciclo_id }).eq('id', r.id)));
+          }
 
-                     if (!planesToUpdate[bestMatch.planId]) planesToUpdate[bestMatch.planId] = {};
-                     planesToUpdate[bestMatch.planId][`estatus_${bestMatch.index}`] = 'PAGADO';
-                     const newP = planesMutables.find((p:any) => p.id === bestMatch.planId);
-                     if (newP) newP[`estatus_${bestMatch.index}`] = 'PAGADO';
-
-                     detallesToUpdate.push({ id: d.id, indice_concepto_plan: bestMatch.index });
-                     if (newP && newCicloId !== newP.ciclo_id) {
-                         newCicloId = newP.ciclo_id;
-                         changedCiclo = true;
-                     }
-                 }
-             }
-         });
-
-         if (changedCiclo) recibosToUpdate.push({ id: r.id, ciclo_id: newCicloId });
+          setRepairProgress('');
+          toast.success('¡Reparación completada con éxito!');
+          cargarRecibos();
+        } catch (e: any) {
+          console.error(e);
+          toast.error('Error en reparación: ' + e.message);
+          setRepairProgress('');
+        } finally {
+          setLoading(false);
+        }
       }
-
-      setRepairProgress(`Procesando actualizaciones...`);
-      
-      const UPDATE_CHUNK = 20; // 20 concurrent updates max to prevent connection pool exhaustion
-      const planIds = Object.keys(planesToUpdate);
-      
-      for (let k = 0; k < planIds.length; k += UPDATE_CHUNK) {
-         setRepairProgress(`Actualizando planes... ${k}/${planIds.length}`);
-         await Promise.all(planIds.slice(k, k + UPDATE_CHUNK).map(id => supabase.from('planes_pago').update(planesToUpdate[id]).eq('id', id)));
-      }
-      
-      for (let k = 0; k < detallesToUpdate.length; k += UPDATE_CHUNK) {
-         setRepairProgress(`Actualizando detalles... ${k}/${detallesToUpdate.length}`);
-         await Promise.all(detallesToUpdate.slice(k, k + UPDATE_CHUNK).map(d => supabase.from('recibos_detalles').update({ indice_concepto_plan: d.indice_concepto_plan }).eq('id', d.id)));
-      }
-      
-      for (let k = 0; k < recibosToUpdate.length; k += UPDATE_CHUNK) {
-         setRepairProgress(`Actualizando recibos... ${k}/${recibosToUpdate.length}`);
-         await Promise.all(recibosToUpdate.slice(k, k + UPDATE_CHUNK).map(r => supabase.from('recibos').update({ ciclo_id: r.ciclo_id }).eq('id', r.id)));
-      }
-
-      setRepairProgress('');
-      toast.success('¡Reparación completada con éxito!');
-      cargarRecibos();
-    } catch (e: any) {
-      console.error(e);
-      toast.error('Error en reparación: ' + e.message);
-      setRepairProgress('');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const parseDateToMs = (dStr: string) => {

@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
 import { lookupCP, getStateAbbr, STATE_MAPPING, ESTADOS_LIST, mapToLegacyCode } from '../../utils/geoUtils';
 import { calcularCURP, calcularDigitoVerificador, inferirDigito17 } from '../../utils/curpUtils';
+import ModalConfirmacion, { ModalConfirmacionProps } from '../ui/ModalConfirmacion';
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
 
@@ -375,6 +376,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [curpStatus, setCurpStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+  const [systemConfirmModal, setSystemConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })) });
   
   const toTitleCase = (str: string) => {
     if (!str) return '';
@@ -479,36 +481,44 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     const msg = alumno.sincronizado_el 
       ? `¡Atención! Este registro ya fue sincronizado el ${new Date(alumno.sincronizado_el).toLocaleDateString()}. ¿Estás seguro de que quieres volver a sobrescribir los datos actuales?`
       : "¿Estás seguro de que deseas sobrescribir los datos actuales con la información del sistema legado? Los datos vacíos se reemplazarán.";
-    const confirmar = window.confirm(msg);
-    if (!confirmar) return;
+    
+    setSystemConfirmModal({
+      isOpen: true,
+      title: 'Sincronizar Alumno',
+      message: msg,
+      type: 'warning',
+      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: () => {
+        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+        const expand = (v: string) => ESTADOS_LIST.find(e => e.abbr === v?.toUpperCase())?.nombre ?? v;
 
-    const expand = (v: string) => ESTADOS_LIST.find(e => e.abbr === v?.toUpperCase())?.nombre ?? v;
+        setForm(prev => ({
+          ...prev,
+          matricula: datosGes.matricula || '',
+          curp: datosGes.curp || '',
+          fecha_nacimiento: datosGes.fecha_nacimiento || '',
+          sexo: datosGes.sexo || '',
+          domicilio: datosGes.domicilio || '',
+          cp: datosGes.cp || '',
+          telefono: datosGes.telefono || '',
+          celular: datosGes.celular || '',
+          email: datosGes.email || '',
+          estado_nacimiento: expand(mapToLegacyCode(datosGes.estado_nacimiento ? String(datosGes.estado_nacimiento).trim() : '')),
+          nacionalidad: datosGes.nacionalidad || 'MEXICANA',
+          escuela_procedencia: datosGes.escuela_procedencia || '',
+          estado_escolaridad: expand(mapToLegacyCode(datosGes.estado_escolaridad ? String(datosGes.estado_escolaridad).trim() : '')),
+          discapacidad: datosGes.discapacidad || 'NINGUNA',
+          lengua_indigena: datosGes.lengua_indigena || 'NINGUNA',
+        }));
 
-    setForm(prev => ({
-      ...prev,
-      matricula: datosGes.matricula || '',
-      curp: datosGes.curp || '',
-      fecha_nacimiento: datosGes.fecha_nacimiento || '',
-      sexo: datosGes.sexo || '',
-      domicilio: datosGes.domicilio || '',
-      cp: datosGes.cp || '',
-      telefono: datosGes.telefono || '',
-      celular: datosGes.celular || '',
-      email: datosGes.email || '',
-      estado_nacimiento: expand(mapToLegacyCode(datosGes.estado_nacimiento ? String(datosGes.estado_nacimiento).trim() : '')),
-      nacionalidad: datosGes.nacionalidad || 'MEXICANA',
-      escuela_procedencia: datosGes.escuela_procedencia || '',
-      estado_escolaridad: expand(mapToLegacyCode(datosGes.estado_escolaridad ? String(datosGes.estado_escolaridad).trim() : '')),
-      discapacidad: datosGes.discapacidad || 'NINGUNA',
-      lengua_indigena: datosGes.lengua_indigena || 'NINGUNA',
-    }));
+        if (datosGes.cp) {
+          handleZipCodeChange(datosGes.cp);
+        }
 
-    if (datosGes.cp) {
-      handleZipCodeChange(datosGes.cp);
-    }
-
-    setResultadosGes([]);
-    toast.success('Datos del legado aplicados al formulario');
+        setResultadosGes([]);
+        toast.success('Datos mapeados en el formulario. Recuerda "Guardar Cambios".');
+      }
+    });
   };
 
   // buildForm necesita convertir abreviatura → nombre largo al cargar
@@ -1556,6 +1566,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
           Sólo los administradores pueden editar estos datos.
         </p>
       )}
+      <ModalConfirmacion {...systemConfirmModal} />
     </div>
   );
 }

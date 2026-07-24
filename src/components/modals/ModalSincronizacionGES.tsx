@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, CheckCircle, AlertCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
-import type { Alumno } from '../../types';
 import { mapToLegacyCode } from '../../utils/geoUtils';
+import ModalConfirmacion, { ModalConfirmacionProps } from '../ui/ModalConfirmacion';
+import { Alumno } from '../../types';
 
 interface Props {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export default function ModalSincronizacionGES({ isOpen, onClose }: Props) {
   const [escaneando, setEscaneando] = useState(false);
   const [progreso, setProgreso] = useState('0 / 0');
   const [ocultarSincronizados, setOcultarSincronizados] = useState(true);
+  const [systemConfirmModal, setSystemConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })) });
 
   const listosFiltrados = analisis.listos.filter(item => ocultarSincronizados ? !item.alumnoWeb.sincronizado_el : true);
   const conflictosFiltrados = analisis.conflictos.filter(item => ocultarSincronizados ? !item.alumnoWeb.sincronizado_el : true);
@@ -33,126 +35,147 @@ export default function ModalSincronizacionGES({ isOpen, onClose }: Props) {
   const [sincronizando, setSincronizando] = useState(false);
   const [progresoSync, setProgresoSync] = useState('0 / 0');
 
-  const ejecutarSincronizacionListos = async () => {
+  const ejecutarSincronizacionListos = () => {
     if (listosFiltrados.length === 0) return;
 
-    const confirmar = window.confirm(`¿Estás seguro de sincronizar ${listosFiltrados.length} alumnos? Los datos vacíos en el legado no sobreescribirán los existentes en la web.`);
-    if (!confirmar) return;
+    setSystemConfirmModal({
+      isOpen: true,
+      title: 'Sincronizar Alumnos',
+      message: `¿Estás seguro de sincronizar ${listosFiltrados.length} alumnos? Los datos vacíos en el legado no sobreescribirán los existentes en la web.`,
+      type: 'warning',
+      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setSincronizando(true);
+        setProgresoSync(`Iniciando...`);
 
-    setSincronizando(true);
-    setProgresoSync(`Iniciando...`);
+        const mergeDato = (datoNuevo: any, datoViejo: any, maxLen?: number) => {
+          if (datoNuevo !== null && datoNuevo !== undefined && String(datoNuevo).trim() !== '') {
+            let limpio = String(datoNuevo).trim();
+            if (maxLen) limpio = limpio.substring(0, maxLen);
+            return limpio;
+          }
+          return datoViejo;
+        };
 
-    const mergeDato = (datoNuevo: any, datoViejo: any, maxLen?: number) => {
-      if (datoNuevo !== null && datoNuevo !== undefined && String(datoNuevo).trim() !== '') {
-        let limpio = String(datoNuevo).trim();
-        if (maxLen) limpio = limpio.substring(0, maxLen);
-        return limpio;
-      }
-      return datoViejo;
-    };
+        let errores = 0;
+        for (let i = 0; i < listosFiltrados.length; i++) {
+          const { alumnoWeb, datosGes } = listosFiltrados[i];
+          setProgresoSync(`${i + 1} / ${listosFiltrados.length}`);
 
-    let errores = 0;
-    for (let i = 0; i < listosFiltrados.length; i++) {
-      const { alumnoWeb, datosGes } = listosFiltrados[i];
-      setProgresoSync(`${i + 1} / ${listosFiltrados.length}`);
+          const updatePayload = {
+            matricula: mergeDato(datosGes.matricula, alumnoWeb.matricula, 50),
+            curp: mergeDato(datosGes.curp, alumnoWeb.curp, 18)?.toUpperCase(),
+            fecha_nacimiento: mergeDato(datosGes.fecha_nacimiento, alumnoWeb.fecha_nacimiento),
+            sexo: mergeDato(datosGes.sexo, alumnoWeb.sexo),
+            domicilio: mergeDato(datosGes.domicilio, alumnoWeb.domicilio),
+            cp: mergeDato(datosGes.cp, alumnoWeb.cp),
+            municipio: mergeDato(datosGes.municipio, alumnoWeb.municipio),
+            estado: mergeDato(datosGes.estado, alumnoWeb.estado),
+            telefono: mergeDato(datosGes.telefono, alumnoWeb.telefono),
+            celular: mergeDato(datosGes.celular, alumnoWeb.celular),
+            email: mergeDato(datosGes.email, alumnoWeb.email),
+            nacionalidad: mergeDato(datosGes.nacionalidad, alumnoWeb.nacionalidad) || 'MEXICANA',
+            escuela_procedencia: mergeDato(datosGes.escuela_procedencia, alumnoWeb.escuela_procedencia),
+            discapacidad: mergeDato(datosGes.discapacidad, alumnoWeb.discapacidad) || 'NINGUNA',
+            lengua_indigena: mergeDato(datosGes.lengua_indigena, alumnoWeb.lengua_indigena) || 'NINGUNA',
+            estado_nacimiento: mapToLegacyCode(mergeDato(datosGes.estado_nacimiento, alumnoWeb.estado_nacimiento)),
+            estado_escolaridad: mapToLegacyCode(mergeDato(datosGes.estado_escolaridad, alumnoWeb.estado_escolaridad)),
+            sincronizado_el: new Date().toISOString()
+          };
 
-      const updatePayload = {
-        matricula: mergeDato(datosGes.matricula, alumnoWeb.matricula, 50),
-        curp: mergeDato(datosGes.curp, alumnoWeb.curp, 18)?.toUpperCase(),
-        fecha_nacimiento: mergeDato(datosGes.fecha_nacimiento, alumnoWeb.fecha_nacimiento),
-        sexo: mergeDato(datosGes.sexo, alumnoWeb.sexo),
-        domicilio: mergeDato(datosGes.domicilio, alumnoWeb.domicilio),
-        cp: mergeDato(datosGes.cp, alumnoWeb.cp),
-        municipio: mergeDato(datosGes.municipio, alumnoWeb.municipio),
-        estado: mergeDato(datosGes.estado, alumnoWeb.estado),
-        telefono: mergeDato(datosGes.telefono, alumnoWeb.telefono),
-        celular: mergeDato(datosGes.celular, alumnoWeb.celular),
-        email: mergeDato(datosGes.email, alumnoWeb.email),
-        nacionalidad: mergeDato(datosGes.nacionalidad, alumnoWeb.nacionalidad) || 'MEXICANA',
-        escuela_procedencia: mergeDato(datosGes.escuela_procedencia, alumnoWeb.escuela_procedencia),
-        discapacidad: mergeDato(datosGes.discapacidad, alumnoWeb.discapacidad) || 'NINGUNA',
-        lengua_indigena: mergeDato(datosGes.lengua_indigena, alumnoWeb.lengua_indigena) || 'NINGUNA',
-        estado_nacimiento: mapToLegacyCode(mergeDato(datosGes.estado_nacimiento, alumnoWeb.estado_nacimiento)),
-        estado_escolaridad: mapToLegacyCode(mergeDato(datosGes.estado_escolaridad, alumnoWeb.estado_escolaridad)),
-        sincronizado_el: new Date().toISOString()
-      };
-
-      try {
-        const { error } = await supabase.from('alumnos').update(updatePayload).eq('id', alumnoWeb.id);
-        if (error) {
-          console.error(`Error actualizando alumno ${alumnoWeb.id}:`, error);
-          errores++;
-        } else {
-          // Actualizar el estado local mutando para reflejar en UI (filtro actuará si cambiamos la referencia de state luego)
-          alumnoWeb.sincronizado_el = updatePayload.sincronizado_el;
+          try {
+            const { error } = await supabase.from('alumnos').update(updatePayload).eq('id', alumnoWeb.id);
+            if (error) {
+              console.error(`Error actualizando alumno ${alumnoWeb.id}:`, error);
+              errores++;
+            } else {
+              // Actualizar el estado local mutando para reflejar en UI (filtro actuará si cambiamos la referencia de state luego)
+              alumnoWeb.sincronizado_el = updatePayload.sincronizado_el;
+            }
+          } catch (err) {
+            console.error(`Excepción actualizando alumno ${alumnoWeb.id}:`, err);
+            errores++;
+          }
         }
-      } catch (err) {
-        console.error(`Excepción actualizando alumno ${alumnoWeb.id}:`, err);
-        errores++;
+
+        setSincronizando(false);
+        // Forzamos rerender del estado para que ocultarSincronizados funcione sobre las mutaciones que hicimos
+        setAnalisis(prev => ({ ...prev }));
+
+        if (errores > 0) {
+          toast.error(`Sincronización finalizada con ${errores} errores. Revisa la consola.`);
+        } else {
+          toast.success('¡Sincronización masiva completada con éxito!');
+        }
       }
-    }
-
-    setSincronizando(false);
-    // Forzamos rerender del estado para que ocultarSincronizados funcione sobre las mutaciones que hicimos
-    setAnalisis(prev => ({ ...prev }));
-
-    if (errores > 0) {
-      toast.error(`Sincronización finalizada con ${errores} errores. Revisa la consola.`);
-    } else {
-      toast.success('¡Sincronización masiva completada con éxito!');
-    }
+    });
   };
 
-  const handleVincularConflicto = async (alumnoWeb: Alumno, opcionGes: any) => {
-    const confirmar = window.confirm(`¿Vincular a ${alumnoWeb.nombre_completo} con la matrícula ${opcionGes.matricula}? Los datos vacíos en el legado no sobreescribirán los existentes en la web.`);
-    if (!confirmar) return;
+  const handleVincularConflicto = (alumnoWeb: Alumno, opcionGes: any) => {
+    setSystemConfirmModal({
+      isOpen: true,
+      title: 'Vincular Alumno',
+      message: `¿Vincular a ${alumnoWeb.nombre_completo} con la matrícula ${opcionGes.matricula}? Los datos vacíos en el legado no sobreescribirán los existentes en la web.`,
+      type: 'warning',
+      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+        setSincronizando(true);
 
-    setSincronizando(true);
+        const mergeDato = (datoNuevo: any, datoViejo: any, maxLen?: number) => {
+          if (datoNuevo !== null && datoNuevo !== undefined && String(datoNuevo).trim() !== '') {
+            let limpio = String(datoNuevo).trim();
+            if (maxLen) limpio = limpio.substring(0, maxLen);
+            return limpio;
+          }
+          return datoViejo;
+        };
 
-    const mergeDato = (datoNuevo: any, datoViejo: any, maxLen?: number) => {
-      if (datoNuevo !== null && datoNuevo !== undefined && String(datoNuevo).trim() !== '') {
-        let limpio = String(datoNuevo).trim();
-        if (maxLen) limpio = limpio.substring(0, maxLen);
-        return limpio;
+        const updatePayload = {
+          matricula: mergeDato(opcionGes.matricula, alumnoWeb.matricula, 50),
+          curp: mergeDato(opcionGes.curp, alumnoWeb.curp, 18)?.toUpperCase(),
+          fecha_nacimiento: mergeDato(opcionGes.fecha_nacimiento, alumnoWeb.fecha_nacimiento),
+          sexo: mergeDato(opcionGes.sexo, alumnoWeb.sexo),
+          domicilio: mergeDato(opcionGes.domicilio, alumnoWeb.domicilio),
+          cp: mergeDato(opcionGes.cp, alumnoWeb.cp),
+          municipio: mergeDato(opcionGes.municipio, alumnoWeb.municipio),
+          estado: mergeDato(opcionGes.estado, alumnoWeb.estado),
+          telefono: mergeDato(opcionGes.telefono, alumnoWeb.telefono),
+          celular: mergeDato(opcionGes.celular, alumnoWeb.celular),
+          email: mergeDato(opcionGes.email, alumnoWeb.email),
+          nacionalidad: mergeDato(opcionGes.nacionalidad, alumnoWeb.nacionalidad) || 'MEXICANA',
+          escuela_procedencia: mergeDato(opcionGes.escuela_procedencia, alumnoWeb.escuela_procedencia),
+          discapacidad: mergeDato(opcionGes.discapacidad, alumnoWeb.discapacidad) || 'NINGUNA',
+          lengua_indigena: mergeDato(opcionGes.lengua_indigena, alumnoWeb.lengua_indigena) || 'NINGUNA',
+          estado_nacimiento: mapToLegacyCode(mergeDato(opcionGes.estado_nacimiento, alumnoWeb.estado_nacimiento)),
+          estado_escolaridad: mapToLegacyCode(mergeDato(opcionGes.estado_escolaridad, alumnoWeb.estado_escolaridad)),
+          sincronizado_el: new Date().toISOString()
+        };
+
+        try {
+          const { error } = await supabase.from('alumnos').update(updatePayload).eq('id', alumnoWeb.id);
+          if (error) throw error;
+          
+          // Mover de conflictos a listos (mutación en local)
+          alumnoWeb.sincronizado_el = updatePayload.sincronizado_el;
+          
+          setAnalisis(prev => {
+             const newConflictos = prev.conflictos.filter(c => c.alumnoWeb.id !== alumnoWeb.id);
+             return {
+                ...prev,
+                conflictos: newConflictos
+             };
+          });
+
+          toast.success(`Alumno vinculado y sincronizado exitosamente`);
+        } catch (error: any) {
+          toast.error(`Error al vincular: ${error.message}`);
+        } finally {
+          setSincronizando(false);
+        }
       }
-      return datoViejo;
-    };
-
-    const updatePayload = {
-      matricula: mergeDato(opcionGes.matricula, alumnoWeb.matricula, 50),
-      curp: mergeDato(opcionGes.curp, alumnoWeb.curp, 18)?.toUpperCase(),
-      fecha_nacimiento: mergeDato(opcionGes.fecha_nacimiento, alumnoWeb.fecha_nacimiento),
-      sexo: mergeDato(opcionGes.sexo, alumnoWeb.sexo),
-      domicilio: mergeDato(opcionGes.domicilio, alumnoWeb.domicilio),
-      cp: mergeDato(opcionGes.cp, alumnoWeb.cp),
-      municipio: mergeDato(opcionGes.municipio, alumnoWeb.municipio),
-      estado: mergeDato(opcionGes.estado, alumnoWeb.estado),
-      telefono: mergeDato(opcionGes.telefono, alumnoWeb.telefono),
-      celular: mergeDato(opcionGes.celular, alumnoWeb.celular),
-      email: mergeDato(opcionGes.email, alumnoWeb.email),
-      nacionalidad: mergeDato(opcionGes.nacionalidad, alumnoWeb.nacionalidad) || 'MEXICANA',
-      escuela_procedencia: mergeDato(opcionGes.escuela_procedencia, alumnoWeb.escuela_procedencia),
-      discapacidad: mergeDato(opcionGes.discapacidad, alumnoWeb.discapacidad) || 'NINGUNA',
-      lengua_indigena: mergeDato(opcionGes.lengua_indigena, alumnoWeb.lengua_indigena) || 'NINGUNA',
-      estado_nacimiento: mapToLegacyCode(mergeDato(opcionGes.estado_nacimiento, alumnoWeb.estado_nacimiento)),
-      estado_escolaridad: mapToLegacyCode(mergeDato(opcionGes.estado_escolaridad, alumnoWeb.estado_escolaridad)),
-      sincronizado_el: new Date().toISOString()
-    };
-
-    try {
-      const { error } = await supabase.from('alumnos').update(updatePayload).eq('id', alumnoWeb.id);
-      if (error) {
-        toast.error(`Error de vinculación: ${error.message}`);
-      } else {
-        alumnoWeb.sincronizado_el = updatePayload.sincronizado_el;
-        setAnalisis(prev => ({ ...prev }));
-        toast.success(`¡Vinculación exitosa para ${alumnoWeb.nombre_completo}!`);
-      }
-    } catch (err: any) {
-      toast.error(`Excepción durante vinculación: ${err.message}`);
-    } finally {
-      setSincronizando(false);
-    }
+    });
   };
 
   const iniciarEscaneo = async () => {
@@ -476,7 +499,7 @@ export default function ModalSincronizacionGES({ isOpen, onClose }: Props) {
               </div>
             )}
           </div>
-
+          <ModalConfirmacion {...systemConfirmModal} />
         </motion.div>
       </div>
     </AnimatePresence>

@@ -295,6 +295,9 @@ export interface PlantillaPlan {
   concepto_13?: string; fecha_13?: string; cantidad_13?: number;
   concepto_14?: string; fecha_14?: string; cantidad_14?: number;
   concepto_15?: string; fecha_15?: string; cantidad_15?: number;
+  concepto_16?: string; fecha_16?: string; cantidad_16?: number;
+  concepto_17?: string; fecha_17?: string; cantidad_17?: number;
+  concepto_18?: string; fecha_18?: string; cantidad_18?: number;
 }
 
 export interface Recibo {

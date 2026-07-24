@@ -5,11 +5,11 @@ import { useAppStore } from '../../store/useAppStore';
 import { supabase } from '../../lib/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { 
-  GraduationCap, 
-  Printer, 
-  Download, 
-  Filter, 
+import {
+  GraduationCap,
+  Printer,
+  Download,
+  Filter,
   Clock,
   ArrowLeft,
   Loader2,
@@ -18,6 +18,7 @@ import {
   Layers,
   Columns
 } from 'lucide-react';
+import FichaAlumno from '../FichaAlumno';
 
 interface Props {
   onBack: () => void;
@@ -53,11 +54,16 @@ type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email' | 'pago
 
 export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const navigate = useNavigate();
-  const { alumnos, ciclos, catalogos, plans } = useAppStore();
+  const { alumnos, ciclos, catalogos, plans, refreshAlumnos } = useAppStore();
   
   const [loading, setLoading] = useState(true);
+  const [fetchProgress, setFetchProgress] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [ciclosEgresoMap, setCiclosEgresoMap] = useState<Record<string, string>>({});
+  const [tieneKardexMap, setTieneKardexMap] = useState<Record<string, boolean>>({});
   const [certificacionMap, setCertificacionMap] = useState<Record<string, string>>({});
+  
+  const [viewingAlumnoId, setViewingAlumnoId] = useState<string | null>(null);
   
   // Paginación
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -109,6 +115,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         
         if (egresadosIds.length === 0) {
           setCiclosEgresoMap({});
+          setTieneKardexMap({});
           setCertificacionMap({});
           setLoading(false);
           return;
@@ -120,34 +127,61 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         }, {} as Record<string, string>);
 
         const ultimosCiclos: Record<string, { nombre: string, maxPeriodo: number, weight: number }> = {};
+        const tieneKardexSet = new Set<string>();
         const certMap: Record<string, string> = {};
-        const BATCH = 200;
+        const BATCH_CERT = 500;
+        const BATCH_INS = 50;
+        const totalBatches = Math.ceil(egresadosIds.length / BATCH_CERT) + Math.ceil(egresadosIds.length / BATCH_INS);
+        let completed = 0;
+
+        const updateProgress = () => {
+          completed++;
+          setFetchProgress(Math.round((completed / totalBatches) * 100));
+        };
+
+        // Helper: procesar filas de inscripciones
+        const processInsRows = (rows: any[]) => {
+          rows.forEach((ins: any) => {
+            tieneKardexSet.add(ins.alumno_id);
+            let nombreCiclo = ins.ciclo_legado;
+            if (!nombreCiclo && ins.ciclo_id) nombreCiclo = ciclosMap[ins.ciclo_id];
+            if (!nombreCiclo) return;
+
+            const weight = getCicloWeight(nombreCiclo);
+            const prev = ultimosCiclos[ins.alumno_id];
+            if (!prev || weight > prev.weight) {
+              ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: 0, weight };
+            }
+          });
+        };
 
         // 1. Fetch de Fichas de Certificación (En paralelo para todos los lotes)
         const certPromises = [];
-        for (let i = 0; i < egresadosIds.length; i += 500) {
+        for (let i = 0; i < egresadosIds.length; i += BATCH_CERT) {
           certPromises.push(
             supabase.from('ficha_certificacion')
               .select('alumno_id, tramite_completado')
-              .in('alumno_id', egresadosIds.slice(i, i + 500))
+              .in('alumno_id', egresadosIds.slice(i, i + BATCH_CERT))
+              .then(res => { updateProgress(); return res; })
           );
         }
 
-        // 2. Fetch de Inscripciones Académicas (En paralelo para todos los lotes)
+        // 2. Fetch de Inscripciones Académicas (con paginación automática si hay truncamiento)
         const insPromises = [];
-        for (let i = 0; i < egresadosIds.length; i += BATCH) {
-          const batch = egresadosIds.slice(i, i + BATCH);
+        for (let i = 0; i < egresadosIds.length; i += BATCH_INS) {
+          const batch = egresadosIds.slice(i, i + BATCH_INS);
           insPromises.push((async () => {
             let offset = 0;
+            const PAGE = 1000;
             let hasMore = true;
-            const BATCH_ROWS = 1000;
             
             while (hasMore) {
               const { data, error } = await supabase
                 .from('inscripciones_academicas')
-                .select('alumno_id, ciclo_id, ciclo_legado, asignatura_id, asignaturas(numero_periodo)')
+                .select('alumno_id, ciclo_id, ciclo_legado')
                 .in('alumno_id', batch)
-                .range(offset, offset + BATCH_ROWS - 1);
+                .order('id')
+                .range(offset, offset + PAGE - 1);
 
               if (error || !data || data.length === 0) {
                 if (error) console.error('Error fetching inscripciones:', error);
@@ -155,27 +189,16 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                 break;
               }
 
-              data.forEach((ins: any) => {
-                let nombreCiclo = ins.ciclo_legado;
-                if (!nombreCiclo && ins.ciclo_id) nombreCiclo = ciclosMap[ins.ciclo_id];
-                if (!nombreCiclo) return;
+              processInsRows(data);
 
-                const weight = getCicloWeight(nombreCiclo);
-                const numPeriodo = ins.asignaturas?.numero_periodo || 1;
-
-                if (!ultimosCiclos[ins.alumno_id]) {
-                  ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
-                } else {
-                  const prev = ultimosCiclos[ins.alumno_id];
-                  if (numPeriodo > prev.maxPeriodo || (numPeriodo === prev.maxPeriodo && weight > prev.weight)) {
-                    ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: numPeriodo, weight };
-                  }
-                }
-              });
-
-              if (data.length < BATCH_ROWS) hasMore = false;
-              else offset += BATCH_ROWS;
+              if (data.length < PAGE) {
+                hasMore = false; // No hay más datos, lote completo
+              } else {
+                offset += PAGE; // Hay más páginas, seguir
+              }
             }
+            
+            updateProgress();
           })());
         }
 
@@ -196,11 +219,14 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           finalCiclosMap[alumnoId] = ultimosCiclos[alumnoId].nombre;
         });
 
+        const tkMap: Record<string, boolean> = {};
         egresadosIds.forEach(id => {
           if (!certMap[id]) certMap[id] = 'Sin iniciar';
+          tkMap[id] = tieneKardexSet.has(id);
         });
 
         setCiclosEgresoMap(finalCiclosMap);
+        setTieneKardexMap(tkMap);
         setCertificacionMap(certMap);
       } catch (err) {
         console.error("Error al obtener datos externos:", err);
@@ -210,7 +236,9 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     };
 
     fetchDatosExternos();
-  }, [egresadosBase, ciclos]);
+  }, [egresadosBase, ciclos, refreshTrigger]);
+
+
 
   // 3. Evaluar Pago de Titulación
   const pagoTitulacionMap = useMemo(() => {
@@ -237,7 +265,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
              }
           }
         } else {
-          for (let i = 1; i <= 15; i++) {
+          for (let i = 1; i <= 18; i++) {
             const concepto = (planTitulacion as any)[`concepto_${i}`];
             const est = (planTitulacion as any)[`estatus_${i}`] || '';
             if (concepto && concepto.trim().length > 0) {
@@ -280,8 +308,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     result.sort((a, b) => {
       // Si se agrupa por ciclo, ordenar primero por ciclo descendente
       if (groupByCiclo) {
-        const cicloA = ciclosEgresoMap[a.id] || 'Sin Kardex';
-        const cicloB = ciclosEgresoMap[b.id] || 'Sin Kardex';
+        const cicloA = ciclosEgresoMap[a.id] || (tieneKardexMap[a.id] ? 'Ciclo Desconocido' : 'Sin Kardex');
+        const cicloB = ciclosEgresoMap[b.id] || (tieneKardexMap[b.id] ? 'Ciclo Desconocido' : 'Sin Kardex');
         const weightA = getCicloWeight(cicloA);
         const weightB = getCicloWeight(cicloB);
         if (weightA !== weightB) return weightB - weightA;
@@ -304,8 +332,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           valB = b.estatus || '';
           break;
         case 'ciclo':
-          valA = ciclosEgresoMap[a.id] || 'Sin Kardex';
-          valB = ciclosEgresoMap[b.id] || 'Sin Kardex';
+          valA = ciclosEgresoMap[a.id] || (tieneKardexMap[a.id] ? 'Ciclo Desconocido' : 'Sin Kardex');
+          valB = ciclosEgresoMap[b.id] || (tieneKardexMap[b.id] ? 'Ciclo Desconocido' : 'Sin Kardex');
           break;
         case 'email':
           valA = a.email || '';
@@ -378,7 +406,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       if (visibleCols.nombre) row.push(`"${toTitleCase(a.nombre_completo)}"`);
       if (visibleCols.licenciatura) row.push(`"${toTitleCase(a.licenciatura)}"`);
       if (visibleCols.estatus) row.push(`"${toTitleCase(a.estatus || '')}"`);
-      if (visibleCols.ciclo) row.push(`"${ciclosEgresoMap[a.id] || 'Sin Kardex'}"`);
+      if (visibleCols.ciclo) row.push(`"${ciclosEgresoMap[a.id] || (tieneKardexMap[a.id] ? 'Ciclo Desconocido' : 'Sin Kardex')}"`);
       if (visibleCols.telefonos) {
         const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
         row.push(`"${telefonos}"`);
@@ -429,7 +457,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     let currentCiclo: string | null = null;
 
     filteredEgresados.forEach(a => {
-      const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
+      const cicloEgresoNombre = ciclosEgresoMap[a.id] || (tieneKardexMap[a.id] ? 'Ciclo Desconocido' : 'Sin Kardex');
       
       // Insertar fila de agrupador si corresponde
       if (groupByCiclo && cicloEgresoNombre !== currentCiclo) {
@@ -475,6 +503,16 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const visibleColCount = Object.values(visibleCols).filter(Boolean).length + 1; // +1 for the "#" column
 
   return (
+    <>
+      {viewingAlumnoId && (
+        <div className="absolute inset-0 bg-[#f7f7f9] dark:bg-[#0f1115] z-50 overflow-y-auto">
+          <FichaAlumno 
+            initialAlumnoId={viewingAlumnoId} 
+            onBack={() => setViewingAlumnoId(null)}
+            onBackToReporteEgresados={() => setViewingAlumnoId(null)}
+          />
+        </div>
+      )}
     <div className="flex flex-col h-full bg-white dark:bg-[#1c2228] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
       <div className="flex items-center gap-3 mb-6">
         <button 
@@ -495,7 +533,18 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       {loading ? (
         <div className="flex-1 flex flex-col items-center justify-center">
           <Loader2 className="animate-spin text-purple-600 mb-4" size={48} />
-          <p className="text-gray-500">Analizando ciclos, titulaciones y certificaciones de alumnos...</p>
+          <p className="text-gray-500 font-medium">Analizando expedientes académicos...</p>
+          {fetchProgress > 0 && (
+            <div className="w-64 mt-4">
+              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-purple-600 dark:bg-purple-500 transition-all duration-300" 
+                  style={{ width: `${fetchProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-center text-gray-400 mt-2">{fetchProgress}% completado</p>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -554,6 +603,19 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               <span className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-purple-50 dark:bg-purple-900/30 px-3 py-1 rounded-full border border-purple-100 dark:border-purple-800/30">
                 {filteredEgresados.length} Egresados
               </span>
+              
+              <button 
+                onClick={async () => {
+                  setLoading(true);
+                  await refreshAlumnos();
+                  setRefreshTrigger(t => t + 1);
+                }}
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800"
+                title="Volver a generar reporte y recargar datos"
+              >
+                <Loader2 size={16} className={loading ? "animate-spin" : ""} />
+                Recargar Datos
+              </button>
               
               <button 
                 onClick={() => setGroupByCiclo(!groupByCiclo)}
@@ -691,13 +753,13 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                 {paginatedEgresados.length > 0 ? (
                   paginatedEgresados.map((a, idx) => {
                     const esTitulado = a.estatus === 'EGRESADO TITULADO';
-                    const cicloEgresoNombre = ciclosEgresoMap[a.id] || 'Sin Kardex';
+                    const cicloEgresoNombre = ciclosEgresoMap[a.id] || (tieneKardexMap[a.id] ? 'Ciclo Desconocido' : 'Sin Kardex');
                     const pagoTitulacion = pagoTitulacionMap[a.id] || 'Sin plan';
                     const certificacionStatus = certificacionMap[a.id] || 'Sin iniciar';
                     const rowNumber = startIndex + idx + 1;
                     
                     const globalIdx = startIndex + idx;
-                    const prevCiclo = globalIdx > 0 ? (ciclosEgresoMap[filteredEgresados[globalIdx - 1].id] || 'Sin Kardex') : null;
+                    const prevCiclo = globalIdx > 0 ? (ciclosEgresoMap[filteredEgresados[globalIdx - 1].id] || (tieneKardexMap[filteredEgresados[globalIdx - 1].id] ? 'Ciclo Desconocido' : 'Sin Kardex')) : null;
                     const showGroupHeader = groupByCiclo && cicloEgresoNombre !== prevCiclo;
                     
                     return (
@@ -714,7 +776,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                           {visibleCols.nombre && (
                             <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
                               <span 
-                                onClick={() => navigate('/ficha-alumno', { state: { alumnoId: a.id, fromAlumnos: true } })}
+                                onClick={() => setViewingAlumnoId(a.id)}
                                 className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
                                 title="Ver ficha del alumno"
                               >
@@ -853,5 +915,6 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         </>
       )}
     </div>
+    </>
   );
 };

@@ -189,6 +189,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
   }, [searchTerm, sortConfig]);
 
   const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, filteredAndSortedEmpleados.length);
   const paginatedEmpleados = filteredAndSortedEmpleados.slice(startIndex, startIndex + itemsPerPage);
   const totalPages = Math.ceil(filteredAndSortedEmpleados.length / itemsPerPage);
 
@@ -401,32 +402,59 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
                     </table>
                   </div>
                   
-                  {filteredAndSortedEmpleados.length > itemsPerPage && (
-                    <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-gray-800">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, filteredAndSortedEmpleados.length)} de {filteredAndSortedEmpleados.length}
-                      </span>
-                      <div className="flex items-center gap-4">
-                        <button
-                          disabled={currentPage === 1}
-                          onClick={() => setCurrentPage(p => p - 1)}
-                          className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-[8px] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 font-bold shadow-sm transition-colors text-gray-700 dark:text-gray-300"
-                        >
-                          Anterior
-                        </button>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Página {currentPage} de {totalPages || 1}</span>
-                        </div>
-                        <button
-                          disabled={currentPage === totalPages || totalPages === 0}
-                          onClick={() => setCurrentPage(p => p + 1)}
-                          className="px-4 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-[8px] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 font-bold shadow-sm transition-colors text-gray-700 dark:text-gray-300"
-                        >
-                          Siguiente
-                        </button>
-                      </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-6 bg-[#f8f9fa] dark:bg-[rgba(0,0,0,0.15)] border-t border-[#e5e7eb] dark:border-[rgba(255,255,255,0.06)] rounded-b-xl">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium">Mostrar</span>
+                      <select
+                        className="border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-md text-sm p-1.5 bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 outline-none focus:ring-2 focus:ring-[#3b82f6] font-medium cursor-pointer"
+                        value={itemsPerPage}
+                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                      <span className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium">empleados</span>
                     </div>
-                  )}
+                    <div className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium bg-white dark:bg-[#1c2228] px-3 py-1.5 rounded-[8px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] shadow-[var(--shadow-subtle)]">
+                      Mostrando <span className="text-gray-900 dark:text-gray-100 font-bold">{startIndex + 1}</span> a <span className="text-gray-900 dark:text-gray-100 font-bold">{endIndex}</span> de <span className="text-gray-900 dark:text-gray-100 font-bold">{filteredAndSortedEmpleados.length}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => p - 1)}
+                        className="px-4 py-1.5 text-sm border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] disabled:opacity-40 hover:bg-white dark:hover:bg-gray-700 text-[#45515e] dark:text-gray-300 font-bold transition-all shadow-[var(--shadow-subtle)] hover:shadow active:scale-95"
+                      >
+                        Anterior
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-[#45515e] dark:text-gray-300 font-medium">Página</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={totalPages || 1}
+                          value={currentPage || ''}
+                          title="Ir a página"
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                              setCurrentPage(val);
+                            }
+                          }}
+                          className="w-16 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-center text-sm bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 outline-none focus:ring-2 focus:ring-[#3b82f6] shadow-[var(--shadow-subtle)]"
+                        />
+                        <span className="text-sm text-[#45515e] dark:text-gray-300 font-medium">de {totalPages}</span>
+                      </div>
+                      <button
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        onClick={() => setCurrentPage(p => p + 1)}
+                        className="px-4 py-1.5 text-sm border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] disabled:opacity-40 hover:bg-white dark:hover:bg-gray-700 text-[#45515e] dark:text-gray-300 font-bold transition-all shadow-[var(--shadow-subtle)] hover:shadow active:scale-95"
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 

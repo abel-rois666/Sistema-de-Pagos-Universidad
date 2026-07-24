@@ -4,7 +4,7 @@ import { X, CheckCircle, AlertCircle, Loader2, Play, AlertTriangle, XCircle } fr
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
-import { syncAlumnoKardex } from '../../utils/syncKardexUtils';
+import { syncAlumnoKardex, prepKardexAlumno } from '../../utils/syncKardexUtils';
 import ModalConfirmacion, { ModalConfirmacionProps } from '../ui/ModalConfirmacion';
 
 interface Props {
@@ -107,10 +107,14 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
         throw new Error('Error al cargar catálogos de asignaturas o planes.');
       }
 
-      // 2. Procesar por lotes concurrentes (e.g. 5 a la vez) para mayor velocidad
-      let exitosTemp = 0;
-      let progresoTemp = 0;
-      const CONCURRENCY_LIMIT = 5;
+      // 2. Procesar por lotes concurrentes (preparación)
+      setExitos(0);
+      setProgreso(0);
+      const CONCURRENCY_LIMIT = 50; // Al no hacer llamadas a base de datos, podemos subir la concurrencia a 50
+      
+      const todosLosRegistrosFinales: any[] = [];
+      const todosLosPlanIdsImportados: { alumno_id: string, plan_id: string }[] = [];
+      const alumnosProcesadosExito: string[] = [];
       
       for (let i = 0; i < alumnosAProcesar.length; i += CONCURRENCY_LIMIT) {
         const batch = alumnosAProcesar.slice(i, i + CONCURRENCY_LIMIT);
@@ -129,15 +133,22 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
           }
 
           try {
-            const result = await syncAlumnoKardex(
+            const result = await prepKardexAlumno(
               { id: alumno.id, matricula: alumno.matricula, estatus: alumno.estatus },
               asignaturas,
               planes,
               calificacionMinima
             );
 
-            if (result.success) {
-              exitosTemp++;
+            if (result.success && result.registrosFinales) {
+              setExitos(prev => prev + 1);
+              alumnosProcesadosExito.push(alumno.id);
+              todosLosRegistrosFinales.push(...result.registrosFinales);
+              if (result.planIdsImportados) {
+                 result.planIdsImportados.forEach(pid => {
+                     todosLosPlanIdsImportados.push({ alumno_id: alumno.id, plan_id: pid });
+                 });
+              }
             } else {
               setLogs(prev => [{ alumno_id: alumno.id, nombre_completo: alumno.nombre_completo, matricula: alumno.matricula!, status: 'error', message: result.message }, ...prev]);
             }
@@ -145,17 +156,62 @@ export default function ModalSincronizacionKardex({ isOpen, onClose }: Props) {
             setLogs(prev => [{ alumno_id: alumno.id, nombre_completo: alumno.nombre_completo, matricula: alumno.matricula!, status: 'error', message: error.message || 'Excepción no controlada' }, ...prev]);
           }
           
-          progresoTemp++;
+          setProgreso(prev => prev + 1);
         }));
-
-        setExitos(exitosTemp);
-        setProgreso(progresoTemp);
-
-        // Pequeño delay para dejar respirar el Main Thread y que React renderice la barra
-        await new Promise(r => setTimeout(r, 50));
+      }
+      
+      if (alumnosProcesadosExito.length > 0) {
+          // 3. BULK DATABASE OPERATIONS
+          setLogs(prev => [{ alumno_id: 'SYSTEM', nombre_completo: 'Sistema', matricula: 'SYS', status: 'success', message: 'Guardando datos en la base de datos de manera masiva...' }, ...prev]);
+          
+          // A. Eliminar kardex existente para todos los alumnos procesados con éxito
+          for (let i = 0; i < alumnosProcesadosExito.length; i += 200) {
+              const idsChunk = alumnosProcesadosExito.slice(i, i + 200);
+              await supabase.from('inscripciones_academicas').delete().in('alumno_id', idsChunk);
+          }
+          
+          // B. Insertar todos los registros finales
+          for (let i = 0; i < todosLosRegistrosFinales.length; i += 2000) {
+              const recordsChunk = todosLosRegistrosFinales.slice(i, i + 2000);
+              const { error } = await supabase.from('inscripciones_academicas').insert(recordsChunk);
+              if (error) throw new Error(`Error en Bulk Insert Kardex: ${error.message}`);
+          }
+          
+          // C. Verificar e insertar planes faltantes en alumno_programas
+          const { data: programasExistentes } = await supabase
+            .from('alumno_programas')
+            .select('alumno_id, plan_id')
+            .in('alumno_id', alumnosProcesadosExito);
+            
+          const planesFaltantes = todosLosPlanIdsImportados.filter(importado => {
+             return !(programasExistentes || []).some(existente => 
+                 existente.alumno_id === importado.alumno_id && existente.plan_id === importado.plan_id
+             );
+          });
+          
+          if (planesFaltantes.length > 0) {
+             const nuevosRegistros = planesFaltantes.map(p => ({
+                alumno_id: p.alumno_id,
+                plan_id: p.plan_id,
+                estatus: alumnosAProcesar.find(a => a.id === p.alumno_id)?.estatus || 'CURSANDO',
+                fecha_inscripcion: new Date().toISOString().split('T')[0]
+             }));
+             for (let i = 0; i < nuevosRegistros.length; i += 2000) {
+                 await supabase.from('alumno_programas').insert(nuevosRegistros.slice(i, i + 2000));
+             }
+          }
+          
+          // D. Marcar alumnos como sincronizados
+          for (let i = 0; i < alumnosProcesadosExito.length; i += 200) {
+              const idsChunk = alumnosProcesadosExito.slice(i, i + 200);
+              await supabase.from('alumnos').update({ 
+                kardex_sincronizado: true,
+                kardex_sincronizado_at: new Date().toISOString()
+              }).in('id', idsChunk);
+          }
       }
 
-      toast.success(`Sincronización finalizada: ${exitosTemp} exitosos.`);
+      toast.success(`Sincronización finalizada exitosamente.`);
 
     } catch (error: any) {
       console.error(error);

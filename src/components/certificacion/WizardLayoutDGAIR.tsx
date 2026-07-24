@@ -71,6 +71,9 @@ export default function WizardLayoutDGAIR() {
     setLoading(true);
     setError('');
     try {
+      // Reemplazar vocales con comodín '_' para simular búsqueda sin acentos en SQL
+      const searchPattern = q.replace(/[aeiouáéíóúAEIOUÁÉÍÓÚ]/g, '_');
+
       const { data, error } = await supabase
         .from('alumnos')
         .select(`
@@ -82,8 +85,8 @@ export default function WizardLayoutDGAIR() {
             )
           )
         `)
-        .or(`matricula.ilike.%${q}%,nombre_completo.ilike.%${q}%`)
-        .limit(10);
+        .or(`matricula.ilike.%${searchPattern}%,nombre_completo.ilike.%${searchPattern}%`)
+        .limit(150);
       
       if (error) throw error;
       setAlumnosList(data || []);

@@ -8,18 +8,16 @@ export interface SyncKardexResult {
   planesAfectados?: number;
 }
 
-export async function syncAlumnoKardex(
+export async function prepKardexAlumno(
   alumno: { id: string; matricula: string | null; estatus: string | null },
   asignaturas: { id: string; clave_legado: string | null; plan_id: string | null }[],
   planes: { id: string; clave_legado: string | null; tipo_periodo: string | null }[],
   calificacionMinima: number = 6
-): Promise<SyncKardexResult> {
+): Promise<{ success: boolean; message: string; registrosFinales?: any[]; planIdsImportados?: string[] }> {
   if (!alumno.matricula) {
     return { success: false, message: 'El alumno no tiene una matrícula asignada.' };
   }
 
-  // 1. Fetch from legacy API
-  // Temporalmente forzamos localhost para la prueba local del Sincronizador Kardex
   const baseUrl = 'http://localhost:3001';
   const response = await fetch(`${baseUrl}/api/legacy/kardex/${alumno.matricula}?umbral=${calificacionMinima}`);
   
@@ -32,7 +30,6 @@ export async function syncAlumnoKardex(
     return { success: false, message: 'No se encontraron registros en el historial del GES 4 para esta matrícula.' };
   }
 
-  // 2. Mapeo de registros
   const registrosMapeados: any[] = [];
   
   for (const item of dataGES) {
@@ -42,7 +39,6 @@ export async function syncAlumnoKardex(
     const asigMatch = asignaturas.find(a => a.clave_legado === item.clave_asignatura && a.plan_id === planMatch.id);
     if (!asigMatch) continue;
 
-    // Respetar los valores ya saneados por el microservicio (null = null, no convertir)
     const parseOrNull = (val: any) => (val !== null && val !== undefined) ? parseFloat(val) : null;
     
     const p1 = parseOrNull(item.parcial_1);
@@ -50,7 +46,6 @@ export async function syncAlumnoKardex(
     const p3 = parseOrNull(item.parcial_3);
     let promParc = parseOrNull(item.promedio_calculado);
 
-    // Calcular promedio solo si el microservicio no lo trajo y hay parciales reales
     if (promParc === null && (p1 !== null || p2 !== null || p3 !== null)) {
         let sum = 0, count = 0;
         if (p1 !== null) { sum += (p1 === -555 ? 0 : p1); count++; }
@@ -59,13 +54,11 @@ export async function syncAlumnoKardex(
         if (count > 0) promParc = Number((sum / count).toFixed(2));
     }
 
-    // Usar el estatus calculado por el microservicio; si no viene, derivar uno básico
     const estatus = item.estatus || (
       item.calificacion_final === null ? 'EN_CURSO' :
       item.calificacion_final >= calificacionMinima ? 'APROBADA' : 'REPROBADA'
     );
 
-    // Mapeo automático de ciclo_id basado en ciclo_legado y tipo_periodo del plan
     let mappedCicloId = null;
     if (item.ciclo_legado) {
       mappedCicloId = useAppStore.getState().resolveCicloId(item.ciclo_legado, planMatch.tipo_periodo || undefined);
@@ -88,19 +81,16 @@ export async function syncAlumnoKardex(
     });
   }
 
-  // Deduplicación para evitar el error "duplicate key value violates unique constraint"
   const registrosUnicos = new Map<string, any>();
   for (const reg of registrosMapeados) {
-    const key = `${reg.alumno_id}_${reg.asignatura_id}_${reg.ciclo_id || reg.ciclo_legado || 'NULL'}`;
+    const key = `${reg.alumno_id}_${reg.asignatura_id}_${reg.ciclo_id || 'NULL'}`;
     const existente = registrosUnicos.get(key);
     
     if (!existente) {
       registrosUnicos.set(key, reg);
     } else {
-      // Priorizar el registro con mayor calificación o que esté aprobado
       const califActual = existente.calificacion_final || 0;
       const califNueva = reg.calificacion_final || 0;
-      
       if (califNueva > califActual || (reg.estatus === 'APROBADA' && existente.estatus !== 'APROBADA')) {
         registrosUnicos.set(key, reg);
       }
@@ -113,17 +103,38 @@ export async function syncAlumnoKardex(
     return { success: false, message: 'No se pudo mapear ninguna materia. Verifica que los planes y materias coincidan con el GES.' };
   }
 
-  // 3. Delete old records and insert new ones
+  const planIdsImportados = [...new Set(registrosFinales.map(r => r.asignatura_id).map(asigId => {
+    const asig = asignaturas.find(a => a.id === asigId);
+    return asig?.plan_id;
+  }).filter(Boolean))] as string[];
+
+  return {
+    success: true,
+    message: 'Preparado exitosamente',
+    registrosFinales,
+    planIdsImportados
+  };
+}
+
+export async function syncAlumnoKardex(
+  alumno: { id: string; matricula: string | null; estatus: string | null },
+  asignaturas: { id: string; clave_legado: string | null; plan_id: string | null }[],
+  planes: { id: string; clave_legado: string | null; tipo_periodo: string | null }[],
+  calificacionMinima: number = 6
+): Promise<SyncKardexResult> {
+  const prep = await prepKardexAlumno(alumno, asignaturas, planes, calificacionMinima);
+  if (!prep.success || !prep.registrosFinales) {
+    return { success: false, message: prep.message };
+  }
+  
+  const { registrosFinales, planIdsImportados } = prep;
+
   await supabase.from('inscripciones_academicas').delete().eq('alumno_id', alumno.id);
   const { error: insertError } = await supabase.from('inscripciones_academicas').insert(registrosFinales);
 
   if (insertError) throw insertError;
 
-  // 4. AUTO-REGISTRAR TODOS LOS PLANES DETECTADOS en alumno_programas
-  const planIdsImportados = [...new Set(registrosFinales.map(r => r.asignatura_id).map(asigId => {
-    const asig = asignaturas.find(a => a.id === asigId);
-    return asig?.plan_id;
-  }).filter(Boolean))] as string[];
+  if (!planIdsImportados) return { success: false, message: 'Error' };
 
   const { data: programasExistentes } = await supabase
     .from('alumno_programas')
