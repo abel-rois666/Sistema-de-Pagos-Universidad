@@ -864,7 +864,7 @@ function CapturaIndividual({ refreshKey }: any) {
         // 2. Filtrar grupos que pertenezcan al ciclo activo
         const { data: gData, error: gError } = await supabase
           .from('grupos')
-          .select('id, codigo_grupo, plan:plan_id(carrera_id)')
+          .select('id, codigo_grupo, ciclo_id, plan:plan_id(carrera_id)')
           .in('id', grupoIds)
           .in('ciclo_id', activeCiclosIds);
         if (gError) throw gError;
