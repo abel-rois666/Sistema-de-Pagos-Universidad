@@ -204,9 +204,11 @@ export const CSV_HEADERS_RECIBOS = [
 export const toTitleCase = (str: string | undefined | null): string => {
   if (!str) return '';
   const lowercaseWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'e', 'en', 'por', 'a', 'con']);
+  const romans = new Set(['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii']);
   return str.toLowerCase().split(' ').map((word, index) => {
     if (word.length === 0) return '';
     if (index > 0 && lowercaseWords.has(word)) return word;
+    if (romans.has(word)) return word.toUpperCase();
     return word.charAt(0).toUpperCase() + word.slice(1);
   }).join(' ');
 };

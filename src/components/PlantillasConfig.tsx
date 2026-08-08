@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Search, Plus, Save, X, Trash2, Copy, Loader2, CheckCircle, AlertCircle, BookOpen } from 'lucide-react';
+import { ArrowLeft, Search, Plus, Save, X, Trash2, Copy, Loader2, CheckCircle, AlertCircle, BookOpen, ChevronDown } from 'lucide-react';
 import { savePlantilla, deletePlantilla } from '../lib/supabase';
 import { PlantillaPlan } from '../types';
 import { toInputDate } from '../utils';
@@ -18,6 +18,7 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
+  const [openConceptDropdown, setOpenConceptDropdown] = useState<number | null>(null);
 
   const showNotification = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -140,16 +141,74 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
 
     return (
       <div key={`input_${num}`} className="grid grid-cols-4 gap-2 mb-2">
-        <select
-          className="col-span-2 border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-[#3b82f6] bg-white"
-          value={editForm[conceptoKey] as string || ''}
-          onChange={e => setEditForm({ ...editForm, [conceptoKey]: e.target.value })}
-        >
-          <option value="">-- Seleccionar --</option>
-          {catalogos.conceptos.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        <div className="col-span-2 relative">
+          <button
+            type="button"
+            onClick={() => setOpenConceptDropdown(openConceptDropdown === num ? null : num)}
+            className="w-full border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-[#3b82f6] bg-white flex justify-between items-center text-left"
+          >
+            <span className="truncate pr-2">
+              {editForm[conceptoKey] as string || '-- Seleccionar --'}
+            </span>
+            <ChevronDown size={14} className={`text-gray-500 transition-transform ${openConceptDropdown === num ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {openConceptDropdown === num && (
+            <div className="absolute top-full left-0 min-w-[280px] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-[100]">
+              <div className="p-2 border-b border-gray-100">
+                <input
+                  type="text"
+                  placeholder="Buscar concepto..."
+                  autoFocus
+                  className="w-full text-sm px-2 py-1.5 rounded bg-gray-50 border border-gray-200 outline-none focus:border-blue-500"
+                  onChange={(e) => {
+                    const q = e.target.value.toLowerCase();
+                    const items = document.querySelectorAll(`[data-concept-item="${num}"]`);
+                    items.forEach((el) => {
+                      const text = el.getAttribute('data-concept-text') || '';
+                      (el as HTMLElement).style.display = text.includes(q) ? '' : 'none';
+                    });
+                  }}
+                />
+              </div>
+              <div className="max-h-56 overflow-y-auto py-1 custom-scrollbar">
+                <button
+                  type="button"
+                  data-concept-item={num}
+                  data-concept-text=""
+                  onClick={() => {
+                    setEditForm({ ...editForm, [conceptoKey]: '' });
+                    setOpenConceptDropdown(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
+                >
+                  -- Seleccionar --
+                </button>
+                {[...catalogos.conceptos].sort((a, b) => a.localeCompare(b)).map(c => {
+                  const isSelected = editForm[conceptoKey] === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      data-concept-item={num}
+                      data-concept-text={c.toLowerCase()}
+                      onClick={() => {
+                        setEditForm({ ...editForm, [conceptoKey]: c });
+                        setOpenConceptDropdown(null);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-blue-50 transition-colors
+                        ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}
+                      `}
+                    >
+                      <span className="truncate">{c}</span>
+                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0 ml-2" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
         <input type="date" className="border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-[#3b82f6]"
           value={toInputDate(editForm[fechaKey] as string)} onChange={e => setEditForm({ ...editForm, [fechaKey]: e.target.value })} />
         <input type="number" placeholder="Ej. 1500" className="border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-[#3b82f6]"

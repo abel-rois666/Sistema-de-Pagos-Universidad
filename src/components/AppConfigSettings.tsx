@@ -37,6 +37,7 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
   
   const [title, setTitle]                   = useState(config.title);
   const [logoUrl, setLogoUrl]               = useState(config.logoUrl);
+  const [selloUrl, setSelloUrl]             = useState(config.selloUrl || '');
   const [directorNombre, setDirectorNombre] = useState(config.directorNombre);
   const [directorCargo, setDirectorCargo]   = useState(config.directorCargo);
   const [claveInstitucion, setClaveInstitucion] = useState(config.claveInstitucion || '');
@@ -77,11 +78,11 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
     setLoading(true);
     setError(null);
     const nombreEntidadUniversidad = ESTADOS_MEXICO.find(e => e.id === claveEntidadUniversidad)?.nombre || '';
-    const err = await updateAppConfig(title, logoUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa);
+    const err = await updateAppConfig(title, logoUrl, selloUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa);
     if (err) {
       setError(err);
     } else {
-      setAppConfig({ title, logoUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
+      setAppConfig({ title, logoUrl, selloUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
       onBack();
     }
     setLoading(false);
@@ -178,6 +179,41 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
                     ✓ Almacenado localmente (Base64)
                   </span>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Sello Institucional ── */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              <ImageIcon size={18} className="text-pink-500" /> Sello Institucional (Boletas)
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 px-4 py-2.5 bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-700 dark:text-pink-300 rounded-lg font-semibold hover:bg-pink-100 dark:hover:bg-pink-900/50 transition-colors text-sm cursor-pointer">
+                <Upload size={16} /> {selloUrl ? 'Cambiar Sello' : 'Subir Sello'}
+                <input 
+                  type="file" 
+                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  className="hidden" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onloadend = () => setSelloUrl(reader.result as string);
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </label>
+              {selloUrl && (
+                <button type="button" onClick={() => setSelloUrl('')} className="flex items-center gap-1.5 px-3 py-2.5 text-red-500 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors">
+                  <Trash2 size={15} /> Eliminar
+                </button>
+              )}
+            </div>
+            {selloUrl && (
+              <div className="mt-4 p-4 border border-gray-200 rounded-lg bg-gray-50 flex flex-col items-center">
+                <span className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Vista Previa</span>
+                <img src={selloUrl} alt="Sello" className="h-24 object-contain" />
               </div>
             )}
           </div>

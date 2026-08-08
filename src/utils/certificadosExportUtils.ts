@@ -60,7 +60,7 @@ export async function generarLayoutDGAIR(
       for (const item of inscripcionesAnalizadas) {
         const calFinal = parseFloat(item.materia?.calificacion_final || 0);
         if (!isNaN(calFinal)) {
-          sumCal += calFinal;
+          sumCal += calFinal === -555 ? 0 : calFinal;
           countCal++;
         }
       }

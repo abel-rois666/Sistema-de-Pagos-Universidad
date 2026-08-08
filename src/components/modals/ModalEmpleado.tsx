@@ -3,7 +3,8 @@ import { X, Save, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Empleado } from '../../types';
 import DrivePicker from '../DrivePicker';
 import { toTitleCase } from '../../utils';
-import { supabase } from '../../lib/supabase';
+import { supabase, uploadImage } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 
 interface ModalEmpleadoProps {
   empleado?: Empleado | null;
@@ -607,29 +608,75 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                   </select>
                 </div>
                 
-                {['Director', 'Subdirector', 'Rector', 'Responsable de Expedición'].includes(form.puesto || '') && (
+                {[1, 2, 3, 4, 5, 8].includes(form.clave_puesto || 0) && (
                   <div className="md:col-span-2 mt-4 space-y-4 p-4 border border-[#1456f0]/20 bg-[#1456f0]/5 rounded-xl">
                     <h4 className="text-sm font-semibold text-[#1456f0] dark:text-[#3872fa]">Permisos de Firmante Autorizado</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {[1, 2, 3, 4, 5].includes(form.clave_puesto || 0) && (
+                        <>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.firmante_certificados || false}
+                              onChange={e => setForm({ ...form, firmante_certificados: e.target.checked })}
+                              className="w-5 h-5 rounded border-gray-300 text-[#1456f0] focus:ring-[#1456f0]"
+                            />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Firmante de Certificados</span>
+                          </label>
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.firmante_titulos || false}
+                              onChange={e => setForm({ ...form, firmante_titulos: e.target.checked })}
+                              className="w-5 h-5 rounded border-gray-300 text-[#1456f0] focus:ring-[#1456f0]"
+                            />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Firmante de Títulos</span>
+                          </label>
+                        </>
+                      )}
+                      
                       <label className="flex items-center gap-3 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={form.firmante_certificados || false}
-                          onChange={e => setForm({ ...form, firmante_certificados: e.target.checked })}
+                          checked={form.firmante_boletas || false}
+                          onChange={e => setForm({ ...form, firmante_boletas: e.target.checked })}
                           className="w-5 h-5 rounded border-gray-300 text-[#1456f0] focus:ring-[#1456f0]"
                         />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Firmante de Certificados</span>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={form.firmante_titulos || false}
-                          onChange={e => setForm({ ...form, firmante_titulos: e.target.checked })}
-                          className="w-5 h-5 rounded border-gray-300 text-[#1456f0] focus:ring-[#1456f0]"
-                        />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Firmante de Títulos</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Firmante de Boletas y Constancias</span>
                       </label>
                     </div>
+
+                    {(form.firmante_titulos || form.firmante_certificados || form.firmante_boletas) && (
+                      <div className="mt-4 space-y-2 border-t border-[#1456f0]/20 pt-4">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Firma Digital (Imagen PNG/Fondo Transparente)</label>
+                        {form.firma_url && (
+                          <div className="mb-2 bg-white border border-gray-200 rounded-lg p-2 inline-block">
+                            <img src={form.firma_url} alt="Firma" className="max-h-24 object-contain" />
+                          </div>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            
+                            if (file.size > 500 * 1024) {
+                              toast.error('La imagen no debe superar los 500 KB.');
+                              return;
+                            }
+                            
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setForm({ ...form, firma_url: reader.result as string });
+                              toast.success('Firma cargada correctamente');
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-[#1456f0]/10 file:text-[#1456f0] hover:file:bg-[#1456f0]/20 cursor-pointer"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

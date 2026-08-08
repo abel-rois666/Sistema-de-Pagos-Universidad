@@ -387,13 +387,14 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
       if (item.acreditada) {
         materiasAprobadas++;
         creditosCubiertos += Number(item.asignatura?.creditos || 0);
+      }
 
-        // REGLA: Solo calcular promedio con Obligatorias (263) y Optativas (264)
-        const clave = item.asignatura?.clasificacion_clave;
-        if (clave === '263' || clave === '264') {
-          sumPromedio += item.mejor_calificacion;
-          materiasParaPromedio++;
-        }
+      // REGLA: Calcular promedio con Obligatorias (263) y Optativas (264), INCLUYENDO reprobadas
+      const clave = item.asignatura?.clasificacion_clave;
+      if ((clave === '263' || clave === '264') && item.mejor_calificacion !== null) {
+        const califNum = item.mejor_calificacion === -555 ? 0 : item.mejor_calificacion;
+        sumPromedio += califNum;
+        materiasParaPromedio++;
       }
     });
 

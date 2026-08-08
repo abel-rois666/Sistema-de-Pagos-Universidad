@@ -154,7 +154,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Menu Items */}
-        <div className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1.5 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1.5 custom-scrollbar">
           {menuItems.map((item) => {
             const hasChildren = item.children && item.children.length > 0;
             const active = isActive(item.path);

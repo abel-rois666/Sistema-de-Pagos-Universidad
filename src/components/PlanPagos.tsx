@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle, Trash2 } from 'lucide-react';
+import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle, Trash2, ChevronDown } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid, getMaxFolioCounter, getCyclePrefix , toTitleCase} from '../utils';
 import { formatGrado } from '../utils/formatUtils';
@@ -377,13 +377,13 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
   };
 
   // Usa los conceptos del catálogo configurable; fallback al listado estático si no hay catálogo
-  const CONCEPTOS_CATALOGO = catalogos?.conceptos?.length
-    ? catalogos.conceptos
+  const CONCEPTOS_CATALOGO = (catalogos?.conceptos?.length
+    ? [...catalogos.conceptos]
     : [
       'INSCRIPCIÓN', 'REINSCRIPCIÓN', '1ER PAGO', '2DO PAGO', '3ER PAGO', '4TO PAGO',
       '5TO PAGO', '6TO PAGO', '7MO PAGO', '8VO PAGO', 'CONSTANCIAS RENOVACIÓN DE BECA',
       'SEGURO ESTUDIANTIL', 'CREDENCIAL', 'OTROS'
-    ];
+    ]).sort((a, b) => a.localeCompare(b));
 
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return '';
@@ -409,6 +409,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
   const printRef = useRef<HTMLDivElement>(null);
   const cotizacionRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [openConceptDropdown, setOpenConceptDropdown] = useState<number | null>(null);
 
   // Post-Create Modal State
   const [postCreatePrompt, setPostCreatePrompt] = useState<PaymentPlan | null>(null);
@@ -1838,16 +1839,74 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                       <div className="w-12 text-center font-bold text-[#8e8e93] pt-2">#{i}</div>
                       <div className="flex-grow">
                         <label className="block text-xs font-medium text-[#8e8e93] mb-1">Concepto</label>
-                        <select
-                          className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
-                          value={editForm[`concepto_${i}` as keyof PaymentPlan] as string || ''}
-                          onChange={(e) => setEditForm({ ...editForm, [`concepto_${i}`]: e.target.value })}
-                        >
-                          <option value="">-- Seleccionar Concepto --</option>
-                          {CONCEPTOS_CATALOGO.map(c => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setOpenConceptDropdown(openConceptDropdown === i ? null : i)}
+                            className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white flex justify-between items-center text-left"
+                          >
+                            <span className="truncate pr-2">
+                              {editForm[`concepto_${i}` as keyof PaymentPlan] as string || '-- Seleccionar Concepto --'}
+                            </span>
+                            <ChevronDown size={14} className={`text-gray-500 transition-transform ${openConceptDropdown === i ? 'rotate-180' : ''}`} />
+                          </button>
+                          
+                          {openConceptDropdown === i && (
+                            <div className="absolute top-full left-0 min-w-[280px] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-[100]">
+                              <div className="p-2 border-b border-gray-100">
+                                <input
+                                  type="text"
+                                  placeholder="Buscar concepto..."
+                                  autoFocus
+                                  className="w-full text-sm px-2 py-1.5 rounded bg-gray-50 border border-gray-200 outline-none focus:border-blue-500"
+                                  onChange={(e) => {
+                                    const q = e.target.value.toLowerCase();
+                                    const items = document.querySelectorAll(`[data-concept-item="${i}"]`);
+                                    items.forEach((el) => {
+                                      const text = el.getAttribute('data-concept-text') || '';
+                                      (el as HTMLElement).style.display = text.includes(q) ? '' : 'none';
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <div className="max-h-56 overflow-y-auto py-1 custom-scrollbar">
+                                <button
+                                  type="button"
+                                  data-concept-item={i}
+                                  data-concept-text=""
+                                  onClick={() => {
+                                    setEditForm({ ...editForm, [`concepto_${i}`]: '' });
+                                    setOpenConceptDropdown(null);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
+                                >
+                                  -- Seleccionar Concepto --
+                                </button>
+                                {CONCEPTOS_CATALOGO.map(c => {
+                                  const isSelected = editForm[`concepto_${i}` as keyof PaymentPlan] === c;
+                                  return (
+                                    <button
+                                      key={c}
+                                      type="button"
+                                      data-concept-item={i}
+                                      data-concept-text={c.toLowerCase()}
+                                      onClick={() => {
+                                        setEditForm({ ...editForm, [`concepto_${i}`]: c });
+                                        setOpenConceptDropdown(null);
+                                      }}
+                                      className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-blue-50 transition-colors
+                                        ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}
+                                      `}
+                                    >
+                                      <span className="truncate">{c}</span>
+                                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0 ml-2" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="w-1/4">
                         <label className="block text-xs font-medium text-[#8e8e93] mb-1">Fecha Límite</label>

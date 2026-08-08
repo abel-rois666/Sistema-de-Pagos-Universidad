@@ -492,6 +492,7 @@ export const getAppConfig = async (): Promise<import('../types').AppConfig> => {
   const defaults: import('../types').AppConfig = {
     title: 'Sistema de Control de Pagos',
     logoUrl: '',
+    selloUrl: '',
     directorNombre: 'LIC. ARTURO RODRIGUEZ ISLAS',
     directorCargo: 'DIRECTOR DE CONTROL ESCOLAR',
     claveDgair: '20181', // Valor por defecto solicitado
@@ -505,6 +506,7 @@ export const getAppConfig = async (): Promise<import('../types').AppConfig> => {
   data.forEach(item => {
     if (item.id === 'app_title')          config.title           = item.valor;
     if (item.id === 'app_logo')           config.logoUrl         = item.valor;
+    if (item.id === 'sello_institucional') config.selloUrl       = item.valor;
     if (item.id === 'director_nombre')    config.directorNombre  = item.valor;
     if (item.id === 'director_cargo')     config.directorCargo   = item.valor;
     if (item.id === 'clave_institucion')  config.claveInstitucion = item.valor;
@@ -523,6 +525,7 @@ export const getAppConfig = async (): Promise<import('../types').AppConfig> => {
 export const updateAppConfig = async (
   title: string,
   logoUrl: string,
+  selloUrl: string,
   directorNombre: string,
   directorCargo: string,
   claveInstitucion?: string,
@@ -535,6 +538,8 @@ export const updateAppConfig = async (
   if (err1) return err1.message;
   const { error: err2 } = await supabase.from('configuracion_app').upsert({ id: 'app_logo',        valor: logoUrl,        updated_at: new Date().toISOString() });
   if (err2) return err2.message;
+  const { error: errS } = await supabase.from('configuracion_app').upsert({ id: 'sello_institucional', valor: selloUrl,  updated_at: new Date().toISOString() });
+  if (errS) return errS.message;
   const { error: err3 } = await supabase.from('configuracion_app').upsert({ id: 'director_nombre', valor: directorNombre, updated_at: new Date().toISOString() });
   if (err3) return err3.message;
   const { error: err4 } = await supabase.from('configuracion_app').upsert({ id: 'director_cargo',  valor: directorCargo,  updated_at: new Date().toISOString() });
@@ -772,4 +777,11 @@ export const updateUserPreferences = async (userId: string, updates: { preferenc
     console.error("Local error updating prefs", err);
     return err.message;
   }
+};
+
+export const uploadImage = async (file: File, bucket: string, fileName: string): Promise<{ url: string | null; error: string | null }> => {
+  const { error: uploadError } = await supabase.storage.from(bucket).upload(fileName, file, { upsert: true, contentType: file.type });
+  if (uploadError) return { url: null, error: uploadError.message };
+  const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+  return { url: data.publicUrl + '?t=' + Date.now(), error: null };
 };

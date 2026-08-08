@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
-import { BookOpen, Users, Search, Loader2, Save, AlertCircle, Info, ChevronDown, X, Lock, Unlock, Hourglass } from 'lucide-react';
+import { BookOpen, Users, Search, Loader2, Save, AlertCircle, Info, ChevronDown, X, Lock, Unlock, Hourglass, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Grupo, DocenteGrupoAsignatura, InscripcionAcademica, Asignatura } from '../types';
 
@@ -10,12 +10,60 @@ import { Grupo, DocenteGrupoAsignatura, InscripcionAcademica, Asignatura } from 
 // ----------------------------------------------------------------------
 // COMPONENTE: GradeCell (Control de Bloqueo)
 // ----------------------------------------------------------------------
-function GradeCell({ val, onChange, isDocente, isAdmin, bloqueo, solicitud, toggleSolicitud, toggleBloqueo, isFinal, isModificada }: any) {
+function GradeCell({ val, onChange, isDocente, isAdmin, bloqueo, solicitud, toggleSolicitud, toggleBloqueo, isFinal, isModificada, onRestore }: any) {
   const isLocked = isDocente && bloqueo && !solicitud;
   const isPending = solicitud;
   const canEdit = isAdmin || (!isLocked && !isPending);
   
   const hasValue = val !== null && val !== undefined && val !== '';
+
+  const [localVal, setLocalVal] = useState(val === -555 ? 'NP' : (val ?? ''));
+
+  useEffect(() => {
+    setLocalVal(val === -555 ? 'NP' : (val ?? ''));
+  }, [val]);
+
+  const handleChange = (e: any) => {
+    const raw = e.target.value.toUpperCase();
+    
+    // Bloquea cualquier caracter que no sea número, punto, N o P
+    if (raw !== '' && !/^[0-9.NP]+$/.test(raw)) return;
+    
+    // Reglas de escritura estricta en tiempo real
+    if (raw.includes('N') || raw.includes('P')) {
+       // Si hay letras, solo permitimos que sea la letra N solita, o la palabra NP
+       if (raw !== 'N' && raw !== 'NP') return;
+    } else if (raw !== '') {
+       // Si son números, máximo 1 punto decimal
+       if ((raw.match(/\./g) || []).length > 1) return;
+       // Validar que no escriban números exagerados (ej. 100) en tiempo real
+       const num = parseFloat(raw);
+       if (!isNaN(num) && num > 10) return;
+    }
+
+    setLocalVal(raw);
+    
+    if (raw === 'NP') {
+      onChange('-555');
+    } else if (raw === '') {
+      onChange('');
+    } else {
+      const num = parseFloat(raw);
+      if (!isNaN(num) && num >= 0 && num <= 10) {
+        onChange(raw);
+      }
+    }
+  };
+
+  const handleBlur = () => {
+    if (localVal !== 'NP' && localVal !== '') {
+      const num = parseFloat(localVal);
+      if (isNaN(num) || num < 0 || num > 10) {
+        setLocalVal(val === -555 ? 'NP' : (val ?? ''));
+        toast.error("Formato inválido. Ingrese 0-10 o NP");
+      }
+    }
+  };
 
   const renderAdminButton = () => {
     if (!hasValue) return null; // No hay nada que bloquear si está vacío
@@ -72,12 +120,11 @@ function GradeCell({ val, onChange, isDocente, isAdmin, bloqueo, solicitud, togg
   return (
     <div className="relative inline-block w-16">
       <input
-        type="number"
-        min="0"
-        max="10"
-        step="0.1"
-        value={val ?? ''}
-        onChange={(e) => onChange(e.target.value)}
+        type="text"
+        maxLength={4}
+        value={localVal}
+        onChange={handleChange}
+        onBlur={handleBlur}
         disabled={!canEdit}
         className={`w-full p-1.5 text-center text-sm font-semibold rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all 
           ${isFinal ? 'font-bold' : ''}
@@ -87,12 +134,13 @@ function GradeCell({ val, onChange, isDocente, isAdmin, bloqueo, solicitud, togg
         `}
       />
       {isFinal && isModificada && !isLocked && !isPending && (
-        <div className="absolute -top-1 -right-1" title="Modificada Manualmente">
-          <span className="flex h-3 w-3 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
-          </span>
-        </div>
+        <button 
+          onClick={onRestore}
+          title="Restaurar cálculo original"
+          className="absolute -top-2 -left-2 p-1 rounded-full text-white shadow-md transition-transform hover:scale-110 bg-yellow-500 hover:bg-yellow-600 z-10"
+        >
+          <RefreshCw size={10} className="hover:animate-spin" />
+        </button>
       )}
       {isAdmin ? renderAdminButton() : renderDocenteButton()}
     </div>
@@ -102,6 +150,7 @@ function GradeCell({ val, onChange, isDocente, isAdmin, bloqueo, solicitud, togg
 export default function CalificacionesModule() {
   const { currentUser, activeCicloId, ciclos } = useAppStore();
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const activeCiclosIds = ciclos.filter(c => c.nombre === activeCiclo?.nombre).map(c => c.id);
   const isDocente = currentUser?.rol === 'DOCENTE';
 
   // Tabs: 'grupo' | 'individual'
@@ -169,7 +218,9 @@ export default function CalificacionesModule() {
 // COMPONENTE: Captura por Grupo
 // ----------------------------------------------------------------------
 function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
-  const { currentUser, activeCicloId, carreras } = useAppStore();
+  const { currentUser, activeCicloId, carreras, ciclos } = useAppStore();
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const activeCiclosIds = ciclos.filter(c => c.nombre === activeCiclo?.nombre).map(c => c.id);
   const isDocente = currentUser?.rol === 'DOCENTE';
   
   const [grupos, setGrupos] = useState<Grupo[]>([]);
@@ -202,7 +253,7 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
             .from('docentes_grupos_asignaturas')
             .select(`
               grupo_id,
-              grupos:grupo_id (id, codigo_grupo, grado, turno, plan:plan_id(nombre, carrera_id))
+              grupos:grupo_id (id, codigo_grupo, grado, turno, ciclo_id, plan:plan_id(nombre, carrera_id))
             `)
             .eq('docente_id', currentUser.docente_id);
             
@@ -211,7 +262,7 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
           // Extraer grupos únicos que pertenezcan al ciclo activo
           // (Filtramos por ciclo_id usando otra consulta o asumiendo que los grupos tienen el ciclo_id)
           // Nota: Supabase select anidado con filtro no es trivial para uniqueness, lo hacemos en JS:
-          const { data: gruposCiclo } = await supabase.from('grupos').select('id, ciclo_id').eq('ciclo_id', activeCicloId);
+          const { data: gruposCiclo } = await supabase.from('grupos').select('id, ciclo_id').in('ciclo_id', activeCiclosIds);
           const cicloGroupIds = new Set(gruposCiclo?.map(g => g.id) || []);
           
           const uniqueGroups = new Map();
@@ -226,8 +277,8 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
           // Admin: traer todos los grupos del ciclo activo
           const { data, error } = await supabase
             .from('grupos')
-            .select('id, codigo_grupo, grado, turno, plan:plan_id(nombre, carrera_id)')
-            .eq('ciclo_id', activeCicloId)
+            .select('id, codigo_grupo, grado, turno, ciclo_id, plan:plan_id(nombre, carrera_id)')
+            .in('ciclo_id', activeCiclosIds)
             .order('codigo_grupo');
             
           if (error) throw error;
@@ -341,7 +392,7 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
           const { data: inscripciones, error: insError } = await supabase
             .from('inscripciones_academicas')
             .select('*')
-            .eq('ciclo_id', activeCicloId)
+            .in('ciclo_id', activeCiclosIds)
             .eq('asignatura_id', selectedMateriaId)
             .in('alumno_id', alumnoIds);
             
@@ -369,20 +420,27 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
   }, [selectedGrupoId, selectedMateriaId, activeCicloId, refreshKey]);
 
   // Lógica de cálculo y redondeo
-  const handleCalificacionChange = (alumnoId: string, campo: keyof InscripcionAcademica, rawValue: any) => {
+  const handleCalificacionChange = (alumnoId: string, campo: keyof InscripcionAcademica, rawValue: any, action?: 'restore') => {
     let valor = rawValue;
     
     const isGradeField = ['parcial_1', 'parcial_2', 'parcial_3', 'calificacion_final'].includes(campo);
     if (isGradeField) {
-      valor = rawValue === '' ? null : parseFloat(rawValue);
-      if (valor !== null && (valor < 0 || valor > 10)) {
-        toast.error('La calificación debe estar entre 0 y 10', { id: 'rango-error' });
-        return;
+      if (rawValue === '-555' || rawValue === -555) {
+        valor = -555;
+      } else {
+        valor = rawValue === '' ? null : parseFloat(rawValue);
+        if (valor !== null && (valor < 0 || valor > 10)) {
+          toast.error('La calificación debe estar entre 0 y 10, o NP', { id: 'rango-error' });
+          return;
+        }
       }
     }
 
+    const grupo = grupos.find(g => g.id === selectedGrupoId);
+    const actualCicloId = grupo?.ciclo_id || activeCicloId;
+
     setCalificaciones(prev => {
-      const current = prev[alumnoId] || { alumno_id: alumnoId, asignatura_id: selectedMateriaId, ciclo_id: activeCicloId };
+      const current = prev[alumnoId] || { alumno_id: alumnoId, asignatura_id: selectedMateriaId, ciclo_id: actualCicloId };
       const updated = { ...current, [campo]: valor };
       
       // Auto-bloqueo visual inmediato al escribir
@@ -393,25 +451,38 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
       
       // Si el usuario cambia la final directamente, marcamos como manual
       if (campo === 'calificacion_final') {
-        updated.modificada_manualmente = true;
+        if (action === 'restore') {
+          updated.modificada_manualmente = false;
+        } else if (valor !== null) {
+          updated.modificada_manualmente = true;
+        }
       }
       
-      // Si editó un parcial y NO está modificada manualmente, recalculamos
-      if ((campo === 'parcial_1' || campo === 'parcial_2' || campo === 'parcial_3') && !updated.modificada_manualmente) {
+      // Si editó un parcial, O si solicitó restaurar el promedio
+      if ((campo === 'parcial_1' || campo === 'parcial_2' || campo === 'parcial_3' || action === 'restore') && !updated.modificada_manualmente) {
         let suma = 0;
         let count = 0;
+        let allNP = true;
         ['parcial_1', 'parcial_2', 'parcial_3'].forEach(p => {
           const val = p === campo ? valor : updated[p as keyof InscripcionAcademica];
           if (typeof val === 'number' && !isNaN(val)) {
-            suma += val;
+            suma += (val === -555 ? 0 : val);
+            if (val !== -555) allNP = false;
             count++;
+          } else {
+            allNP = false;
           }
         });
         
         if (count === 3) {
-          const promExacto = suma / 3;
-          updated.promedio_calculado = parseFloat(promExacto.toFixed(2));
-          updated.calificacion_final = Math.round(promExacto); // Redondeo oficial
+          if (allNP) {
+            updated.promedio_calculado = -555;
+            updated.calificacion_final = -555;
+          } else {
+            const promExacto = suma / 3;
+            updated.promedio_calculado = parseFloat(promExacto.toFixed(2));
+            updated.calificacion_final = Math.round(promExacto); // Redondeo oficial
+          }
           updated.bloqueo_final = true; // Auto-bloquear final calculado
         } else {
           updated.promedio_calculado = null;
@@ -485,11 +556,14 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
           return;
         }
 
+        const grupo = grupos.find(g => g.id === selectedGrupoId);
+        const actualCicloId = grupo?.ciclo_id || activeCicloId;
+
         upserts.push({
           ...(orig?.id ? { id: orig.id } : {}),
           alumno_id: id,
           asignatura_id: selectedMateriaId,
-          ciclo_id: activeCicloId,
+          ciclo_id: actualCicloId,
           parcial_1: c.parcial_1,
           parcial_2: c.parcial_2,
           parcial_3: c.parcial_3,
@@ -544,9 +618,14 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
               className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors"
             >
               <option value="">-- Seleccionar Grupo --</option>
-              {grupos.map(g => (
-                <option key={g.id} value={g.id}>{g.codigo_grupo} - {g.plan?.nombre}</option>
-              ))}
+              {grupos.map(g => {
+                const cicloGrupo = ciclos.find(c => c.id === g.ciclo_id);
+                const isSemestral = cicloGrupo?.tipo_periodo?.toLowerCase().includes('semestral');
+                const tag = isSemestral ? ' (Sem)' : ' (Cuat)';
+                return (
+                  <option key={g.id} value={g.id}>{g.codigo_grupo} - {g.plan?.nombre}{tag}</option>
+                );
+              })}
             </select>
           </div>
           
@@ -653,21 +732,23 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className="font-mono text-gray-600 dark:text-gray-400">
-                                  {c.promedio_calculado !== null && c.promedio_calculado !== undefined ? c.promedio_calculado.toFixed(2) : '-'}
+                                  {c.promedio_calculado === -555 ? 'NP' : (c.promedio_calculado !== null && c.promedio_calculado !== undefined ? c.promedio_calculado.toFixed(2) : '-')}
                                 </span>
                               </td>
                             </>
                           )}
                           
                           <td className="px-2 py-3 text-center relative">
-                            <GradeCell val={c.calificacion_final} onChange={(v:any) => handleCalificacionChange(alId, 'calificacion_final', v)} isDocente={isDocente} isAdmin={!isDocente} bloqueo={c.bloqueo_final} solicitud={c.solicitud_final} toggleSolicitud={(r:any) => handleCalificacionChange(alId, 'solicitud_final', r as any)} toggleBloqueo={(r:any) => handleCalificacionChange(alId, 'bloqueo_final', r as any)} isFinal={true} isModificada={c.modificada_manualmente} />
+                            <GradeCell val={c.calificacion_final} onChange={(v:any) => handleCalificacionChange(alId, 'calificacion_final', v)} isDocente={isDocente} isAdmin={!isDocente} bloqueo={c.bloqueo_final} solicitud={c.solicitud_final} toggleSolicitud={(r:any) => handleCalificacionChange(alId, 'solicitud_final', r as any)} toggleBloqueo={(r:any) => handleCalificacionChange(alId, 'bloqueo_final', r as any)} isFinal={true} isModificada={c.modificada_manualmente} onRestore={() => handleCalificacionChange(alId, 'calificacion_final', null, 'restore')} />
                           </td>
                           <td className="px-6 py-3">
                             <input type="text" value={c.observaciones || ''} onChange={(e) => handleCalificacionChange(alId, 'observaciones', e.target.value)} placeholder={c.modificada_manualmente ? 'Justificación requerida...' : 'Opcional'}
                               className={`w-full p-1.5 text-sm bg-gray-50 dark:bg-[#181e25] border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all ${needsObs ? 'border-red-400 focus:ring-red-500 dark:border-red-500/50 placeholder-red-300' : 'border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white'}`} />
                           </td>
                           <td className="px-6 py-3 font-semibold">
-                            {c.estatus === 'ACREDITADA' ? (
+                            {c.calificacion_final === -555 ? (
+                               <span className="text-orange-600 dark:text-orange-400 font-bold">NO PRESENTÓ</span>
+                            ) : c.estatus === 'ACREDITADA' ? (
                                <span className="text-emerald-600 dark:text-emerald-400">ACREDITADA</span>
                             ) : c.estatus === 'REPROBADA' ? (
                                <span className="text-red-600 dark:text-red-400">REPROBADA</span>
@@ -720,7 +801,9 @@ function CapturaPorGrupo({ refreshKey, setRefreshKey }: any) {
 // COMPONENTE: Captura Individual
 // ----------------------------------------------------------------------
 function CapturaIndividual({ refreshKey }: any) {
-  const { alumnos, activeCicloId, carreras, currentUser } = useAppStore();
+  const { alumnos, activeCicloId, carreras, currentUser, ciclos } = useAppStore();
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const activeCiclosIds = ciclos.filter(c => c.nombre === activeCiclo?.nombre).map(c => c.id);
   const isDocente = currentUser?.rol === 'DOCENTE';
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -783,7 +866,7 @@ function CapturaIndividual({ refreshKey }: any) {
           .from('grupos')
           .select('id, codigo_grupo, plan:plan_id(carrera_id)')
           .in('id', grupoIds)
-          .eq('ciclo_id', activeCicloId);
+          .in('ciclo_id', activeCiclosIds);
         if (gError) throw gError;
 
         const gruposDelCiclo = gData || [];
@@ -813,6 +896,7 @@ function CapturaIndividual({ refreshKey }: any) {
             const carrera = carreras.find(c => c.id === (grupo?.plan as any)?.carrera_id);
             uniqueMaterias.set(m.asignatura_id, {
               ...m,
+              ciclo_id: grupo?.ciclo_id || activeCicloId,
               nivel_educativo: carrera?.nivel_educativo || 'Licenciatura',
               minima_aprobatoria: carrera?.calificacion_minima_aprobatoria || 6
             });
@@ -827,7 +911,7 @@ function CapturaIndividual({ refreshKey }: any) {
             .from('inscripciones_academicas')
             .select('*')
             .eq('alumno_id', selectedAlumno.id)
-            .eq('ciclo_id', activeCicloId)
+            .in('ciclo_id', activeCiclosIds)
             .in('asignatura_id', materiasFinal.map(m => m.asignatura_id));
           if (insError) throw insError;
 
@@ -850,20 +934,27 @@ function CapturaIndividual({ refreshKey }: any) {
   }, [selectedAlumno, activeCicloId, carreras, refreshKey, key]);
 
   // Lógica de cálculo (similar a grupal, pero la clave del mapa es asignatura_id)
-  const handleCalificacionChange = (asignaturaId: string, campo: keyof InscripcionAcademica, rawValue: any, nivelEducativo: string, minimaAprobatoria: number) => {
+  const handleCalificacionChange = (asignaturaId: string, campo: keyof InscripcionAcademica, rawValue: any, nivelEducativo: string, minimaAprobatoria: number, action?: 'restore') => {
     let valor = rawValue;
     
     const isGradeField = ['parcial_1', 'parcial_2', 'parcial_3', 'calificacion_final'].includes(campo);
     if (isGradeField) {
-      valor = rawValue === '' ? null : parseFloat(rawValue);
-      if (valor !== null && (valor < 0 || valor > 10)) {
-        toast.error('La calificación debe estar entre 0 y 10', { id: 'rango-error' });
-        return;
+      if (rawValue === '-555' || rawValue === -555) {
+        valor = -555;
+      } else {
+        valor = rawValue === '' ? null : parseFloat(rawValue);
+        if (valor !== null && (valor < 0 || valor > 10)) {
+          toast.error('La calificación debe estar entre 0 y 10, o NP', { id: 'rango-error' });
+          return;
+        }
       }
     }
 
+    const materia = materias.find(m => m.asignatura_id === asignaturaId);
+    const actualCicloId = materia?.ciclo_id || activeCicloId;
+
     setCalificaciones(prev => {
-      const current = prev[asignaturaId] || { alumno_id: selectedAlumno?.id, asignatura_id: asignaturaId, ciclo_id: activeCicloId };
+      const current = prev[asignaturaId] || { alumno_id: selectedAlumno?.id, asignatura_id: asignaturaId, ciclo_id: actualCicloId };
       const updated = { ...current, [campo]: valor };
       
       // Auto-bloqueo visual inmediato al escribir
@@ -873,24 +964,37 @@ function CapturaIndividual({ refreshKey }: any) {
       if (campo === 'calificacion_final' && valor !== current.calificacion_final) updated.bloqueo_final = valor !== null;
       
       if (campo === 'calificacion_final') {
-        updated.modificada_manualmente = true;
+        if (action === 'restore') {
+          updated.modificada_manualmente = false;
+        } else if (valor !== null) {
+          updated.modificada_manualmente = true;
+        }
       }
       
-      if ((campo === 'parcial_1' || campo === 'parcial_2' || campo === 'parcial_3') && !updated.modificada_manualmente) {
+      if ((campo === 'parcial_1' || campo === 'parcial_2' || campo === 'parcial_3' || action === 'restore') && !updated.modificada_manualmente) {
         let suma = 0;
         let count = 0;
+        let allNP = true;
         ['parcial_1', 'parcial_2', 'parcial_3'].forEach(p => {
           const val = p === campo ? valor : updated[p as keyof InscripcionAcademica];
           if (typeof val === 'number' && !isNaN(val)) {
-            suma += val;
+            suma += (val === -555 ? 0 : val);
+            if (val !== -555) allNP = false;
             count++;
+          } else {
+            allNP = false;
           }
         });
         
         if (count === 3) {
-          const promExacto = suma / 3;
-          updated.promedio_calculado = parseFloat(promExacto.toFixed(2));
-          updated.calificacion_final = Math.round(promExacto);
+          if (allNP) {
+            updated.promedio_calculado = -555;
+            updated.calificacion_final = -555;
+          } else {
+            const promExacto = suma / 3;
+            updated.promedio_calculado = parseFloat(promExacto.toFixed(2));
+            updated.calificacion_final = Math.round(promExacto);
+          }
           updated.bloqueo_final = true; // Auto-bloquear final calculado
         } else {
           updated.promedio_calculado = null;
@@ -956,11 +1060,14 @@ function CapturaIndividual({ refreshKey }: any) {
           return;
         }
 
+        const materia = materias.find(m => m.asignatura_id === asigId);
+        const actualCicloId = materia?.ciclo_id || activeCicloId;
+
         upserts.push({
           ...(orig?.id ? { id: orig.id } : {}),
           alumno_id: selectedAlumno.id,
           asignatura_id: asigId,
-          ciclo_id: activeCicloId,
+          ciclo_id: actualCicloId,
           parcial_1: c.parcial_1,
           parcial_2: c.parcial_2,
           parcial_3: c.parcial_3,
@@ -1133,21 +1240,23 @@ function CapturaIndividual({ refreshKey }: any) {
                                   </td>
                                   <td className="px-4 py-3 text-center">
                                     <span className="font-mono text-gray-600 dark:text-gray-400">
-                                      {c.promedio_calculado !== null && c.promedio_calculado !== undefined ? c.promedio_calculado.toFixed(2) : '-'}
+                                      {c.promedio_calculado === -555 ? 'NP' : (c.promedio_calculado !== null && c.promedio_calculado !== undefined ? c.promedio_calculado.toFixed(2) : '-')}
                                     </span>
                                   </td>
                                 </>
                               )}
                               
                               <td className="px-2 py-3 text-center relative">
-                                <GradeCell val={c.calificacion_final} onChange={(v:any) => handleCalificacionChange(asigId, 'calificacion_final', v, m.nivel_educativo, m.minima_aprobatoria)} isDocente={isDocente} isAdmin={!isDocente} bloqueo={c.bloqueo_final} toggleBloqueo={(r:any) => handleCalificacionChange(asigId, 'bloqueo_final', r, m.nivel_educativo, m.minima_aprobatoria)} solicitud={c.solicitud_final} toggleSolicitud={(r:any) => handleCalificacionChange(asigId, 'solicitud_final', r, m.nivel_educativo, m.minima_aprobatoria)} isFinal={true} isModificada={c.modificada_manualmente} />
+                                <GradeCell val={c.calificacion_final} onChange={(v:any) => handleCalificacionChange(asigId, 'calificacion_final', v, m.nivel_educativo, m.minima_aprobatoria)} isDocente={isDocente} isAdmin={!isDocente} bloqueo={c.bloqueo_final} toggleBloqueo={(r:any) => handleCalificacionChange(asigId, 'bloqueo_final', r, m.nivel_educativo, m.minima_aprobatoria)} solicitud={c.solicitud_final} toggleSolicitud={(r:any) => handleCalificacionChange(asigId, 'solicitud_final', r, m.nivel_educativo, m.minima_aprobatoria)} isFinal={true} isModificada={c.modificada_manualmente} onRestore={() => handleCalificacionChange(asigId, 'calificacion_final', null, m.nivel_educativo, m.minima_aprobatoria, 'restore')} />
                               </td>
                               <td className="px-6 py-3">
                                 <input type="text" value={c.observaciones || ''} onChange={(e) => handleCalificacionChange(asigId, 'observaciones', e.target.value, m.nivel_educativo, m.minima_aprobatoria)} placeholder={c.modificada_manualmente ? 'Justificación requerida...' : 'Opcional'}
                                   className={`w-full p-1.5 text-sm bg-gray-50 dark:bg-[#181e25] border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all ${needsObs ? 'border-red-400 focus:ring-red-500 dark:border-red-500/50 placeholder-red-300' : 'border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white'}`} />
                               </td>
                               <td className="px-6 py-3 font-semibold">
-                                {c.estatus === 'ACREDITADA' ? (
+                                {c.calificacion_final === -555 ? (
+                                   <span className="text-orange-600 dark:text-orange-400 font-bold">NO PRESENTÓ</span>
+                                ) : c.estatus === 'ACREDITADA' ? (
                                    <span className="text-emerald-600 dark:text-emerald-400">ACREDITADA</span>
                                 ) : c.estatus === 'REPROBADA' ? (
                                    <span className="text-red-600 dark:text-red-400">REPROBADA</span>
