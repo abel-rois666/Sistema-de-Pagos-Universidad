@@ -13,7 +13,7 @@ export interface CicloEscolar {
 export interface Usuario {
   id: string;
   username: string;
-  rol: 'ADMINISTRADOR' | 'COORDINADOR' | 'CAJERO' | 'DOCENTE';
+  rol: 'ADMINISTRADOR' | 'CAJERO' | 'DOCENTE' | 'COORDINADOR CONTROL ESCOLAR' | 'COORDINADOR FINANCIERO' | 'COORDINADOR RECURSOS HUMANOS' | 'COORDINADOR ACADEMICO';
   preferencia_tema?: string;
   ultimo_ciclo_id?: string;
   auth_id?: string | null;

@@ -548,3 +548,58 @@ CREATE TABLE IF NOT EXISTS public.control_pagos (
   grado_turno text,
   CONSTRAINT control_pagos_pkey PRIMARY KEY (id)
 );
+
+-- ======================================================================================
+-- FUNCIONES RPC
+-- ======================================================================================
+CREATE OR REPLACE FUNCTION public.registrar_pago_transaccional(
+  p_recibo jsonb,
+  p_detalles jsonb,
+  p_plan_id uuid DEFAULT NULL,
+  p_plan_updates jsonb DEFAULT NULL,
+  p_alumno_id uuid DEFAULT NULL,
+  p_saldo_delta numeric DEFAULT 0
+) RETURNS jsonb AS $$
+DECLARE
+  v_recibo_id uuid;
+  v_folio integer;
+  v_detalle record;
+  v_key text;
+  v_val text;
+  v_idx integer;
+  v_sql text;
+BEGIN
+  -- 1. Insertar Recibo
+  INSERT INTO public.recibos (fecha_recibo, fecha_pago, alumno_id, ciclo_id, total, forma_pago, banco, estatus, requiere_factura, estatus_factura, uso_saldo_a_favor) 
+  VALUES (
+    (p_recibo->>'fecha_recibo')::date, (p_recibo->>'fecha_pago')::date, (p_recibo->>'alumno_id')::uuid, (p_recibo->>'ciclo_id')::uuid, (p_recibo->>'total')::numeric, p_recibo->>'forma_pago', p_recibo->>'banco', COALESCE(p_recibo->>'estatus', 'ACTIVO'), COALESCE((p_recibo->>'requiere_factura')::boolean, false), CASE WHEN COALESCE((p_recibo->>'requiere_factura')::boolean, false) THEN 'PENDIENTE' ELSE 'NO APLICA' END, COALESCE((p_recibo->>'uso_saldo_a_favor')::numeric, 0)
+  ) RETURNING id, folio INTO v_recibo_id, v_folio;
+
+  -- 2. Insertar Detalles
+  FOR v_detalle IN SELECT * FROM jsonb_array_elements(p_detalles) LOOP
+    INSERT INTO public.recibos_detalles (recibo_id, cantidad, concepto, costo_unitario, subtotal, indice_concepto_plan, observaciones) 
+    VALUES (v_recibo_id, (v_detalle.value->>'cantidad')::integer, v_detalle.value->>'concepto', (v_detalle.value->>'costo_unitario')::numeric, (v_detalle.value->>'subtotal')::numeric, NULLIF(v_detalle.value->>'indice_concepto_plan', '')::integer, v_detalle.value->>'observaciones');
+  END LOOP;
+
+  -- 3. Actualizar Plan
+  IF p_plan_id IS NOT NULL AND p_plan_updates IS NOT NULL THEN
+    FOR v_key, v_val IN SELECT key, value#>>'{}' FROM jsonb_each(p_plan_updates) LOOP
+      v_val := replace(v_val, '{{FOLIO}}', v_folio::text);
+      IF v_key LIKE 'estatus_%' THEN
+        v_idx := cast(split_part(v_key, '_', 2) as integer);
+        UPDATE public.planes_pago_detalles SET estatus = v_val WHERE plan_id = p_plan_id AND indice_concepto = v_idx;
+        v_sql := format('UPDATE public.planes_pago SET %I = %L WHERE id = %L', v_key, v_val, p_plan_id); EXECUTE v_sql;
+      ELSE
+        v_sql := format('UPDATE public.planes_pago SET %I = %L WHERE id = %L', v_key, v_val, p_plan_id); EXECUTE v_sql;
+      END IF;
+    END LOOP;
+  END IF;
+
+  -- 4. Monedero
+  IF p_alumno_id IS NOT NULL AND p_saldo_delta <> 0 THEN
+    UPDATE public.alumnos SET saldo_a_favor = COALESCE(saldo_a_favor, 0) + p_saldo_delta WHERE id = p_alumno_id;
+  END IF;
+
+  RETURN jsonb_build_object('success', true, 'folio', v_folio, 'recibo_id', v_recibo_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

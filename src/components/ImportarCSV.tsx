@@ -6,6 +6,8 @@ import { useAppStore } from '../store/useAppStore';
 import { normalizeGrado } from '../utils/formatUtils';
 import { CSV_HEADERS, generateCSV, downloadCSV, getCyclePrefix } from '../utils';
 import { PaymentPlan, Alumno, CicloEscolar } from '../types';
+import { alumnosService } from '../services/alumnosService';
+import { pagosService } from '../services/pagosService';
 
 // ─── Tipos internos ──────────────────────────────────────────────────────────
 interface ParsedRow {
@@ -350,6 +352,7 @@ export default function ImportarCSV({
     const [fileName, setFileName] = useState('');
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState<{ alumnosAdded: number; planesAdded: number; skipped: number; errors: number } | null>(null);
+    const [progress, setProgress] = useState<{ step: string; count: number; total: number } | null>(null);
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -407,6 +410,7 @@ export default function ImportarCSV({
     // Confirmar importación
     const handleConfirm = async () => {
         setImporting(true);
+        setProgress({ step: 'Preparando datos...', count: 0, total: 0 });
         await new Promise(r => setTimeout(r, 600)); // Pequeño delay para UX
 
         const validRows = effectivelyFinalRows.filter(r => r.errors.length === 0);
@@ -425,7 +429,6 @@ export default function ImportarCSV({
                 if (!allAlumnos.find(a => a.id === alumno.id)) {
                     allAlumnos.push(alumno);
                 } else {
-                    // Update the local instance in allAlumnos
                     const index = allAlumnos.findIndex(a => a.id === alumno.id);
                     if (index >= 0) allAlumnos[index] = alumno;
                 }
@@ -441,12 +444,41 @@ export default function ImportarCSV({
             }
         }
 
+        // --- INICIO GUARDADO BATCH EN DB ---
+        if (newAlumnos.length > 0) {
+            setProgress({ step: 'Guardando alumnos en BD...', count: 0, total: newAlumnos.length });
+            const res = await alumnosService.bulkSaveAlumnos(newAlumnos, (saved) => {
+                setProgress({ step: 'Guardando alumnos en BD...', count: saved, total: newAlumnos.length });
+            });
+            if (!res.success) {
+                alert('Error al guardar alumnos en la BD: ' + res.error?.message);
+                setImporting(false);
+                setProgress(null);
+                return;
+            }
+        }
+
+        if (newPlans.length > 0) {
+            setProgress({ step: 'Guardando planes en BD...', count: 0, total: newPlans.length });
+            const res = await pagosService.bulkSavePlanes(newPlans, (saved) => {
+                setProgress({ step: 'Guardando planes en BD...', count: saved, total: newPlans.length });
+            });
+            if (!res.success) {
+                alert('Error al guardar planes de pago en la BD: ' + res.error?.message);
+                setImporting(false);
+                setProgress(null);
+                return;
+            }
+        }
+        // --- FIN GUARDADO BATCH EN DB ---
+
         setImportResult({
             alumnosAdded: newAlumnos.length,
             planesAdded: newPlans.length,
             skipped: parsedRows.length - effectivelyFinalRows.length,
             errors: parsedRows.filter(r => r.errors.length > 0).length
         });
+        setProgress(null);
         setStep(3);
         setImporting(false);
         onImport(newAlumnos, newPlans);
@@ -763,14 +795,22 @@ export default function ImportarCSV({
                     )}
 
                     {step === 2 && (
-                        <button
-                            onClick={handleConfirm}
-                            disabled={validCount === 0 || importing}
-                            className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                        >
-                            {importing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                            {importing ? 'Importando...' : `Importar ${validCount} registro${validCount !== 1 ? 's' : ''}`}
-                        </button>
+                        <div className="flex items-center gap-4">
+                            {importing && progress && (
+                                <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 animate-pulse flex items-center gap-2">
+                                    <Loader2 size={14} className="animate-spin" />
+                                    {progress.step} {progress.count} / {progress.total}
+                                </div>
+                            )}
+                            <button
+                                onClick={handleConfirm}
+                                disabled={validCount === 0 || importing}
+                                className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                            >
+                                {importing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                                {importing ? 'Importando...' : `Importar ${validCount} registro${validCount !== 1 ? 's' : ''}`}
+                            </button>
+                        </div>
                     )}
 
                     {step === 3 && (

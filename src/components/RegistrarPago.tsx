@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, AlertCircle, Info, Printer, X, FileDown, Loader2 } from 'lucide-react';
 import type { PaymentPlan, CatalogoItem, Recibo, ReciboDetalle, Alumno } from '../types';
-import { saveReciboCompleto, saveCatalogoItem } from '../lib/supabase';
+import { saveCatalogoItem } from '../lib/supabase';
+import { pagosService } from '../services/pagosService';
 import { useAppStore } from '../store/useAppStore';
 import { ReciboPlantillaPDF } from './ReciboPlantillaPDF';
 import { printElement, downloadElementAsPDF } from '../lib/printUtils';
@@ -451,12 +452,20 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
     const deltaMonedero = excedenteGeneradoGlobal - montoMonederoAplicado;
     const saldoAfavorUpdate = deltaMonedero !== 0 ? { alumnoId: alumnoSeleccionado, delta: deltaMonedero } : undefined;
 
-    const { error, folio } = await saveReciboCompleto(recibo, detalles, planUpdates, saldoAfavorUpdate);
+    const res = await pagosService.registrarPagoTransaccional(
+      recibo,
+      detalles,
+      planUpdates?.planId,
+      planUpdates?.updates,
+      saldoAfavorUpdate?.alumnoId,
+      saldoAfavorUpdate?.delta
+    );
 
     setGuardando(false);
-    if (error) {
-      setMensaje({ tipo: 'error', texto: `Hubo un error al guardar: ${error}` });
+    if (!res.success) {
+      setMensaje({ tipo: 'error', texto: `Hubo un error al guardar: ${res.error?.message}` });
     } else {
+      const folio = res.data.folio;
       // Build the preview object for the print modal
       const reciboCompleto: Recibo = {
         id: '',

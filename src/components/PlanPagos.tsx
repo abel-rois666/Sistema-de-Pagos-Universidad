@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle, Trash2, ChevronDown } from 'lucide-react';
+import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, PlusCircle, Link2, FileText, User, ChevronLeft, ChevronRight, AlertCircle, Trash2, ChevronDown } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar, Catalogos, PlantillaPlan, Usuario, Recibo } from '../types';
 import { isPaid, getMaxFolioCounter, getCyclePrefix , toTitleCase} from '../utils';
 import { formatGrado } from '../utils/formatUtils';
@@ -296,6 +296,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
   const [candidateDetalles, setCandidateDetalles] = useState<any[]>([]);
   const [loadingRecibos, setLoadingRecibos] = useState(false);
   const [selectedDetalleId, setSelectedDetalleId] = useState<string>('');
+  const [customMaxPayments, setCustomMaxPayments] = useState<number>(0);
 
   const [editForm, setEditForm] = useState<Partial<PaymentPlan>>({});
   const [newPlanForm, setNewPlanForm] = useState<Partial<PaymentPlan>>({
@@ -1077,6 +1078,19 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
 
   const openEditPlanModal = () => {
     setEditForm({ ...selectedPlan });
+    
+    // Find max populated index to initialize customMaxPayments
+    let maxPopulated = 0;
+    for (let i = 1; i <= 18; i++) {
+      if (selectedPlan[`concepto_${i}` as keyof PaymentPlan] || selectedPlan[`cantidad_${i}` as keyof PaymentPlan]) {
+        maxPopulated = i;
+      }
+    }
+    
+    const planType = selectedPlan.tipo_plan || 'Cuatrimestral';
+    const baseLength = planType === 'Titulación' || planType.includes('Especialidad') ? 18 : planType === 'Semestral' ? 9 : 7;
+    
+    setCustomMaxPayments(Math.max(baseLength, maxPopulated));
     setIsEditPlanModalOpen(true);
   };
 
@@ -1230,9 +1244,18 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
 
   const studentData = getAlumnoData(selectedPlan);
   const planType = selectedPlan.tipo_plan || 'Cuatrimestral';
-  // Modificado: Calcular los máximos pagos requeridos
+  // Modificado: Calcular los máximos pagos requeridos (dinámico hasta 18)
   const isExtendedPlan = planType === 'Titulación' || planType.includes('Especialidad');
-  const maxPayments = isExtendedPlan ? 18 : planType === 'Semestral' ? 9 : 7;
+  const baseMaxPayments = isExtendedPlan ? 18 : planType === 'Semestral' ? 9 : 7;
+  
+  // Encontrar el índice máximo poblado para la vista
+  let maxPopulatedDisplay = 0;
+  for (let i = 1; i <= 18; i++) {
+    if (selectedPlan[`concepto_${i}` as keyof PaymentPlan] || selectedPlan[`cantidad_${i}` as keyof PaymentPlan]) {
+      maxPopulatedDisplay = i;
+    }
+  }
+  const maxPayments = Math.max(baseMaxPayments, maxPopulatedDisplay);
   const paymentIndices = Array.from({ length: maxPayments }, (_, i) => i + 1);
 
   // Pestañas dinámicas para estudiantes con múltiples planes
@@ -1833,7 +1856,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
               <h4 className="font-bold text-[#222222] mb-4 border-b pb-2">Pagos Programados</h4>
 
               <div className="space-y-4">
-                {Array.from({ length: editForm.tipo_plan === 'Titulación' || editForm.tipo_plan?.includes('Especialidad') ? 18 : editForm.tipo_plan === 'Semestral' ? 9 : 7 }, (_, i) => i + 1).map(i => {
+                {Array.from({ length: Math.min(18, customMaxPayments) }, (_, i) => i + 1).map(i => {
                   return (
                     <div key={i} className="flex gap-4 items-end bg-[#f2f3f5] p-4 rounded-[8px] border border-[#f2f3f5]">
                       <div className="w-12 text-center font-bold text-[#8e8e93] pt-2">#{i}</div>
@@ -1929,6 +1952,17 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                     </div>
                   );
                 })}
+                
+                {customMaxPayments < 18 && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={() => setCustomMaxPayments(prev => Math.min(18, prev + 1))}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-[8px] font-bold text-sm transition-colors border border-emerald-200"
+                    >
+                      <PlusCircle size={16} /> Añadir Pago Extra
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 

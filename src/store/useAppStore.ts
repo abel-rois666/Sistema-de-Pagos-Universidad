@@ -1,168 +1,97 @@
 import { create } from 'zustand';
-import { supabase, fetchAllSupabase, getAppConfig, updateUserPreferences } from '../lib/supabase';
-import { PaymentPlan, CicloEscolar, Alumno, CatalogoItem, Catalogos, PlantillaPlan, AppConfig, Usuario, Carrera } from '../types';
 
-export const buildCatalogos = (items: CatalogoItem[]): Catalogos => ({
-  conceptos: Array.from(new Set(items.filter(i => i.tipo === 'concepto' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  licenciaturas: Array.from(new Set(items.filter(i => i.tipo === 'licenciatura' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  beca_tipos: Array.from(new Set(items.filter(i => i.tipo === 'beca_tipo' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  beca_porcentajes: Array.from(new Set(items.filter(i => i.tipo === 'beca_porcentaje' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  grados: Array.from(new Set(items.filter(i => i.tipo === 'grado' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  turnos: Array.from(new Set(items.filter(i => i.tipo === 'turno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  estatus_alumnos: Array.from(new Set(items.filter(i => i.tipo === 'estatus_alumno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  empresas_ss: Array.from(new Set(items.filter(i => i.tipo === 'empresa_ss' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  modalidades_titulacion: Array.from(new Set(items.filter(i => i.tipo === 'modalidad_titulacion' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
-  licenciaturasMetadata: Object.fromEntries(
-    items
-      .filter(i => i.tipo === 'licenciatura' && i.activo && i.metadata)
-      .map(i => [i.valor, i.metadata!])
-  ),
-});
-interface AppState {
-  currentUser: Usuario | null;
-  authChecked: boolean;
-  loading: boolean;
-  
-  plans: PaymentPlan[];
-  ciclos: CicloEscolar[];
-  alumnos: Alumno[];
-  plantillas: PlantillaPlan[];
-  catalogoItems: CatalogoItem[];
-  catalogos: Catalogos;
-  appConfig: AppConfig | null;
-  activeCicloId: string;
-  carreras: Carrera[];
+import { AuthSlice, createAuthSlice } from './slices/createAuthSlice';
+import { UISlice, createUISlice } from './slices/createUISlice';
+import { AcademicosSlice, createAcademicosSlice } from './slices/createAcademicosSlice';
+import { AlumnosSlice, createAlumnosSlice } from './slices/createAlumnosSlice';
+import { PagosSlice, createPagosSlice } from './slices/createPagosSlice';
+import { CatalogosSlice, createCatalogosSlice } from './slices/createCatalogosSlice';
 
-  // Acciones
-  setCurrentUser: (user: Usuario | null) => void;
-  setAuthChecked: (checked: boolean) => void;
-  setLoading: (loading: boolean) => void;
-  setActiveCicloId: (id: string) => void;
-  resolveCicloId: (nombrePeriodo: string, modalidad?: string) => string | undefined;
-  
-  // Data fetchers
-  fetchAllData: () => Promise<void>;
-  fetchCarreras: () => Promise<void>;
-  refreshPlans: () => Promise<void>;
-  refreshAlumnos: () => Promise<void>;
-  refreshAfterPayment: () => Promise<void>;
+import { academicosService } from '../services/academicosService';
+import { alumnosService } from '../services/alumnosService';
+import { pagosService } from '../services/pagosService';
+import { catalogosService } from '../services/catalogosService';
+import { configService } from '../services/configService';
 
-  // Data modifiers (opcional, para setters rápidos en caché)
-  setPlans: (updater: PaymentPlan[] | ((prev: PaymentPlan[]) => PaymentPlan[])) => void;
-  setAlumnos: (updater: Alumno[] | ((prev: Alumno[]) => Alumno[])) => void;
-  setCiclos: (updater: CicloEscolar[] | ((prev: CicloEscolar[]) => CicloEscolar[])) => void;
-  setPlantillas: (updater: PlantillaPlan[] | ((prev: PlantillaPlan[]) => PlantillaPlan[])) => void;
-  setCatalogoItems: (updater: CatalogoItem[] | ((prev: CatalogoItem[]) => CatalogoItem[])) => void;
-  setAppConfig: (config: AppConfig | null) => void;
-  setCarreras: (carreras: Carrera[]) => void;
-}
+type AppState = AuthSlice & 
+  UISlice & 
+  AcademicosSlice & 
+  AlumnosSlice & 
+  PagosSlice & 
+  CatalogosSlice & {
+    fetchAllData: () => Promise<void>;
+    fetchCarreras: () => Promise<void>;
+    refreshPlans: () => Promise<void>;
+    refreshAlumnos: () => Promise<void>;
+    refreshAfterPayment: () => Promise<void>;
+  };
 
-export const useAppStore = create<AppState>((set, get) => ({
-  currentUser: null,
-  authChecked: false,
-  loading: false,
-
-  plans: [],
-  ciclos: [],
-  alumnos: [],
-  plantillas: [],
-  catalogoItems: [],
-  catalogos: buildCatalogos([]),
-  appConfig: null,
-  activeCicloId: '',
-  carreras: [],
-
-  setCurrentUser: (user) => set({ currentUser: user }),
-  setAuthChecked: (checked) => set({ authChecked: checked }),
-  setLoading: (loading) => set({ loading }),
-  
-  setActiveCicloId: (id) => {
-    set({ activeCicloId: id });
-    try { localStorage.setItem('current_ciclo_id', id); } catch {}
-    
-    // Si hay usuario logueado, actualizamos sus preferencias
-    const user = get().currentUser;
-    if (user && user.id) {
-      set({ currentUser: { ...user, ultimo_ciclo_id: id } });
-      updateUserPreferences(user.id, { ultimo_ciclo_id: id });
-    }
-  },
-
-  resolveCicloId: (nombrePeriodo, modalidad) => {
-    const ciclos = get().ciclos;
-    if (!nombrePeriodo) return undefined;
-    
-    // Si tenemos modalidad (ej. "Semestral" o "Cuatrimestral"), intentamos buscar el match exacto
-    if (modalidad) {
-      // Usamos includes para ser flexibles por si dice "Especialidad Cuatrimestral"
-      const modalidaKey = modalidad.toLowerCase().includes('semestral') ? 'semestral' : 'cuatrimestral';
-      const exactMatch = ciclos.find(c => c.nombre === nombrePeriodo && c.tipo_periodo?.toLowerCase().includes(modalidaKey));
-      if (exactMatch) return exactMatch.id;
-    }
-    
-    // Fallback: Si no hay modalidad o no encontró un match exacto, regresa el primero que coincida con el nombre
-    const fallbackMatch = ciclos.find(c => c.nombre === nombrePeriodo);
-    return fallbackMatch?.id;
-  },
-
-  setPlans: (updater) => set((state) => ({ plans: typeof updater === 'function' ? updater(state.plans) : updater })),
-  setAlumnos: (updater) => set((state) => ({ alumnos: typeof updater === 'function' ? updater(state.alumnos) : updater })),
-  setCiclos: (updater) => set((state) => ({ ciclos: typeof updater === 'function' ? updater(state.ciclos) : updater })),
-  setPlantillas: (updater) => set((state) => ({ plantillas: typeof updater === 'function' ? updater(state.plantillas) : updater })),
-  setCatalogoItems: (updater) => set((state) => {
-    const newItems = typeof updater === 'function' ? updater(state.catalogoItems) : updater;
-    return { catalogoItems: newItems, catalogos: buildCatalogos(newItems) };
-  }),
-  setAppConfig: (config) => set({ appConfig: config }),
-  setCarreras: (carreras) => set({ carreras }),
+export const useAppStore = create<AppState>()((...a) => ({
+  ...createAuthSlice(...a),
+  ...createUISlice(...a),
+  ...createAcademicosSlice(...a),
+  ...createAlumnosSlice(...a),
+  ...createPagosSlice(...a),
+  ...createCatalogosSlice(...a),
 
   fetchCarreras: async () => {
-    const { data, error } = await supabase.from('carreras').select('*').order('nombre');
-    if (data) set({ carreras: data as Carrera[] });
-    if (error) console.error("Error fetching carreras:", error);
+    const res = await academicosService.getCarreras();
+    if (res.success) {
+      a[0]({ carreras: res.data });
+    } else {
+      console.error("Error fetching carreras:", res.error);
+    }
   },
 
   fetchAllData: async () => {
+    const set = a[0];
+    const get = a[1];
     set({ loading: true });
+    
     try {
-      const { data: planesData, error: planesError } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*, detalles:planes_pago_detalles(*)').order('id'));
-      const { data: ciclosData, error: ciclosError } = await fetchAllSupabase(() => supabase.from('ciclos_escolares').select('*').order('id'));
-      const { data: alumnosData, error: alumnosError } = await fetchAllSupabase(() => supabase.from('alumnos').select('*').order('id'));
-      const { data: catalogosData, error: catalogosError } = await fetchAllSupabase(() => supabase.from('catalogos').select('*').order('orden', { ascending: true }));
-      const { data: plantillasData, error: plantillasError } = await fetchAllSupabase(() => supabase.from('plantillas_plan').select('*').order('id'));
-      
-      const config = await getAppConfig();
+      const [
+        planesRes,
+        ciclosRes,
+        alumnosRes,
+        catalogosRes,
+        plantillasRes,
+        configRes
+      ] = await Promise.all([
+        pagosService.getPlanesPago(),
+        academicosService.getCiclosEscolares(),
+        alumnosService.getAlumnos(),
+        catalogosService.getCatalogos(),
+        pagosService.getPlantillasPlan(),
+        configService.getAppConfig()
+      ]);
 
-      // Llamada paralela a la función de carreras
       await get().fetchCarreras();
 
-      const newState: Partial<AppState> = {
-        appConfig: config,
-      };
+      const newState: Partial<AppState> = {};
 
-      if (!planesError && planesData) newState.plans = planesData as PaymentPlan[];
-      if (!alumnosError && alumnosData) newState.alumnos = alumnosData as Alumno[];
-      if (!catalogosError && catalogosData) {
-        newState.catalogoItems = catalogosData as CatalogoItem[];
-        newState.catalogos = buildCatalogos(newState.catalogoItems);
+      if (configRes.success) newState.appConfig = configRes.data;
+      if (planesRes.success) newState.plans = planesRes.data;
+      if (alumnosRes.success) newState.alumnos = alumnosRes.data;
+      if (plantillasRes.success) newState.plantillas = plantillasRes.data;
+      
+      if (catalogosRes.success) {
+        // Aprovechar el setCatalogoItems del slice para que actualice la derivación 'catalogos'
+        get().setCatalogoItems(catalogosRes.data);
       }
-      if (!plantillasError && plantillasData) newState.plantillas = plantillasData as PlantillaPlan[];
 
-      if (!ciclosError && ciclosData && ciclosData.length > 0) {
-        newState.ciclos = ciclosData as CicloEscolar[];
+      if (ciclosRes.success && ciclosRes.data.length > 0) {
+        newState.ciclos = ciclosRes.data;
         
-        // Determinar ciclo activo
         const currentActive = get().activeCicloId;
         const userCycle = get().currentUser?.ultimo_ciclo_id;
         const savedId = localStorage.getItem('current_ciclo_id');
         
-        // Prioridad: 1. Estado local ya seteado, 2. Preferencia de usuario, 3. LocalStorage, 4. El marcado como activo en BD
         let targetId = currentActive || userCycle || savedId;
         
-        if (targetId && (ciclosData as CicloEscolar[]).some(c => c.id === targetId)) {
+        if (targetId && ciclosRes.data.some(c => c.id === targetId)) {
           newState.activeCicloId = targetId;
         } else {
-          const activeDb = (ciclosData as CicloEscolar[]).find(c => c.activo);
+          const activeDb = ciclosRes.data.find(c => c.activo);
           if (activeDb) newState.activeCicloId = activeDb.id;
         }
       }
@@ -176,20 +105,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   refreshPlans: async () => {
-    try {
-      const { data, error } = await fetchAllSupabase(() => supabase.from('vista_planes_pago').select('*, detalles:planes_pago_detalles(*)').order('id'));
-      if (!error && data) set({ plans: data as PaymentPlan[] });
-    } catch { /* silenciar */ }
+    const res = await pagosService.getPlanesPago();
+    if (res.success) a[0]({ plans: res.data });
   },
 
   refreshAlumnos: async () => {
-    try {
-      const { data, error } = await fetchAllSupabase(() => supabase.from('alumnos').select('*').order('id'));
-      if (!error && data) set({ alumnos: data as Alumno[] });
-    } catch { /* silenciar */ }
+    const res = await alumnosService.getAlumnos();
+    if (res.success) a[0]({ alumnos: res.data });
   },
 
   refreshAfterPayment: async () => {
-    await Promise.all([get().refreshPlans(), get().refreshAlumnos()]);
+    await Promise.all([a[1]().refreshPlans(), a[1]().refreshAlumnos()]);
   }
 }));

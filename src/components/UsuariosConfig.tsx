@@ -332,7 +332,7 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                           u.rol === 'ADMINISTRADOR'
                             ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                            : u.rol === 'COORDINADOR'
+                            : u.rol.startsWith('COORDINADOR')
                             ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                             : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
                         }`}>
@@ -505,13 +505,16 @@ export default function UsuariosConfig({ onBack }: UsuariosConfigProps) {
                   <label className="block text-sm font-bold text-[#45515e] dark:text-gray-300 mb-1">Rol</label>
                   <select
                     value={formData.rol}
-                    onChange={(e) => setFormData({ ...formData, rol: e.target.value as 'ADMINISTRADOR' | 'COORDINADOR' | 'CAJERO' })}
+                    onChange={(e) => setFormData({ ...formData, rol: e.target.value as any })}
                     className="w-full p-3 border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[13px] outline-none bg-[#eef2ff] dark:bg-[#1c2228] text-[#45515e] dark:text-gray-200 focus:ring-2 focus:ring-[#3b82f6] cursor-pointer text-sm font-semibold"
                   >
-                    <option value="CAJERO">Cajero — Solo crear/editar planes y cobrar</option>
-                    <option value="COORDINADOR">Coordinador — Acceso Limitado</option>
-                    <option value="ADMINISTRADOR">Administrador — Acceso Total</option>
+                    <option value="CAJERO">Cajero — Recibos y Cobros (Lectura académica)</option>
+                    <option value="COORDINADOR CONTROL ESCOLAR">Coordinador — Control Escolar (Alumnos, Grupos)</option>
+                    <option value="COORDINADOR FINANCIERO">Coordinador — Financiero (Recibos y Planes de Pago)</option>
+                    <option value="COORDINADOR RECURSOS HUMANOS">Coordinador — Recursos Humanos (Docentes)</option>
+                    <option value="COORDINADOR ACADEMICO">Coordinador — Académico (Planes, Materias)</option>
                     <option value="DOCENTE">Docente — Acceso solo a Calificaciones</option>
+                    <option value="ADMINISTRADOR">Administrador — Acceso Total</option>
                   </select>
                 </div>
               )}

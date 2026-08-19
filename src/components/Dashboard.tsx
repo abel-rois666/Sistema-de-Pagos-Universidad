@@ -126,12 +126,25 @@ export default function Dashboard() {
           <div className="relative bg-white dark:bg-[#181e25] rounded-[20px] border border-[#d1d5db] dark:border-[rgba(255,255,255,0.12)] shadow-lg dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] overflow-hidden">
             
             <div className="px-5 sm:px-6 py-4 sm:py-5 bg-transparent border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] relative overflow-hidden">
-              <h2 className="text-lg sm:text-[22px] font-semibold text-[#222222] dark:text-gray-100 leading-[1.10] tracking-tight relative z-10" style={{ fontFamily: 'var(--font-display)' }}>
-                👋 ¡Hola, {currentUser.username}!
-              </h2>
-              <p className="text-[14px] text-[#45515e] dark:text-[#8e8e93] mt-1.5 leading-[1.50] relative z-10">
-                {dateStr} · Ciclo: <span className="font-medium text-[#222222] dark:text-gray-200">{activeCiclo?.nombre || '—'}</span>
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                <div>
+                  <h2 className="text-lg sm:text-[22px] font-semibold text-[#222222] dark:text-gray-100 leading-[1.10] tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                    👋 ¡Hola, {currentUser.username}!
+                  </h2>
+                  <p className="text-[14px] text-[#45515e] dark:text-[#8e8e93] mt-1.5 leading-[1.50]">
+                    {dateStr} · Ciclo: <span className="font-medium text-[#222222] dark:text-gray-200">{activeCiclo?.nombre || '—'}</span>
+                  </p>
+                </div>
+                {currentUser.rol === 'ADMINISTRADOR' && (
+                  <button
+                    onClick={() => setShowImport(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+                  >
+                    <FileText size={16} />
+                    Importar CSV
+                  </button>
+                )}
+              </div>
             </div>
 
             {currentUser.rol !== 'CAJERO' && (

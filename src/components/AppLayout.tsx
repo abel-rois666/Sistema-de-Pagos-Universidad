@@ -51,7 +51,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
   if (!currentUser) return <>{children}</>;
 
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-  const isRestrictedRole = currentUser.rol === 'COORDINADOR' || currentUser.rol === 'CAJERO';
   const isDocente = currentUser.rol === 'DOCENTE';
 
   let menuItems: any[] = [];
@@ -89,9 +88,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
       { name: 'Recursos Humanos', icon: <Briefcase size={20} />, path: '/rh' },
     ];
 
-    if (isRestrictedRole) {
-      menuItems = menuItems.filter(item => item.name === 'Control Financiero');
-    } else {
+    // Filter menu based on roles
+    if (currentUser.rol === 'COORDINADOR FINANCIERO' || currentUser.rol === 'CAJERO') {
+      menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Control Financiero');
+    } else if (currentUser.rol === 'COORDINADOR CONTROL ESCOLAR') {
+      menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Control Escolar');
+    } else if (currentUser.rol === 'COORDINADOR RECURSOS HUMANOS') {
+      menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Recursos Humanos');
+    } else if (currentUser.rol === 'COORDINADOR ACADEMICO') {
+      menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Control Académico');
+    } else if (currentUser.rol === 'ADMINISTRADOR') {
+      // Admin sees everything + Config
       menuItems.push({
         name: 'Configuración',
         icon: <Settings size={20} className="transition-transform duration-300 group-hover:rotate-45" />,

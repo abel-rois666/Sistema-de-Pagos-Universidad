@@ -35,11 +35,11 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
     claveEntidadUniversidad: '',
   } as any;
   
-  const [title, setTitle]                   = useState(config.title);
-  const [logoUrl, setLogoUrl]               = useState(config.logoUrl);
+  const [title, setTitle]                   = useState(config.title || 'Sistema de Control de Pagos');
+  const [logoUrl, setLogoUrl]               = useState(config.logoUrl || '');
   const [selloUrl, setSelloUrl]             = useState(config.selloUrl || '');
-  const [directorNombre, setDirectorNombre] = useState(config.directorNombre);
-  const [directorCargo, setDirectorCargo]   = useState(config.directorCargo);
+  const [directorNombre, setDirectorNombre] = useState(config.directorNombre || '');
+  const [directorCargo, setDirectorCargo]   = useState(config.directorCargo || '');
   const [claveInstitucion, setClaveInstitucion] = useState(config.claveInstitucion || '');
   const [claveDgair, setClaveDgair] = useState(config.claveDgair || '20181');
   const [claveEntidadUniversidad, setClaveEntidadUniversidad] = useState(config.claveEntidadUniversidad || '');
@@ -88,7 +88,7 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
     setLoading(false);
   };
 
-  const isBase64 = logoUrl.startsWith('data:');
+  const isBase64 = (logoUrl || '').startsWith('data:');
 
   const INPUT = 'w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm';
 
