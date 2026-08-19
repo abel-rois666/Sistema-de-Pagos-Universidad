@@ -29,4 +29,24 @@ export const academicosService = {
       return createError(error as Error);
     }
   },
+
+  async getServicioSocialByAlumno(alumnoId: string): Promise<Result<any[]>> {
+    try {
+      const { data, error } = await supabase.from('servicio_social').select('*').eq('alumno_id', alumnoId);
+      if (error) throw error;
+      return createSuccess(data || []);
+    } catch (error) {
+      return createError(error as Error);
+    }
+  },
+
+  async getCertificacionEstatusByAlumno(alumnoId: string): Promise<Result<{ tramite_completado: boolean } | null>> {
+    try {
+      const { data, error } = await supabase.from('ficha_certificacion').select('tramite_completado').eq('alumno_id', alumnoId).maybeSingle();
+      if (error) throw error;
+      return createSuccess(data);
+    } catch (error) {
+      return createError(error as Error);
+    }
+  }
 };

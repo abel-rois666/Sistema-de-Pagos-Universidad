@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, AlertCircle, Info, Printer, X, FileDown, Loader2 } from 'lucide-react';
 import type { PaymentPlan, CatalogoItem, Recibo, ReciboDetalle, Alumno } from '../types';
-import { saveCatalogoItem } from '../lib/supabase';
+import { catalogosService } from '../services/catalogosService';
 import { pagosService } from '../services/pagosService';
 import { useAppStore } from '../store/useAppStore';
 import { ReciboPlantillaPDF } from './ReciboPlantillaPDF';
@@ -976,11 +976,13 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
                     orden: 999,
                     activo: true,
                   };
-                  await saveCatalogoItem(newItem);
-                  setCatalogoItems(prev => [...prev, newItem]);
-                  // auto-select in the current row
-                  if (addConceptoRowId) {
-                    updateFila(addConceptoRowId, 'concepto', `CAT_${name}`);
+                  const res = await catalogosService.saveCatalogoItem(newItem);
+                  if (res.success) {
+                    setCatalogoItems([...catalogoItems.filter(c => c.id !== newItem.id), newItem as CatalogoItem]);
+                    setShowAddConceptoModal(false);
+                    selectConcepto(addConceptoRowId, `CAT_${newConceptoName.toUpperCase().trim()}`);
+                  } else {
+                    alert('Error al guardar concepto: ' + res.error?.message);
                   }
                   setSavingConcepto(false);
                   setShowAddConceptoModal(false);

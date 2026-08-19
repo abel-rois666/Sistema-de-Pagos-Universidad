@@ -31,6 +31,16 @@ export const alumnosService = {
     }
   },
 
+  async updateAlumno(id: string, updates: Partial<Alumno>): Promise<Result<null>> {
+    try {
+      const { error } = await supabase.from('alumnos').update(updates).eq('id', id);
+      if (error) throw error;
+      return createSuccess(null);
+    } catch (error) {
+      return createError(error as Error);
+    }
+  },
+
   async bulkSaveAlumnos(alumnos: Alumno[], onProgress?: (saved: number) => void): Promise<Result<void>> {
     try {
       // Mapear al payload correcto de la base de datos para omitir propiedades no necesarias o anidadas

@@ -4,7 +4,8 @@ import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, G
 import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '../types';
 import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { calculateStudentTotals, toTitleCase } from '../utils';
-import { supabase } from '../lib/supabase';
+import { alumnosService } from '../services/alumnosService';
+import { academicosService } from '../services/academicosService';
 import { useAppStore } from '../store/useAppStore';
 import TabPagos from './tabs/TabPagos';
 import TabServicioSocial from './tabs/TabServicioSocial';
@@ -88,8 +89,9 @@ export default function FichaAlumno({
   const [ssRegistros, setSsRegistros] = useState<ServicioSocial[]>([]);
   useEffect(() => {
     if (!selectedAlumnoId) return;
-    supabase.from('servicio_social').select('*').eq('alumno_id', selectedAlumnoId)
-      .then(({ data }) => setSsRegistros((data as ServicioSocial[]) ?? []));
+    if (!selectedAlumnoId) return;
+    academicosService.getServicioSocialByAlumno(selectedAlumnoId)
+      .then((res) => { if (res.success) setSsRegistros(res.data as ServicioSocial[]); });
   }, [selectedAlumnoId]);
 
   const [certEstatus, setCertEstatus] = useState<'SIN_INICIAR'|'EN_CURSO'|'COMPLETADO'>('SIN_INICIAR');
@@ -102,11 +104,13 @@ export default function FichaAlumno({
       setCertEstatus('SIN_INICIAR');
       return;
     }
-    supabase.from('ficha_certificacion').select('tramite_completado').eq('alumno_id', selectedAlumnoId).maybeSingle()
-      .then(({ data }) => {
-        if (!data) setCertEstatus('SIN_INICIAR');
-        else if (data.tramite_completado) setCertEstatus('COMPLETADO');
-        else setCertEstatus('EN_CURSO');
+    academicosService.getCertificacionEstatusByAlumno(selectedAlumnoId)
+      .then(res => {
+        if (res.success && res.data) {
+          setCertEstatus(res.data.tramite_completado ? 'COMPLETADO' : 'EN_CURSO');
+        } else {
+          setCertEstatus('SIN_INICIAR');
+        }
       });
   }, [selectedAlumnoId]);
 
@@ -159,9 +163,9 @@ export default function FichaAlumno({
       return;
     }
     setGuardandoEstatus(true);
-    const { error } = await supabase.from('alumnos').update({ estatus: tempEstatus }).eq('id', selectedAlumno.id);
+    const res = await alumnosService.updateAlumno(selectedAlumno.id, { estatus: tempEstatus });
     setGuardandoEstatus(false);
-    if (error) { toast.error('Error al actualizar estatus: ' + error.message); }
+    if (!res.success) { toast.error('Error al actualizar estatus: ' + res.error?.message); }
     else { onRefreshAlumnos?.(); setIsEditingEstatus(false); toast.success('Estatus actualizado'); }
   };
 
@@ -174,9 +178,9 @@ export default function FichaAlumno({
   const executeUpdateMonedero = async () => {
     if (!selectedAlumno) return;
     setGuardandoMonedero(true);
-    const { error } = await supabase.from('alumnos').update({ saldo_a_favor: parseFloat(tempMonedero) }).eq('id', selectedAlumno.id);
+    const res = await alumnosService.updateAlumno(selectedAlumno.id, { saldo_a_favor: parseFloat(tempMonedero) });
     setGuardandoMonedero(false);
-    if (error) { toast.error('Error al actualizar monedero: ' + error.message); setShowConfirmMonedero(false); }
+    if (!res.success) { toast.error('Error al actualizar monedero: ' + res.error?.message); setShowConfirmMonedero(false); }
     else { onRefreshAlumnos?.(); setEditingMonedero(false); setShowConfirmMonedero(false); }
   };
 
