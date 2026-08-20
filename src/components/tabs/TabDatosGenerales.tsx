@@ -371,8 +371,12 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     lengua_indigena: a.lengua_indigena ?? '',
   }), []);
 
+  const [isValidatingCURP, setIsValidatingCURP] = useState(false);
+
+  const { carreras, currentUser } = useAppStore();
+  const hideSensibleData = currentUser?.rol === 'COORDINADOR FINANCIERO';
+
   const [form, setForm] = useState<FormData>(buildForm(alumno));
-  const { carreras } = useAppStore();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [curpStatus, setCurpStatus] = useState<'idle' | 'ok' | 'error'>('idle');
@@ -983,63 +987,66 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
       )}
 
       {/* ── Sección: Nacimiento ───────────────────────────────────────── */}
-      <Section icon={<Baby size={15} />} title="Nacimiento">
-        <div>
-          <label
-            className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1"
-            style={{ fontFamily: 'var(--font-ui)' }}
-          >
-            Fecha de Nacimiento
-          </label>
-          {editing ? (
-            <input
-              type="date"
-              value={form.fecha_nacimiento ?? ''}
-              onChange={e => handleChange('fecha_nacimiento', e.target.value)}
-              className="w-full px-3 py-2 rounded-[8px] bg-white dark:bg-[#181e25] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] text-sm text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] transition-shadow"
+      {!hideSensibleData && (
+        <Section icon={<Baby size={15} />} title="Nacimiento">
+          <div>
+            <label
+              className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1"
               style={{ fontFamily: 'var(--font-ui)' }}
-            />
-          ) : (
-            <p className="text-sm text-[#222222] dark:text-gray-100 px-1 py-1.5 min-h-[34px]" style={{ fontFamily: 'var(--font-ui)' }}>
-              {form.fecha_nacimiento
-                ? <>{formatFecha(form.fecha_nacimiento)} <span className="ml-2 text-[#8e8e93] dark:text-[#6b7280]">({edad !== null ? `${edad} años` : '—'})</span></>
-                : <span className="text-[#c0c0c8] dark:text-[#4b5563] italic">Sin dato</span>
-              }
-            </p>
-          )}
-          {/* Edad inline en modo edición */}
-          {editing && edad !== null && (
-            <p className="text-xs text-[#8e8e93] dark:text-[#6b7280] mt-1 pl-1" style={{ fontFamily: 'var(--font-ui)' }}>
-              Edad calculada: <strong className="text-[#1456f0] dark:text-[#60a5fa]">{edad} años</strong>
-            </p>
-          )}
-        </div>
-        <StateSelector
-          label="Estado de Nacimiento"
-          value={form.estado_nacimiento}
-          editing={editing}
-          onChange={v => handleChange('estado_nacimiento', v)}
-        />
-        <Field
-          label="Nacionalidad"
-          name="nacionalidad"
-          value={form.nacionalidad}
-          editing={editing}
-          onChange={handleChange}
-          placeholder="MEXICANA"
-        />
-        <SelectField
-          label="Sexo"
-          name="sexo"
-          value={form.sexo}
-          editing={editing}
-          onChange={handleChange}
-          options={[
-            { value: 'H', label: 'Hombre' },
-            { value: 'M', label: 'Mujer' },
-          ]}
-        />
-      </Section>
+            >
+              Fecha de Nacimiento
+            </label>
+            {editing ? (
+              <input
+                type="date"
+                value={form.fecha_nacimiento ?? ''}
+                onChange={e => handleChange('fecha_nacimiento', e.target.value)}
+                className="w-full px-3 py-2 rounded-[8px] bg-white dark:bg-[#181e25] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] text-sm text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] transition-shadow"
+                style={{ fontFamily: 'var(--font-ui)' }}
+              />
+            ) : (
+              <p className="text-sm text-[#222222] dark:text-gray-100 px-1 py-1.5 min-h-[34px]" style={{ fontFamily: 'var(--font-ui)' }}>
+                {form.fecha_nacimiento
+                  ? <>{formatFecha(form.fecha_nacimiento)} <span className="ml-2 text-[#8e8e93] dark:text-[#6b7280]">({edad !== null ? `${edad} años` : '—'})</span></>
+                  : <span className="text-[#c0c0c8] dark:text-[#4b5563] italic">Sin dato</span>
+                }
+              </p>
+            )}
+            {/* Edad inline en modo edición */}
+            {editing && edad !== null && (
+              <p className="text-xs text-[#8e8e93] dark:text-[#6b7280] mt-1 pl-1" style={{ fontFamily: 'var(--font-ui)' }}>
+                Edad calculada: <strong className="text-[#1456f0] dark:text-[#60a5fa]">{edad} años</strong>
+              </p>
+            )}
+          </div>
+          <StateSelector
+            label="Estado de Nacimiento"
+            value={form.estado_nacimiento}
+            editing={editing}
+            onChange={v => handleChange('estado_nacimiento', v)}
+          />
+          <Field
+            label="Nacionalidad"
+            name="nacionalidad"
+            value={form.nacionalidad}
+            editing={editing}
+            onChange={handleChange}
+            placeholder="MEXICANA"
+          />
+          <SelectField
+            label="Sexo"
+            name="sexo"
+            value={form.sexo}
+            editing={editing}
+            onChange={handleChange}
+            options={[
+              { value: 'H', label: 'Hombre' },
+              { value: 'M', label: 'Mujer' },
+            ]}
+          />
+        </Section>
+      )}
+
 
       {/* ── Sección: Identificación ───────────────────────────────────── */}
       <Section icon={<IdCard size={15} />} title="Identificación">
@@ -1142,122 +1149,124 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
 
 
       {/* ── Sección: Domicilio ────────────────────────────────────────── */}
-      <Section icon={<MapPin size={15} />} title="Domicilio">
-        <Field
-          label="Calle y Número"
-          name="domicilio"
-          value={form.domicilio}
-          editing={editing}
-          onChange={handleChange}
-          placeholder="Av. Ejemplo 123, Col. Centro"
-          colSpan={2}
-        />
+      {!hideSensibleData && (
+        <Section icon={<MapPin size={15} />} title="Domicilio">
+          <Field
+            label="Calle y Número"
+            name="domicilio"
+            value={form.domicilio}
+            editing={editing}
+            onChange={handleChange}
+            placeholder="Av. Ejemplo 123, Col. Centro"
+            colSpan={2}
+          />
 
-        {/* ── Campo C.P. con autocomplete ── */}
-        <div>
-          <label
-            className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1"
-            style={{ fontFamily: 'var(--font-ui)' }}
-          >
-            C.P.
-          </label>
-          {editing ? (
-            <div className="relative">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={form.cp}
-                onChange={e => handleZipCodeChange(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                placeholder="01234"
-                maxLength={5}
-                className={`w-full px-3 py-2 pr-9 rounded-[8px] bg-white dark:bg-[#181e25] border text-sm text-[#222222] dark:text-gray-100 outline-none focus:ring-2 transition-shadow ${
-                  cpError
-                    ? 'border-rose-400 dark:border-rose-600 focus:ring-rose-400/30'
-                    : 'border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] focus:ring-[#3b82f6]'
-                }`}
-                style={{ fontFamily: 'var(--font-ui)' }}
-              />
-              <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
-                {cpLoading
-                  ? <Loader2 size={14} className="text-[#3b82f6] animate-spin" />
-                  : <Search size={14} className="text-[#8e8e93]" />}
-              </div>
-            </div>
-          ) : (
-            <p
-              className="text-sm text-[#222222] dark:text-gray-100 px-1 py-1.5 min-h-[34px]"
+          {/* ── Campo C.P. con autocomplete ── */}
+          <div>
+            <label
+              className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1"
               style={{ fontFamily: 'var(--font-ui)' }}
             >
-              {form.cp || <span className="text-[#c0c0c8] dark:text-[#4b5563] italic">Sin dato</span>}
-            </p>
-          )}
-          {cpError && editing && (
-            <p className="text-xs text-rose-500 dark:text-rose-400 mt-1 pl-1" style={{ fontFamily: 'var(--font-ui)' }}>
-              {cpError}
-            </p>
-          )}
-          {!cpError && editing && form.cp.length === 5 && !cpLoading && form.municipio && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 pl-1 flex items-center gap-1" style={{ fontFamily: 'var(--font-ui)' }}>
-              <CheckCircle size={11} /> Dirección autocompletada
-            </p>
-          )}
-        </div>
+              C.P.
+            </label>
+            {editing ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.cp}
+                  onChange={e => handleZipCodeChange(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                  placeholder="01234"
+                  maxLength={5}
+                  className={`w-full px-3 py-2 pr-9 rounded-[8px] bg-white dark:bg-[#181e25] border text-sm text-[#222222] dark:text-gray-100 outline-none focus:ring-2 transition-shadow ${
+                    cpError
+                      ? 'border-rose-400 dark:border-rose-600 focus:ring-rose-400/30'
+                      : 'border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] focus:ring-[#3b82f6]'
+                  }`}
+                  style={{ fontFamily: 'var(--font-ui)' }}
+                />
+                <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+                  {cpLoading
+                    ? <Loader2 size={14} className="text-[#3b82f6] animate-spin" />
+                    : <Search size={14} className="text-[#8e8e93]" />}
+                </div>
+              </div>
+            ) : (
+              <p
+                className="text-sm text-[#222222] dark:text-gray-100 px-1 py-1.5 min-h-[34px]"
+                style={{ fontFamily: 'var(--font-ui)' }}
+              >
+                {form.cp || <span className="text-[#c0c0c8] dark:text-[#4b5563] italic">Sin dato</span>}
+              </p>
+            )}
+            {cpError && editing && (
+              <p className="text-xs text-rose-500 dark:text-rose-400 mt-1 pl-1" style={{ fontFamily: 'var(--font-ui)' }}>
+                {cpError}
+              </p>
+            )}
+            {!cpError && editing && form.cp.length === 5 && !cpLoading && form.municipio && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 pl-1 flex items-center gap-1" style={{ fontFamily: 'var(--font-ui)' }}>
+                <CheckCircle size={11} /> Dirección autocompletada
+              </p>
+            )}
+          </div>
 
-        {/* Municipio — solo lectura, se rellena desde la API del CP */}
-        <div>
-          <label
-            className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1"
-            style={{ fontFamily: 'var(--font-ui)' }}
-          >
-            Municipio / Alcaldía
-            {editing && (
-              <span className="ml-2 text-[10px] text-[#8e8e93] dark:text-[#6b7280] normal-case font-normal">
-                (se llena con el C.P.)
-              </span>
-            )}
-          </label>
-          <p
-            className={`text-sm px-3 py-2 min-h-[38px] rounded-[8px] break-words ${
-              editing
-                ? 'bg-[#f8f9ff] dark:bg-[#181e25]/60 border border-dashed border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-[#45515e] dark:text-[#8e8e93]'
-                : 'text-[#222222] dark:text-gray-100 px-1'
-            }`}
-            style={{ fontFamily: 'var(--font-ui)' }}
-          >
-            {form.municipio || <span className="text-[#c0c0c8] dark:text-[#4b5563] italic">Sin dato</span>}
-          </p>
-        </div>
+          {/* Municipio — solo lectura, se rellena desde la API del CP */}
+          <div>
+            <label
+              className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1"
+              style={{ fontFamily: 'var(--font-ui)' }}
+            >
+              Municipio / Alcaldía
+              {editing && (
+                <span className="ml-2 text-[10px] text-[#8e8e93] dark:text-[#6b7280] normal-case font-normal">
+                  (se llena con el C.P.)
+                </span>
+              )}
+            </label>
+            <p
+              className={`text-sm px-3 py-2 min-h-[38px] rounded-[8px] break-words ${
+                editing
+                  ? 'bg-[#f8f9ff] dark:bg-[#181e25]/60 border border-dashed border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-[#45515e] dark:text-[#8e8e93]'
+                  : 'text-[#222222] dark:text-gray-100 px-1'
+              }`}
+              style={{ fontFamily: 'var(--font-ui)' }}
+            >
+              {form.municipio || <span className="text-[#c0c0c8] dark:text-[#4b5563] italic">Sin dato</span>}
+            </p>
+          </div>
 
-        {/* Estado — solo lectura, se rellena desde la API del CP */}
-        <div>
-          <label
-            className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1"
-            style={{ fontFamily: 'var(--font-ui)' }}
-          >
-            Estado
-            {editing && (
-              <span className="ml-2 text-[10px] text-[#8e8e93] dark:text-[#6b7280] normal-case font-normal">
-                (se llena con el C.P.)
-              </span>
-            )}
-            {getStateAbbr(form.estado) && (
-              <span className="ml-2 text-[10px] font-bold text-[#1456f0]/60 dark:text-[#60a5fa]/60 uppercase tracking-wider">
-                → GES4: {getStateAbbr(form.estado)}
-              </span>
-            )}
-          </label>
-          <p
-            className={`text-sm px-3 py-2 min-h-[38px] rounded-[8px] ${
-              editing
-                ? 'bg-[#f8f9ff] dark:bg-[#181e25]/60 border border-dashed border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-[#45515e] dark:text-[#8e8e93]'
-                : 'text-[#222222] dark:text-gray-100 px-1'
-            }`}
-            style={{ fontFamily: 'var(--font-ui)' }}
-          >
-            {form.estado || <span className="text-[#c0c0c8] dark:text-[#4b5563] italic">Sin dato</span>}
-          </p>
-        </div>
-      </Section>
+          {/* Estado — solo lectura, se rellena desde la API del CP */}
+          <div>
+            <label
+              className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1"
+              style={{ fontFamily: 'var(--font-ui)' }}
+            >
+              Estado
+              {editing && (
+                <span className="ml-2 text-[10px] text-[#8e8e93] dark:text-[#6b7280] normal-case font-normal">
+                  (se llena con el C.P.)
+                </span>
+              )}
+              {getStateAbbr(form.estado) && (
+                <span className="ml-2 text-[10px] font-bold text-[#1456f0]/60 dark:text-[#60a5fa]/60 uppercase tracking-wider">
+                  → GES4: {getStateAbbr(form.estado)}
+                </span>
+              )}
+            </label>
+            <p
+              className={`text-sm px-3 py-2 min-h-[38px] rounded-[8px] ${
+                editing
+                  ? 'bg-[#f8f9ff] dark:bg-[#181e25]/60 border border-dashed border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-[#45515e] dark:text-[#8e8e93]'
+                  : 'text-[#222222] dark:text-gray-100 px-1'
+              }`}
+              style={{ fontFamily: 'var(--font-ui)' }}
+            >
+              {form.estado || <span className="text-[#c0c0c8] dark:text-[#4b5563] italic">Sin dato</span>}
+            </p>
+          </div>
+        </Section>
+      )}
 
       {/* ── Sección: Contacto ─────────────────────────────────────────── */}
       <Section icon={<Phone size={15} />} title="Contacto">
