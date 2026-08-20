@@ -90,7 +90,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     // Filter menu based on roles
     if (currentUser.rol === 'COORDINADOR FINANCIERO' || currentUser.rol === 'CAJERO') {
-      menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Control Financiero');
+      menuItems = menuItems.filter(item => item.name === 'Control Financiero');
     } else if (currentUser.rol === 'COORDINADOR CONTROL ESCOLAR') {
       menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Control Escolar');
     } else if (currentUser.rol === 'COORDINADOR RECURSOS HUMANOS') {

@@ -249,7 +249,7 @@ export default function App() {
         <Routes>
           <Route path="/plan-pagos" element={
             <PageWrapper keyStr="plan_pagos">
-              <PlanPagos initialAlumnoId={selectedAlumnoId || navState.alumnoId}
+              <PlanPagos initialAlumnoId={selectedAlumnoId || navState.alumnoId} initialPlanId={navState.initialPlanId}
                 onSavePlan={handleSavePlan}
                 onDeletePlan={(planId) => setPlans(prev => prev.filter(p => p.id !== planId))}
                 onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
@@ -264,7 +264,7 @@ export default function App() {
             <PageWrapper keyStr="ficha_alumno">
               <FichaAlumno initialAlumnoId={selectedAlumnoId || navState.alumnoId}
                 onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
-                onGoToPlan={(id) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
+                onGoToPlan={(id, planId) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, initialPlanId: planId, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
                 onBackToAlumnos={navState.fromAlumnos ? () => { setSelectedAlumnoId(null); navigate('/alumnos'); } : undefined}
                 onBackToReporteEgresados={navState.fromReporteEgresados ? () => { setSelectedAlumnoId(null); navigate('/reporte-egresados'); } : undefined}
               />

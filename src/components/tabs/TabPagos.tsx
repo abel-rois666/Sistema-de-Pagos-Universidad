@@ -6,7 +6,9 @@ import { isPaid, formatDate } from '../../utils';
 interface TabPagosProps {
   alumno: Alumno;
   activePlan: PaymentPlan | null | undefined;
-  onGoToPlan?: (id: string) => void;
+  allPlans?: PaymentPlan[];
+  onGoToPlan?: (id: string, planId?: string) => void;
+  onPlanChange?: (planId: string) => void;
 }
 
 const renderPaymentRow = (concepto: string, fecha: string, cantidad: number, estatus: string) => {
@@ -33,7 +35,9 @@ const renderPaymentRow = (concepto: string, fecha: string, cantidad: number, est
   );
 };
 
-export default function TabPagos({ alumno, activePlan, onGoToPlan }: TabPagosProps) {
+export default function TabPagos({ alumno, activePlan, allPlans = [], onGoToPlan, onPlanChange }: TabPagosProps) {
+  const displayPlan = activePlan;
+
   /* Observaciones */
   const obsJSX = alumno.observaciones_pago_titulacion && (
     <div className="mx-0 mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-[13px] p-4 flex items-start gap-3">
@@ -49,7 +53,7 @@ export default function TabPagos({ alumno, activePlan, onGoToPlan }: TabPagosPro
     </div>
   );
 
-  if (!activePlan) {
+  if (!displayPlan) {
     return (
       <div className="p-6">
         {obsJSX}
@@ -71,14 +75,31 @@ export default function TabPagos({ alumno, activePlan, onGoToPlan }: TabPagosPro
 
       {/* Header: título + botón en la misma línea */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <h3 className="text-[18px] font-semibold text-[#222222] dark:text-gray-100 flex items-center gap-2" style={{ fontFamily: 'var(--font-display)' }}>
-          <span className="bg-[#bfdbfe] dark:bg-[#1d4ed8]/30 text-[#1456f0] dark:text-[#60a5fa] p-1.5 rounded-[8px]"><User size={18} /></span>
-          Desglose de Pagos
-          <span className="text-xs text-[#8e8e93] font-normal ml-1">{activePlan.ciclo_escolar}</span>
-        </h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-[18px] font-semibold text-[#222222] dark:text-gray-100 flex items-center gap-2" style={{ fontFamily: 'var(--font-display)' }}>
+            <span className="bg-[#bfdbfe] dark:bg-[#1d4ed8]/30 text-[#1456f0] dark:text-[#60a5fa] p-1.5 rounded-[8px]"><User size={18} /></span>
+            Desglose de Pagos
+          </h3>
+          {allPlans.length > 1 ? (
+            <select
+              value={activePlan?.id || ''}
+              onChange={(e) => onPlanChange?.(e.target.value)}
+              className="bg-[#f8f9fa] dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-[#45515e] dark:text-gray-300 text-sm font-semibold rounded-[8px] px-3 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500/50"
+            >
+              {allPlans.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.tipo_plan ? `Plan ${p.tipo_plan}` : 'Plan Cuatrimestral'} ({p.ciclo_escolar})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-xs text-[#8e8e93] font-normal">{displayPlan.ciclo_escolar}</span>
+          )}
+        </div>
+        
         {onGoToPlan && (
           <button
-            onClick={() => onGoToPlan(alumno.id)}
+            onClick={() => onGoToPlan(alumno.id, displayPlan.id)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#1456f0] dark:text-[#60a5fa] bg-[#eef2ff] dark:bg-[#1d4ed8]/20 border border-[#bfdbfe] dark:border-[#1d4ed8]/50 rounded-[8px] hover:bg-[#dbeafe] dark:hover:bg-[#1d4ed8]/30 transition-colors"
           >
             <FileText size={15} /> Ver / Editar Plan de Pagos completo
@@ -100,10 +121,10 @@ export default function TabPagos({ alumno, activePlan, onGoToPlan }: TabPagosPro
             </thead>
             <tbody className="divide-y divide-[#f2f3f5] dark:divide-[rgba(255,255,255,0.06)] bg-white dark:bg-[#181e25]">
               {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map(i => {
-                const concepto = activePlan[`concepto_${i}` as keyof PaymentPlan] as string | undefined;
-                const fecha    = activePlan[`fecha_${i}`    as keyof PaymentPlan] as string | undefined;
-                const cantidad = activePlan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
-                const estatus  = activePlan[`estatus_${i}`  as keyof PaymentPlan] as string | undefined;
+                const concepto = displayPlan[`concepto_${i}` as keyof PaymentPlan] as string | undefined;
+                const fecha    = displayPlan[`fecha_${i}`    as keyof PaymentPlan] as string | undefined;
+                const cantidad = displayPlan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
+                const estatus  = displayPlan[`estatus_${i}`  as keyof PaymentPlan] as string | undefined;
                 if (!concepto) return null;
                 return <React.Fragment key={i}>{renderPaymentRow(concepto, fecha || '', cantidad || 0, estatus || '')}</React.Fragment>;
               })}

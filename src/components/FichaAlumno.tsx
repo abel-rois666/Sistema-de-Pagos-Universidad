@@ -30,7 +30,7 @@ const TABS: TabDef[] = [
 interface FichaAlumnoProps {
   initialAlumnoId?: string | null;
   onBack: () => void;
-  onGoToPlan?: (id: string) => void;
+  onGoToPlan?: (id: string, planId?: string) => void;
   onBackToAlumnos?: () => void;
   onBackToReporteEgresados?: () => void;
 }
@@ -45,6 +45,7 @@ export default function FichaAlumno({
     searchTerm, setSearchTerm,
     showSuggestions, setShowSuggestions,
     activeTab, setActiveTab,
+    activePlanId, setActivePlanId,
     editingMonedero, setEditingMonedero,
     tempMonedero, setTempMonedero,
     guardandoMonedero, setGuardandoMonedero,
@@ -344,7 +345,9 @@ export default function FichaAlumno({
             <TabPagos
               alumno={selectedAlumno}
               activePlan={activePlan}
+              allPlans={planesDelAlumno}
               onGoToPlan={onGoToPlan}
+              onPlanChange={setActivePlanId}
             />
           )}
           {activeTab === 'datos_generales' && (

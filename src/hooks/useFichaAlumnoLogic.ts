@@ -40,6 +40,9 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
   // Tab activo
   const [activeTab, setActiveTab] = useState<TabId>('pagos');
 
+  // Plan activo (cuando hay múltiples)
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
+
   // Monedero (admin)
   const [editingMonedero, setEditingMonedero] = useState(false);
   const [tempMonedero, setTempMonedero] = useState('');
@@ -58,11 +61,20 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
       .then((res) => { if (res.success) setSsRegistros(res.data as ServicioSocial[]); });
   }, [selectedAlumnoId]);
 
-  const [certEstatus, setCertEstatus] = useState<'SIN_INICIAR'|'EN_CURSO'|'COMPLETADO'>('SIN_INICIAR');
-
+  // Certificación — Estatus (Titulacion usa esto)
+  const [certEstatus, setCertEstatus] = useState<'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO'>('SIN_INICIAR');
   const [isEditingEstatus, setIsEditingEstatus] = useState(false);
   const [tempEstatus, setTempEstatus] = useState('');
   const [guardandoEstatus, setGuardandoEstatus] = useState(false);
+
+  const selectedAlumno = alumnos.find(a => a.id === selectedAlumnoId);
+
+  useEffect(() => {
+    if (selectedAlumno) {
+      setTempEstatus(selectedAlumno.estatus || 'ACTIVO');
+    }
+  }, [selectedAlumno?.estatus, isEditingEstatus]);
+
   useEffect(() => {
     if (!selectedAlumnoId) {
       setCertEstatus('SIN_INICIAR');
@@ -79,16 +91,22 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
   }, [selectedAlumnoId]);
 
   // Resetear tab al cambiar de alumno
-  useEffect(() => { setActiveTab('pagos'); }, [selectedAlumnoId]);
+  useEffect(() => { 
+    setActiveTab('pagos'); 
+    setActivePlanId(null);
+  }, [selectedAlumnoId]);
 
   // ── Derivados ─────────────────────────────────────────────────────────────
   const filteredAlumnos = alumnos.filter(a =>
     a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const selectedAlumno = alumnos.find(a => a.id === selectedAlumnoId);
-  const activePlan = selectedAlumno
-    ? plans.find(p => p.alumno_id === selectedAlumno.id || p.nombre_alumno === selectedAlumno.nombre_completo)
-    : null;
+  
+  // Todos los planes del alumno seleccionado
+  const planesDelAlumno = plans.filter(p => p.alumno_id === selectedAlumno?.id || p.nombre_alumno === selectedAlumno?.nombre_completo);
+  
+  const activePlan = activePlanId 
+    ? planesDelAlumno.find(p => p.id === activePlanId) || planesDelAlumno[0] || null
+    : planesDelAlumno[0] || null;
 
   const isAdmin = currentUser?.rol === 'ADMINISTRADOR';
   const isRestrictedRole = currentUser?.rol === 'CAJERO'
@@ -98,15 +116,16 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
     || currentUser?.rol === 'COORDINADOR ACADEMICO';
 
   // Tabs visibles según el rol del usuario
-  const visibleTabs = allTabs.filter(t => !t.adminOnly || isAdmin);
+  const visibleTabs = allTabs.filter(t => {
+    if (t.adminOnly && !isAdmin) return false;
+    if (currentUser?.rol === 'COORDINADOR FINANCIERO' && t.id === 'academico') return false;
+    return true;
+  });
 
   // Detectar si el alumno es de Especialidad (para TabTitulacion)
   const esEspecialidad = selectedAlumno
     ? (carreras.find(c => c.nombre === selectedAlumno.licenciatura)?.nivel_educativo === 'Especialidad')
     : false;
-
-  // Todos los planes del alumno seleccionado (para auto-detectar pago titulación)
-  const planesDelAlumno = plans.filter(p => p.alumno_id === selectedAlumno?.id || p.nombre_alumno === selectedAlumno?.nombre_completo);
 
   // ── Handlers búsqueda ─────────────────────────────────────────────────────
   const handleSuggestionClick = (alumno: Alumno) => {
@@ -128,18 +147,31 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
       return;
     }
     setGuardandoEstatus(true);
-    const res = await alumnosService.updateAlumno(selectedAlumno.id, { estatus: tempEstatus });
+    const res = await alumnosService.updateAlumno(selectedAlumno.id, { estatus: tempEstatus as any });
     setGuardandoEstatus(false);
-    if (!res.success) { toast.error('Error al actualizar estatus: ' + res.error?.message); }
-    else { onRefreshAlumnos?.(); setIsEditingEstatus(false); toast.success('Estatus actualizado'); }
+    if (!res.success) {
+      toast.error('Error al actualizar estatus: ' + res.error?.message);
+    } else {
+      toast.success('Estatus actualizado correctamente');
+      onRefreshAlumnos?.();
+      setIsEditingEstatus(false);
+    }
   };
 
   // ── Monedero ──────────────────────────────────────────────────────────────
   const handleUpdateMonederoClick = () => {
-    const v = parseFloat(tempMonedero);
-    if (isNaN(v) || v < 0) { toast.error('Introduce una cantidad válida y mayor o igual a cero.'); return; }
+    if (!selectedAlumno) return;
+    if (parseFloat(tempMonedero) === parseFloat((selectedAlumno.saldo_a_favor || 0).toString())) {
+      setEditingMonedero(false);
+      return;
+    }
+    if (parseFloat(tempMonedero) < 0 || isNaN(parseFloat(tempMonedero))) {
+      toast.error('Cantidad inválida');
+      return;
+    }
     setShowConfirmMonedero(true);
   };
+
   const executeUpdateMonedero = async () => {
     if (!selectedAlumno) return;
     setGuardandoMonedero(true);
@@ -155,6 +187,7 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
     searchTerm, setSearchTerm,
     showSuggestions, setShowSuggestions,
     activeTab, setActiveTab,
+    activePlanId, setActivePlanId,
     editingMonedero, setEditingMonedero,
     tempMonedero, setTempMonedero,
     guardandoMonedero, setGuardandoMonedero,

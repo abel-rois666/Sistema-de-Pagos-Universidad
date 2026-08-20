@@ -228,6 +228,7 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
 
 interface PlanPagosProps {
   initialAlumnoId?: string | null;
+  initialPlanId?: string | null;
   onBack: () => void;
   onSavePlan: (plan: PaymentPlan) => Promise<void> | void;
   onDeletePlan?: (planId: string) => void;
@@ -237,7 +238,7 @@ interface PlanPagosProps {
   onBackToReceipt?: () => void;
 }
 
-export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDeletePlan, onGoToPagos, onViewReceipt, onBackToFicha, onBackToReceipt }: PlanPagosProps) {
+export default function PlanPagos({ initialAlumnoId, initialPlanId, onBack, onSavePlan, onDeletePlan, onGoToPagos, onViewReceipt, onBackToFicha, onBackToReceipt }: PlanPagosProps) {
   const {
     currentUser, plans: allPlans, alumnos, ciclos, activeCicloId, catalogos, plantillas, setPlans, carreras, appConfig
   } = useAppStore();
@@ -247,6 +248,9 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const plans = allPlans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
   const [selectedPlanId, setSelectedPlanId] = useState<string>(() => {
+    if (initialPlanId && plans.find(p => p.id === initialPlanId)) {
+      return initialPlanId;
+    }
     if (initialAlumnoId) {
       const match = plans.find(p => p.alumno_id === initialAlumnoId);
       if (match) return match.id;
@@ -1431,7 +1435,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
       </div>
 
       {/* --- Navegación Flotante Desktop --- */}
-      <div className="hidden xl:block fixed top-1/2 left-4 w-16 h-16 xl:left-8 -translate-y-1/2 z-40 print:hidden">
+      <div className="hidden xl:block fixed top-1/2 left-4 w-16 h-16 xl:left-24 -translate-y-1/2 z-40 print:hidden">
         <button
           onClick={() => prevPlan && jumpToPlan(prevPlan)}
           disabled={!prevPlan}
@@ -1442,7 +1446,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
         </button>
       </div>
 
-      <div className="hidden xl:block fixed top-1/2 right-4 w-16 h-16 xl:right-8 -translate-y-1/2 z-40 print:hidden">
+      <div className="hidden xl:block fixed top-1/2 right-4 w-16 h-16 xl:right-24 -translate-y-1/2 z-40 print:hidden">
         <button
           onClick={() => nextPlan && jumpToPlan(nextPlan)}
           disabled={!nextPlan}
@@ -1460,7 +1464,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
         >
 
         {studentAllPlans.length > 1 && (
-          <div className="flex flex-wrap gap-2 mb-6 border-b border-[#e5e7eb] w-full overflow-x-auto print:hidden">
+          <div data-html2canvas-ignore="true" className="flex flex-wrap gap-2 mb-6 border-b border-[#e5e7eb] w-full overflow-x-auto print:hidden">
             {studentAllPlans.map(plan => (
               <button 
                 key={plan.id}
