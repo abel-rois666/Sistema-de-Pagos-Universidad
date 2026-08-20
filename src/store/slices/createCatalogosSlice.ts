@@ -11,6 +11,7 @@ export const buildCatalogos = (items: CatalogoItem[]): Catalogos => ({
   estatus_alumnos: Array.from(new Set(items.filter(i => i.tipo === 'estatus_alumno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   empresas_ss: Array.from(new Set(items.filter(i => i.tipo === 'empresa_ss' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   modalidades_titulacion: Array.from(new Set(items.filter(i => i.tipo === 'modalidad_titulacion' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
+  observacion_plan: Array.from(new Set(items.filter(i => i.tipo === 'observacion_plan' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   licenciaturasMetadata: Object.fromEntries(
     items
       .filter(i => i.tipo === 'licenciatura' && i.activo && i.metadata)

@@ -78,7 +78,11 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     }
   };
 
-  const isCoordinador = currentUser.rol === 'COORDINADOR';
+  const isCoord = currentUser.rol === 'COORDINADOR CONTROL ESCOLAR'
+    || currentUser.rol === 'COORDINADOR FINANCIERO'
+    || currentUser.rol === 'COORDINADOR RECURSOS HUMANOS'
+    || currentUser.rol === 'COORDINADOR ACADEMICO';
+  const isCoordinador = isCoord;
   const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string; plan_id?: string }>({});
 
   const [planesEstudioDisponibles, setPlanesEstudioDisponibles] = useState<any[]>([]);

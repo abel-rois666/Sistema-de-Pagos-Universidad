@@ -4,9 +4,6 @@ import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, G
 import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '../types';
 import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { calculateStudentTotals, toTitleCase } from '../utils';
-import { alumnosService } from '../services/alumnosService';
-import { academicosService } from '../services/academicosService';
-import { useAppStore } from '../store/useAppStore';
 import TabPagos from './tabs/TabPagos';
 import TabServicioSocial from './tabs/TabServicioSocial';
 import TabCertificacion from './tabs/TabCertificacion';
@@ -16,16 +13,9 @@ import { es } from 'date-fns/locale/es';
 import { formatGrado } from '../utils/formatUtils';
 import TabDatosGenerales from './tabs/TabDatosGenerales';
 import TabHistorialAcademico from './tabs/TabHistorialAcademico';
+import { useFichaAlumnoLogic, type TabId, type TabDef } from '../hooks/useFichaAlumnoLogic';
 
 // ── Tabs disponibles ────────────────────────────────────────────────────────
-type TabId = 'pagos' | 'datos_generales' | 'academico' | 'servicio_social' | 'certificacion' | 'titulacion';
-
-interface TabDef {
-  id: TabId;
-  label: string;
-  icon: React.ReactNode;
-  adminOnly?: boolean;
-}
 
 const TABS: TabDef[] = [
   { id: 'pagos',            label: 'Pagos',            icon: <FileText size={15} /> },
@@ -51,138 +41,42 @@ export default function FichaAlumno({
 }: FichaAlumnoProps) {
 
   const {
-    currentUser,
-    plans: allPlans,
-    alumnos,
+    selectedAlumnoId, setSelectedAlumnoId,
+    searchTerm, setSearchTerm,
+    showSuggestions, setShowSuggestions,
+    activeTab, setActiveTab,
+    editingMonedero, setEditingMonedero,
+    tempMonedero, setTempMonedero,
+    guardandoMonedero, setGuardandoMonedero,
+    showConfirmMonedero, setShowConfirmMonedero,
+    empresasLocales, setEmpresasLocales,
+    ssRegistros, setSsRegistros,
+    certEstatus, setCertEstatus,
+    isEditingEstatus, setIsEditingEstatus,
+    tempEstatus, setTempEstatus,
+    guardandoEstatus, setGuardandoEstatus,
+
+    filteredAlumnos,
+    selectedAlumno,
+    activePlan,
+    isAdmin,
+    isRestrictedRole,
+    visibleTabs,
+    esEspecialidad,
+    planesDelAlumno,
     catalogos,
-    catalogoItems,
+    onRefreshAlumnos,
     appConfig,
-    activeCicloId,
-    refreshAfterPayment,
+    catalogoItems,
     carreras,
-    ciclos,
-  } = useAppStore();
+    alumnos,
 
-  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
-  const onRefreshAlumnos = refreshAfterPayment;
-
-  // Búsqueda
-  const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(initialAlumnoId || null);
-  const [searchTerm, setSearchTerm]             = useState('');
-  const [showSuggestions, setShowSuggestions]   = useState(false);
-
-  // Tab activo
-  const [activeTab, setActiveTab] = useState<TabId>('pagos');
-
-  // Monedero (admin)
-  const [editingMonedero, setEditingMonedero]       = useState(false);
-  const [tempMonedero, setTempMonedero]             = useState('');
-  const [guardandoMonedero, setGuardandoMonedero]   = useState(false);
-  const [showConfirmMonedero, setShowConfirmMonedero] = useState(false);
-
-  // Empresas SS — sincronizadas con el catálogo global
-  const [empresasLocales, setEmpresasLocales] = useState<string[]>(catalogos?.empresas_ss ?? []);
-  useEffect(() => { setEmpresasLocales(catalogos?.empresas_ss ?? []); }, [catalogos?.empresas_ss]);
-
-  // Servicio Social — para auto-detectar en ficha titulación
-  const [ssRegistros, setSsRegistros] = useState<ServicioSocial[]>([]);
-  useEffect(() => {
-    if (!selectedAlumnoId) return;
-    if (!selectedAlumnoId) return;
-    academicosService.getServicioSocialByAlumno(selectedAlumnoId)
-      .then((res) => { if (res.success) setSsRegistros(res.data as ServicioSocial[]); });
-  }, [selectedAlumnoId]);
-
-  const [certEstatus, setCertEstatus] = useState<'SIN_INICIAR'|'EN_CURSO'|'COMPLETADO'>('SIN_INICIAR');
-
-  const [isEditingEstatus, setIsEditingEstatus] = useState(false);
-  const [tempEstatus, setTempEstatus] = useState('');
-  const [guardandoEstatus, setGuardandoEstatus] = useState(false);
-  useEffect(() => {
-    if (!selectedAlumnoId) {
-      setCertEstatus('SIN_INICIAR');
-      return;
-    }
-    academicosService.getCertificacionEstatusByAlumno(selectedAlumnoId)
-      .then(res => {
-        if (res.success && res.data) {
-          setCertEstatus(res.data.tramite_completado ? 'COMPLETADO' : 'EN_CURSO');
-        } else {
-          setCertEstatus('SIN_INICIAR');
-        }
-      });
-  }, [selectedAlumnoId]);
-
-  // Resetear tab al cambiar de alumno
-  useEffect(() => { setActiveTab('pagos'); }, [selectedAlumnoId]);
-
-  // ── Derivados ─────────────────────────────────────────────────────────────
-  const filteredAlumnos = alumnos.filter(a =>
-    a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  const selectedAlumno = alumnos.find(a => a.id === selectedAlumnoId);
-  const activePlan     = selectedAlumno
-    ? plans.find(p => p.alumno_id === selectedAlumno.id || p.nombre_alumno === selectedAlumno.nombre_completo)
-    : null;
-
-  const isAdmin = currentUser?.rol === 'ADMINISTRADOR';
-  const isRestrictedRole = currentUser?.rol === 'COORDINADOR' || currentUser?.rol === 'CAJERO';
-  
-  const visibleTabs = TABS.filter(t => {
-    if (t.adminOnly && !isAdmin) return false;
-    if (isRestrictedRole && t.id === 'academico') return false;
-    return true;
-  });
-
-  // Detectar si el alumno es de Especialidad (para TabTitulacion)
-  const esEspecialidad = selectedAlumno
-    ? (carreras.find(c => c.nombre === selectedAlumno.licenciatura)?.nivel_educativo === 'Especialidad')
-    : false;
-
-  // Todos los planes del alumno seleccionado (para auto-detectar pago titulación)
-  const planesDelAlumno = plans.filter(p => p.alumno_id === selectedAlumno?.id || p.nombre_alumno === selectedAlumno?.nombre_completo);
-
-  // ── Handlers búsqueda ─────────────────────────────────────────────────────
-  const handleSuggestionClick = (alumno: Alumno) => {
-    setSelectedAlumnoId(alumno.id);
-    setSearchTerm('');
-    setShowSuggestions(false);
-  };
-  const handleClear = () => {
-    setSelectedAlumnoId(null);
-    setSearchTerm('');
-    setShowSuggestions(false);
-  };
-
-  // ── Edición de Estatus ────────────────────────────────────────────────────
-  const handleSaveEstatus = async () => {
-    if (!selectedAlumno) return;
-    if (tempEstatus === selectedAlumno.estatus) {
-      setIsEditingEstatus(false);
-      return;
-    }
-    setGuardandoEstatus(true);
-    const res = await alumnosService.updateAlumno(selectedAlumno.id, { estatus: tempEstatus });
-    setGuardandoEstatus(false);
-    if (!res.success) { toast.error('Error al actualizar estatus: ' + res.error?.message); }
-    else { onRefreshAlumnos?.(); setIsEditingEstatus(false); toast.success('Estatus actualizado'); }
-  };
-
-  // ── Monedero ──────────────────────────────────────────────────────────────
-  const handleUpdateMonederoClick = () => {
-    const v = parseFloat(tempMonedero);
-    if (isNaN(v) || v < 0) { toast.error('Introduce una cantidad válida y mayor o igual a cero.'); return; }
-    setShowConfirmMonedero(true);
-  };
-  const executeUpdateMonedero = async () => {
-    if (!selectedAlumno) return;
-    setGuardandoMonedero(true);
-    const res = await alumnosService.updateAlumno(selectedAlumno.id, { saldo_a_favor: parseFloat(tempMonedero) });
-    setGuardandoMonedero(false);
-    if (!res.success) { toast.error('Error al actualizar monedero: ' + res.error?.message); setShowConfirmMonedero(false); }
-    else { onRefreshAlumnos?.(); setEditingMonedero(false); setShowConfirmMonedero(false); }
-  };
+    handleSuggestionClick,
+    handleClear,
+    handleSaveEstatus,
+    handleUpdateMonederoClick,
+    executeUpdateMonedero,
+  } = useFichaAlumnoLogic(initialAlumnoId, TABS);
 
   // ── Barra de búsqueda (inline para no perder foco) ────────────────────────
   const searchBarJSX = (
@@ -254,7 +148,7 @@ export default function FichaAlumno({
               Busca un alumno para ver su ficha con el desglose de pagos y más información.
             </p>
             {searchBarJSX}
-            {plans.length === 0 && (
+            {alumnos.length === 0 && (
               <p className="text-sm text-gray-400 mt-6">No hay alumnos con plan de pagos en el ciclo seleccionado.</p>
             )}
           </div>

@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, AlertCircle, LayoutDashboard, Briefcase } from 'lucide-react';
 import { supabase, savePlan, saveAlumno, deleteAlumno, saveCiclo, deleteCiclo, saveCatalogoItem, deleteCatalogoItem, savePlantilla, deletePlantilla, getAppConfig, updateUserPreferences, fetchAllSupabase } from './lib/supabase';
 import { PaymentPlan, CicloEscolar, Alumno, CatalogoItem, Catalogos, PlantillaPlan, AppConfig } from './types';
-import { MOCK_DATA, MOCK_CICLOS, MOCK_ALUMNOS } from './data';
 
 import { useAppStore } from './store/useAppStore';
 import PlanPagos from './components/PlanPagos';
@@ -65,6 +64,7 @@ const buildCatalogos = (items: CatalogoItem[]): Catalogos => ({
   estatus_alumnos: Array.from(new Set(items.filter(i => i.tipo === 'estatus_alumno' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   empresas_ss: Array.from(new Set(items.filter(i => i.tipo === 'empresa_ss' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   modalidades_titulacion: Array.from(new Set(items.filter(i => i.tipo === 'modalidad_titulacion' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
+  observacion_plan: Array.from(new Set(items.filter(i => i.tipo === 'observacion_plan' && i.activo).sort((a, b) => a.orden - b.orden).map(i => i.valor))),
   licenciaturasMetadata: Object.fromEntries(
     items
       .filter(i => i.tipo === 'licenciatura' && i.activo && i.metadata)
@@ -162,7 +162,22 @@ export default function App() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Global fetch error interceptor (RLS exceptions 401/403)
+    const handleGlobalAuthError = (event: Event) => {
+      const e = event as CustomEvent;
+      if (e.detail?.status === 401 || e.detail?.status === 403) {
+        showToast('error', `Error de permisos (${e.detail.status}). Por seguridad se cerrará su sesión.`);
+        supabase.auth.signOut().then(() => {
+          setCurrentUser(null);
+        });
+      }
+    };
+    window.addEventListener('supabase-auth-error', handleGlobalAuthError);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('supabase-auth-error', handleGlobalAuthError);
+    };
   }, [setCurrentUser, setActiveCicloId, setAuthChecked, fetchAllData]);
 
   const catalogos = buildCatalogos(catalogoItems);
@@ -206,7 +221,9 @@ export default function App() {
         setActiveCicloId(u.ultimo_ciclo_id);
       }
 
-      // Cargar todos los datos del sistema
+      // Marcar como cargando ANTES de fetchAllData para evitar
+      // pantalla en blanco (race condition en móvil/conexiones lentas)
+      setLoading(true);
       fetchAllData();
       fetchCarreras();
     }} />;

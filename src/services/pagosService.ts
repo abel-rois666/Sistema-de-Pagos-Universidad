@@ -69,7 +69,7 @@ export const pagosService = {
 
       for (let i = 0; i < planes.length; i += CHUNK_SIZE) {
         const chunk = planes.slice(i, i + CHUNK_SIZE).map(plan => {
-          const { ciclo_escolar, nombre_alumno, detalles, grado_turno, observaciones, ...rest } = plan as any;
+          const { ciclo_escolar, nombre_alumno, detalles, grado_turno, ...rest } = plan as any;
           return rest;
         });
         const { error } = await supabase.from('planes_pago').upsert(chunk, { onConflict: 'id' });

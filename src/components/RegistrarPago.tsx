@@ -8,16 +8,7 @@ import { ReciboPlantillaPDF } from './ReciboPlantillaPDF';
 import { printElement, downloadElementAsPDF } from '../lib/printUtils';
 import { toTitleCase } from '../utils';
 
-interface ConceptoRow {
-  localId: string;
-  cantidad: number | '';
-  concepto: string;
-  costo_unitario: number | '';
-  indice_concepto_plan: number | null;
-  searchConceptoTerm: string;
-  showConceptoSuggestions: boolean;
-  plan_id?: string;
-}
+import { useRegistrarPagoLogic, type ConceptoRow } from '../hooks/useRegistrarPagoLogic';
 
 interface Props {
   initialAlumnoId?: string;
@@ -30,24 +21,41 @@ const BANCOS = ['BBVA 1', 'BBVA 2', 'MIFEL', 'BANORTE', 'NO APLICA'];
 const FORMAS_PAGO = ['Depósito Bancario', 'Transferencia bancaria', 'Tarjeta de Débito', 'Tarjeta de Crédito', 'Efectivo'];
 
 export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, initialPlanId }: Props) {
-  const { alumnos, ciclos, activeCicloId, plans, catalogos, appConfig, currentUser, refreshAfterPayment, setCatalogoItems, carreras } = useAppStore();
+  const { alumnos, ciclos, activeCicloId, plans, catalogos, catalogoItems, appConfig, currentUser, refreshAfterPayment, setCatalogoItems, carreras } = useAppStore();
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-  const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<string>(initialAlumnoId || '');
   const [searchAlumnoTerm, setSearchAlumnoTerm] = useState('');
   const [showAlumnoSuggestions, setShowAlumnoSuggestions] = useState(false);
-  const [fechaPago, setFechaPago] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [formaPago, setFormaPago] = useState<string>('Efectivo');
-  const [banco, setBanco] = useState<string>('NO APLICA');
-  const [usarMonedero, setUsarMonedero] = useState(false);
-  
-  const licenciaturasMetadata = useMemo(() => {
-    const meta: Record<string, any> = {};
-    carreras.forEach(c => {
-      meta[c.nombre] = { nivel_educativo: c.nivel_educativo };
-    });
-    return meta;
-  }, [carreras]);
-  
+  const [generandoPDF, setGenerandoPDF] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+  const [showAddConceptoModal, setShowAddConceptoModal] = useState(false);
+  const [newConceptoName, setNewConceptoName] = useState('');
+  const [savingConcepto, setSavingConcepto] = useState(false);
+  const [addConceptoRowId, setAddConceptoRowId] = useState<string>('');
+
+  const {
+    alumnoSeleccionado, setAlumnoSeleccionado,
+    fechaPago, setFechaPago,
+    formaPago, setFormaPago,
+    banco, setBanco,
+    usarMonedero, setUsarMonedero,
+    requiereFactura, setRequiereFactura,
+    filas, setFilas,
+    guardando,
+    mensaje,
+    reciboGuardado,
+    alumnoData,
+    pupilPlans,
+    opcionesConceptos,
+    totales,
+    fechaRecibo,
+    agregarFila,
+    eliminarFila,
+    selectConcepto,
+    updateFila,
+    guardar,
+    handleCerrarModal
+  } = useRegistrarPagoLogic(initialAlumnoId, initialConceptIndex, initialPlanId);
+
   useEffect(() => {
     const alumno = alumnos.find(a => a.id === alumnoSeleccionado);
     if (alumno) setSearchAlumnoTerm(alumno.nombre_completo);
@@ -63,448 +71,6 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
   }, [alumnos, searchAlumnoTerm, alumnoSeleccionado]);
 
   const isAdmin = currentUser?.rol === 'ADMINISTRADOR';
-
-  const [filas, setFilas] = useState<ConceptoRow[]>([{
-    localId: Date.now().toString(),
-    cantidad: 1,
-    concepto: '',
-    costo_unitario: '',
-    indice_concepto_plan: null,
-    searchConceptoTerm: '',
-    showConceptoSuggestions: false,
-  }]);
-
-  const [guardando, setGuardando] = useState(false);
-  const [mensaje, setMensaje] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null);
-  const [generandoPDF, setGenerandoPDF] = useState(false);
-
-  // Print modal state — holds the just-saved recibo for preview
-  const [reciboGuardado, setReciboGuardado] = useState<{
-    recibo: Recibo;
-    detalles: ReciboDetalle[];
-    alumno: Alumno | undefined;
-  } | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
-
-  // Quick-add concepto state (admin only)
-  const [showAddConceptoModal, setShowAddConceptoModal] = useState(false);
-  const [newConceptoName, setNewConceptoName] = useState('');
-  const [savingConcepto, setSavingConcepto] = useState(false);
-  const [addConceptoRowId, setAddConceptoRowId] = useState<string>('');
-
-  const [requiereFactura, setRequiereFactura] = useState(false);
-
-  // Fecha del recibo (hoy)
-  const fechaRecibo = useMemo(() => {
-    const d = new Date();
-    return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
-  }, []);
-  const fechaReciboIso = useMemo(() => new Date().toISOString().split('T')[0], []);
-
-  // Set default bank rule
-  useEffect(() => {
-    if (formaPago === 'Efectivo') {
-      setBanco('NO APLICA');
-    }
-  }, [formaPago]);
-
-  const alumnoData = useMemo(() => alumnos.find(a => a.id === alumnoSeleccionado), [alumnos, alumnoSeleccionado]);
-
-  // Si venimos navegados con un initialPlanId específico, forzamos usar solo ese plan.
-  // De lo contrario, usamos TODOS los planes activos del ciclo para el alumno.
-  const pupilPlans = useMemo(() => {
-    if (initialPlanId) {
-      const explicitPlan = plans.find(p => p.id === initialPlanId && p.alumno_id === alumnoSeleccionado);
-      if (explicitPlan) return [explicitPlan];
-    }
-    return plans.filter(p => p.alumno_id === alumnoSeleccionado && (p.ciclo_id === activeCiclo?.id || p.ciclo_escolar === activeCiclo?.nombre));
-  }, [plans, alumnoSeleccionado, activeCiclo, initialPlanId]);
-
-  // Generar opciones de conceptos combinando los pendientes de TODOS los planes y los del catálogo
-  const opcionesConceptos = useMemo(() => {
-    const opciones: { value: string, label: string, index?: number, sugerido?: number, planId?: string }[] = [];
-    
-    // 1. Conceptos de los planes actuales (solamente los que tengan cantidad y no digan 'PAGADO')
-    pupilPlans.forEach(planActual => {
-      if (planActual.detalles && planActual.detalles.length > 0) {
-        planActual.detalles.forEach(d => {
-          if (d.concepto && d.cantidad > 0 && !(d.estatus || '').toUpperCase().includes('PAGADO')) {
-            let montoSugerido = d.cantidad;
-            let etiquetaResta = `$${d.cantidad.toFixed(2)}`;
-
-            if (d.estatus) {
-              const restaMatch = d.estatus.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
-              if (restaMatch) {
-                montoSugerido = parseFloat(restaMatch[1].replace(',', ''));
-                etiquetaResta = `$${montoSugerido.toFixed(2)} (abono parcial)`;
-              }
-            }
-
-            opciones.push({
-              value: `PLAN_${planActual.id}_${d.indice_concepto}_${d.concepto}`,
-              label: `[${planActual.tipo_plan || 'Plan'}] ${d.concepto} — Resta: ${etiquetaResta}`,
-              index: d.indice_concepto,
-              planId: planActual.id,
-              sugerido: montoSugerido
-            });
-          }
-        });
-        return; // Retornar temprano para saltar el fallback
-      }
-
-      for (let i = 1; i <= 18; i++) {
-        const conceptoName = planActual[`concepto_${i}` as keyof PaymentPlan] as string;
-        const cantidad = planActual[`cantidad_${i}` as keyof PaymentPlan] as number;
-        const estatus = planActual[`estatus_${i}` as keyof PaymentPlan] as string;
-        
-        if (conceptoName && cantidad > 0 && !(estatus || '').toUpperCase().includes('PAGADO')) {
-          let montoSugerido = cantidad;
-          let etiquetaResta = `$${cantidad.toFixed(2)}`;
-
-          if (estatus) {
-            const restaMatch = estatus.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
-            if (restaMatch) {
-              montoSugerido = parseFloat(restaMatch[1].replace(',', ''));
-              etiquetaResta = `$${montoSugerido.toFixed(2)} (abono parcial)`;
-            }
-          }
-
-          opciones.push({
-            value: `PLAN_${planActual.id}_${i}_${conceptoName}`,
-            label: `[${planActual.tipo_plan || 'Plan'}] ${conceptoName} — Resta: ${etiquetaResta}`,
-            index: i,
-            planId: planActual.id,
-            sugerido: montoSugerido
-          });
-        }
-      }
-    });
-
-    // 2. Conceptos genéricos del catálogo
-    catalogos.conceptos.forEach(c => {
-      opciones.push({ value: `CAT_${c}`, label: c });
-    });
-
-    return opciones;
-  }, [pupilPlans, catalogos.conceptos]);
-
-  const hasInitialized = React.useRef(false);
-  useEffect(() => {
-    // Cuando viene desde PlanPagos y traemos un planId + concepto index
-    if (initialConceptIndex && initialPlanId && pupilPlans.length > 0 && !hasInitialized.current) {
-      hasInitialized.current = true;
-      const idx = initialConceptIndex;
-      const targetPlan = pupilPlans.find(p => p.id === initialPlanId);
-      if (targetPlan) {
-        let conceptoRef = '';
-        if (targetPlan.detalles && targetPlan.detalles.length > 0) {
-           const d = targetPlan.detalles.find(x => x.indice_concepto === idx);
-           if (d) conceptoRef = d.concepto;
-        } else {
-           conceptoRef = targetPlan[`concepto_${idx}` as keyof PaymentPlan] as string;
-        }
-        
-        const targetValue = `PLAN_${initialPlanId}_${idx}_${conceptoRef}`;
-        const op = opcionesConceptos.find(o => o.value === targetValue);
-        if (op) {
-          setFilas([{
-            localId: Date.now().toString(),
-            cantidad: 1,
-            concepto: conceptoRef,
-            costo_unitario: op.sugerido || '',
-            indice_concepto_plan: idx,
-            searchConceptoTerm: conceptoRef,
-            showConceptoSuggestions: false,
-            plan_id: initialPlanId,
-          }]);
-        }
-      }
-    }
-  }, [initialConceptIndex, initialPlanId, pupilPlans, opcionesConceptos]);
-
-  const agregarFila = () => {
-    setFilas([...filas, {
-      localId: Date.now().toString(),
-      cantidad: 1,
-      concepto: '',
-      costo_unitario: '',
-      indice_concepto_plan: null,
-      searchConceptoTerm: '',
-      showConceptoSuggestions: false,
-    }]);
-  };
-
-  const eliminarFila = (id: string) => {
-    if (filas.length === 1) return;
-    setFilas(filas.filter(f => f.localId !== id));
-  };
-
-  const selectConcepto = (filaId: string, opValue: string) => {
-    setFilas(filas.map(f => {
-      if (f.localId !== filaId) return f;
-      if (opValue.startsWith('PLAN_')) {
-        const parts = opValue.split('_'); // PLAN_planId_idx_refName
-        const pId = parts[1];
-        const idx = parseInt(parts[2], 10);
-        const refName = parts.slice(3).join('_');
-        const op = opcionesConceptos.find(o => o.value === opValue);
-        return { ...f, concepto: refName, indice_concepto_plan: idx, plan_id: pId, costo_unitario: op?.sugerido || '', searchConceptoTerm: refName, showConceptoSuggestions: false };
-      } else if (opValue.startsWith('CAT_')) {
-        const name = opValue.replace('CAT_', '');
-        return { ...f, concepto: name, indice_concepto_plan: null, plan_id: undefined, costo_unitario: '', searchConceptoTerm: name, showConceptoSuggestions: false };
-      }
-      return { ...f, showConceptoSuggestions: false };
-    }));
-  };
-
-  const updateFila = (id: string, campo: keyof ConceptoRow, valor: any) => {
-    setFilas(filas.map(f => {
-      if (f.localId === id) {
-        return { ...f, [campo]: valor };
-      }
-      return f;
-    }));
-  };
-
-  const totales = useMemo(() => {
-    let total = 0;
-    filas.forEach(f => {
-      const cant = Number(f.cantidad) || 0;
-      const costo = Number(f.costo_unitario) || 0;
-      total += cant * costo;
-    });
-    return total;
-  }, [filas]);
-
-  const guardar = async () => {
-    if (!alumnoSeleccionado) {
-      setMensaje({ tipo: 'error', texto: 'Debes seleccionar un alumno.' });
-      return;
-    }
-    if (!activeCiclo?.id) {
-      setMensaje({ tipo: 'error', texto: 'No hay ciclo activo.' });
-      return;
-    }
-    if (totales <= 0) {
-      setMensaje({ tipo: 'error', texto: 'El recibo debe tener un total mayor a 0.' });
-      return;
-    }
-    
-    const saldoDisponible = alumnoData?.saldo_a_favor || 0;
-    const montoMonederoAplicado = usarMonedero ? Math.min(saldoDisponible, totales) : 0;
-    const totalACobrar = totales - montoMonederoAplicado;
-
-    // Validar filas
-    const validas = filas.filter(f => f.concepto && Number(f.cantidad) > 0 && Number(f.costo_unitario) >= 0);
-    if (validas.length === 0) {
-      setMensaje({ tipo: 'error', texto: 'Debes agregar al menos un concepto válido.' });
-      return;
-    }
-
-    // Validar que no haya conceptos de distintos planes en el mismo recibo
-    const planIdsInvolved = Array.from(new Set(validas.filter(f => f.plan_id).map(f => f.plan_id as string)));
-    if (planIdsInvolved.length > 1) {
-      setMensaje({ tipo: 'error', texto: 'No puedes cobrar conceptos de distintos planes en un mismo recibo. Por favor, hazlos en recibos separados.' });
-      return;
-    }
-
-    const unicoPlanIdInvolucrado = planIdsInvolved.length === 1 ? planIdsInvolved[0] : null;
-    const planActual = unicoPlanIdInvolucrado ? pupilPlans.find(p => p.id === unicoPlanIdInvolucrado) : undefined;
-
-    setGuardando(true);
-    setMensaje(null);
-
-    // Preparar el Recibo
-    const recibo = {
-      fecha_recibo: fechaReciboIso,
-      fecha_pago: fechaPago,
-      alumno_id: alumnoSeleccionado,
-      ciclo_id: planActual ? (planActual.ciclo_id ?? activeCiclo.id) : activeCiclo.id,
-      total: totales,
-      uso_saldo_a_favor: montoMonederoAplicado,
-      forma_pago: totalACobrar === 0 ? 'NO APLICA' : formaPago,
-      banco: totalACobrar === 0 ? 'NO APLICA' : banco,
-      requiere_factura: requiereFactura
-    };
-
-    let excedenteGeneradoGlobal = 0;
-
-    // Helper: extrae el monto restante del campo estatus
-    // Soporta formatos: "R-101 (Abono $500.00, Resta $1000.00)" → 1000
-    // Si no hay "Resta", devuelve la cantidad original (primer pago o pago completo previo)
-    const getRestanteDe = (estatusPrevio: string, cantidadOriginal: number): number => {
-      if (!estatusPrevio) return cantidadOriginal;
-      const m = estatusPrevio.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
-      if (m) return parseFloat(m[1].replace(',', ''));
-      // Si ya está pagado (no hay Resta) devolvemos 0
-      if (estatusPrevio.toUpperCase().includes('PAGADO')) return 0;
-      return cantidadOriginal;
-    };
-
-    // Pre-calcular observaciones de abono parcial por índice de concepto
-    const observacionesPorIndice: Record<number, string> = {};
-    if (planActual) {
-      const abonosPorIndice: Record<number, number> = {};
-      validas.forEach(f => {
-        if (f.indice_concepto_plan) {
-          abonosPorIndice[f.indice_concepto_plan] = (abonosPorIndice[f.indice_concepto_plan] || 0) + (Number(f.cantidad) * Number(f.costo_unitario));
-        }
-      });
-
-      for (const idxStr of Object.keys(abonosPorIndice)) {
-        const idx = parseInt(idxStr, 10);
-        const abonoActual = abonosPorIndice[idx];
-        let cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
-        let estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
-
-        if (planActual.detalles && planActual.detalles.length > 0) {
-          const d = planActual.detalles.find(x => x.indice_concepto === idx);
-          if (d) {
-            cantidadOriginal = d.cantidad;
-            estatusPrevio = d.estatus || '';
-          }
-        }
-
-        const restanteAnterior = getRestanteDe(estatusPrevio, cantidadOriginal);
-        const resta = restanteAnterior - abonoActual;
-        // Total acumulado = lo que ya se había pagado antes + este abono
-        const totalAcumulado = (cantidadOriginal - restanteAnterior) + abonoActual;
-
-        if (resta < -0.005) {
-          const excedenteAqui = Math.abs(resta);
-          excedenteGeneradoGlobal += excedenteAqui;
-          observacionesPorIndice[idx] = `Concepto liquidado ✓ (Excedente de $${excedenteAqui.toFixed(2)} depositado en Monedero)`;
-        } else if (resta > 0.005) {
-          // Pago parcial: mostrar abono y restante
-          observacionesPorIndice[idx] = `Abono $${abonoActual.toFixed(2)} — Restante: $${resta.toFixed(2)}`;
-        } else if (totalAcumulado < cantidadOriginal - 0.005 || estatusPrevio.includes('Abono')) {
-          // Último abono de una serie: indicar que se liquidó y mostrar total acumulado
-          observacionesPorIndice[idx] = `Abono final — Concepto liquidado ✓ (Total pagado: $${totalAcumulado.toFixed(2)})`;
-        }
-        // Si fue pago completo de una sola vez, sin abonos previos y sin excedentes: sin observación
-      }
-    }
-
-    // Preparar Detalles (con observaciones calculadas)
-    const detalles = validas.map(f => ({
-      cantidad: Number(f.cantidad),
-      concepto: f.concepto,
-      costo_unitario: Number(f.costo_unitario),
-      subtotal: Number(f.cantidad) * Number(f.costo_unitario),
-      indice_concepto_plan: f.indice_concepto_plan,
-      observaciones: f.indice_concepto_plan && observacionesPorIndice[f.indice_concepto_plan]
-        ? observacionesPorIndice[f.indice_concepto_plan]
-        : null
-    }));
-
-    // Determinar actualizaciones al plan
-    let planUpdates: { planId: string; updates: Partial<PaymentPlan> } | undefined = undefined;
-    
-    if (planActual) {
-      const abonosPorIndice: Record<number, number> = {};
-      detalles.forEach(d => {
-        if (d.indice_concepto_plan) {
-          abonosPorIndice[d.indice_concepto_plan] = (abonosPorIndice[d.indice_concepto_plan] || 0) + d.subtotal;
-        }
-      });
-
-      if (Object.keys(abonosPorIndice).length > 0) {
-        const updates: Partial<PaymentPlan> = {};
-        for (const idxStr of Object.keys(abonosPorIndice)) {
-          const idx = parseInt(idxStr, 10);
-          const abonoActual = abonosPorIndice[idx];
-          let cantidadOriginal = planActual[`cantidad_${idx}` as keyof PaymentPlan] as number || 0;
-          let estatusPrevio = (planActual[`estatus_${idx}` as keyof PaymentPlan] as string) || '';
-
-          if (planActual.detalles && planActual.detalles.length > 0) {
-            const d = planActual.detalles.find(x => x.indice_concepto === idx);
-            if (d) {
-              cantidadOriginal = d.cantidad;
-              estatusPrevio = d.estatus || '';
-            }
-          }
-
-          // Extraer folios anteriores para concatenar al nuevo estatus
-          const folios = (estatusPrevio.match(/R-\d+/g) || []);
-          const folioTextoPrevio = folios.length > 0 ? folios.join('; ') + '; ' : '';
-
-          // Calcular resta y total acumulado
-          const restanteAnterior = getRestanteDe(estatusPrevio, cantidadOriginal);
-          const resta = restanteAnterior - abonoActual;
-          // Total acumulado = pagado previamente + este abono
-          const totalAcumulado = (cantidadOriginal - restanteAnterior) + abonoActual;
-
-          let nuevoEstatus = '';
-          if (resta <= 0.005) {
-            // Pagado: tope matemático en cantidadOriginal para no arruinar el plan con sobreprecios
-            const topePagado = Math.min(totalAcumulado, cantidadOriginal);
-            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${topePagado.toFixed(2)})`;
-          } else {
-            nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${totalAcumulado.toFixed(2)}, Resta $${resta.toFixed(2)})`;
-          }
-
-          (updates as any)[`estatus_${idx}`] = nuevoEstatus;
-        }
-        planUpdates = { planId: planActual.id, updates };
-      }
-    }
-
-    const deltaMonedero = excedenteGeneradoGlobal - montoMonederoAplicado;
-    const saldoAfavorUpdate = deltaMonedero !== 0 ? { alumnoId: alumnoSeleccionado, delta: deltaMonedero } : undefined;
-
-    const res = await pagosService.registrarPagoTransaccional(
-      recibo,
-      detalles,
-      planUpdates?.planId,
-      planUpdates?.updates,
-      saldoAfavorUpdate?.alumnoId,
-      saldoAfavorUpdate?.delta
-    );
-
-    setGuardando(false);
-    if (!res.success) {
-      setMensaje({ tipo: 'error', texto: `Hubo un error al guardar: ${res.error?.message}` });
-    } else {
-      const folio = res.data.folio;
-      // Build the preview object for the print modal
-      const reciboCompleto: Recibo = {
-        id: '',
-        folio: folio!,
-        fecha_recibo: recibo.fecha_recibo,
-        fecha_pago: recibo.fecha_pago,
-        alumno_id: recibo.alumno_id,
-        ciclo_id: recibo.ciclo_id,
-        total: recibo.total,
-        forma_pago: recibo.forma_pago,
-        banco: recibo.banco,
-        estatus: 'ACTIVO',
-      };
-      const detallesCompletos: ReciboDetalle[] = detalles.map((d, i) => ({
-        id: `tmp_${i}`,
-        recibo_id: '',
-        cantidad: d.cantidad,
-        concepto: d.concepto,
-        costo_unitario: d.costo_unitario,
-        subtotal: d.subtotal,
-        indice_concepto_plan: d.indice_concepto_plan ?? null,
-        observaciones: d.observaciones ?? null,
-      }));
-      refreshAfterPayment();
-      setReciboGuardado({ recibo: reciboCompleto, detalles: detallesCompletos, alumno: alumnoData });
-    }
-  };
-
-
-  const handleCerrarModal = () => {
-    setReciboGuardado(null);
-    setMensaje(null);
-    setFilas([{ localId: Date.now().toString(), cantidad: 1, concepto: '', costo_unitario: '', indice_concepto_plan: null, searchConceptoTerm: '', showConceptoSuggestions: false }]);
-    setAlumnoSeleccionado('');
-    setFormaPago('Efectivo');
-    setBanco('NO APLICA');
-    setUsarMonedero(false);
-    setRequiereFactura(false);
-  };
 
   const handleImprimir = () => {
     if (!printRef.current) return;
@@ -899,7 +465,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
                     detalles={reciboGuardado.detalles}
                     alumno={reciboGuardado.alumno}
                     logoUrl={appConfig?.logoUrl}
-                    licenciaturasMetadata={licenciaturasMetadata}
+                    licenciaturasMetadata={catalogos?.licenciaturasMetadata}
                   />
                 </div>
               </div>

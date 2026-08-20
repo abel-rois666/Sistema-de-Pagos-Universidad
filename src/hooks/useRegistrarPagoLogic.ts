@@ -359,7 +359,7 @@ export function useRegistrarPagoLogic(
 
           let nuevoEstatus = '';
           if (resta <= 0.005) {
-            const topePagado = Math.min(totalAcumulado, cantidadOriginal);
+            const topePagado = cantidadOriginal > 0 ? Math.min(totalAcumulado, cantidadOriginal) : totalAcumulado;
             nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${topePagado.toFixed(2)})`;
           } else {
             nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${totalAcumulado.toFixed(2)}, Resta $${resta.toFixed(2)})`;

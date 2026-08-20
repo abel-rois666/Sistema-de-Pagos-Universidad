@@ -5,7 +5,22 @@ import type { PaymentPlan, Alumno, CicloEscolar, Recibo, ReciboDetalle } from '.
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder-url.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const response = await fetch(input, init);
+  if (response.status === 401 || response.status === 403) {
+    const event = new CustomEvent('supabase-auth-error', {
+      detail: { status: response.status, url: input.toString() }
+    });
+    window.dispatchEvent(event);
+  }
+  return response;
+};
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    fetch: customFetch
+  }
+});
 
 // ── Mapper: PaymentPlan → planes_pago (excluye campos calculados por la vista) ──
 export const toDBPlan = (plan: PaymentPlan) => ({
@@ -42,6 +57,7 @@ export const toDBPlan = (plan: PaymentPlan) => ({
   desglose_descuento_porcentaje: plan.desglose_descuento_porcentaje ?? 0,
   desglose_descuento_monto: plan.desglose_descuento_monto ?? 0,
   desglose_total_neto: plan.desglose_total_neto ?? 0,
+  observaciones: plan.observaciones ?? null,
 });
 // ── CRUD Helpers ─────────────────────────────────────────────────────────────
 
@@ -79,8 +95,11 @@ const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
 
 /** Upsert de un plan de pagos individual */
 export const savePlan = async (plan: PaymentPlan): Promise<string | null> => {
-  if (plan.id && !isUUID(plan.id)) return null;
-  const { error } = await supabase.from('planes_pago').upsert(toDBPlan(plan));
+  const payload = toDBPlan(plan);
+  if (payload.id && !isUUID(payload.id)) {
+    delete (payload as any).id;
+  }
+  const { error } = await supabase.from('planes_pago').upsert(payload);
   if (error) { console.error('[savePlan]', error.message); return error.message; }
   return null;
 };
@@ -194,8 +213,11 @@ export const bulkSavePlanes = async (planes: PaymentPlan[]): Promise<string | nu
 
 /** Upsert de una plantilla de plan */
 export const savePlantilla = async (plantilla: any): Promise<string | null> => {
-  if (plantilla.id && !isUUID(plantilla.id)) return null;
-  const { error } = await supabase.from('plantillas_plan').upsert(plantilla);
+  const payload = { ...plantilla };
+  if (payload.id && !isUUID(payload.id)) {
+    delete payload.id;
+  }
+  const { error } = await supabase.from('plantillas_plan').upsert(payload);
   if (error) { console.error('[savePlantilla]', error.message); return error.message; }
   return null;
 };
@@ -222,10 +244,11 @@ export const deleteAlumno = async (id: string): Promise<string | null> => {
 
 /** Upsert individual de ciclo escolar */
 export const saveCiclo = async (ciclo: CicloEscolar): Promise<string | null> => {
-  if (ciclo.id && !isUUID(ciclo.id)) return null;
-  const { error } = await supabase.from('ciclos_escolares').upsert(
-    { id: ciclo.id, nombre: ciclo.nombre, meses_abarca: ciclo.meses_abarca, anio: ciclo.anio, activo: ciclo.activo }
-  );
+  const payload: any = { id: ciclo.id, nombre: ciclo.nombre, meses_abarca: ciclo.meses_abarca, anio: ciclo.anio, activo: ciclo.activo };
+  if (payload.id && !isUUID(payload.id)) {
+    delete payload.id;
+  }
+  const { error } = await supabase.from('ciclos_escolares').upsert(payload);
   if (error) { console.error('[saveCiclo]', error.message); return error.message; }
   return null;
 };
@@ -240,8 +263,11 @@ export const deleteCiclo = async (id: string): Promise<string | null> => {
 
 /** Upsert de un item de catalogo */
 export const saveCatalogoItem = async (item: any): Promise<string | null> => {
-  if (item.id && !isUUID(item.id)) return null;
-  const { error } = await supabase.from('catalogos').upsert(item);
+  const payload = { ...item };
+  if (payload.id && !isUUID(payload.id)) {
+    delete payload.id; // Permite a Supabase generar un UUID nuevo
+  }
+  const { error } = await supabase.from('catalogos').upsert(payload);
   if (error) { console.error('[saveCatalogoItem]', error.message); return error.message; }
   return null;
 };
@@ -514,6 +540,8 @@ export const getAppConfig = async (): Promise<import('../types').AppConfig> => {
     if (item.id === 'nombre_entidad_universidad') config.nombreEntidadUniversidad = item.valor;
     if (item.id === 'clave_entidad_universidad')  config.claveEntidadUniversidad  = item.valor;
     if (item.id === 'clave_entidad_federativa')   config.claveEntidadFederativa   = item.valor;
+    if (item.id === 'plantilla_observaciones_plan') config.plantilla_observaciones_plan = item.valor;
+    if (item.id === 'formato_lista_observaciones') config.formato_lista_observaciones = item.valor === 'true';
     if (item.id === 'constancia_ss_params') {
       try { config.constanciaParams = { ...DEFAULT_PARAMS, ...JSON.parse(item.valor) }; } catch {}
     }
@@ -533,6 +561,8 @@ export const updateAppConfig = async (
   nombreEntidadUniversidad?: string,
   claveEntidadUniversidad?: string,
   claveEntidadFederativa?: string,
+  plantillaObservacionesPlan?: string,
+  formatoListaObservaciones?: boolean,
 ): Promise<string | null> => {
   const { error: err1 } = await supabase.from('configuracion_app').upsert({ id: 'app_title',       valor: title,          updated_at: new Date().toISOString() });
   if (err1) return err1.message;
@@ -563,6 +593,14 @@ export const updateAppConfig = async (
   }
   if (claveEntidadFederativa !== undefined) {
     const { error } = await supabase.from('configuracion_app').upsert({ id: 'clave_entidad_federativa', valor: claveEntidadFederativa, updated_at: new Date().toISOString() });
+    if (error) return error.message;
+  }
+  if (plantillaObservacionesPlan !== undefined) {
+    const { error } = await supabase.from('configuracion_app').upsert({ id: 'plantilla_observaciones_plan', valor: plantillaObservacionesPlan, updated_at: new Date().toISOString() });
+    if (error) return error.message;
+  }
+  if (formatoListaObservaciones !== undefined) {
+    const { error } = await supabase.from('configuracion_app').upsert({ id: 'formato_lista_observaciones', valor: String(formatoListaObservaciones), updated_at: new Date().toISOString() });
     if (error) return error.message;
   }
   return null;

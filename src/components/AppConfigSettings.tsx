@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AppConfig, DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { updateAppConfig } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
-import { Save, Image as ImageIcon, Type, ArrowLeft, Upload, Trash2, UserCheck, Database, MapPin, Hash } from 'lucide-react';
+import { Save, Image as ImageIcon, Type, ArrowLeft, Upload, Trash2, UserCheck, Database, MapPin, Hash, FileText } from 'lucide-react';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import ModalSincronizacionAcademica from './modals/ModalSincronizacionAcademica';
 
 const ESTADOS_MEXICO = [
@@ -44,6 +46,18 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
   const [claveDgair, setClaveDgair] = useState(config.claveDgair || '20181');
   const [claveEntidadUniversidad, setClaveEntidadUniversidad] = useState(config.claveEntidadUniversidad || '');
   const [claveEntidadFederativa, setClaveEntidadFederativa] = useState(config.claveEntidadFederativa || '');
+  
+  const [plantillaObservacionesPlan, setPlantillaObservacionesPlan] = useState(
+    config.plantilla_observaciones_plan || 
+    'EL PRESENTE PLAN DE PAGOS, ADEMÁS DE LAS PARCIALIDADES POR CUATRIMESTRE/SEMESTRE, INCLUYE EL PAGO PARCIAL DE LO SIGUIENTE, LO CUAL SE ACABARÁ DE CUBRIR EL ÚLTIMO CICLO ESCOLAR DE LA CARRERA: {{observaciones}}'
+  );
+  
+  useEffect(() => {
+    if (config.plantilla_observaciones_plan) {
+      setPlantillaObservacionesPlan(config.plantilla_observaciones_plan);
+    }
+  }, [config.plantilla_observaciones_plan]);
+
   // No necesitamos un estado separado para el nombre de la entidad, lo derivamos de la clave
 
   const [loading, setLoading] = useState(false);
@@ -78,11 +92,11 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
     setLoading(true);
     setError(null);
     const nombreEntidadUniversidad = ESTADOS_MEXICO.find(e => e.id === claveEntidadUniversidad)?.nombre || '';
-    const err = await updateAppConfig(title, logoUrl, selloUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa);
+    const err = await updateAppConfig(title, logoUrl, selloUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa, plantillaObservacionesPlan, false);
     if (err) {
       setError(err);
     } else {
-      setAppConfig({ title, logoUrl, selloUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
+      setAppConfig({ title, logoUrl, selloUrl, directorNombre, directorCargo, claveInstitucion, claveDgair, nombreEntidadUniversidad, claveEntidadUniversidad, claveEntidadFederativa, plantilla_observaciones_plan: plantillaObservacionesPlan, formato_lista_observaciones: false, constanciaParams: appConfig?.constanciaParams ?? DEFAULT_CONSTANCIA_PARAMS });
       onBack();
     }
     setLoading(false);
@@ -306,6 +320,25 @@ export const AppConfigSettings: React.FC<Props> = ({ onBack }) => {
                   ))}
                 </select>
               </div>
+            </div>
+          </div>
+
+          {/* Sección Observaciones de Planes de Pago */}
+          <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <FileText size={20} className="text-teal-500" /> Plantilla: Observaciones en Planes de Pago
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Personalice el texto y diseño que aparecerá al pie de los Planes de Pago cuando se seleccionen observaciones. 
+              Utilice la variable comodín <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-indigo-600">{'{{observaciones}}'}</code> donde desee que aparezcan las opciones elegidas.
+            </p>
+            <div className="mb-4">
+              <ReactQuill 
+                theme="snow" 
+                value={plantillaObservacionesPlan} 
+                onChange={setPlantillaObservacionesPlan} 
+                className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+              />
             </div>
           </div>
 

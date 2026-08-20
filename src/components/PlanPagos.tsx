@@ -42,7 +42,7 @@ const generateFolioForPlan = (alumnoId: string, tipoPlan: string, cicloNombre: s
   return `${prefix}-${folioNum}${suffix}`;
 };
 
-export const DEFAULT_ESPECIALIDAD_DESGLOSE = [
+const DEFAULT_ESPECIALIDAD_DESGLOSE = [
   { cantidad: 3, concepto: 'INSCRIPCIONES', costo_unitario: 1900 },
   { cantidad: 3, concepto: 'GASTOS ADMINISTRATIVOS', costo_unitario: 1200 },
   { cantidad: 9, concepto: 'MÓDULOS QUE CONSTA LA ESPECIALIDAD', costo_unitario: 2444 },
@@ -239,7 +239,7 @@ interface PlanPagosProps {
 
 export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDeletePlan, onGoToPagos, onViewReceipt, onBackToFicha, onBackToReceipt }: PlanPagosProps) {
   const {
-    currentUser, plans: allPlans, alumnos, ciclos, activeCicloId, catalogos, plantillas, setPlans, carreras
+    currentUser, plans: allPlans, alumnos, ciclos, activeCicloId, catalogos, plantillas, setPlans, carreras, appConfig
   } = useAppStore();
 
   const nombresCarreras = carreras.map(c => c.nombre);
@@ -277,8 +277,12 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
   // - ADMINISTRADOR: acceso total (crear, editar, eliminar)
   // - CAJERO: puede crear y editar planes (no puede eliminar)
   // - COORDINADOR: puede crear y editar planes (no puede eliminar)
-  const canManagePlans = currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'CAJERO' || currentUser.rol === 'COORDINADOR';
-  const canEditPlan    = currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'CAJERO' || currentUser.rol === 'COORDINADOR';
+  const isCoord = currentUser.rol === 'COORDINADOR CONTROL ESCOLAR'
+    || currentUser.rol === 'COORDINADOR FINANCIERO'
+    || currentUser.rol === 'COORDINADOR RECURSOS HUMANOS'
+    || currentUser.rol === 'COORDINADOR ACADEMICO';
+  const canManagePlans = currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'CAJERO' || isCoord;
+  const canEditPlan    = currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'CAJERO' || isCoord;
   const canDeletePlan  = currentUser.rol === 'ADMINISTRADOR';
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -788,9 +792,9 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-[#45515e] mb-2">Observaciones del Plan</label>
                     <div className="grid grid-cols-2 gap-2">
-                      {['Titulación', 'Constancias de renovación de beca', 'Pago de RVOE', '6 Certificaciones', '4 Diplomados'].map(obs => (
+                      {(catalogos['observacion_plan']?.length > 0 ? catalogos['observacion_plan'] : ['Titulación', 'Constancias de renovación de beca', 'Pago de RVOE', '6 Certificaciones', '4 Diplomados']).map(obs => (
                         <label key={obs} className="flex items-center gap-2 text-sm text-[#45515e]">
-                          <input 
+                           <input 
                             type="checkbox" 
                             className="rounded border-gray-300 text-[#1456f0] focus:ring-[#3b82f6]"
                             checked={(newPlanForm.observaciones || []).includes(obs)}
@@ -1071,6 +1075,12 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
     }
 
     const updatedPlan = { ...selectedPlan, [`estatus_${selectedPaymentIndex}`]: statusToWrite };
+    if (updatedPlan.detalles && updatedPlan.detalles.length > 0) {
+      updatedPlan.detalles = updatedPlan.detalles.map(d => 
+        d.indice_concepto === selectedPaymentIndex ? { ...d, estatus: statusToWrite } : d
+      );
+    }
+    
     onSavePlan(updatedPlan);
     setCandidateDetalles([]); // Purgar la caché para que re-consulte si se vuelve a abrir la pestaña
     setIsPaymentModalOpen(false);
@@ -1132,6 +1142,13 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
        if (typeof formToSave[key] === 'string' && (formToSave[key] as string).trim() === '') {
            (formToSave as any)[key] = 'PENDIENTE';
        }
+    }
+
+    if (formToSave.detalles && formToSave.detalles.length > 0) {
+      formToSave.detalles = formToSave.detalles.map(d => ({
+         ...d,
+         estatus: (formToSave as any)[`estatus_${d.indice_concepto}`] || d.estatus
+      }));
     }
 
     await onSavePlan(formToSave as PaymentPlan);
@@ -1481,7 +1498,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
           </table>
         </div>
 
-        <h2 className="text-lg font-bold text-center mb-2 uppercase">PLAN {planType}</h2>
+        <h2 className="text-lg font-bold text-center mb-2 uppercase">PLAN {planType} {selectedPlan.observaciones && selectedPlan.observaciones.length > 0 && ['Cuatrimestral', 'Semestral'].includes(planType) ? '(INTEGRAL)' : ''}</h2>
 
         <div className="flex flex-col md:flex-row gap-6">
           <div className="flex-grow">
@@ -1515,8 +1532,22 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
             </div>
 
             {selectedPlan.observaciones && selectedPlan.observaciones.length > 0 && ['Cuatrimestral', 'Semestral'].includes(selectedPlan.tipo_plan || 'Cuatrimestral') && (
-              <div className="mt-4 border border-black bg-white p-2 text-[10px] font-bold leading-tight text-justify">
-                EL PRESENTE PLAN DE PAGOS, ADEMÁS DE LAS PARCIALIDADES POR CUATRIMESTRE/SEMESTRE, INCLUYE EL PAGO PARCIAL DE LO SIGUIENTE, LO CUAL SE ACABARÁ DE CUBRIR EL ÚLTIMO CICLO ESCOLAR DE LA CARRERA: {selectedPlan.observaciones.join(', ').toUpperCase()}
+              <div className="mt-4 border border-black bg-white p-2 leading-tight text-justify overflow-hidden">
+                {appConfig?.plantilla_observaciones_plan ? (
+                  <div 
+                    className="text-[10px] [&>p]:m-0 [&_strong]:font-bold [&_b]:font-bold [&_em]:italic [&_i]:italic [&_u]:underline [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-bold [&_h3]:text-[12px] [&_h3]:font-bold [&_h4]:text-[11px] [&_h4]:font-bold [&_.ql-align-center]:text-center [&_.ql-align-right]:text-right [&_.ql-align-justify]:text-justify [&_.ql-size-small]:text-[8px] [&_.ql-size-large]:text-[14px] [&_.ql-size-huge]:text-[18px]"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                    dangerouslySetInnerHTML={{ 
+                      __html: appConfig.plantilla_observaciones_plan
+                        .replace(/&nbsp;/g, ' ')
+                        .replace('{{observaciones}}', selectedPlan.observaciones.join(', ').toUpperCase()) 
+                    }}
+                  />
+                ) : (
+                  <div className="text-[10px] font-bold">
+                    EL PRESENTE PLAN DE PAGOS, ADEMÁS DE LAS PARCIALIDADES POR CUATRIMESTRE/SEMESTRE, INCLUYE EL PAGO PARCIAL DE LO SIGUIENTE, LO CUAL SE ACABARÁ DE CUBRIR EL ÚLTIMO CICLO ESCOLAR DE LA CARRERA: {selectedPlan.observaciones.join(', ').toUpperCase()}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1525,7 +1556,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 <tbody>
                   <tr>
                     <td className="border border-black p-2 text-sm font-bold bg-gray-300 w-1/3 text-center">PLAN SELECCIONADO</td>
-                    <td className="border border-black p-2 text-sm text-center w-2/3 uppercase">PLAN {planType}</td>
+                    <td className="border border-black p-2 text-sm text-center w-2/3 uppercase">PLAN {planType} {selectedPlan.observaciones && selectedPlan.observaciones.length > 0 && ['Cuatrimestral', 'Semestral'].includes(planType) ? '(INTEGRAL)' : ''}</td>
                   </tr>
                   <tr>
                     <td className="border border-black p-2 text-sm font-bold bg-gray-300 text-center">LICENCIATURA:</td>
@@ -1716,7 +1747,12 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   <select
                     className="w-full border border-gray-300 rounded-[8px] p-2 outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white"
                     value={editForm.tipo_plan || 'Cuatrimestral'}
-                    onChange={(e) => setEditForm({ ...editForm, tipo_plan: e.target.value as any })}
+                    onChange={(e) => {
+                      const newType = e.target.value as any;
+                      setEditForm({ ...editForm, tipo_plan: newType });
+                      const baseLength = newType === 'Titulación' || newType.includes('Especialidad') ? 18 : newType === 'Semestral' ? 9 : 7;
+                      setCustomMaxPayments(prev => Math.max(prev, baseLength));
+                    }}
                   >
                     <option value="Cuatrimestral">Cuatrimestral (Hasta 7 pagos)</option>
                     <option value="Semestral">Semestral (Hasta 9 pagos)</option>
@@ -1827,7 +1863,7 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                   <div className="md:col-span-2 lg:col-span-5 mt-4">
                     <label className="block text-sm font-medium text-[#45515e] mb-2">Observaciones del Plan</label>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                      {['Titulación', 'Constancias de renovación de beca', 'Pago de RVOE', '6 Certificaciones', '4 Diplomados'].map(obs => (
+                      {(catalogos['observacion_plan']?.length > 0 ? catalogos['observacion_plan'] : ['Titulación', 'Constancias de renovación de beca', 'Pago de RVOE', '6 Certificaciones', '4 Diplomados']).map(obs => (
                         <label key={obs} className="flex items-center gap-2 text-sm text-[#45515e]">
                           <input 
                             type="checkbox" 
@@ -2357,6 +2393,12 @@ export default function PlanPagos({ initialAlumnoId, onBack, onSavePlan, onDelet
                 onClick={() => {
                   setSelectedPlanId(postCreatePrompt.id);
                   setEditForm({ ...postCreatePrompt });
+                  
+                  // Initialize customMaxPayments so the correct number of rows is rendered
+                  const planType = postCreatePrompt.tipo_plan || 'Cuatrimestral';
+                  const baseLength = planType === 'Titulación' || planType.includes('Especialidad') ? 18 : planType === 'Semestral' ? 9 : 7;
+                  setCustomMaxPayments(baseLength);
+                  
                   setIsEditPlanModalOpen(true);
                   setPostCreatePrompt(null);
                 }}

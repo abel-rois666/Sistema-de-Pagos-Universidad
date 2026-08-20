@@ -239,6 +239,8 @@ export interface AppConfig {
   nombreEntidadUniversidad?: string;
   claveEntidadUniversidad?: string;
   claveEntidadFederativa?: string;
+  plantilla_observaciones_plan?: string;
+  formato_lista_observaciones?: boolean;
   constanciaParams: ConstanciaParams;
 }
 
@@ -269,6 +271,7 @@ export interface Catalogos {
   estatus_alumnos: string[];
   empresas_ss: string[];
   modalidades_titulacion: string[];
+  observacion_plan: string[];
   /** Mapa nombre-licenciatura -> metadata (tipo académico y periodo) */
   licenciaturasMetadata: Record<string, { tipo_academico?: string; tipo_periodo?: string }>;
 }

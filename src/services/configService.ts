@@ -1,18 +1,15 @@
-import { supabase } from '../lib/supabase';
+import { getAppConfig } from '../lib/supabase';
 import { AppConfig } from '../types';
 import { Result, createSuccess, createError } from './types';
 
 export const configService = {
   async getAppConfig(): Promise<Result<AppConfig | null>> {
     try {
-      const { data, error } = await supabase.from('configuracion_app').select('*');
-      if (error) throw error;
-
-      if (!data || data.length === 0) return createSuccess(null);
-      
-      const configObj: Record<string, string> = {};
-      data.forEach(row => { configObj[row.id] = row.valor; });
-      return createSuccess(configObj as unknown as AppConfig);
+      // Delegar al getAppConfig de supabase.ts que ya mapea correctamente
+      // las claves de la BD (app_title, app_logo, etc.) a los campos
+      // de la interfaz AppConfig (title, logoUrl, etc.)
+      const config = await getAppConfig();
+      return createSuccess(config);
     } catch (error) {
       return createError(error as Error);
     }

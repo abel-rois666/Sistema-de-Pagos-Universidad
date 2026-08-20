@@ -13,7 +13,7 @@ interface CatalogosConfigProps {
     onBack: () => void;
 }
 
-type TabKey = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno' | 'empresa_ss' | 'modalidad_titulacion';
+type TabKey = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno' | 'empresa_ss' | 'modalidad_titulacion' | 'observacion_plan';
 
 const TAB_CONFIG: { key: TabKey; label: string; icon: React.ReactNode; color: string; bgColor: string; borderColor: string }[] = [
     { key: 'concepto', label: 'Conceptos', icon: <Tag size={16} />, color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
@@ -25,6 +25,7 @@ const TAB_CONFIG: { key: TabKey; label: string; icon: React.ReactNode; color: st
     { key: 'beca_porcentaje', label: '% Beca', icon: <Percent size={16} />, color: 'text-violet-700', bgColor: 'bg-violet-50', borderColor: 'border-violet-200' },
     { key: 'empresa_ss', label: 'Empresas SS', icon: <Briefcase size={16} />, color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
     { key: 'modalidad_titulacion', label: 'Modalidades Titulación', icon: <GraduationCap size={16} />, color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200' },
+    { key: 'observacion_plan', label: 'Obs. Plan', icon: <Tag size={16} />, color: 'text-slate-700', bgColor: 'bg-slate-50', borderColor: 'border-slate-200' },
 ];
 
 export default function CatalogosConfig({ onBack }: CatalogosConfigProps) {
