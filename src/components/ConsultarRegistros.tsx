@@ -10,6 +10,7 @@ import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAll
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV , toTitleCase} from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
 import { useAppStore } from '../store/useAppStore';
+import { pagosService } from '../services/pagosService';
 import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 
 interface Props {
@@ -608,6 +609,29 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
     });
   };
 
+  const handleBorrarFisico = (id: string, folio: number) => {
+    setSystemConfirmModal({
+      isOpen: true,
+      title: 'Borrar Registro Físico (Peligro)',
+      message: `¿Estás completamente seguro de BORRAR el recibo #${folio}? Esta acción es IRREVERSIBLE, eliminará todos sus detalles y liberará el número de folio actual para que sea utilizado en el siguiente recibo. Ideal SOLO para borrar recibos de prueba recientes.`,
+      type: 'danger',
+      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: async () => {
+        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+        const result = await pagosService.borrarReciboAdmin(id);
+        if (result.success) {
+          toast.success(`Recibo #${folio} borrado exitosamente. Folio liberado.`);
+          if (reciboSeleccionado?.id === id) {
+            setReciboSeleccionado(null);
+          }
+          cargarRecibos();
+        } else {
+          toast.error('Error al borrar recibo: ' + result.error?.message);
+        }
+      }
+    });
+  };
+
   const handleToggleFactura = async (id: string, currentRequiereFactura: boolean, currentFacturaEstatus: string) => {
     const newStatus = !currentRequiereFactura;
     
@@ -1194,6 +1218,15 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                       className="flex items-center gap-2 bg-red-500/30 hover:bg-red-500/50 text-red-100 px-3 py-2 rounded-[13px] text-sm font-semibold transition-colors border border-red-400/50"
                     >
                       <XCircle size={15} /> Cancelar
+                    </button>
+                  )}
+                  {currentUser?.rol === 'ADMINISTRADOR' && (
+                    <button
+                      onClick={() => handleBorrarFisico(reciboSeleccionado.id, reciboSeleccionado.folio)}
+                      className="flex items-center gap-2 bg-red-700/80 hover:bg-red-600 text-white px-3 py-2 rounded-[13px] text-sm font-semibold transition-colors border border-red-500 shadow-[var(--shadow-subtle)]"
+                      title="Borrar registro permanentemente y liberar folio"
+                    >
+                      <Trash2 size={15} /> Borrar Físico (Prueba)
                     </button>
                   )}
                 </div>
@@ -1846,6 +1879,9 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmación del Sistema */}
+      <ModalConfirmacion {...systemConfirmModal} />
 
     </div>
   );

@@ -152,13 +152,20 @@ export function useRegistrarPagoLogic(
         const targetValue = `PLAN_${initialPlanId}_${idx}_${conceptoRef}`;
         const op = opcionesConceptos.find(o => o.value === targetValue);
         if (op) {
+          const plan = pupilPlans.find(p => p.id === initialPlanId);
+          let enrichedName = conceptoRef;
+          if (plan) {
+            const tipoPlan = plan.tipo_plan ? `Plan ${plan.tipo_plan}` : 'Plan Cuatrimestral';
+            enrichedName = `${conceptoRef} (${tipoPlan} - ${plan.ciclo_escolar})`;
+          }
+
           setFilas([{
             localId: Date.now().toString(),
             cantidad: 1,
-            concepto: conceptoRef,
+            concepto: enrichedName,
             costo_unitario: op.sugerido || '',
             indice_concepto_plan: idx,
-            searchConceptoTerm: conceptoRef,
+            searchConceptoTerm: enrichedName,
             showConceptoSuggestions: false,
             plan_id: initialPlanId,
           }]);
@@ -193,7 +200,15 @@ export function useRegistrarPagoLogic(
         const idx = parseInt(parts[2], 10);
         const refName = parts.slice(3).join('_');
         const op = opcionesConceptos.find(o => o.value === opValue);
-        return { ...f, concepto: refName, indice_concepto_plan: idx, plan_id: pId, costo_unitario: op?.sugerido || '', searchConceptoTerm: refName, showConceptoSuggestions: false };
+        
+        const plan = pupilPlans.find(p => p.id === pId);
+        let enrichedName = refName;
+        if (plan) {
+          const tipoPlan = plan.tipo_plan ? `Plan ${plan.tipo_plan}` : 'Plan Cuatrimestral';
+          enrichedName = `${refName} (${tipoPlan} - ${plan.ciclo_escolar})`;
+        }
+
+        return { ...f, concepto: enrichedName, indice_concepto_plan: idx, plan_id: pId, costo_unitario: op?.sugerido || '', searchConceptoTerm: enrichedName, showConceptoSuggestions: false };
       } else if (opValue.startsWith('CAT_')) {
         const name = opValue.replace('CAT_', '');
         return { ...f, concepto: name, indice_concepto_plan: null, plan_id: undefined, costo_unitario: '', searchConceptoTerm: name, showConceptoSuggestions: false };

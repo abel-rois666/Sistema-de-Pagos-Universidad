@@ -1151,7 +1151,10 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, onBack, onSa
     if (formToSave.detalles && formToSave.detalles.length > 0) {
       formToSave.detalles = formToSave.detalles.map(d => ({
          ...d,
-         estatus: (formToSave as any)[`estatus_${d.indice_concepto}`] || d.estatus
+         estatus: (formToSave as any)[`estatus_${d.indice_concepto}`] || d.estatus,
+         concepto: (formToSave as any)[`concepto_${d.indice_concepto}`] || d.concepto,
+         costo_unitario: (formToSave as any)[`cantidad_${d.indice_concepto}`] || d.costo_unitario,
+         fecha_limite: (formToSave as any)[`fecha_${d.indice_concepto}`] || d.fecha_limite
       }));
     }
 
@@ -1434,30 +1437,31 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, onBack, onSa
         </div>
       </div>
 
-      {/* --- Navegación Flotante Desktop --- */}
-      <div className="hidden xl:block fixed top-1/2 left-4 w-16 h-16 xl:left-24 -translate-y-1/2 z-40 print:hidden">
-        <button
-          onClick={() => prevPlan && jumpToPlan(prevPlan)}
-          disabled={!prevPlan}
-          title={prevPlan ? `Anterior: ${getAlumnoName(prevPlan)}` : 'Primer plan'}
-          className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-[var(--shadow-brand)] shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-[#45515e] dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-[#1456f0] dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
-        >
-          <ChevronLeft size={36} className="group-hover:-translate-x-1 transition-transform" />
-        </button>
-      </div>
+      <div className="w-full max-w-[1000px] mx-auto relative flex justify-center">
+        {/* --- Navegación Flotante Desktop --- */}
+        <div className="hidden xl:flex absolute top-[40%] -left-8 -translate-y-1/2 z-40 print:hidden items-center h-16 w-16">
+          <button
+            onClick={() => prevPlan && jumpToPlan(prevPlan)}
+            disabled={!prevPlan}
+            title={prevPlan ? `Anterior: ${getAlumnoName(prevPlan)}` : 'Primer plan'}
+            className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-[var(--shadow-brand)] shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-[#45515e] dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-[#1456f0] dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
+          >
+            <ChevronLeft size={36} className="group-hover:-translate-x-1 transition-transform" />
+          </button>
+        </div>
 
-      <div className="hidden xl:block fixed top-1/2 right-4 w-16 h-16 xl:right-24 -translate-y-1/2 z-40 print:hidden">
-        <button
-          onClick={() => nextPlan && jumpToPlan(nextPlan)}
-          disabled={!nextPlan}
-          title={nextPlan ? `Siguiente: ${getAlumnoName(nextPlan)}` : 'Último plan'}
-          className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-[var(--shadow-brand)] shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-[#45515e] dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-[#1456f0] dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
-        >
-          <ChevronRight size={36} className="group-hover:translate-x-1 transition-transform" />
-        </button>
-      </div>
+        <div className="hidden xl:flex absolute top-[40%] -right-8 -translate-y-1/2 z-40 print:hidden items-center h-16 w-16">
+          <button
+            onClick={() => nextPlan && jumpToPlan(nextPlan)}
+            disabled={!nextPlan}
+            title={nextPlan ? `Siguiente: ${getAlumnoName(nextPlan)}` : 'Último plan'}
+            className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-[var(--shadow-brand)] shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-[#45515e] dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-[#1456f0] dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
+          >
+            <ChevronRight size={36} className="group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
 
-      <div className="w-full max-w-[816px] overflow-x-auto mx-auto pb-4 custom-scrollbar relative z-10">
+        <div className="w-full max-w-[816px] overflow-x-auto pb-4 custom-scrollbar relative z-10">
         <div
           ref={printRef}
           className="bg-white text-black shadow-none sm:shadow-xl sm:rounded-[8px] w-full min-w-[650px] mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0 print:min-w-0"
@@ -2470,6 +2474,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, onBack, onSa
           </div>
         </div>
       </div>
+    </div>
 
     </div>
   );

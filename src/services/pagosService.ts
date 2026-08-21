@@ -85,5 +85,16 @@ export const pagosService = {
       console.error('[bulkSavePlanes]', error);
       return createError(error as Error);
     }
+  },
+
+  async borrarReciboAdmin(reciboId: string): Promise<Result<void>> {
+    try {
+      const { error } = await supabase.rpc('borrar_recibo_admin', { p_recibo_id: reciboId });
+      if (error) throw error;
+      return createSuccess(undefined);
+    } catch (error) {
+      console.error('[borrarReciboAdmin]', error);
+      return createError(error as Error);
+    }
   }
 };
