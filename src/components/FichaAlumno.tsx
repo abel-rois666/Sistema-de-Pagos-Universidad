@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, GraduationCap, ScrollText, ClipboardList, BookOpen } from 'lucide-react';
+import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, GraduationCap, ScrollText, ClipboardList, BookOpen, ShieldCheck } from 'lucide-react';
 import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '../types';
 import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { calculateStudentTotals, toTitleCase } from '../utils';
@@ -218,36 +218,25 @@ export default function FichaAlumno({
                   <h2 className="text-lg sm:text-2xl font-semibold text-white leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
                     {toTitleCase(selectedAlumno.nombre_completo)}
                   </h2>
-                  {isEditingEstatus ? (
-                    <div className="inline-flex items-center mt-1.5 gap-2">
-                      <select
-                        value={tempEstatus}
-                        onChange={e => setTempEstatus(e.target.value)}
-                        disabled={guardandoEstatus}
-                        className="text-sm bg-white dark:bg-[#1c2228] border border-gray-300 dark:border-[rgba(255,255,255,0.2)] rounded-md px-2 py-0.5 text-gray-900 dark:text-gray-100 outline-none focus:border-blue-500"
-                        style={{ fontFamily: 'var(--font-ui)' }}
-                      >
-                        {catalogos.estatus_alumnos.map(e => (
-                          <option key={e} value={e}>{e}</option>
-                        ))}
-                      </select>
-                      <button onClick={handleSaveEstatus} disabled={guardandoEstatus} className="px-2 py-0.5 bg-[#1456f0] text-white text-xs font-semibold rounded-[6px] hover:bg-blue-600 disabled:opacity-50 transition-colors">Guardar</button>
-                      <button onClick={() => setIsEditingEstatus(false)} disabled={guardandoEstatus} className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold rounded-[6px] hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors">Cancelar</button>
-                    </div>
-                  ) : (
-                    <span 
-                      onClick={() => { setTempEstatus(selectedAlumno.estatus || 'ACTIVO'); setIsEditingEstatus(true); }}
-                      title="Haz clic para editar estatus"
-                      className={`inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-[9999px] text-xs font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${
-                        selectedAlumno.estatus === 'BAJA'             ? 'bg-red-900/60 border-red-600 text-red-200' :
-                        selectedAlumno.estatus?.includes('EGRESADO')  ? 'bg-amber-900/60 border-amber-600 text-amber-200' :
-                                                                        'bg-emerald-900/60 border-emerald-600 text-emerald-200'
+                  {/* Estatus Institucional del Alumno (Gobernado por Planes Académicos) */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/60 select-none">
+                      Estatus Institucional:
+                    </span>
+                    <div 
+                      title="Estatus institucional calculado automáticamente por el motor académico a partir de los programas de estudio del alumno."
+                      className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold border shadow-xs select-none backdrop-blur-md ${
+                        selectedAlumno.estatus === 'BAJA'             ? 'bg-red-500/20 border-red-400 text-red-200' :
+                        selectedAlumno.estatus?.includes('TITULADO')   ? 'bg-purple-500/20 border-purple-400 text-purple-200' :
+                        selectedAlumno.estatus?.includes('EGRESADO')  ? 'bg-amber-500/20 border-amber-400 text-amber-200' :
+                                                                        'bg-emerald-500/20 border-emerald-400 text-emerald-200'
                       }`}
                     >
-                      {selectedAlumno.estatus || 'ACTIVO'}
-                      <Edit2 size={10} className="ml-1.5 opacity-70" />
-                    </span>
-                  )}
+                      <ShieldCheck size={12} className="opacity-90" />
+                      <span>{selectedAlumno.estatus || 'ACTIVO'}</span>
+                      <span className="text-[9px] uppercase tracking-wider opacity-60 font-mono ml-0.5">· Oficial</span>
+                    </div>
+                  </div>
 
                   <div className="flex flex-wrap gap-1.5 mt-3">
                     <span className="bg-white/10 border border-white/20 text-white/90 text-xs px-2.5 py-1 rounded-[9999px] font-medium">{toTitleCase(selectedAlumno.licenciatura)}</span>
@@ -388,6 +377,8 @@ export default function FichaAlumno({
               servicioSocialRegistros={ssRegistros}
               planesAlumno={planesDelAlumno}
               certificacionEstatus={certEstatus}
+              alumno={selectedAlumno}
+              onUpdate={() => onRefreshAlumnos?.()}
             />
           )}
 

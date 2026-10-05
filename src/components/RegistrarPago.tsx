@@ -180,10 +180,10 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
                     <span>{toTitleCase(a.nombre_completo)}</span>
                     {a.estatus && a.estatus !== 'ACTIVO' && (
                       <span className={`ml-2 text-xs font-bold px-1.5 py-0.5 rounded ${
-                        a.estatus === 'EGRESADO' || a.estatus === 'EGRESADO TITULADO'
+                        a.estatus === 'EGRESADO' || a.estatus === 'TITULADO' || a.estatus === 'EGRESADO TITULADO'
                           ? 'bg-purple-100 text-purple-700'
                           : 'bg-red-100 text-red-700'
-                      }`}>{a.estatus}</span>
+                      }`}>{a.estatus === 'EGRESADO TITULADO' ? 'TITULADO' : a.estatus}</span>
                     )}
                   </div>
                 ))}

@@ -3,9 +3,12 @@ import toast from 'react-hot-toast';
 import {
   GraduationCap, Loader2, Save, CheckCircle2, Clock, Ban,
   AlertCircle, ChevronDown, FileCheck, X, Edit3, CalendarDays, Flag, Lock, Trash2, AlertTriangle,
+  BookOpen, Award,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import type { FichaTitulacion, ServicioSocial } from '../../types';
+import { useAppStore } from '../../store/useAppStore';
+import type { FichaTitulacion, ServicioSocial, Alumno } from '../../types';
+import { generateFolioControl, esModalidadExamen } from '../../utils/titulacionExportUtils';
 import DrivePicker from '../DrivePicker';
 
 // ── Constantes de modalidad ──────────────────────────────────────────────────
@@ -359,6 +362,8 @@ interface TabTitulacionProps {
   servicioSocialRegistros?: ServicioSocial[];
   planesAlumno?: any[];
   certificacionEstatus?: 'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
+  alumno?: Alumno;
+  onUpdate?: () => void;
 }
 
 // ── Blank ficha ───────────────────────────────────────────────────────────────
@@ -385,11 +390,17 @@ const BLANK: Omit<FichaTitulacion, 'id' | 'alumno_id' | 'created_at' | 'updated_
   tramite_completado: false,
   fecha_completado: null,
   enlace_drive: null,
+  libro: null,
+  foja: null,
+  folio_control: null,
+  fecha_examen: null,
+  fecha_exencion: null,
+  alumno_programa_id: null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function TabTitulacion({
-  alumnoId, esEspecialidad, modalidadesCatalogo, servicioSocialRegistros = [], planesAlumno = [], certificacionEstatus,
+  alumnoId, esEspecialidad, modalidadesCatalogo, servicioSocialRegistros = [], planesAlumno = [], certificacionEstatus, alumno, onUpdate,
 }: TabTitulacionProps) {
 
   const [ficha, setFicha] = useState<FichaTitulacion | null>(null);
@@ -405,6 +416,8 @@ export default function TabTitulacion({
   const [resetStep, setResetStep]           = useState<1|2>(1);
   const [resetting, setResetting]           = useState(false);
 
+  const [carreraNombre, setCarreraNombre] = useState<string>('');
+
   // ── Carga inicial ──────────────────────────────────────────────────────────
   const loadFicha = useCallback(async () => {
     setLoading(true);
@@ -413,17 +426,39 @@ export default function TabTitulacion({
       .select('*')
       .eq('alumno_id', alumnoId)
       .maybeSingle();
+
+    // Obtener datos del alumno / carrera para construcción del folio de control
+    const { data: alData } = await supabase
+      .from('alumnos')
+      .select('id, matricula, licenciatura, carrera_nombre')
+      .eq('id', alumnoId)
+      .maybeSingle();
+
+    const resolvedCarrera = alumno?.carrera_nombre || alumno?.licenciatura || alData?.carrera_nombre || alData?.licenciatura || '';
+    setCarreraNombre(resolvedCarrera);
+
+    // Obtener el programa vigente del alumno para vincular la titulación al plan rector activo
+    const { data: progVigente } = await supabase
+      .from('alumno_programas')
+      .select('id')
+      .eq('alumno_id', alumnoId)
+      .eq('es_vigente', true)
+      .maybeSingle();
+
     if (data) {
       setFicha(data as FichaTitulacion);
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id, alumno_id, created_at, updated_at, ...rest } = data as FichaTitulacion;
-      setDraft(rest);
+      setDraft({
+        ...rest,
+        alumno_programa_id: rest.alumno_programa_id || progVigente?.id || null,
+      });
     } else {
       setFicha(null);
-      setDraft({ ...BLANK });
+      setDraft({ ...BLANK, alumno_programa_id: progVigente?.id || null });
     }
     setLoading(false);
-  }, [alumnoId]);
+  }, [alumnoId, alumno]);
 
   useEffect(() => { loadFicha(); }, [loadFicha]);
 
@@ -469,23 +504,97 @@ export default function TabTitulacion({
     setDraft(prev => ({ ...prev, certificado_estudios: certStatus }));
   }, [certificacionEstatus, ficha]);
 
+  // Manejo reactivo de Libro y Foja con autogeneración del Folio de Control
+  const handleLibroChange = (val: string) => {
+    const num = val === '' ? null : parseInt(val, 10);
+    const nextLibro = isNaN(num as number) ? null : num;
+    setDraft(prev => {
+      const autoFolio = generateFolioControl(
+        esEspecialidad ? 'ESPECIALIDAD' : 'LICENCIATURA',
+        carreraNombre,
+        nextLibro,
+        prev.foja
+      );
+      return {
+        ...prev,
+        libro: nextLibro,
+        folio_control: autoFolio
+      };
+    });
+  };
+
+  const handleFojaChange = (val: string) => {
+    const num = val === '' ? null : parseInt(val, 10);
+    const nextFoja = isNaN(num as number) ? null : num;
+    setDraft(prev => {
+      const autoFolio = generateFolioControl(
+        esEspecialidad ? 'ESPECIALIDAD' : 'LICENCIATURA',
+        carreraNombre,
+        prev.libro,
+        nextFoja
+      );
+      return {
+        ...prev,
+        foja: nextFoja,
+        folio_control: autoFolio
+      };
+    });
+  };
+
   // ── Guardar ────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!draft.modalidad) { setWarnNoModal(true); return; }
     setWarnNoModal(false);
     setSaving(true);
+
+    const requiereExamen = esModalidadExamen(draft.modalidad);
+    const folioFinal = draft.folio_control || generateFolioControl(
+      esEspecialidad ? 'ESPECIALIDAD' : 'LICENCIATURA',
+      carreraNombre,
+      draft.libro,
+      draft.foja
+    );
+
+    const payloadDraft = {
+      ...draft,
+      libro: draft.libro !== null && draft.libro !== undefined ? Number(draft.libro) : null,
+      foja: draft.foja !== null && draft.foja !== undefined ? Number(draft.foja) : null,
+      folio_control: folioFinal,
+      fecha_examen: requiereExamen ? (draft.fecha_examen || null) : null,
+      fecha_exencion: !requiereExamen ? (draft.fecha_exencion || null) : null,
+    };
+
     if (ficha) {
-      await supabase.from('ficha_titulacion').update({ ...draft, updated_at: new Date().toISOString() }).eq('id', ficha.id);
+      await supabase.from('ficha_titulacion').update({ ...payloadDraft, updated_at: new Date().toISOString() }).eq('id', ficha.id);
     } else {
       // Validar Inglés al crear la ficha por primera vez
       const isInglesCubierto = await validarRequisitoIngles(alumnoId, esEspecialidad ? 8 : 6);
       const payloadInsert = {
-        ...draft,
+        ...payloadDraft,
         ingles: isInglesCubierto ? 'COMPLETADO' : draft.ingles
       };
       const { data } = await supabase.from('ficha_titulacion').insert({ alumno_id: alumnoId, ...payloadInsert }).select().single();
       if (data) setFicha(data as FichaTitulacion);
     }
+
+    // Si cumple todos los requisitos de titulación pero su plan rector sigue como CURSANDO/ACTIVO, promover a EGRESADO
+    const isReqMet = checkRequisitosMet(payloadDraft as FichaTitulacion, esEspecialidad);
+    if (isReqMet && (!alumno?.estatus || alumno.estatus === 'ACTIVO')) {
+      const ahora = new Date().toISOString();
+      await supabase.from('alumno_programas').update({
+        estatus: 'EGRESADO',
+        motivo_estatus: 'PLAN_CONCLUIDO',
+        fecha_ultimo_cambio: ahora,
+      }).eq('alumno_id', alumnoId).eq('es_vigente', true).eq('estatus', 'CURSANDO');
+
+      await supabase.from('alumnos').update({ estatus: 'EGRESADO' }).eq('id', alumnoId).eq('estatus', 'ACTIVO');
+
+      useAppStore.getState().setAlumnos(prev => 
+        prev.map(a => a.id === alumnoId && (!a.estatus || a.estatus === 'ACTIVO') ? { ...a, estatus: 'EGRESADO' } : a)
+      );
+      onUpdate?.();
+    }
+
     setSaving(false);
     setEditing(false);
     setSaved(true);
@@ -527,17 +636,92 @@ export default function TabTitulacion({
     });
   };
 
-  // Marcar trámite como completado y cambiar estatus del alumno
+  // Marcar trámite como completado, asentar Acta oficial y cambiar estatus del alumno
   const handleCompletarTramite = async () => {
     if (!ficha) return;
+
+    if (!draft.modalidad) {
+      toast.error('Debes seleccionar una Modalidad de Titulación antes de completar el trámite.');
+      return;
+    }
+
+    if (draft.libro === null || draft.libro === undefined || draft.foja === null || draft.foja === undefined) {
+      toast.error('Debes capturar el Libro y la Foja del acta oficial antes de marcar el trámite como completado.');
+      return;
+    }
+
+    const requiereExamen = esModalidadExamen(draft.modalidad);
+    if (requiereExamen && !draft.fecha_examen) {
+      toast.error('Para modalidad con réplica oral (Tesis/Tesina), debes registrar la Fecha del Examen Profesional.');
+      return;
+    }
+    if (!requiereExamen && !draft.fecha_exencion) {
+      toast.error('Para esta modalidad de titulación, debes registrar la Fecha de Exención de Examen del protocolo oficial.');
+      return;
+    }
+
     const ahora = new Date().toISOString();
-    await supabase.from('ficha_titulacion').update({
+    const folioCalculado = draft.folio_control || generateFolioControl(
+      esEspecialidad ? 'ESPECIALIDAD' : 'LICENCIATURA',
+      carreraNombre,
+      draft.libro,
+      draft.foja
+    );
+
+    // Identificar el programa vigente exacto a titular
+    let targetProgId = ficha.alumno_programa_id || draft.alumno_programa_id;
+    if (!targetProgId) {
+      const { data: progVig } = await supabase
+        .from('alumno_programas')
+        .select('id')
+        .eq('alumno_id', alumnoId)
+        .eq('es_vigente', true)
+        .maybeSingle();
+      targetProgId = progVig?.id || null;
+    }
+
+    const { error: errFicha } = await supabase.from('ficha_titulacion').update({
       tramite_completado: true,
       fecha_completado: ahora,
+      libro: Number(draft.libro),
+      foja: Number(draft.foja),
+      folio_control: folioCalculado,
+      fecha_examen: requiereExamen ? draft.fecha_examen : null,
+      fecha_exencion: !requiereExamen ? draft.fecha_exencion : null,
+      alumno_programa_id: targetProgId,
       updated_at: ahora,
     }).eq('id', ficha.id);
-    // Actualizar estatus del alumno a EGRESADO TITULADO
-    await supabase.from('alumnos').update({ estatus: 'EGRESADO TITULADO' }).eq('id', alumnoId);
+
+    if (errFicha) {
+      toast.error('Error al asentar el acta: ' + errFicha.message);
+      return;
+    }
+
+    // Actualizar ÚNICAMENTE el programa rector vigente del alumno a TITULADO
+    if (targetProgId) {
+      await supabase.from('alumno_programas').update({
+        estatus: 'TITULADO',
+        motivo_estatus: 'PLAN_CONCLUIDO',
+        fecha_ultimo_cambio: ahora,
+      }).eq('id', targetProgId);
+    } else {
+      await supabase.from('alumno_programas').update({
+        estatus: 'TITULADO',
+        motivo_estatus: 'PLAN_CONCLUIDO',
+        fecha_ultimo_cambio: ahora,
+      }).eq('alumno_id', alumnoId).eq('es_vigente', true);
+    }
+
+    // Actualizar estatus general del alumno a TITULADO
+    await supabase.from('alumnos').update({ estatus: 'TITULADO' }).eq('id', alumnoId);
+
+    // Actualizar estado reactivo en memoria para reflejo instantáneo en la cabecera
+    useAppStore.getState().setAlumnos(prev => 
+      prev.map(a => a.id === alumnoId ? { ...a, estatus: 'TITULADO' } : a)
+    );
+    onUpdate?.();
+
+    toast.success('¡Acta de Titulación registrada con éxito! El alumno ha sido promovido a TITULADO.');
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     loadFicha();
@@ -545,26 +729,39 @@ export default function TabTitulacion({
 
   const handleRevertirTramite = async () => {
     if (!ficha) return;
+    const ahora = new Date().toISOString();
     await supabase.from('ficha_titulacion').update({
       tramite_completado: false,
       fecha_completado: null,
-      pago_titulacion: 'SIN_INICIAR',
-      certificado_estudios: 'SIN_INICIAR',
-      ingles: 'SIN_INICIAR',
-      servicio_social_req: 'SIN_INICIAR',
-      fotografias: 'PENDIENTES',
-      promedio_alto_rendimiento: 'SIN_INICIAR',
-      doc_antecedente: 'SIN_INICIAR', doc_antecedente_nota: null,
-      doc_acta_nacimiento: 'SIN_INICIAR', doc_acta_nacimiento_nota: null,
-      doc_curp: 'SIN_INICIAR', doc_curp_nota: null,
-      doc_titulo_profesional: 'SIN_INICIAR', doc_titulo_profesional_nota: null,
-      doc_cedula_profesional: 'SIN_INICIAR', doc_cedula_profesional_nota: null,
-      updated_at: new Date().toISOString(),
+      updated_at: ahora,
     }).eq('id', ficha.id);
     
+    // Regresar estatus en alumno_programas ÚNICAMENTE del programa vinculado o vigente
+    const targetProgId = ficha.alumno_programa_id || draft.alumno_programa_id;
+    if (targetProgId) {
+      await supabase.from('alumno_programas').update({
+        estatus: 'EGRESADO',
+        motivo_estatus: 'PLAN_CONCLUIDO',
+        fecha_ultimo_cambio: ahora,
+      }).eq('id', targetProgId);
+    } else {
+      await supabase.from('alumno_programas').update({
+        estatus: 'EGRESADO',
+        motivo_estatus: 'PLAN_CONCLUIDO',
+        fecha_ultimo_cambio: ahora,
+      }).eq('alumno_id', alumnoId).eq('es_vigente', true).eq('estatus', 'TITULADO');
+    }
+
     // Regresar estatus del alumno a EGRESADO
     await supabase.from('alumnos').update({ estatus: 'EGRESADO' }).eq('id', alumnoId);
     
+    // Actualizar estado reactivo en memoria
+    useAppStore.getState().setAlumnos(prev => 
+      prev.map(a => a.id === alumnoId ? { ...a, estatus: 'EGRESADO' } : a)
+    );
+    onUpdate?.();
+
+    toast.success('El trámite ha sido revertido a estatus EGRESADO.');
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     loadFicha();
@@ -574,8 +771,29 @@ export default function TabTitulacion({
   const handleResetTotal = async () => {
     if (!ficha) return;
     setResetting(true);
-    // Si estaba como EGRESADO TITULADO, regresar a EGRESADO
+    // Si estaba como TITULADO, regresar a EGRESADO solo el programa vinculado o vigente
+    const targetProgId = ficha.alumno_programa_id || draft.alumno_programa_id;
+    if (targetProgId) {
+      await supabase.from('alumno_programas').update({
+        estatus: 'EGRESADO',
+        motivo_estatus: 'PLAN_CONCLUIDO',
+        fecha_ultimo_cambio: new Date().toISOString(),
+      }).eq('id', targetProgId);
+    } else {
+      await supabase.from('alumno_programas').update({
+        estatus: 'EGRESADO',
+        motivo_estatus: 'PLAN_CONCLUIDO',
+        fecha_ultimo_cambio: new Date().toISOString(),
+      }).eq('alumno_id', alumnoId).eq('es_vigente', true).eq('estatus', 'TITULADO');
+    }
+
     await supabase.from('alumnos').update({ estatus: 'EGRESADO' }).eq('id', alumnoId);
+    
+    useAppStore.getState().setAlumnos(prev => 
+      prev.map(a => a.id === alumnoId ? { ...a, estatus: 'EGRESADO' } : a)
+    );
+    onUpdate?.();
+
     const { error } = await supabase.from('ficha_titulacion').delete().eq('id', ficha.id);
     setResetting(false);
     if (error) {
@@ -916,11 +1134,11 @@ export default function TabTitulacion({
           </div>
         )}
 
-        {/* ── Sección: Inicio de Trámite ── */}
+        {/* ── Sección: Trámite y Protocolo Oficial de Titulación ── */}
         {(ficha?.modalidad || (editing && draft.modalidad)) && (
           <div className={`border rounded-[16px] overflow-visible transition-all duration-300 ${
             requisitosMet
-              ? 'bg-white dark:bg-[#181e25] border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]'
+              ? 'bg-white dark:bg-[#181e25] border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] shadow-sm'
               : 'bg-[#f8f9ff] dark:bg-[#1a1f26] border-dashed border-gray-200 dark:border-gray-700/50'
           }`}>
 
@@ -936,13 +1154,15 @@ export default function TabTitulacion({
                 <Flag size={16} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-[#222222] dark:text-gray-100">Inicio de Trámite</p>
+                <p className="text-sm font-semibold text-[#222222] dark:text-gray-100">
+                  Trámite y Protocolo Oficial de Titulación
+                </p>
                 <p className="text-[11px] text-[#8e8e93]">
                   {ficha?.tramite_completado
-                    ? 'Trámite finalizado'
+                    ? 'Grado asentado — Acta y Folio de Control oficial registrados'
                     : requisitosMet
-                      ? 'Requisitos cubiertos — trámite habilitado'
-                      : 'Se habilita al cubrir todos los requisitos'}
+                      ? 'Requisitos cubiertos — listo para asentar Acta de Titulación'
+                      : 'Se habilita automáticamente al cubrir el 100% de los requisitos'}
                 </p>
               </div>
               {!requisitosMet && !ficha?.tramite_completado && (
@@ -950,47 +1170,82 @@ export default function TabTitulacion({
               )}
             </div>
 
-            {/* Contenido bloqueado */}
+            {/* Contenido bloqueado si no cumple requisitos */}
             {!requisitosMet && !ficha?.tramite_completado && (
               <div className="flex items-center gap-3 px-5 py-5 text-sm text-[#8e8e93]">
                 <AlertCircle size={16} className="text-amber-400 shrink-0" />
-                Cubre todos los requisitos generales y documentales para habilitar esta sección.
+                Cubre todos los requisitos generales y documentales para habilitar el registro del acta oficial.
               </div>
             )}
 
-            {/* Trámite completado */}
+            {/* Vista Resumen del Acta si el trámite ya está COMPLETADO */}
             {ficha?.tramite_completado && (
-              <div className="px-5 py-5 flex flex-col gap-3">
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 size={18} />
-                  <span className="text-sm font-semibold">Proceso de Titulación Completado</span>
-                </div>
-                {ficha.fecha_completado && (
-                  <p className="text-xs text-[#8e8e93]">
-                    Completado el: {new Date(ficha.fecha_completado).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}
-                  </p>
-                )}
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/40 rounded-[8px] px-3 py-2">
-                    <GraduationCap size={13} /> Estatus del alumno actualizado a <strong>EGRESADO TITULADO</strong>
+              <div className="p-5 space-y-4">
+                <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border border-emerald-200 dark:border-emerald-800/60">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-sm">
+                      <Award size={18} className="text-emerald-600 dark:text-emerald-400" />
+                      Acta de Titulación y Grado Académico Asentado
+                    </div>
+                    {ficha.fecha_completado && (
+                      <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                        Concluido el: {new Date(ficha.fecha_completado).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      </span>
+                    )}
                   </div>
-                  {editing && (
-                    <button
-                      onClick={handleRevertirTramite}
-                      className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-colors"
-                    >
-                      <AlertCircle size={12} /> Revertir a En Trámite
-                    </button>
-                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                    <div className="bg-white/80 dark:bg-[#1c2228]/80 backdrop-blur-xs p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
+                      <p className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500">Folio de Control</p>
+                      <p className="text-sm font-mono font-bold text-indigo-700 dark:text-indigo-300 truncate">
+                        {draft.folio_control || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="bg-white/80 dark:bg-[#1c2228]/80 backdrop-blur-xs p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
+                      <p className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500">Libro Oficial</p>
+                      <p className="text-sm font-mono font-bold text-gray-800 dark:text-gray-200">
+                        {draft.libro !== null && draft.libro !== undefined ? `Libro ${String(draft.libro).padStart(3, '0')}` : 'Sin asignar'}
+                      </p>
+                    </div>
+                    <div className="bg-white/80 dark:bg-[#1c2228]/80 backdrop-blur-xs p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
+                      <p className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500">Foja Oficial</p>
+                      <p className="text-sm font-mono font-bold text-gray-800 dark:text-gray-200">
+                        {draft.foja !== null && draft.foja !== undefined ? `Foja ${String(draft.foja).padStart(4, '0')}` : 'Sin asignar'}
+                      </p>
+                    </div>
+                    <div className="bg-white/80 dark:bg-[#1c2228]/80 backdrop-blur-xs p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
+                      <p className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500">
+                        {esModalidadExamen(draft.modalidad) ? 'Examen Profesional' : 'Exención de Examen'}
+                      </p>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                        {(esModalidadExamen(draft.modalidad) ? draft.fecha_examen : draft.fecha_exencion) || 'Sin fecha'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-emerald-200/60 dark:border-emerald-800/40 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300">
+                      <GraduationCap size={14} className="text-emerald-600" />
+                      <span>Estatus del expediente institucional: <strong className="font-bold">TITULADO</strong></span>
+                    </div>
+                    {editing && (
+                      <button
+                        onClick={handleRevertirTramite}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors cursor-pointer"
+                      >
+                        <AlertCircle size={13} /> Revertir Trámite a EGRESADO
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Trámite habilitado (requisitos cubiertos, no completado) */}
-            {requisitosMet && !ficha?.tramite_completado && (
-              <div className="px-5 py-5 space-y-5">
+            {/* Trámite habilitado (Requisitos cubiertos y no completado, o en edición) */}
+            {requisitosMet && (!ficha?.tramite_completado || editing) && (
+              <div className="px-5 py-5 space-y-6">
 
-                {/* Fechas */}
+                {/* Fechas de Seguimiento */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider flex items-center gap-1.5">
@@ -1037,14 +1292,124 @@ export default function TabTitulacion({
                   </div>
                 )}
 
-                {/* Botón completar */}
-                {ficha?.fecha_inicio_tramite && (
-                  <div className="flex justify-end">
+                {/* Subsección: Asentamiento del Acta Oficial */}
+                <div className="p-4.5 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BookOpen size={16} className="text-indigo-600 dark:text-indigo-400" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
+                        Asentamiento en Libros y Folio de Control Oficial
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-100/70 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                      Estándar DGAIR / SEP
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Libro */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                        Libro Oficial <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Ej. 1 (Libro 001)"
+                        disabled={!editing}
+                        value={draft.libro ?? ''}
+                        onChange={e => handleLibroChange(e.target.value)}
+                        className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 font-mono"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-0.5">Formato a 3 dígitos</p>
+                    </div>
+
+                    {/* Foja */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                        Foja Oficial <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Ej. 40 (Foja 0040)"
+                        disabled={!editing}
+                        value={draft.foja ?? ''}
+                        onChange={e => handleFojaChange(e.target.value)}
+                        className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 font-mono"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-0.5">Formato a 4 dígitos</p>
+                    </div>
+
+                    {/* Folio de Control */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                        Folio de Control Oficial
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej. LD-001-0040"
+                        disabled={!editing}
+                        value={draft.folio_control ?? ''}
+                        onChange={e => setDraft(prev => ({ ...prev, folio_control: e.target.value.toUpperCase() }))}
+                        className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 font-mono uppercase font-bold text-indigo-700 dark:text-indigo-400"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-0.5">Auto-generado con carrera, libro y foja</p>
+                    </div>
+                  </div>
+
+                  {/* Campo de fecha según modalidad */}
+                  <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/30">
+                    {esModalidadExamen(draft.modalidad) ? (
+                      <div className="max-w-md">
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                          Fecha de Examen Profesional <span className="text-red-500">*</span>
+                          <span className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400 ml-1.5">
+                            (Tesis / Tesina — Réplica oral ante sínodo)
+                          </span>
+                        </label>
+                        <input
+                          type="date"
+                          disabled={!editing}
+                          value={(draft.fecha_examen as string) ?? ''}
+                          onChange={e => setDraft(prev => ({ ...prev, fecha_examen: e.target.value || null, fecha_exencion: null }))}
+                          className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Columna 33 en el Layout DGAIR. La fecha de exención se mantiene vacía automáticamente.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-w-md">
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                          Fecha de Exención de Examen <span className="text-red-500">*</span>
+                          <span className="text-[11px] font-normal text-purple-600 dark:text-purple-400 ml-1.5">
+                            (Protocolo oficial sin réplica oral)
+                          </span>
+                        </label>
+                        <input
+                          type="date"
+                          disabled={!editing}
+                          value={(draft.fecha_exencion as string) ?? ''}
+                          onChange={e => setDraft(prev => ({ ...prev, fecha_exencion: e.target.value || null, fecha_examen: null }))}
+                          className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Columna 34 en el Layout DGAIR. La fecha de examen se mantiene vacía automáticamente.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botón completar proceso */}
+                {!ficha?.tramite_completado && (
+                  <div className="flex justify-end pt-2">
                     <button
                       onClick={handleCompletarTramite}
-                      className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-[10px] shadow-sm transition-colors"
+                      className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-[10px] shadow-sm transition-colors cursor-pointer"
                     >
-                      <CheckCircle2 size={15} /> Marcar Proceso como Completado
+                      <CheckCircle2 size={15} /> Asentar Acta y Marcar como TITULADO
                     </button>
                   </div>
                 )}
@@ -1097,7 +1462,7 @@ export default function TabTitulacion({
                   </p>
                   <ul className="text-xs text-amber-600 dark:text-amber-500 mt-1 space-y-1 list-disc list-inside leading-relaxed">
                     <li>Se perderá la modalidad y todas las fechas de trámite.</li>
-                    <li>Si el alumno era <strong>EGRESADO TITULADO</strong>, su estatus regresará a <strong>EGRESADO</strong>.</li>
+                    <li>Si el alumno era <strong>TITULADO</strong>, su estatus regresará a <strong>EGRESADO</strong>.</li>
                     <li>Esta acción <strong>no se puede deshacer</strong>.</li>
                   </ul>
                 </div>

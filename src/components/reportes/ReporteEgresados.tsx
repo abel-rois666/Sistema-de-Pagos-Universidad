@@ -103,7 +103,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   // 1. Filtrar los egresados base de la lista global
   const egresadosBase = useMemo(() => {
-    return alumnos.filter(a => a.estatus === 'EGRESADO' || a.estatus === 'EGRESADO TITULADO');
+    return alumnos.filter(a => a.estatus === 'EGRESADO' || a.estatus === 'TITULADO' || a.estatus === 'EGRESADO TITULADO');
   }, [alumnos]);
 
   // 2. Fetch de inscripciones_academicas y fichas de certificacion SOLO para egresados, en lotes
@@ -294,7 +294,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const filteredEgresados = useMemo(() => {
     let result = egresadosBase.filter(a => {
       if (selectedLicenciaturas.length > 0 && !selectedLicenciaturas.includes(a.licenciatura)) return false;
-      if (selectedSegmento === 'TITULADOS' && a.estatus !== 'EGRESADO TITULADO') return false;
+      if (selectedSegmento === 'TITULADOS' && a.estatus !== 'TITULADO' && a.estatus !== 'EGRESADO TITULADO') return false;
       if (selectedSegmento === 'NO_TITULADOS' && a.estatus !== 'EGRESADO') return false;
       
       const cicloEgresoDelAlumno = ciclosEgresoMap[a.id];
@@ -752,7 +752,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {paginatedEgresados.length > 0 ? (
                   paginatedEgresados.map((a, idx) => {
-                    const esTitulado = a.estatus === 'EGRESADO TITULADO';
+                    const esTitulado = a.estatus === 'TITULADO' || a.estatus === 'EGRESADO TITULADO';
                     const cicloEgresoNombre = ciclosEgresoMap[a.id] || (tieneKardexMap[a.id] ? 'Ciclo Desconocido' : 'Sin Kardex');
                     const pagoTitulacion = pagoTitulacionMap[a.id] || 'Sin plan';
                     const certificacionStatus = certificacionMap[a.id] || 'Sin iniciar';

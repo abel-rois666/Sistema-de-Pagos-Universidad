@@ -605,7 +605,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, onBack, onSa
                                 ...newPlanForm,
                                 alumno_id: alumno.id,
                                 nombre_alumno: alumno.nombre_completo,
-                                licenciatura: alumno.licenciatura,
+                                licenciatura: alumno.carrera_nombre || alumno.licenciatura,
                                 grado_turno: `${formatGrado(alumno.grado_actual)} / ${alumno.turno}`
                               });
                               setNewPlanSearchTerm(alumno.nombre_completo);

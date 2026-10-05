@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import type { CicloEscolar } from '../../types';
 import ModalGenerarCarga from './ModalGenerarCarga';
 import { formatGrado } from '../../utils/formatUtils';
+import { calcularEstatusInstitucional } from '../../services/academicosService';
+import { useAppStore } from '../../store/useAppStore';
 
 interface ModalReinscripcionProps {
   alumnoId: string;
@@ -96,16 +98,34 @@ export default function ModalReinscripcion({
 
       const { nuevoGrado, nuevoEstatus } = calcularSiguienteGradoYEstatus(alumnoGradoActual, planActivoNombre, planActivoTipoPeriodo);
       
-      await supabase.from('alumnos').update({
-        grado_actual: nuevoGrado,
-        estatus: nuevoEstatus,
-        ciclo_ultima_asignacion_grado: ciclos.find(c => c.nombre === cicloDestino)?.id || cicloDestino
-      }).eq('id', alumnoId);
-
       if (nuevoEstatus === 'EGRESADO') {
-         await supabase.from('alumno_programas').update({ estatus: 'EGRESADO' })
+         await supabase.from('alumno_programas').update({ 
+           estatus: 'EGRESADO',
+           motivo_estatus: 'PLAN_CONCLUIDO',
+           fecha_ultimo_cambio: new Date().toISOString()
+         })
          .eq('alumno_id', alumnoId).eq('plan_id', planActivoId);
       }
+
+      // Derivar estatus institucional a partir de todos los programas del alumno
+      const { data: todosProgramas } = await supabase
+        .from('alumno_programas')
+        .select('estatus, es_vigente')
+        .eq('alumno_id', alumnoId);
+
+      const estatusFinalAlumno = calcularEstatusInstitucional(todosProgramas || [{ estatus: nuevoEstatus, es_vigente: true }]);
+
+      const updatesAlumno = {
+        grado_actual: nuevoGrado,
+        estatus: estatusFinalAlumno,
+        ciclo_ultima_asignacion_grado: ciclos.find(c => c.nombre === cicloDestino)?.id || cicloDestino
+      };
+
+      await supabase.from('alumnos').update(updatesAlumno).eq('id', alumnoId);
+
+      useAppStore.getState().setAlumnos((prev: any[]) =>
+        prev.map((a: any) => (a.id === alumnoId ? { ...a, ...updatesAlumno } : a))
+      );
 
       setStep(2); 
     } catch (error) {

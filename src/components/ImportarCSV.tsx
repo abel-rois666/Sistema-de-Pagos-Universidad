@@ -456,6 +456,40 @@ export default function ImportarCSV({
                 setProgress(null);
                 return;
             }
+
+            // Auto-matricular en alumno_programas para evitar alumnos huérfanos de plan
+            try {
+                const { data: planesDisponibles } = await supabase
+                    .from('planes_estudio')
+                    .select('id, carreras:carrera_id(nombre)');
+
+                if (planesDisponibles && planesDisponibles.length > 0) {
+                    const programasParaInsertar: any[] = [];
+                    for (const al of newAlumnos) {
+                        if (!al.licenciatura || al.licenciatura === 'POR DEFINIR') continue;
+                        const matchPlan = planesDisponibles.find(p => 
+                            (p as any)?.carreras?.nombre?.trim().toLowerCase() === al.licenciatura?.trim().toLowerCase()
+                        );
+                        if (matchPlan) {
+                            const estatusFinal = (al.estatus === 'TITULADO' || al.estatus === 'EGRESADO TITULADO') ? 'TITULADO' : (al.estatus === 'EGRESADO' ? 'EGRESADO' : 'CURSANDO');
+                            const motivoFinal = ['EGRESADO', 'TITULADO'].includes(estatusFinal) ? 'PLAN_CONCLUIDO' : 'REGULAR';
+                            programasParaInsertar.push({
+                                alumno_id: al.id,
+                                plan_id: matchPlan.id,
+                                es_vigente: true,
+                                estatus: estatusFinal,
+                                motivo_estatus: motivoFinal,
+                                fecha_inscripcion: new Date().toISOString().split('T')[0]
+                            });
+                        }
+                    }
+                    if (programasParaInsertar.length > 0) {
+                        await supabase.from('alumno_programas').upsert(programasParaInsertar, { onConflict: 'alumno_id,plan_id', ignoreDuplicates: true });
+                    }
+                }
+            } catch (errProgramas) {
+                console.warn('[ImportarCSV] Error al auto-matricular en alumno_programas:', errProgramas);
+            }
         }
 
         if (newPlans.length > 0) {

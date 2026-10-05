@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { X, Download, Printer, FileText, Settings, Save, RotateCcw, ChevronDown, ChevronUp, Upload, Trash2, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Download, Printer, FileText, Settings, Save, RotateCcw, ChevronDown, ChevronUp, Upload, Trash2, Loader2, Sparkles } from 'lucide-react';
 import type { ServicioSocial, Alumno, AppConfig, ConstanciaParams } from '../../types';
 import { downloadElementAsPDF, printElement } from '../../lib/printUtils';
-import { saveConstanciaParams, uploadConstanciaLogo, deleteConstanciaLogo } from '../../lib/supabase';
+import { supabase, saveConstanciaParams, uploadConstanciaLogo, deleteConstanciaLogo } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
+import { normalizeDateToInput } from '../../utils/formatUtils';
 
 interface Props {
   registro: ServicioSocial;
@@ -64,8 +65,81 @@ export default function ModalConstanciaServicioSocial({
 
   // Campos editables del documento
   const today = new Date();
-  const [numAcuerdo, setNumAcuerdo] = useState(rvoe);
-  const [fechaAcuerdo, setFechaAcuerdo] = useState(rvoeFecha ?? '');
+  const [numAcuerdo, setNumAcuerdo] = useState(rvoe || '');
+  const [fechaAcuerdo, setFechaAcuerdo] = useState(normalizeDateToInput(rvoeFecha) || '');
+  const [detectandoRvoe, setDetectandoRvoe] = useState(false);
+
+  // Auto-detección inteligente del RVOE y Fecha del Acuerdo desde el motor académico
+  useEffect(() => {
+    if (rvoe && !numAcuerdo) setNumAcuerdo(rvoe);
+    if (rvoeFecha && !fechaAcuerdo) setFechaAcuerdo(normalizeDateToInput(rvoeFecha));
+
+    if ((!numAcuerdo || !fechaAcuerdo) && alumno?.id) {
+      let isMounted = true;
+      const autoDetectarRvoe = async () => {
+        setDetectandoRvoe(true);
+        try {
+          // 1. Prioridad: Buscar en los programas/planes del alumno
+          const { data: progs, error: errProgs } = await supabase
+            .from('alumno_programas')
+            .select('es_vigente, fecha_inscripcion, planes_estudio(rvoe, fecha_rvoe, nombre, carreras:carrera_id(nombre))')
+            .eq('alumno_id', alumno.id)
+            .order('fecha_inscripcion', { ascending: false });
+
+          if (!errProgs && progs && progs.length > 0) {
+            const vigente = progs.find((p: any) => p.es_vigente && p.planes_estudio?.rvoe)
+              || progs.find((p: any) => p.planes_estudio?.rvoe)
+              || progs[0];
+            const plan = (vigente as any)?.planes_estudio;
+            const rvoeFinal = plan?.rvoe;
+            const fechaFinal = plan?.fecha_rvoe;
+
+            if (isMounted) {
+              if (rvoeFinal && !numAcuerdo) setNumAcuerdo(rvoeFinal);
+              if (fechaFinal && !fechaAcuerdo) setFechaAcuerdo(normalizeDateToInput(fechaFinal));
+            }
+            if (rvoeFinal || fechaFinal) {
+              if (isMounted) setDetectandoRvoe(false);
+              return;
+            }
+          }
+
+          // 2. Respaldo: Buscar en planes_estudio por coincidencia con la carrera del alumno
+          const { data: planes } = await supabase
+            .from('planes_estudio')
+            .select('rvoe, fecha_rvoe, nombre, carreras:carrera_id(nombre)')
+            .or('rvoe.not.is.null,fecha_rvoe.not.is.null');
+
+          if (planes && planes.length > 0 && isMounted) {
+            const norm = (s?: string) => (s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const target = norm(alumno.licenciatura);
+            const matched: any = planes.find((p: any) => {
+              const cData: any = Array.isArray(p.carreras) ? p.carreras[0] : p.carreras;
+              const cNom = norm(cData?.nombre);
+              const pNom = norm(p.nombre);
+              return (cNom && (target === cNom || target.includes(cNom) || cNom.includes(target))) ||
+                     (pNom && (target === pNom || target.includes(pNom) || pNom.includes(target)));
+            });
+
+            if (matched) {
+              const rvoeFinal = matched.rvoe;
+              const fechaFinal = matched.fecha_rvoe;
+              if (rvoeFinal && !numAcuerdo) setNumAcuerdo(rvoeFinal);
+              if (fechaFinal && !fechaAcuerdo) setFechaAcuerdo(normalizeDateToInput(fechaFinal));
+            }
+          }
+        } catch (err) {
+          console.warn('[ModalConstanciaServicioSocial] Error detectando RVOE:', err);
+        } finally {
+          if (isMounted) setDetectandoRvoe(false);
+        }
+      };
+
+      autoDetectarRvoe();
+      return () => { isMounted = false; };
+    }
+  }, [alumno.id, alumno.licenciatura, rvoe, rvoeFecha]);
+
   const [expDia, setExpDia]   = useState(String(today.getDate()));
   const [expMes, setExpMes]   = useState(MESES[today.getMonth()]);
   const [expAnio, setExpAnio] = useState(String(today.getFullYear()));
@@ -274,8 +348,43 @@ export default function ModalConstanciaServicioSocial({
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c2228]">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-              { label: 'No. Acuerdo / RVOE', el: <input type="text" value={numAcuerdo} onChange={e => setNumAcuerdo(e.target.value)} placeholder="Ej. 20090890" className="w-full border border-[#e5e7eb] dark:border-white/12 rounded-[8px] px-3 py-2 text-sm bg-white dark:bg-[#181e25] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" /> },
-              { label: 'Fecha del acuerdo', el: <input type="date" value={fechaAcuerdo} onChange={e => setFechaAcuerdo(e.target.value)} className="w-full border border-rose-200 dark:border-rose-800 rounded-[8px] px-3 py-2 text-sm bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 outline-none focus:ring-2 focus:ring-rose-500" /> },
+              { 
+                label: 'No. Acuerdo / RVOE', 
+                el: (
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      value={numAcuerdo} 
+                      onChange={e => setNumAcuerdo(e.target.value)} 
+                      placeholder={detectandoRvoe ? 'Detectando RVOE...' : 'Ej. 20090890'} 
+                      className="w-full border border-[#e5e7eb] dark:border-white/12 rounded-[8px] px-3 py-2 text-sm bg-white dark:bg-[#181e25] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 font-medium" 
+                    />
+                    {detectandoRvoe && (
+                      <Loader2 size={13} className="animate-spin text-indigo-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    )}
+                  </div>
+                ) 
+              },
+              { 
+                label: 'Fecha del acuerdo', 
+                el: (
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={fechaAcuerdo} 
+                      onChange={e => setFechaAcuerdo(e.target.value)} 
+                      className={`w-full border rounded-[8px] px-3 py-2 text-sm outline-none focus:ring-2 transition-colors ${
+                        !fechaAcuerdo 
+                          ? 'border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 focus:ring-amber-500' 
+                          : 'border-[#e5e7eb] dark:border-white/12 bg-white dark:bg-[#181e25] text-[#222222] dark:text-gray-100 focus:ring-indigo-500'
+                      }`} 
+                    />
+                    {detectandoRvoe && (
+                      <Loader2 size={13} className="animate-spin text-indigo-500 absolute right-7 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    )}
+                  </div>
+                ) 
+              },
               { label: 'Día de expedición', el: <input type="number" min={1} max={31} value={expDia} onChange={e => setExpDia(e.target.value)} className="w-full border border-[#e5e7eb] dark:border-white/12 rounded-[8px] px-3 py-2 text-sm bg-white dark:bg-[#181e25] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" /> },
               { label: 'Mes de expedición', el: <select value={expMes} onChange={e => setExpMes(e.target.value)} className="w-full border border-[#e5e7eb] dark:border-white/12 rounded-[8px] px-3 py-2 text-sm bg-white dark:bg-[#181e25] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500">{MESES.map(m => <option key={m} value={m}>{m}</option>)}</select> },
               { label: 'Año de expedición', el: <input type="number" value={expAnio} onChange={e => setExpAnio(e.target.value)} className="w-full border border-[#e5e7eb] dark:border-white/12 rounded-[8px] px-3 py-2 text-sm bg-white dark:bg-[#181e25] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500" /> },

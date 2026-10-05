@@ -2,24 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase, getAppConfig } from '../../lib/supabase';
 import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft, UserPlus, X, Settings, Users, Save, ChevronDown, ChevronUp, ShieldCheck, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { generarLayoutTitulacionDGAIR, TitulacionAlumnoData, ENTIDADES_CATALOGO, TIPOS_ANTECEDENTE_CATALOGO } from '../../utils/titulacionExportUtils';
+import { generarLayoutTitulacionDGAIR, TitulacionAlumnoData, ENTIDADES_CATALOGO, TIPOS_ANTECEDENTE_CATALOGO, generateFolioControl } from '../../utils/titulacionExportUtils';
 import type { AppConfig, Empleado } from '../../types';
-
-function generateFolioPrefix(nivel: string, carreraNombre: string) {
-  if (!nivel || !carreraNombre) return 'XX-000-0000';
-  let prefix = '';
-  const n = nivel.toUpperCase();
-  if (n === 'LICENCIATURA') prefix = 'L';
-  else if (n === 'ESPECIALIDAD') prefix = 'ESP';
-  else if (n.includes('MAESTR')) prefix = 'M';
-  else if (n === 'DOCTORADO') prefix = 'D';
-  else prefix = n.charAt(0);
-
-  const ignoredWords = ['DE', 'LA', 'EN', 'EL', 'LOS', 'LAS', 'Y', 'A', 'CON'];
-  const words = carreraNombre.split(' ').filter(w => !ignoredWords.includes(w.toUpperCase()));
-  const suffix = words.map(w => w.charAt(0).toUpperCase()).join('');
-  return `${prefix}${suffix}-000-0000`;
-}
 
 export default function WizardLayoutTitulacion() {
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
@@ -131,9 +115,16 @@ export default function WizardLayoutTitulacion() {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      const alumnoObj = { ...al, plan, carrera, uid, inscripciones: inscData || [], servicio_social: ssData?.[0], doc_curp: fichaTitulacionData?.[0]?.doc_curp };
+      const fTit = fichaTitulacionData?.[0];
+      const alumnoObj = { ...al, plan, carrera, uid, inscripciones: inscData || [], servicio_social: ssData?.[0], doc_curp: fTit?.doc_curp };
 
-      const defaultFolio = generateFolioPrefix(carrera?.nivel_educativo || '', carrera?.nombre || '');
+      // Construcción del folio: si existe en ficha_titulacion se respeta, si no, se genera con Libro y Foja si existen
+      const defaultFolio = fTit?.folio_control || generateFolioControl(
+        carrera?.nivel_educativo,
+        carrera?.nombre,
+        fTit?.libro,
+        fTit?.foja
+      );
       
       let defaultIdSS = '';
       const nivel = carrera?.nivel_educativo?.toUpperCase() || '';
@@ -147,9 +138,10 @@ export default function WizardLayoutTitulacion() {
 
       const defaultIdAut = plan?.id_autorizacion_reconocimiento?.toString() || '';
 
-      const modalidadTexto = fichaTitulacionData?.[0]?.modalidad?.toUpperCase() || '';
+      const modalidadTexto = fTit?.modalidad?.toUpperCase() || '';
       let defaultModalidadId = '';
-      if (modalidadTexto.includes('TESIS')) {
+      // Modalidad 1: Tesis o Tesina (ambas requieren examen/réplica ante sínodo)
+      if (modalidadTexto.includes('TESIS') || modalidadTexto.includes('TESINA')) {
         defaultModalidadId = '1';
       } else if (modalidadTexto.includes('RENDIMIENTO') || modalidadTexto.includes('PROMEDIO')) {
         defaultModalidadId = '2';
@@ -189,13 +181,17 @@ export default function WizardLayoutTitulacion() {
       const pad = (n: number) => n.toString().padStart(2, '0');
       const defFechaExpedicion = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+      // Precarga de fecha examen vs fecha exencion desde ficha_titulacion según modalidad
+      const defFechaExamen = defaultModalidadId === '1' ? (fTit?.fecha_examen || '') : '';
+      const defFechaExencion = defaultModalidadId !== '1' && defaultModalidadId !== '' ? (fTit?.fecha_exencion || '') : '';
+
       const newItem: TitulacionAlumnoData = {
         alumno: alumnoObj,
         configuracion: {
           correo: 'control.escolar@cuom.edu.mx',
           modalidad_id: defaultModalidadId,
-          fecha_examen: '',
-          fecha_exencion: '',
+          fecha_examen: defFechaExamen,
+          fecha_exencion: defFechaExencion,
           antecedente_inicio: '',
           antecedente_fin: '',
           cedula_especialidad: '',
@@ -229,7 +225,16 @@ export default function WizardLayoutTitulacion() {
   const updateConfig = (uid: string, field: string, value: string) => {
     setQueue(prev => prev.map(q => {
       if (q.alumno.uid === uid) {
-        return { ...q, configuracion: { ...q.configuracion, [field]: value } };
+        const nextCfg = { ...q.configuracion, [field]: value };
+        // Exclusión mutua según modalidad: 1 (Tesis/Tesina) usa fecha_examen, otras usan fecha_exencion
+        if (field === 'modalidad_id') {
+          if (value === '1') {
+            nextCfg.fecha_exencion = '';
+          } else if (value !== '') {
+            nextCfg.fecha_examen = '';
+          }
+        }
+        return { ...q, configuracion: nextCfg };
       }
       return q;
     }));
@@ -647,12 +652,18 @@ export default function WizardLayoutTitulacion() {
 
                       {item.configuracion.modalidad_id === '1' ? (
                         <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Examen Profesional <span className="text-red-500">*</span></label>
+                          <label className="block text-xs font-bold text-gray-500 mb-1">
+                            Fecha Examen Profesional <span className="text-red-500">*</span>
+                            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-normal ml-1">(Tesis / Tesina con sínodo)</span>
+                          </label>
                           <input type="date" value={item.configuracion.fecha_examen} onChange={e => updateConfig(item.alumno.uid, 'fecha_examen', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                         </div>
                       ) : item.configuracion.modalidad_id !== '' ? (
                         <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Exención de Examen <span className="text-red-500">*</span></label>
+                          <label className="block text-xs font-bold text-gray-500 mb-1">
+                            Fecha Exención de Examen <span className="text-red-500">*</span>
+                            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-normal ml-1">(Protocolo sin réplica)</span>
+                          </label>
                           <input type="date" value={item.configuracion.fecha_exencion} onChange={e => updateConfig(item.alumno.uid, 'fecha_exencion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                         </div>
                       ) : <div />}

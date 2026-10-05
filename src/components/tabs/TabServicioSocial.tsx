@@ -10,6 +10,7 @@ import { formatDate, toTitleCase } from '../../utils';
 import ModalServicioSocial from '../modals/ModalServicioSocial';
 import ModalConstanciaServicioSocial from '../modals/ModalConstanciaServicioSocial';
 import { useAppStore } from '../../store/useAppStore';
+import { normalizeDateToInput } from '../../utils/formatUtils';
 
 interface TabServicioSocialProps {
   alumnoId: string;
@@ -83,6 +84,64 @@ export default function TabServicioSocial({
 
   // Estado para modal de constancia PDF
   const [constanciaTarget, setConstanciaTarget] = useState<ServicioSocial | null>(null);
+  const [detectedRvoe, setDetectedRvoe] = useState<{ rvoe: string; fecha_rvoe: string }>({ rvoe: '', fecha_rvoe: '' });
+
+  // ── Auto-detección de RVOE del plan curricular del alumno ──────────────────
+  useEffect(() => {
+    let cancel = false;
+    const fetchPlanRvoe = async () => {
+      try {
+        // 1. Intentar por alumno_programas (plan vigente o más reciente)
+        const { data: progs } = await supabase
+          .from('alumno_programas')
+          .select('es_vigente, fecha_inscripcion, planes_estudio(rvoe, fecha_rvoe, nombre, carreras:carrera_id(nombre))')
+          .eq('alumno_id', alumnoId)
+          .order('fecha_inscripcion', { ascending: false });
+
+        if (!cancel && progs && progs.length > 0) {
+          const vig = progs.find((p: any) => p.es_vigente && p.planes_estudio?.rvoe)
+            || progs.find((p: any) => p.planes_estudio?.rvoe)
+            || progs[0];
+          const plan = (vig as any)?.planes_estudio;
+          const rvoe = plan?.rvoe || '';
+          const fecha_rvoe = plan?.fecha_rvoe || '';
+          if (rvoe || fecha_rvoe) {
+            setDetectedRvoe({ rvoe, fecha_rvoe: normalizeDateToInput(fecha_rvoe) });
+            return;
+          }
+        }
+
+        // 2. Respaldo por planes_estudio coincidentes con la carrera del alumno
+        const { data: planes } = await supabase
+          .from('planes_estudio')
+          .select('rvoe, fecha_rvoe, nombre, carreras:carrera_id(nombre)')
+          .or('rvoe.not.is.null,fecha_rvoe.not.is.null');
+
+        if (!cancel && planes && planes.length > 0) {
+          const norm = (s?: string) => (s || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const target = norm(alumno.licenciatura);
+          const matched: any = planes.find((p: any) => {
+            const cData: any = Array.isArray(p.carreras) ? p.carreras[0] : p.carreras;
+            const cNom = norm(cData?.nombre);
+            const pNom = norm(p.nombre);
+            return (cNom && (target === cNom || target.includes(cNom) || cNom.includes(target))) ||
+                   (pNom && (target === pNom || target.includes(pNom) || pNom.includes(target)));
+          });
+
+          if (matched) {
+            const rvoe = matched.rvoe || '';
+            const fecha_rvoe = matched.fecha_rvoe || '';
+            setDetectedRvoe({ rvoe, fecha_rvoe: normalizeDateToInput(fecha_rvoe) });
+          }
+        }
+      } catch (e) {
+        console.warn('[TabServicioSocial] Error detectando RVOE:', e);
+      }
+    };
+
+    fetchPlanRvoe();
+    return () => { cancel = true; };
+  }, [alumnoId, alumno.licenciatura]);
 
   // ── Carga de datos ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -430,20 +489,17 @@ export default function TabServicioSocial({
       )}
 
       {/* Modal constancia PDF */}
-      {constanciaTarget && (() => {
-        const carrera = carreras.find(c => c.nombre === alumno.licenciatura);
-        return (
-          <ModalConstanciaServicioSocial
-            registro={constanciaTarget}
-            alumno={alumno}
-            appConfig={appConfig}
-            rvoe={carrera?.rvoe ?? ''}
-            rvoeFecha={carrera?.fecha_rvoe ?? ''}
-            isAdmin={isAdmin}
-            onClose={() => setConstanciaTarget(null)}
-          />
-        );
-      })()}
+      {constanciaTarget && (
+        <ModalConstanciaServicioSocial
+          registro={constanciaTarget}
+          alumno={alumno}
+          appConfig={appConfig}
+          rvoe={detectedRvoe.rvoe}
+          rvoeFecha={detectedRvoe.fecha_rvoe}
+          isAdmin={isAdmin}
+          onClose={() => setConstanciaTarget(null)}
+        />
+      )}
 
 
       {/* ── Modal de Eliminación (solo admin) ──────────────────────────────── */}

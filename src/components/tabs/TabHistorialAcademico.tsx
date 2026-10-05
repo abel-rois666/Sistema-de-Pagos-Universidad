@@ -177,8 +177,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
             const licNorm = licAlumno.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             if (nombreNorm && nombreNorm === licNorm) return true;
           }
-          return false;
-        }) || data.find((p: any) => p.estatus === 'CURSANDO') || data[0];
+        }) || data.find((p: any) => p.es_vigente) || ((alumno.estatus?.includes('EGRESADO') || alumno.estatus === 'TITULADO') ? data.find((p: any) => ['EGRESADO', 'TITULADO'].includes(p.estatus)) : null) || data.find((p: any) => p.estatus === 'CURSANDO') || data[0];
 
         setPlanActivoId(prev => {
           if (prev && data.some(d => d.plan_id === prev)) return prev;

@@ -74,6 +74,17 @@ export interface Alumno {
   // Datos nuevos
   discapacidad?: string | null;
   lengua_indigena?: string | null;
+
+  // Integración CRM
+  crm_lead_id?: string | null;
+  observaciones_rechazo?: string | null;
+
+  // ── Carrera y Plan Vigente (derivados de alumno_programas) ──
+  carrera_id?: string | null;
+  carrera_nombre?: string | null;
+  plan_id?: string | null;
+  plan_nombre?: string | null;
+  total_periodos?: number | null;
 }
 
 export interface PaymentPlanDetalle {
@@ -244,7 +255,7 @@ export interface AppConfig {
   constanciaParams: ConstanciaParams;
 }
 
-export type CatalogoTipo = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno' | 'empresa_ss' | 'modalidad_titulacion';
+export type CatalogoTipo = 'concepto' | 'licenciatura' | 'beca_tipo' | 'beca_porcentaje' | 'grado' | 'turno' | 'estatus_alumno' | 'empresa_ss' | 'modalidad_titulacion' | 'observacion_plan';
 
 export interface CatalogoItem {
   id: string;
@@ -376,6 +387,14 @@ export interface FichaTitulacion {
   fecha_completado?:             string | null;
   enlace_drive?:                 string | null;
 
+  // Acta de Titulación y Protocolo Oficial
+  libro?:                        number | null;
+  foja?:                         number | null;
+  folio_control?:                string | null;
+  fecha_examen?:                 string | null;
+  fecha_exencion?:               string | null;
+  alumno_programa_id?:           string | null;
+
   created_at?: string;
   updated_at?: string;
 }
@@ -468,22 +487,39 @@ export interface Carrera {
 
 export interface PlanEstudio {
   id: string;
-  licenciatura_id: string; // UUID referenciando a catalogos.id
+  licenciatura_id?: string | null; // UUID referenciando a catalogos.id
   carrera_id?: string;
   rvoe?: string;
   fecha_rvoe?: string;
   carrera?: Carrera; // Para joins
+  carreras?: Carrera; // Para joins con nombre plural
   clave_legado: string;
   nombre: string;
   estatus: string;
   creditos_obligatorios?: number;
   tipo_periodo?: string;
+  total_periodos?: number;
+  total_asignaturas?: number;
   id_tipo_periodo?: number;
   id_plan_certificacion?: number;
   id_autorizacion_reconocimiento?: number; // Nuevo
   autorizacion_reconocimiento?: string; // Nuevo
   modelo?: string;
   created_at: string;
+}
+
+export interface AlumnoPrograma {
+  id: string;
+  alumno_id: string;
+  plan_id: string;
+  es_vigente?: boolean;
+  estatus: 'CURSANDO' | 'EGRESADO' | 'TITULADO' | 'BAJA' | 'BAJA_POR_CAMBIO' | string;
+  motivo_estatus?: 'REGULAR' | 'CAMBIO_DE_CARRERA' | 'PLAN_CONCLUIDO' | 'DESERCION_VOLUNTARIA' | 'REINGRESO' | 'CARRERA_SIMULTANEA' | 'SEGUNDA_CARRERA' | string;
+  estatus_previo?: string | null;
+  fecha_ultimo_cambio?: string;
+  fecha_inscripcion: string;
+  created_at?: string;
+  planes_estudio?: PlanEstudio;
 }
 
 export interface Asignatura {

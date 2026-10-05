@@ -5,6 +5,7 @@ import {
   AlertCircle, ChevronDown, X, Edit3, CalendarDays, Flag, Lock, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAppStore } from '../../store/useAppStore';
 import type { FichaCertificacion } from '../../types';
 import DrivePicker from '../DrivePicker';
 
@@ -215,6 +216,22 @@ export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusCh
       const { data } = await supabase.from('ficha_certificacion').insert({ alumno_id: alumnoId, ...draft }).select().single();
       if (data) setFicha(data as FichaCertificacion);
     }
+
+    if (draft.tramite_completado) {
+      const ahora = new Date().toISOString();
+      await supabase.from('alumno_programas').update({
+        estatus: 'EGRESADO',
+        motivo_estatus: 'PLAN_CONCLUIDO',
+        fecha_ultimo_cambio: ahora,
+      }).eq('alumno_id', alumnoId).eq('estatus', 'CURSANDO');
+
+      await supabase.from('alumnos').update({ estatus: 'EGRESADO' }).eq('id', alumnoId).eq('estatus', 'ACTIVO');
+
+      useAppStore.getState().setAlumnos(prev => 
+        prev.map(a => a.id === alumnoId && (!a.estatus || a.estatus === 'ACTIVO') ? { ...a, estatus: 'EGRESADO' } : a)
+      );
+    }
+
     setSaving(false); setEditing(false); setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     load();

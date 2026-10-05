@@ -32,6 +32,7 @@ import EvaluacionNom035 from './components/EvaluacionNom035';
 import WizardLayoutDGAIR from './components/certificacion/WizardLayoutDGAIR';
 import WizardLayoutTitulacion from './components/titulacion/WizardLayoutTitulacion';
 import { ReportesControlEscolar } from './components/reportes/ReportesControlEscolar';
+import AprobacionProspectos from './components/AprobacionProspectos';
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -50,7 +51,7 @@ const DEFAULT_CATALOGOS: CatalogoItem[] = [
     .map((v, i) => ({ id: `dg_${i}`, tipo: 'grado' as const, valor: v, orden: i + 1, activo: true })),
   ...['MATUTINO', 'VESPERTINO', 'MIXTO', 'SABATINO']
     .map((v, i) => ({ id: `dt_${i}`, tipo: 'turno' as const, valor: v, orden: i + 1, activo: true })),
-  ...['ACTIVO', 'BAJA', 'EGRESADO', 'EGRESADO TITULADO']
+  ...['ACTIVO', 'BAJA', 'EGRESADO', 'TITULADO']
     .map((v, i) => ({ id: `dea_${i}`, tipo: 'estatus_alumno' as const, valor: v, orden: i + 1, activo: true })),
 ];
 
@@ -302,6 +303,7 @@ export default function App() {
           <Route path="/certificacion" element={<PageWrapper keyStr="certificacion"><WizardLayoutDGAIR /></PageWrapper>} />
           <Route path="/titulacion" element={<PageWrapper keyStr="titulacion"><WizardLayoutTitulacion /></PageWrapper>} />
           <Route path="/reportes-escolares" element={<PageWrapper keyStr="reportes-escolares"><ReportesControlEscolar /></PageWrapper>} />
+          <Route path="/aprobacion-prospectos" element={<PageWrapper keyStr="aprobacion_prospectos"><AprobacionProspectos /></PageWrapper>} />
           <Route path="/catalogos" element={<PageWrapper keyStr="catalogos"><CatalogosConfig onBack={() => navigate('/')} /></PageWrapper>} />
           <Route path="/plantillas" element={<PageWrapper keyStr="plantillas"><PlantillasConfig onBack={() => navigate('/')} /></PageWrapper>} />
           <Route path="/usuarios" element={<PageWrapper keyStr="usuarios"><UsuariosConfig onBack={() => navigate('/')} /></PageWrapper>} />

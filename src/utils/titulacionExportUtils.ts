@@ -24,6 +24,52 @@ export interface TitulacionAlumnoData {
   };
 }
 
+/**
+ * Determina si la modalidad requiere Examen Profesional (Tesis / Tesina con defensa y sínodo)
+ * o si corresponde a Exención de Examen (Promedio/Alto Rendimiento, CENEVAL, Posgrado, etc.).
+ */
+export function esModalidadExamen(modalidad?: string | null): boolean {
+  if (!modalidad) return false;
+  const mod = modalidad.toUpperCase().trim();
+  return mod.includes('TESIS') || mod.includes('TESINA');
+}
+
+/**
+ * Genera el Folio de Control oficial según las normas institucionales y DGAIR:
+ * PREFIJO_CARRERA - LIBRO (3 dígitos) - FOJA (4 dígitos)
+ * Ejemplo: Licenciatura en Derecho, Libro 1, Foja 40 -> LD-001-0040
+ */
+export function generateFolioControl(
+  nivel?: string | null,
+  carreraNombre?: string | null,
+  libro?: number | string | null,
+  foja?: number | string | null
+): string {
+  if (!nivel && !carreraNombre) return 'XX-000-0000';
+  let prefix = '';
+  const n = (nivel || '').toUpperCase().trim();
+  if (n === 'LICENCIATURA') prefix = 'L';
+  else if (n === 'ESPECIALIDAD') prefix = 'ESP';
+  else if (n.includes('MAESTR')) prefix = 'M';
+  else if (n === 'DOCTORADO') prefix = 'D';
+  else prefix = n.charAt(0) || 'L';
+
+  const ignoredWords = ['DE', 'LA', 'EN', 'EL', 'LOS', 'LAS', 'Y', 'A', 'CON', 'LICENCIATURA', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO', 'ESPECIALIDAD'];
+  const words = (carreraNombre || '').split(' ').filter(w => !ignoredWords.includes(w.toUpperCase()));
+  const suffix = words.map(w => w.charAt(0).toUpperCase()).join('');
+  const codigoCarrera = `${prefix}${suffix}` || 'TIT';
+
+  const libroStr = libro !== null && libro !== undefined && String(libro).trim() !== ''
+    ? String(libro).trim().padStart(3, '0')
+    : '000';
+
+  const fojaStr = foja !== null && foja !== undefined && String(foja).trim() !== ''
+    ? String(foja).trim().padStart(4, '0')
+    : '0000';
+
+  return `${codigoCarrera}-${libroStr}-${fojaStr}`;
+}
+
 export const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
   'AGUASCALIENTES': { id: '01', nombre: 'AGUASCALIENTES' },
   'BAJA CALIFORNIA': { id: '02', nombre: 'BAJA CALIFORNIA' },

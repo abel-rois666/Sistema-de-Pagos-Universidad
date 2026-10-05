@@ -4,7 +4,7 @@ import { formatGrado } from '../utils/formatUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText, AlertCircle, Wand2, MapPin, ShieldCheck, ShieldX, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario } from '../types';
+import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario, Carrera, PlanEstudio } from '../types';
 import { MultiSelectFilter } from './MultiSelectFilter';
 import ModalReporteAlumnos from './modals/ModalReporteAlumnos';
 import ModalSincronizacionGES from './modals/ModalSincronizacionGES';
@@ -85,10 +85,16 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   const isCoordinador = isCoord;
   const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string; plan_id?: string }>({});
 
-  const [planesEstudioDisponibles, setPlanesEstudioDisponibles] = useState<any[]>([]);
+  const [carrerasDisponibles, setCarrerasDisponibles] = useState<Carrera[]>([]);
+  const [planesEstudioDisponibles, setPlanesEstudioDisponibles] = useState<PlanEstudio[]>([]);
+  const [selectedCarreraId, setSelectedCarreraId] = useState<string>('');
+
   React.useEffect(() => {
-    supabase.from('planes_estudio').select('id, nombre, clave_legado, carreras(nombre)').order('nombre').then(({data}) => {
-      if (data) setPlanesEstudioDisponibles(data);
+    supabase.from('carreras').select('*').eq('activo', true).order('nombre').then(({ data }) => {
+      if (data) setCarrerasDisponibles(data as Carrera[]);
+    });
+    supabase.from('planes_estudio').select('*, carreras:carrera_id(nombre, nivel_educativo)').order('nombre').then(({ data }) => {
+      if (data) setPlanesEstudioDisponibles(data as PlanEstudio[]);
     });
   }, []);
 
@@ -245,6 +251,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
           alumno_id: alumnoToSave.id,
           plan_id: editForm.plan_id,
           estatus: 'CURSANDO',
+          motivo_estatus: 'REGULAR',
           fecha_inscripcion: new Date().toISOString().split('T')[0]
         });
       }
@@ -304,6 +311,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       alumnoToSave = {
         ...originalAlumno!,
         ...editForm,
+        estatus: originalAlumno?.estatus || 'ACTIVO',
         ...(isGradeChanged ? { ciclo_ultima_asignacion_grado: activeCicloId } : {})
       } as Alumno;
 
@@ -318,7 +326,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
         licenciatura: alumnoToSave.licenciatura,
         grado_actual: alumnoToSave.grado_actual,
         turno: alumnoToSave.turno,
-        estatus: alumnoToSave.estatus,
+        // estatus se omite: el estatus institucional es gobernado automáticamente por los planes de estudio vía triggers
         beca_porcentaje: alumnoToSave.beca_porcentaje,
         beca_tipo: alumnoToSave.beca_tipo,
         observaciones_pago_titulacion: alumnoToSave.observaciones_pago_titulacion || null,
@@ -335,6 +343,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
   const handleAddNew = () => {
     setEditingId('new');
+    setSelectedCarreraId('');
     setEditForm({
       apellido_paterno: '', apellido_materno: '', nombres: '', nombre_completo: '',
       licenciatura: '', grado_actual: '1', turno: 'MIXTO',
@@ -793,22 +802,40 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     else setBulkSelected(new Set(promotableAlumnos.map(a => a.id)));
   };
 
+  const getPlanTotalPeriodos = (planOrLic: string) => {
+    if (!planOrLic) return 10;
+    // 1. Buscar por ID de plan
+    const byPlan = planesEstudioDisponibles.find(p => p.id === planOrLic);
+    if (byPlan?.total_periodos) return byPlan.total_periodos;
+
+    // 2. Buscar por nombre de carrera o plan
+    const norm = planOrLic.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const byName = planesEstudioDisponibles.find(p => {
+      const cName = (p.carreras?.nombre || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const pName = (p.nombre || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return cName.includes(norm) || pName.includes(norm);
+    });
+    if (byName?.total_periodos) return byName.total_periodos;
+
+    // 3. Fallback de compatibilidad heurística para registros legados
+    if (norm.includes('PSICOLOGIA') || norm.includes('PEDAGOGIA') || norm.includes('MERCADOTECNIA')) {
+      return 8;
+    }
+    return 10;
+  };
+
   const is8voMaxLic = (licenciatura: string) => {
-    if (!licenciatura) return false;
-    const lic = licenciatura.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    return lic.includes('PSICOLOGIA') || lic.includes('PEDAGOGIA') || lic.includes('MERCADOTECNIA');
+    return getPlanTotalPeriodos(licenciatura) <= 8;
   };
 
   const getNextGrade = (currentGrade: string, licenciatura: string) => {
     if (currentGrade?.includes('EGRESADO')) return currentGrade;
     if (currentGrade?.includes('POR DEFINIR')) return '1';
     
-    const is8vo = is8voMaxLic(licenciatura);
+    const maxPeriodos = getPlanTotalPeriodos(licenciatura);
     const currentNum = parseInt(currentGrade) || 1;
 
-    if (is8vo && currentNum >= 8) return 'EGRESADO';
-    if (!is8vo && currentNum >= 10) return 'EGRESADO';
-    
+    if (currentNum >= maxPeriodos) return 'EGRESADO';
     return String(currentNum + 1);
   };
 
@@ -1365,25 +1392,94 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                     <span className="text-sm font-bold text-blue-800 dark:text-blue-200">{editForm.nombre_completo}</span>
                   </div>
                 )}
-                {/* Row 2: Licenciatura + Grado */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Plan de Estudios (Licenciatura)</label>
-                    {planesEstudioDisponibles.length ? (
-                      <select className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" 
-                        value={editForm.plan_id || ''} 
+                {/* Row 2: Carrera y Plan (Cascada al crear) / Banner informativo al editar */}
+                {editingId === 'new' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-2.5 p-3 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30">
+                    <div>
+                      <label className="block text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">
+                        1. Carrera <span className="text-red-500">*</span>
+                      </label>
+                      <select 
+                        className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]"
+                        value={selectedCarreraId}
+                        onChange={e => {
+                          const cId = e.target.value;
+                          setSelectedCarreraId(cId);
+                          const carrera = carrerasDisponibles.find(c => c.id === cId);
+                          const planesFiltrados = planesEstudioDisponibles.filter(p => p.carrera_id === cId);
+                          const primerPlan = planesFiltrados[0];
+                          setEditForm(prev => ({
+                            ...prev,
+                            carrera_id: cId,
+                            plan_id: primerPlan ? primerPlan.id : '',
+                            licenciatura: carrera ? carrera.nombre : (primerPlan?.nombre || '')
+                          }));
+                        }}
+                      >
+                        <option value="">-- Selecciona Carrera --</option>
+                        {carrerasDisponibles.map(c => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">
+                        2. Plan de Estudios <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        disabled={!selectedCarreraId}
+                        className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] disabled:opacity-50"
+                        value={editForm.plan_id || ''}
                         onChange={e => {
                           const planId = e.target.value;
                           const plan = planesEstudioDisponibles.find(p => p.id === planId);
-                          setEditForm({ ...editForm, plan_id: planId, licenciatura: plan ? (plan.carreras?.nombre || plan.nombre) : '' });
-                        }}>
-                        <option value="">-- Seleccionar --</option>
-                        {planesEstudioDisponibles.map(p => <option key={p.id} value={p.id}>{p.carreras?.nombre || p.nombre} ({p.clave_legado})</option>)}
+                          const carrera = carrerasDisponibles.find(c => c.id === selectedCarreraId);
+                          setEditForm(prev => ({
+                            ...prev,
+                            plan_id: planId,
+                            licenciatura: carrera ? carrera.nombre : (plan?.carreras?.nombre || plan?.nombre || prev.licenciatura)
+                          }));
+                        }}
+                      >
+                        <option value="">-- Selecciona Plan --</option>
+                        {planesEstudioDisponibles
+                          .filter(p => p.carrera_id === selectedCarreraId)
+                          .map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.nombre} ({p.clave_legado}) · {p.total_periodos || 10} periodos
+                            </option>
+                          ))}
                       </select>
-                    ) : (
-                      <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" value={editForm.licenciatura || ''} onChange={e => setEditForm({ ...editForm, licenciatura: e.target.value.toUpperCase() })} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Programa / Carrera Actual</span>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <GraduationCap size={15} className="text-[#1456f0]" />
+                        {editForm.licenciatura || 'Sin carrera asignada'}
+                      </p>
+                    </div>
+                    {onViewFicha && editingId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const idToOpen = editingId;
+                          setEditingId(null);
+                          onViewFicha(idToOpen);
+                        }}
+                        className="text-xs font-semibold text-[#1456f0] dark:text-blue-400 hover:underline bg-white dark:bg-gray-800 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+                      >
+                        Gestionar programa en Ficha &rarr;
+                      </button>
                     )}
                   </div>
+                )}
+
+                {/* Row 3: Grado + Turno */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
                   <div>
                     <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Grado</label>
                     {catalogos?.grados?.length ? (
@@ -1402,7 +1498,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                     ) : (
                       <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })} />
                     )}
-                    {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-0.5 leading-tight">Cambia el estatus a ACTIVO para editar</p>}
+                    {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-0.5 leading-tight">Alumno en estatus BAJA (Gestiona sus planes en la Ficha)</p>}
                   </div>
                 </div>
                 {/* Row 3: Turno + Estatus + Tipo Beca + % Beca */}
@@ -1423,17 +1519,34 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Estatus</label>
-                    {catalogos?.estatus_alumnos?.length ? (
-                      <select className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })}>
-                        <option value="">-- Seleccionar --</option>
-                        {catalogos.estatus_alumnos.map(c => <option key={c} value={c}>{c}</option>)}
-                        {editForm.estatus && !catalogos.estatus_alumnos.includes(editForm.estatus) && (
-                          <option value={editForm.estatus}>{editForm.estatus} (Mantenido)</option>
-                        )}
-                      </select>
+                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1 flex items-center justify-between">
+                      <span>Estatus</span>
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-medium">Automático</span>
+                    </label>
+                    {editingId === 'new' ? (
+                      <div className="w-full border border-emerald-300 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/30 rounded-[8px] px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 shadow-xs">
+                        <ShieldCheck size={14} className="text-emerald-500 shrink-0" />
+                        <span>ACTIVO (Nuevo Ingreso)</span>
+                      </div>
                     ) : (
-                      <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]" value={editForm.estatus || ''} onChange={e => setEditForm({ ...editForm, estatus: e.target.value })} />
+                      <div
+                        title="El estatus institucional se calcula automáticamente a partir del estado de sus planes de estudio."
+                        className={`w-full border rounded-[8px] px-2.5 py-1.5 text-xs font-bold flex items-center justify-between shadow-xs ${
+                          editForm.estatus === 'BAJA'
+                            ? 'border-red-300 dark:border-red-800/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'
+                            : editForm.estatus?.includes('TITULADO')
+                            ? 'border-purple-300 dark:border-purple-800/50 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300'
+                            : editForm.estatus?.includes('EGRESADO')
+                            ? 'border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
+                            : 'border-emerald-300 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <ShieldCheck size={14} className="shrink-0 opacity-80" />
+                          <span className="truncate">{editForm.estatus || 'ACTIVO'}</span>
+                        </span>
+                        <span className="text-[9px] uppercase font-mono tracking-wider opacity-60 shrink-0">SSOT</span>
+                      </div>
                     )}
                   </div>
                   <div>

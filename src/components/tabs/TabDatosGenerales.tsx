@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import {
   MapPin, IdCard, Phone, Save, Edit2,
   Loader2, X, CheckCircle, AlertCircle, Baby,
-  School, HeartHandshake, Search, ShieldCheck, ShieldX, Wand2, GraduationCap
+  School, HeartHandshake, Search, ShieldCheck, ShieldX, Wand2, GraduationCap,
+  Check, History, Sparkles, Lock
 } from 'lucide-react';
-import type { Alumno } from '../../types';
+import type { Alumno, AlumnoPrograma } from '../../types';
 import { supabase } from '../../lib/supabase';
+import { academicosService } from '../../services/academicosService';
 import { useAppStore } from '../../store/useAppStore';
 import { lookupCP, getStateAbbr, STATE_MAPPING, ESTADOS_LIST, mapToLegacyCode } from '../../utils/geoUtils';
 import { calcularCURP, calcularDigitoVerificador, inferirDigito17 } from '../../utils/curpUtils';
@@ -74,17 +76,7 @@ const ABBR_TO_NAME: Record<string, string> = Object.entries(STATE_MAPPING)
     return acc;
   }, {});
 
-interface ProgramaAlumno {
-  id: string;
-  plan_id: string;
-  estatus: string;
-  fecha_inscripcion: string;
-  planes_estudio: {
-    nombre: string;
-    clave_legado: string;
-    modelo: string;
-  };
-}
+type ProgramaAlumno = AlumnoPrograma;
 
 interface Props {
   alumno: Alumno;
@@ -373,10 +365,24 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
 
   const [isValidatingCURP, setIsValidatingCURP] = useState(false);
 
-  const { carreras, currentUser } = useAppStore();
+  const { carreras, currentUser, catalogos } = useAppStore();
   const hideSensibleData = currentUser?.rol === 'COORDINADOR FINANCIERO';
+  const canManageProgramas = isAdmin || currentUser?.rol === 'COORDINADOR CONTROL ESCOLAR';
 
   const [form, setForm] = useState<FormData>(buildForm(alumno));
+  const [academicForm, setAcademicForm] = useState({
+    apellido_paterno: alumno.apellido_paterno || '',
+    apellido_materno: alumno.apellido_materno || '',
+    nombres: alumno.nombres || '',
+    grado_actual: alumno.grado_actual || '1',
+    turno: alumno.turno || 'MIXTO',
+    estatus: alumno.estatus || 'ACTIVO',
+    beca_tipo: alumno.beca_tipo || 'NINGUNA',
+    beca_porcentaje: alumno.beca_porcentaje || '0%',
+    observaciones_pago_titulacion: alumno.observaciones_pago_titulacion || ''
+  });
+  const [carreraInscripcionId, setCarreraInscripcionId] = useState('');
+
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [curpStatus, setCurpStatus] = useState<'idle' | 'ok' | 'error'>('idle');
@@ -396,7 +402,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   };
 
   const formatPlanName = (prog: any) => {
-    const plan = prog.planes_estudio;
+    const plan = prog?.planes_estudio;
     if (!plan) return 'Desconocido';
     
     const carrera = carreras.find(c => c.id === plan.carrera_id);
@@ -404,6 +410,19 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
       return getCarreraFullName(carrera);
     }
     return plan.nombre;
+  };
+
+  const formatLegacyLicenciatura = (lic?: string) => {
+    if (!lic) return 'Sin programa oficial asignado';
+    const clean = lic.trim().toUpperCase();
+    const carrera = carreras.find(c => {
+      const cNom = c.nombre.trim().toUpperCase();
+      return clean === cNom || clean.includes(cNom) || cNom.includes(clean);
+    });
+    if (carrera) {
+      return getCarreraFullName(carrera);
+    }
+    return toTitleCase(clean);
   };
   const [contactErrors, setContactErrors] = useState<{ telefono?: string; celular?: string; email?: string }>({});
   const [cpLoading, setCpLoading] = useState(false);
@@ -415,23 +434,77 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   const [buscandoGes, setBuscandoGes] = useState(false);
 
   const [programas, setProgramas] = useState<ProgramaAlumno[]>([]);
-  const [loadingProgramas, setLoadingProgramas] = useState(false);
-  const [isAddingPrograma, setIsAddingPrograma] = useState(false);
+
+  // Resolución matemática de UN ÚNICO Plan Rector Vigente
+  const { vigentePlanId, progVigente } = useMemo(() => {
+    if (!programas || programas.length === 0) {
+      return { vigentePlanId: null, progVigente: null };
+    }
+
+    const vigentes = programas.filter(p => p.es_vigente);
+    let elegido: ProgramaAlumno | undefined;
+
+    if (vigentes.length === 1) {
+      elegido = vigentes[0];
+    } else if (vigentes.length > 1) {
+      // Si por inconsistencia previa en BD hay más de un registro con es_vigente=true,
+      // desempatar estrictamente por fecha de último cambio o fecha de inscripción más reciente
+      elegido = [...vigentes].sort((a, b) => {
+        const timeB = new Date(b.fecha_ultimo_cambio || b.fecha_inscripcion || 0).getTime();
+        const timeA = new Date(a.fecha_ultimo_cambio || a.fecha_inscripcion || 0).getTime();
+        return timeB - timeA;
+      })[0];
+    } else {
+      const esAlumnoEgresado = alumno.estatus?.includes('EGRESADO') || alumno.estatus === 'TITULADO';
+      if (esAlumnoEgresado) {
+        elegido = programas.find(p => ['EGRESADO', 'TITULADO'].includes(p.estatus))
+          || programas.find(p => p.estatus === 'CURSANDO')
+          || programas[0];
+      } else {
+        elegido = programas.find(p => p.estatus === 'CURSANDO')
+          || programas.find(p => ['EGRESADO', 'TITULADO'].includes(p.estatus))
+          || programas[0];
+      }
+    }
+
+    return {
+      vigentePlanId: elegido?.plan_id || null,
+      progVigente: elegido || null
+    };
+  }, [programas, alumno.estatus]);
+  const [loadingProgramas, setLoadingProgramas] = useState(true);
+  const [showModalInscripcion, setShowModalInscripcion] = useState(false);
+  const [modoModalProg, setModoModalProg] = useState<'existente' | 'nuevo'>('existente');
+  const [submittingPrograma, setSubmittingPrograma] = useState(false);
+  const [desbloquearTitulado, setDesbloquearTitulado] = useState(false);
   const [planesDisponibles, setPlanesDisponibles] = useState<any[]>([]);
-  const [nuevoPrograma, setNuevoPrograma] = useState({ plan_id: '', estatus: 'CURSANDO', fecha_inscripcion: new Date().toISOString().split('T')[0] });
+  const [nuevoPrograma, setNuevoPrograma] = useState<{
+    plan_id: string;
+    estatus: string;
+    fecha_inscripcion: string;
+    es_vigente: boolean;
+    motivo_estatus?: string;
+    estatus_previo?: string | null;
+  }>({
+    plan_id: '',
+    estatus: 'CURSANDO',
+    fecha_inscripcion: new Date().toISOString().split('T')[0],
+    es_vigente: true,
+    motivo_estatus: 'REGULAR',
+    estatus_previo: null
+  });
 
   const fetchProgramas = useCallback(async () => {
     setLoadingProgramas(true);
     try {
-      const { data, error } = await supabase
-        .from('alumno_programas')
-        .select(`*, planes_estudio(nombre, clave_legado, modelo, carrera_id)`)
-        .eq('alumno_id', alumno.id)
-        .order('fecha_inscripcion', { ascending: false });
-      if (error) throw error;
-      setProgramas(data || []);
+      const res = await academicosService.getProgramasAlumno(alumno.id);
+      if (!res.success) throw res.error;
+      setProgramas(res.data || []);
 
-      const { data: planes } = await supabase.from('planes_estudio').select('id, nombre, clave_legado').order('nombre');
+      const { data: planes } = await supabase
+        .from('planes_estudio')
+        .select('id, nombre, clave_legado, carrera_id, total_periodos')
+        .order('nombre');
       if (planes) setPlanesDisponibles(planes);
     } catch (error) {
       console.error('Error fetching programas:', error);
@@ -440,24 +513,249 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     }
   }, [alumno.id]);
 
-  const handleAddPrograma = async () => {
-    if (!nuevoPrograma.plan_id) return toast.error('Selecciona un plan de estudios');
-    try {
-      const { error } = await supabase.from('alumno_programas').insert({
-        alumno_id: alumno.id,
-        ...nuevoPrograma
+  const handleOpenModalInscripcion = () => {
+    const activeProg = progVigente || (programas.length > 0 ? programas[0] : null);
+    const activeCarreraId = activeProg?.planes_estudio?.carrera_id 
+      || carreras.find(c => c.nombre.trim().toUpperCase() === (alumno.licenciatura || '').trim().toUpperCase())?.id 
+      || carreras[0]?.id
+      || '';
+      
+    setCarreraInscripcionId(activeCarreraId);
+    const planesDeCarrera = activeCarreraId ? planesDisponibles.filter(p => p.carrera_id === activeCarreraId) : [];
+
+    const esAlumnoEgresado = alumno.estatus?.includes('EGRESADO');
+    const hasCursando = programas.some(p => p.estatus === 'CURSANDO');
+    const defaultEstatus = esAlumnoEgresado ? (alumno.estatus || 'EGRESADO') : 'CURSANDO';
+
+    if (programas.length > 0) {
+      setModoModalProg('existente');
+      const target = activeProg || programas[0];
+      const isTargetBaja = ['BAJA', 'BAJA_POR_CAMBIO'].includes(target.estatus);
+      const isTargetConcluido = ['EGRESADO', 'TITULADO'].includes(target.estatus);
+
+      // Si el plan seleccionado estaba en baja y es el vigente, se promueve a CURSANDO con REINGRESO
+      const estatusCalculado = (isTargetBaja && (target.es_vigente ?? true)) ? 'CURSANDO' : (target.estatus || defaultEstatus);
+      const motivoCalculado = isTargetConcluido 
+        ? 'PLAN_CONCLUIDO' 
+        : (isTargetBaja && (target.es_vigente ?? true)) 
+        ? 'REINGRESO' 
+        : (target.motivo_estatus || (target.es_vigente ? 'REGULAR' : 'CAMBIO_DE_CARRERA'));
+
+      setNuevoPrograma({
+        plan_id: target.plan_id,
+        estatus: estatusCalculado,
+        fecha_inscripcion: target.fecha_inscripcion || new Date().toISOString().split('T')[0],
+        es_vigente: target.es_vigente ?? true,
+        motivo_estatus: motivoCalculado,
+        estatus_previo: isTargetBaja ? target.estatus : (target.estatus_previo || null)
       });
-      if (error) throw error;
-      toast.success('Programa añadido al historial');
-      setIsAddingPrograma(false);
-      fetchProgramas();
-    } catch (error) {
-      console.error(error);
-      toast.error('Error al añadir el programa');
+    } else {
+      setModoModalProg('nuevo');
+      setCarreraInscripcionId('');
+      setNuevoPrograma({
+        plan_id: '',
+        estatus: defaultEstatus,
+        fecha_inscripcion: new Date().toISOString().split('T')[0],
+        es_vigente: true,
+        motivo_estatus: (alumno.estatus?.includes('EGRESADO') || alumno.estatus?.includes('TITULADO')) ? 'SEGUNDA_CARRERA' : 'REGULAR',
+        estatus_previo: null
+      });
+    }
+    setShowModalInscripcion(true);
+  };
+
+  const handleScrollToHistorial = () => {
+    const el = document.getElementById('historial-programas');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
+      }, 2000);
     }
   };
 
+  const handleGuardarPrograma = async () => {
+    if (modoModalProg === 'nuevo' && !carreraInscripcionId) return toast.error('Selecciona una carrera');
+    if (!nuevoPrograma.plan_id) return toast.error('Selecciona un plan de estudios');
+    
+    // Regla de Oro Institucional: Si el alumno solo tiene 1 plan en su historial, SIEMPRE debe ser su Plan Rector
+    const esVigenteFinal = programas.length <= 1 ? true : nuevoPrograma.es_vigente;
+
+    // Validación preventiva: Si tiene múltiples planes y desmarca la vigencia de este, debe haber otro plan rector activo
+    if (programas.length > 1 && !esVigenteFinal) {
+      const otroVigente = programas.some(p => p.plan_id !== nuevoPrograma.plan_id && p.es_vigente);
+      if (!otroVigente) {
+        return toast.error('El expediente debe conservar al menos un plan rector vigente. Activa el otro plan en su lugar.');
+      }
+    }
+
+    // 1. Identificar si el plan ya existe en memoria
+    const planExistente = programas.find(p => p.plan_id === nuevoPrograma.plan_id);
+
+    // 2. Prevenir petición innecesaria si la información es exactamente idéntica
+    if (
+      planExistente &&
+      planExistente.estatus === nuevoPrograma.estatus &&
+      (planExistente.es_vigente ?? true) === esVigenteFinal &&
+      (planExistente.motivo_estatus || 'REGULAR') === (nuevoPrograma.motivo_estatus || 'REGULAR') &&
+      (planExistente.fecha_inscripcion || '') === (nuevoPrograma.fecha_inscripcion || '')
+    ) {
+      return toast('La información del plan no presenta cambios', { icon: 'ℹ️' });
+    }
+
+    setSubmittingPrograma(true);
+    try {
+      const result = await academicosService.inscribirAlumnoPrograma(
+        alumno.id,
+        nuevoPrograma.plan_id,
+        nuevoPrograma.estatus,
+        nuevoPrograma.fecha_inscripcion,
+        esVigenteFinal,
+        nuevoPrograma.motivo_estatus,
+        nuevoPrograma.estatus_previo
+      );
+
+      if (!result.success) throw result.error;
+
+      if (esVigenteFinal) {
+        const targetEstatus = nuevoPrograma.estatus || 'CURSANDO';
+        const nuevoEstatusInstitucional = targetEstatus === 'CURSANDO' ? 'ACTIVO' : (['BAJA', 'BAJA_POR_CAMBIO'].includes(targetEstatus) ? 'BAJA' : targetEstatus);
+        useAppStore.getState().setAlumnos((prev: any[]) =>
+          prev.map((a: any) =>
+            a.id === alumno.id
+              ? {
+                  ...a,
+                  estatus: nuevoEstatusInstitucional
+                }
+              : a
+          )
+        );
+        setAcademicForm(prev => ({
+          ...prev,
+          estatus: nuevoEstatusInstitucional
+        }));
+      }
+
+      toast.success(
+        esVigenteFinal
+          ? 'Plan guardado y establecido como programa rector vigente'
+          : 'Estatus del plan actualizado correctamente'
+      );
+
+      setShowModalInscripcion(false);
+      await fetchProgramas();
+      onAlumnoUpdated?.();
+    } catch (error: any) {
+      console.error('Error al procesar el programa:', error);
+      toast.error(error?.message || 'Error al procesar el programa');
+    } finally {
+      setSubmittingPrograma(false);
+    }
+  };
+
+  const ejecutarActivacionRapida = async (prog: AlumnoPrograma) => {
+    setSubmittingPrograma(true);
+    try {
+      const result = await academicosService.activarPlanVigente(
+        alumno.id,
+        prog.plan_id
+      );
+
+      if (!result.success) throw result.error;
+
+      // Actualizar reactivamente el store global de Zustand
+      const targetEstatus = prog.estatus || 'CURSANDO';
+      const nuevoEstatusInstitucional = targetEstatus === 'CURSANDO' ? 'ACTIVO' : (['BAJA', 'BAJA_POR_CAMBIO'].includes(targetEstatus) ? 'BAJA' : targetEstatus);
+      const nuevaCarrera = prog.planes_estudio?.carreras?.nombre || alumno.licenciatura;
+
+      useAppStore.getState().setAlumnos((prev: any[]) =>
+        prev.map((a: any) =>
+          a.id === alumno.id
+            ? {
+                ...a,
+                estatus: nuevoEstatusInstitucional,
+                licenciatura: nuevaCarrera
+              }
+            : a
+        )
+      );
+
+      setAcademicForm(prev => ({
+        ...prev,
+        estatus: nuevoEstatusInstitucional
+      }));
+
+      toast.success(`Plan ${prog.planes_estudio?.clave_legado || prog.planes_estudio?.nombre} activado como vigente`);
+      await fetchProgramas();
+      onAlumnoUpdated?.();
+    } catch (error: any) {
+      console.error('Error al activar programa:', error);
+      toast.error(error?.message || 'Error al activar el programa');
+    } finally {
+      setSubmittingPrograma(false);
+    }
+  };
+
+  const handleActivarProgramaRapido = (prog: AlumnoPrograma) => {
+    if (prog.plan_id === vigentePlanId) return;
+
+    const planNombre = prog.planes_estudio?.clave_legado
+      ? `${prog.planes_estudio.clave_legado} - ${prog.planes_estudio.nombre}`
+      : prog.planes_estudio?.nombre || 'este plan de estudios';
+
+    const isConcluido = ['EGRESADO', 'TITULADO'].includes(prog.estatus);
+    const isBaja = ['BAJA', 'BAJA_POR_CAMBIO'].includes(prog.estatus);
+    const hasSimultanea = programas.some(p => p.plan_id !== prog.plan_id && p.motivo_estatus === 'CARRERA_SIMULTANEA' && p.estatus === 'CURSANDO');
+
+    setSystemConfirmModal({
+      isOpen: true,
+      title: '¿Activar Plan como Programa Vigente?',
+      message: (
+        <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+          <p>
+            Estás a punto de establecer <strong>{planNombre}</strong> como el programa oficial <strong>VIGENTE</strong> para este alumno.
+          </p>
+
+          {isBaja ? (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-lg text-amber-800 dark:text-amber-300 text-xs">
+              ⚡ <strong>Reactivación Automática (Vía 1):</strong> Este plan se encuentra actualmente en estatus <em>{prog.estatus}</em>. Al activarlo como vigente, su estatus se actualizará automáticamente a <strong>CURSANDO</strong> con motivo <strong>REINGRESO</strong>, guardando su estatus previo para permitir reversión si fuese necesario.
+            </div>
+          ) : isConcluido ? (
+            <div className="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/40 rounded-lg text-purple-800 dark:text-purple-300 text-xs">
+              🎓 <strong>Plan Concluido:</strong> Conservará su logro oficial como <strong>{prog.estatus}</strong> con motivo <em>PLAN CONCLUIDO</em> (no se reiniciará a Cursando).
+            </div>
+          ) : (
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40 rounded-lg text-blue-800 dark:text-blue-300 text-xs">
+              📌 <strong>Estatus Curricular:</strong> Continuará en <strong>{prog.estatus}</strong>.
+            </div>
+          )}
+
+          {hasSimultanea && (
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/40 rounded-lg text-indigo-800 dark:text-indigo-300 text-xs">
+              🛡️ <strong>Carrera Simultánea Protegida:</strong> Los otros planes marcados como <em>CARRERA SIMULTÁNEA</em> permanecerán intactos en estatus <strong>CURSANDO</strong>.
+            </div>
+          )}
+
+          <div className="p-3 bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/40 rounded-lg text-gray-700 dark:text-gray-300 text-xs">
+            ℹ️ Los demás planes no concluidos y que no sean carreras simultáneas pasarán a registrarse como <em>CAMBIO DE CARRERA</em> sin alterar logros previos.
+          </div>
+        </div>
+      ),
+      confirmText: 'Sí, activar como vigente',
+      cancelText: 'Cancelar',
+      type: 'warning',
+      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
+      onConfirm: () => {
+        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+        ejecutarActivacionRapida(prog);
+      }
+    });
+  };
+
   useEffect(() => {
+    setProgramas([]);
+    setLoadingProgramas(true);
     fetchProgramas();
   }, [fetchProgramas]);
 
@@ -538,10 +836,22 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
 
   // Sincronizar cuando cambia el alumno seleccionado
   useEffect(() => {
-    setForm(buildFormWithConversion(alumno));
-    setEditing(false);
-    setCpError(null);
-  }, [alumno.id, buildFormWithConversion]);
+    if (!editing) {
+      setForm(buildFormWithConversion(alumno));
+      setAcademicForm({
+        apellido_paterno: alumno.apellido_paterno || '',
+        apellido_materno: alumno.apellido_materno || '',
+        nombres: alumno.nombres || '',
+        grado_actual: alumno.grado_actual || '1',
+        turno: alumno.turno || 'MIXTO',
+        estatus: alumno.estatus || 'ACTIVO',
+        beca_tipo: alumno.beca_tipo || 'NINGUNA',
+        beca_porcentaje: alumno.beca_porcentaje || '0%',
+        observaciones_pago_titulacion: alumno.observaciones_pago_titulacion || ''
+      });
+      setCpError(null);
+    }
+  }, [alumno, editing, buildFormWithConversion]);
 
 
   const handleChange = (name: keyof FormData, value: string) => {
@@ -634,6 +944,17 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
 
   const handleCancel = () => {
     setForm(buildForm(alumno));
+    setAcademicForm({
+      apellido_paterno: alumno.apellido_paterno || '',
+      apellido_materno: alumno.apellido_materno || '',
+      nombres: alumno.nombres || '',
+      grado_actual: alumno.grado_actual || '1',
+      turno: alumno.turno || 'MIXTO',
+      estatus: alumno.estatus || 'ACTIVO',
+      beca_tipo: alumno.beca_tipo || 'NINGUNA',
+      beca_porcentaje: alumno.beca_porcentaje || '0%',
+      observaciones_pago_titulacion: alumno.observaciones_pago_titulacion || ''
+    });
     setEditing(false);
     setCurpStatus('idle');
   };
@@ -864,8 +1185,21 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     toAbrev('estado');
     toAbrev('estado_nacimiento');
     toAbrev('estado_escolaridad');
+
+    const buildNombreCompleto = (pat?: string, mat?: string | null, nom?: string) =>
+      [pat, mat, nom].filter(Boolean).map(s => s!.trim().toUpperCase()).join(' ');
+
     const payloadConSync = {
       ...payload,
+      apellido_paterno: academicForm.apellido_paterno.trim().toUpperCase(),
+      apellido_materno: academicForm.apellido_materno.trim().toUpperCase() || null,
+      nombres: academicForm.nombres.trim().toUpperCase(),
+      nombre_completo: buildNombreCompleto(academicForm.apellido_paterno, academicForm.apellido_materno, academicForm.nombres),
+      grado_actual: academicForm.grado_actual,
+      turno: academicForm.turno,
+      beca_tipo: academicForm.beca_tipo,
+      beca_porcentaje: academicForm.beca_porcentaje,
+      observaciones_pago_titulacion: academicForm.observaciones_pago_titulacion || null,
       sincronizado_el: new Date().toISOString()
     };
     const { error } = await supabase.from('alumnos').update(payloadConSync).eq('id', alumno.id);
@@ -985,6 +1319,266 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
           )}
         </div>
       )}
+
+      {/* ── Sección 1: Situación Académica y Escolar (Nueva Sección Unificada) ───────── */}
+      <Section icon={<GraduationCap size={15} />} title="Situación Académica y Escolar">
+        {/* Programa / Carrera Vigente */}
+        {(() => {
+          if (loadingProgramas) {
+            return (
+              <div className="sm:col-span-2 xl:col-span-3 mb-2 p-3.5 bg-blue-50/70 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-pulse">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                      Programa Académico Rector
+                    </span>
+                    <span className="inline-block w-16 h-3.5 bg-blue-200/60 dark:bg-blue-800/50 rounded-md"></span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className="inline-block w-64 h-5 bg-blue-200/70 dark:bg-blue-700/40 rounded-md"></span>
+                    <span className="inline-block w-20 h-4 bg-blue-200/50 dark:bg-blue-800/40 rounded-full"></span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto opacity-40">
+                  <div className="w-36 h-7 bg-blue-300/40 dark:bg-blue-800/40 rounded-lg"></div>
+                  <div className="w-24 h-7 bg-blue-200/50 dark:bg-blue-800/30 rounded-lg"></div>
+                </div>
+              </div>
+            );
+          }
+
+          const estatusCurricular = progVigente?.estatus || (alumno.estatus || 'ACTIVO');
+
+          const getStatusBadgeStyle = (st: string) => {
+            switch (st) {
+              case 'CURSANDO':
+                return 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50';
+              case 'EGRESADO':
+                return 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800/50';
+              case 'TITULADO':
+              case 'EGRESADO TITULADO':
+                return 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800/50';
+              case 'BAJA':
+              case 'BAJA_POR_CAMBIO':
+                return 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800/50';
+              default:
+                return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+            }
+          };
+
+          const nombreProgramaRector = progVigente
+            ? `${formatPlanName(progVigente)}${progVigente.planes_estudio?.clave_legado ? ` (${progVigente.planes_estudio.clave_legado})` : ''}`
+            : formatLegacyLicenciatura(alumno.licenciatura);
+
+          return (
+            <div className="sm:col-span-2 xl:col-span-3 mb-2 p-3.5 bg-blue-50/70 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                    Programa Académico Rector
+                  </span>
+                  {progVigente && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                      <CheckCircle size={10} /> VIGENTE
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <span className="font-bold text-[#222222] dark:text-gray-100 text-sm sm:text-base">
+                    {nombreProgramaRector}
+                  </span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeStyle(estatusCurricular)}`}>
+                    {estatusCurricular === 'BAJA_POR_CAMBIO' ? 'BAJA POR CAMBIO' : estatusCurricular}
+                  </span>
+                </div>
+              </div>
+              {canManageProgramas && (
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={handleOpenModalInscripcion}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1456f0] hover:bg-[#1d4ed8] dark:bg-blue-600 dark:hover:bg-blue-700 rounded-lg shadow-sm transition-all active:scale-95 cursor-pointer"
+                  >
+                    <GraduationCap size={14} />
+                    Inscribir o Cambiar Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleScrollToHistorial}
+                    className="text-xs font-medium text-gray-500 hover:text-[#1456f0] dark:text-gray-400 dark:hover:text-blue-400 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#181e25] transition-colors cursor-pointer"
+                    title="Ver historial curricular detallado"
+                  >
+                    Ver historial ({programas.length}) &darr;
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Nombre estructurado en modo edición */}
+        {editing ? (
+          <>
+            <div>
+              <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">
+                Apellido Paterno <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={academicForm.apellido_paterno}
+                onChange={e => setAcademicForm(prev => ({ ...prev, apellido_paterno: e.target.value.toUpperCase() }))}
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">
+                Apellido Materno
+              </label>
+              <input
+                type="text"
+                value={academicForm.apellido_materno}
+                onChange={e => setAcademicForm(prev => ({ ...prev, apellido_materno: e.target.value.toUpperCase() }))}
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">
+                Nombre(s) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={academicForm.nombres}
+                onChange={e => setAcademicForm(prev => ({ ...prev, nombres: e.target.value.toUpperCase() }))}
+                className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="sm:col-span-2 xl:col-span-3 mb-1">
+            <span className="text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] block mb-0.5">Nombre Completo</span>
+            <p className="text-sm font-bold text-[#222222] dark:text-gray-100">{alumno.nombre_completo}</p>
+          </div>
+        )}
+
+        {/* Grado */}
+        <div>
+          <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Grado Actual</label>
+          {editing ? (
+            <select
+              value={academicForm.grado_actual}
+              onChange={e => setAcademicForm(prev => ({ ...prev, grado_actual: e.target.value }))}
+              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]"
+            >
+              {(catalogos?.grados || ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'EGRESADO']).map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm text-[#222222] dark:text-gray-100 font-semibold">{academicForm.grado_actual || '—'}</p>
+          )}
+        </div>
+
+        {/* Turno */}
+        <div>
+          <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Turno</label>
+          {editing ? (
+            <select
+              value={academicForm.turno}
+              onChange={e => setAcademicForm(prev => ({ ...prev, turno: e.target.value }))}
+              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]"
+            >
+              {(catalogos?.turnos || ['MATUTINO', 'VESPERTINO', 'MIXTO', 'SABATINO']).map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm text-[#222222] dark:text-gray-100 font-semibold">{academicForm.turno || '—'}</p>
+          )}
+        </div>
+
+        {/* Estatus Institucional */}
+        <div>
+          <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">
+            Estatus Institucional
+          </label>
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${
+              (alumno.estatus || academicForm.estatus) === 'ACTIVO' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50' :
+              (alumno.estatus || academicForm.estatus) === 'BAJA' ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-800/50' :
+              ((alumno.estatus || academicForm.estatus) === 'TITULADO' || (alumno.estatus || academicForm.estatus) === 'EGRESADO TITULADO') ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border-purple-200 dark:border-purple-800/50' :
+              'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border-blue-200 dark:border-blue-800/50'
+            }`}>
+              <ShieldCheck size={13} className="shrink-0" />
+              {(alumno.estatus || academicForm.estatus) === 'EGRESADO TITULADO' ? 'TITULADO' : (alumno.estatus || academicForm.estatus || 'ACTIVO')}
+            </span>
+            {editing && canManageProgramas && (
+              <button
+                type="button"
+                onClick={handleOpenModalInscripcion}
+                className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                title="Gestionar planes de estudio del alumno"
+              >
+                <GraduationCap size={13} />
+                Gestionar en Planes
+              </button>
+            )}
+          </div>
+          {editing && (
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 leading-tight">
+              Calculado automáticamente a partir de sus programas académicos.
+            </p>
+          )}
+        </div>
+
+        {/* Beca Tipo y Porcentaje */}
+        <div>
+          <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Beca</label>
+          {editing ? (
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={academicForm.beca_tipo}
+                onChange={e => setAcademicForm(prev => ({ ...prev, beca_tipo: e.target.value }))}
+                className="border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+              >
+                {(catalogos?.beca_tipos || ['NINGUNA', 'ACADEMICA', 'DEPORTIVA', 'CONVENIO']).map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+              <select
+                value={academicForm.beca_porcentaje}
+                onChange={e => setAcademicForm(prev => ({ ...prev, beca_porcentaje: e.target.value }))}
+                className="border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-xs bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100"
+              >
+                {(catalogos?.beca_porcentajes || ['0%', '10%', '15%', '20%', '25%', '30%', '40%', '50%', '100%']).map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <p className="text-sm text-[#222222] dark:text-gray-100 font-medium">
+              {academicForm.beca_tipo !== 'NINGUNA' ? `${academicForm.beca_tipo} (${academicForm.beca_porcentaje})` : 'Sin beca (0%)'}
+            </p>
+          )}
+        </div>
+
+        {/* Observaciones de pago / titulación */}
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Observaciones Académicas / Pago</label>
+          {editing ? (
+            <input
+              type="text"
+              value={academicForm.observaciones_pago_titulacion}
+              onChange={e => setAcademicForm(prev => ({ ...prev, observaciones_pago_titulacion: e.target.value }))}
+              placeholder="Notas u observaciones de titulación..."
+              className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6]"
+            />
+          ) : (
+            <p className="text-sm text-[#222222] dark:text-gray-100 italic">
+              {academicForm.observaciones_pago_titulacion || 'Sin observaciones'}
+            </p>
+          )}
+        </div>
+      </Section>
 
       {/* ── Sección: Nacimiento ───────────────────────────────────────── */}
       {!hideSensibleData && (
@@ -1447,122 +2041,141 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
         />
       </Section>
 
-      {/* ── Historial de Programas Académicos (Multi-Plan) ── */}
-      <div className="mt-8 bg-white dark:bg-[#181e25] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] rounded-[16px] overflow-hidden shadow-sm">
-        <div className="p-5 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] flex justify-between items-center bg-gray-50 dark:bg-[#1c2228]">
-          <h3 className="text-[15px] font-bold text-[#222222] dark:text-gray-100 flex items-center gap-2" style={{ fontFamily: 'var(--font-display)' }}>
-            <span className="bg-[#bfdbfe] dark:bg-[#1d4ed8]/30 text-[#1456f0] dark:text-[#60a5fa] p-1.5 rounded-[8px]"><GraduationCap size={16} /></span>
-            Historial de Programas Académicos
-          </h3>
-          {isAdmin && !isAddingPrograma && (
+      {/* ── Historial de Programas Académicos (Selector en Cascada) ─────────── */}
+      <div id="historial-programas" className="mt-8 bg-white dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[12px] overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] flex justify-between items-center bg-gray-50/50 dark:bg-[#181e25]">
+          <div>
+            <h3 className="text-sm font-bold text-[#222222] dark:text-gray-100 flex items-center gap-2">
+              <GraduationCap size={16} className="text-[#1456f0]" />
+              Historial de Programas Académicos
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Planes de estudio y carreras en las que el alumno ha estado inscrito.
+            </p>
+          </div>
+          {canManageProgramas && (
             <button
-              onClick={() => setIsAddingPrograma(true)}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-[#1456f0] dark:text-white bg-[#eef2ff] dark:bg-[#1456f0] border border-[#bfdbfe] dark:border-transparent rounded-[6px] hover:bg-[#dbeafe] dark:hover:bg-blue-600 transition-colors"
+              type="button"
+              onClick={handleOpenModalInscripcion}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-[#1456f0] dark:text-white bg-[#eef2ff] dark:bg-[#1456f0] border border-[#bfdbfe] dark:border-transparent rounded-[6px] hover:bg-[#dbeafe] dark:hover:bg-blue-600 transition-colors cursor-pointer"
             >
               + Inscribir a Programa
             </button>
           )}
         </div>
 
-        {isAddingPrograma && (
-          <div className="p-4 bg-[#f8f9ff] dark:bg-blue-900/10 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]">
-            <h4 className="text-xs font-semibold text-[#45515e] dark:text-gray-300 mb-3 uppercase tracking-wider">Nueva Inscripción</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Plan de Estudios</label>
-                <select
-                  value={nuevoPrograma.plan_id}
-                  onChange={e => setNuevoPrograma(p => ({ ...p, plan_id: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-[6px] p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-[#222222] dark:text-gray-200"
-                >
-                  <option value="">Seleccione un plan...</option>
-                  {planesDisponibles.map(p => (
-                    <option key={p.id} value={p.id}>{p.clave_legado} - {p.nombre}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Fecha de Inscripción</label>
-                <input
-                  type="date"
-                  value={nuevoPrograma.fecha_inscripcion}
-                  onChange={e => setNuevoPrograma(p => ({ ...p, fecha_inscripcion: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-[6px] p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-[#222222] dark:text-gray-200"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Estatus</label>
-                <select
-                  value={nuevoPrograma.estatus}
-                  onChange={e => setNuevoPrograma(p => ({ ...p, estatus: e.target.value }))}
-                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-[6px] p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-[#222222] dark:text-gray-200"
-                >
-                  <option value="CURSANDO">CURSANDO</option>
-                  <option value="BAJA">BAJA</option>
-                  <option value="EGRESADO">EGRESADO</option>
-                  <option value="TITULADO">TITULADO</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleAddPrograma}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[6px] text-sm font-semibold transition-colors shadow-sm"
-              >
-                Guardar Inscripción
-              </button>
-              <button
-                onClick={() => setIsAddingPrograma(false)}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-[6px] text-sm font-semibold transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50/50 dark:bg-[#1c2228]/50 border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.06)]">
               <tr className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <th className="px-4 py-3">Clave</th>
-                <th className="px-4 py-3">Carrera</th>
+                <th className="px-4 py-3">Plan / Carrera</th>
                 <th className="px-4 py-3 text-center">F. Inscripción</th>
-                <th className="px-4 py-3 text-center">Estatus</th>
+                <th className="px-4 py-3 text-center">Estatus Curricular</th>
+                <th className="px-4 py-3 text-right">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e7eb] dark:divide-[rgba(255,255,255,0.04)] text-sm">
               {loadingProgramas ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
                     <Loader2 size={20} className="animate-spin mx-auto text-[#1456f0]" />
                   </td>
                 </tr>
               ) : programas.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400 italic text-sm">
+                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400 italic text-sm">
                     No hay programas registrados en el historial de este alumno.
                   </td>
                 </tr>
               ) : (
-                programas.map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-[rgba(255,255,255,0.02)] transition-colors">
-                    <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-300">{p.planes_estudio?.clave_legado || '-'}</td>
-                    <td className="px-4 py-3 font-bold text-[#222222] dark:text-gray-100">{formatPlanName(p)}</td>
-                    <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{formatFecha(p.fecha_inscripcion)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-1 rounded-[6px] text-[11px] font-bold tracking-wider ${
-                        p.estatus === 'CURSANDO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' :
-                        p.estatus === 'BAJA' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' :
-                        p.estatus === 'EGRESADO' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' :
-                        p.estatus === 'TITULADO' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300' :
-                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                      }`}>
-                        {p.estatus}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                programas.map((p) => {
+                  const esVigente = p.plan_id === vigentePlanId;
+                  return (
+                    <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-[rgba(255,255,255,0.02)] transition-colors ${esVigente ? 'bg-blue-50/20 dark:bg-blue-900/10' : ''}`}>
+                      <td className="px-4 py-3 font-mono text-gray-600 dark:text-gray-300">{p.planes_estudio?.clave_legado || '-'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#222222] dark:text-gray-100">{formatPlanName(p)}</span>
+                          {esVigente && (
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                              ACTIVO
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{formatFecha(p.fecha_inscripcion)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="inline-flex flex-col items-center gap-1">
+                          <span className={`inline-flex px-2.5 py-1 rounded-[6px] text-[11px] font-bold tracking-wider ${
+                            p.estatus === 'CURSANDO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                            p.estatus === 'BAJA' ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' :
+                            p.estatus === 'EGRESADO' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' :
+                            (p.estatus === 'TITULADO' || p.estatus === 'EGRESADO TITULADO') ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300' :
+                            p.estatus === 'BAJA_POR_CAMBIO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' :
+                            'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                          }`}>
+                            {p.estatus === 'BAJA_POR_CAMBIO' ? 'BAJA POR CAMBIO' : p.estatus}
+                          </span>
+                          {/* Insignias de Modalidad / Motivo (Vía 1) */}
+                          {p.motivo_estatus === 'CARRERA_SIMULTANEA' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                              ⚡ SIMULTÁNEA
+                            </span>
+                          )}
+                          {p.motivo_estatus === 'SEGUNDA_CARRERA' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60">
+                              🎓 2ª CARRERA
+                            </span>
+                          )}
+                          {p.motivo_estatus === 'REINGRESO' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                              🔄 REINGRESO
+                            </span>
+                          )}
+                          {p.motivo_estatus === 'PLAN_CONCLUIDO' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
+                              🏆 CONCLUIDO
+                            </span>
+                          )}
+                          {p.motivo_estatus === 'CAMBIO_DE_CARRERA' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                              CAMBIO DE PLAN
+                            </span>
+                          )}
+                          {p.motivo_estatus === 'DESERCION_VOLUNTARIA' && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60">
+                              DESERCIÓN
+                            </span>
+                          )}
+                          {p.estatus_previo && (
+                            <span className="text-[9px] text-gray-400 dark:text-gray-500 italic">
+                              (Previo: {p.estatus_previo})
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {esVigente ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle size={14} /> Vigente
+                          </span>
+                        ) : canManageProgramas ? (
+                          <button
+                            type="button"
+                            onClick={() => handleActivarProgramaRapido(p)}
+                            disabled={submittingPrograma}
+                            title="Establecer este plan como el programa vigente actual (conservando su estatus)"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800/50 border border-blue-200 dark:border-blue-700/60 rounded-md transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+                          >
+                            <Check size={13} />
+                            Activar como Vigente
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -1575,6 +2188,793 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
           Sólo los administradores pueden editar estos datos.
         </p>
       )}
+      {/* ── Modal de Inscripción / Cambio de Programa ─────────────────── */}
+      {showModalInscripcion && typeof document !== 'undefined' && (() => {
+        const programaActivo = progVigente;
+        const programaExistente = nuevoPrograma.plan_id ? programas.find(p => p.plan_id === nuevoPrograma.plan_id) : null;
+        const planYaEnHistorial = Boolean(programaExistente);
+        const esVigenteEfectivo = programas.length <= 1 ? true : nuevoPrograma.es_vigente;
+
+        const sinCambios = Boolean(
+          programaExistente &&
+          programaExistente.estatus === nuevoPrograma.estatus &&
+          (programaExistente.es_vigente ?? true) === esVigenteEfectivo &&
+          (programaExistente.motivo_estatus || 'REGULAR') === (nuevoPrograma.motivo_estatus || 'REGULAR') &&
+          (programaExistente.fecha_inscripcion || '') === (nuevoPrograma.fecha_inscripcion || '')
+        );
+
+        const botonDeshabilitado = !nuevoPrograma.plan_id || submittingPrograma || (modoModalProg === 'existente' && sinCambios);
+
+        return createPortal(
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-full sm:max-w-xl md:max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+              {/* Cabecera */}
+              <div className="p-4 sm:p-5 border-b border-gray-100 dark:border-gray-800/60 flex items-center justify-between bg-gray-50/50 dark:bg-[#181e25] shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-[#1456f0] dark:text-blue-400">
+                    <GraduationCap size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-gray-100">
+                      Gestión de Programa Curricular
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {alumno.nombre_completo || [alumno.nombres, alumno.apellido_paterno, alumno.apellido_materno].filter(Boolean).join(' ')} ({alumno.matricula || 'Sin matrícula'})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowModalInscripcion(false)}
+                  disabled={submittingPrograma}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Banner de Programa Vigente */}
+              <div className="px-4 sm:px-5 pt-3 sm:pt-4 shrink-0">
+                {programaActivo ? (
+                  <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200/80 dark:border-blue-800/60 rounded-xl flex items-start gap-3 shadow-2xs">
+                    <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-[#1456f0] dark:text-blue-300 mt-0.5 shrink-0">
+                      <GraduationCap size={16} />
+                    </div>
+                    <div className="text-xs space-y-0.5 min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-blue-900 dark:text-blue-200 uppercase tracking-wider text-[10px]">
+                          Programa Rector Vigente
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-0.2 rounded-full text-[10px] font-bold ${
+                          programaActivo.estatus === 'CURSANDO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' :
+                          programaActivo.estatus === 'EGRESADO' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' :
+                          (programaActivo.estatus === 'TITULADO' || programaActivo.estatus === 'EGRESADO TITULADO') ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300' :
+                          programaActivo.estatus === 'BAJA' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' :
+                          'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                        }`}>
+                          {programaActivo.estatus}
+                        </span>
+                      </div>
+                      <p className="font-bold text-xs sm:text-sm text-gray-900 dark:text-gray-100 truncate">
+                        {formatPlanName(programaActivo)}
+                      </p>
+                      <p className="text-gray-500 dark:text-gray-400 text-[11px] flex items-center gap-2">
+                        <span>Clave: <strong className="font-mono text-gray-700 dark:text-gray-300">{programaActivo.planes_estudio?.clave_legado || 'S/C'}</strong></span>
+                        <span>•</span>
+                        <span>Inscrito: <strong className="text-gray-700 dark:text-gray-300">{formatFecha(programaActivo.fecha_inscripcion)}</strong></span>
+                        {programaActivo.motivo_estatus && programaActivo.motivo_estatus !== 'REGULAR' && (
+                          <>
+                            <span>•</span>
+                            <span className="italic text-blue-600 dark:text-blue-400">
+                              {programaActivo.motivo_estatus === 'REINGRESO' ? 'Reingreso' : programaActivo.motivo_estatus}
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                    <AlertCircle size={15} className="shrink-0" />
+                    <span>Sin programa oficial registrado actualmente en el expediente.</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Pestañas de Selección (si hay programas previos registrados) */}
+              {programas.length > 0 && (
+                <div className="px-4 sm:px-5 pt-3 shrink-0">
+                  <div className="flex p-1 bg-gray-100 dark:bg-[#151a20] rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoModalProg('existente');
+                        const target = programaActivo || programas[0];
+                        if (target) {
+                          const isTargetBaja = ['BAJA', 'BAJA_POR_CAMBIO'].includes(target.estatus);
+                          const isTargetConcluido = ['EGRESADO', 'TITULADO'].includes(target.estatus);
+                          const estatusCalculado = (isTargetBaja && (target.es_vigente ?? true)) ? 'CURSANDO' : target.estatus;
+                          const motivoCalculado = isTargetConcluido 
+                            ? 'PLAN_CONCLUIDO' 
+                            : (isTargetBaja && (target.es_vigente ?? true)) 
+                            ? 'REINGRESO' 
+                            : (target.motivo_estatus || (target.es_vigente ? 'REGULAR' : 'CAMBIO_DE_CARRERA'));
+
+                          setNuevoPrograma({
+                            plan_id: target.plan_id,
+                            estatus: estatusCalculado,
+                            es_vigente: target.es_vigente ?? true,
+                            fecha_inscripcion: target.fecha_inscripcion || new Date().toISOString().split('T')[0],
+                            motivo_estatus: motivoCalculado,
+                            estatus_previo: isTargetBaja ? target.estatus : (target.estatus_previo || null)
+                          });
+                        }
+                      }}
+                      className={`flex-1 py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        modoModalProg === 'existente'
+                          ? 'bg-white dark:bg-[#1c2228] text-[#1456f0] dark:text-blue-400 shadow-xs'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <History size={13} />
+                      Planes Registrados ({programas.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoModalProg('nuevo');
+                        setCarreraInscripcionId('');
+                        const esAlumnoEgresado = alumno.estatus?.includes('EGRESADO') || alumno.estatus?.includes('TITULADO');
+                        const hasCursando = programas.some(p => p.estatus === 'CURSANDO');
+                        setNuevoPrograma({
+                          plan_id: '',
+                          estatus: 'CURSANDO',
+                          fecha_inscripcion: new Date().toISOString().split('T')[0],
+                          es_vigente: true,
+                          motivo_estatus: hasCursando ? 'CARRERA_SIMULTANEA' : (esAlumnoEgresado ? 'SEGUNDA_CARRERA' : 'REGULAR'),
+                          estatus_previo: null
+                        });
+                      }}
+                      className={`flex-1 py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        modoModalProg === 'nuevo'
+                          ? 'bg-white dark:bg-[#1c2228] text-[#1456f0] dark:text-blue-400 shadow-xs'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <GraduationCap size={13} />
+                      + Inscribir Nueva Carrera / Plan
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Contenido del Formulario */}
+              <div className="flex-1 p-4 sm:p-5 space-y-4 overflow-y-auto">
+                {modoModalProg === 'existente' ? (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                      Selecciona un plan del historial para gestionar o activar:
+                    </label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {programas.map((prog) => {
+                        const isSelected = nuevoPrograma.plan_id === prog.plan_id;
+                        const isVigente = prog.plan_id === vigentePlanId;
+                        return (
+                          <div
+                            key={prog.id}
+                            onClick={() => {
+                              const isTargetBaja = ['BAJA', 'BAJA_POR_CAMBIO'].includes(prog.estatus);
+                              const isTargetConcluido = ['EGRESADO', 'TITULADO'].includes(prog.estatus);
+                              const willBeVigente = isSelected ? nuevoPrograma.es_vigente : (prog.plan_id === vigentePlanId);
+                              const estatusCalculado = (isTargetBaja && willBeVigente) ? 'CURSANDO' : prog.estatus;
+                              const motivoCalculado = isTargetConcluido 
+                                ? 'PLAN_CONCLUIDO' 
+                                : (isTargetBaja && willBeVigente) 
+                                ? 'REINGRESO' 
+                                : (prog.motivo_estatus || (willBeVigente ? 'REGULAR' : 'CAMBIO_DE_CARRERA'));
+
+                              setDesbloquearTitulado(false);
+                              setNuevoPrograma({
+                                plan_id: prog.plan_id,
+                                estatus: estatusCalculado,
+                                fecha_inscripcion: prog.fecha_inscripcion || new Date().toISOString().split('T')[0],
+                                es_vigente: willBeVigente,
+                                motivo_estatus: motivoCalculado,
+                                estatus_previo: isTargetBaja ? prog.estatus : (prog.estatus_previo || null)
+                              });
+                            }}
+                            className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 shadow-xs'
+                                : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-[#181e25] hover:border-gray-300 dark:hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="font-mono text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                  {prog.planes_estudio?.clave_legado || 'S/C'}
+                                </span>
+                                <span className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">
+                                  {formatPlanName(prog)}
+                                </span>
+                                {isVigente && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                                    VIGENTE
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                <span>Registrado: {formatFecha(prog.fecha_inscripcion)}</span>
+                                {prog.motivo_estatus && prog.motivo_estatus !== 'REGULAR' && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                                      {prog.motivo_estatus === 'CARRERA_SIMULTANEA' ? 'Simultánea' :
+                                       prog.motivo_estatus === 'SEGUNDA_CARRERA' ? '2ª Carrera' :
+                                       prog.motivo_estatus === 'REINGRESO' ? 'Reingreso' :
+                                       prog.motivo_estatus === 'PLAN_CONCLUIDO' ? 'Concluido' :
+                                       prog.motivo_estatus === 'CAMBIO_DE_CARRERA' ? 'Cambio de Plan' :
+                                       prog.motivo_estatus}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                                prog.estatus === 'CURSANDO'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                  : prog.estatus === 'EGRESADO'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
+                                  : (prog.estatus === 'TITULADO' || prog.estatus === 'EGRESADO TITULADO')
+                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300'
+                                  : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              }`}>
+                                {prog.estatus === 'BAJA_POR_CAMBIO' ? 'BAJA POR CAMBIO' : prog.estatus}
+                              </span>
+                              <input
+                                type="radio"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                className="text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {nuevoPrograma.plan_id && (
+                      <div className="p-3.5 bg-gray-50 dark:bg-[#161b22] border border-gray-200 dark:border-gray-800 rounded-xl space-y-3">
+                        <div className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 font-semibold">
+                            <GraduationCap size={14} /> Situación Curricular y Trayectoria:
+                          </span>
+                        </div>
+
+                        {/* Alerta de reactivación si era baja y se activa */}
+                        {(nuevoPrograma.estatus_previo || (programaExistente && ['BAJA', 'BAJA_POR_CAMBIO'].includes(programaExistente.estatus))) && nuevoPrograma.es_vigente && nuevoPrograma.estatus === 'CURSANDO' && (
+                          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                            <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                            <div>
+                              <strong>⚡ Reactivación Automática (Vía 1):</strong> Este plan estaba en estatus <em>{nuevoPrograma.estatus_previo || programaExistente?.estatus}</em>. Al activarlo como plan vigente, pasa automáticamente a <strong>CURSANDO</strong> con motivo <strong>REINGRESO</strong>. Su estatus anterior queda respaldado por si se desmarca su vigencia.
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                              Estatus en este Plan
+                            </label>
+                            {nuevoPrograma.estatus === 'TITULADO' && !desbloquearTitulado ? (
+                              <div className="space-y-1">
+                                <div className="p-2 border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 rounded-lg text-xs font-bold text-purple-800 dark:text-purple-300 flex items-center justify-between gap-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <Lock size={13} className="text-purple-600 shrink-0" />
+                                    <span>TITULADO (Grado Obtenido)</span>
+                                  </div>
+                                  {isAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDesbloquearTitulado(true)}
+                                      className="text-[10px] text-purple-700 dark:text-purple-300 hover:underline cursor-pointer font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/50"
+                                      title="Permite a un administrador reclasificar el estatus de este plan"
+                                    >
+                                      Desbloquear
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-purple-600 dark:text-purple-400 leading-tight">
+                                  Gobernado por la pestaña Titulación (con Libro, Foja y Acta).
+                                </p>
+                              </div>
+                            ) : (
+                              <select
+                                value={nuevoPrograma.estatus}
+                                onChange={e => {
+                                  const newEstatus = e.target.value;
+                                  const isEgresado = ['EGRESADO', 'TITULADO', 'EGRESADO TITULADO'].includes(newEstatus);
+                                  setNuevoPrograma(p => {
+                                    let nextMotivo = p.motivo_estatus;
+                                    if (isEgresado) {
+                                      nextMotivo = 'PLAN_CONCLUIDO';
+                                    } else if (newEstatus === 'BAJA') {
+                                      nextMotivo = 'DESERCION_VOLUNTARIA';
+                                    } else if (newEstatus === 'BAJA_POR_CAMBIO') {
+                                      nextMotivo = 'CAMBIO_DE_CARRERA';
+                                    } else if (newEstatus === 'CURSANDO' && p.motivo_estatus === 'PLAN_CONCLUIDO') {
+                                      nextMotivo = 'REGULAR';
+                                    }
+                                    return { ...p, estatus: newEstatus, motivo_estatus: nextMotivo };
+                                  });
+                                }}
+                                className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100 font-medium"
+                              >
+                                <option value="CURSANDO">CURSANDO (Activo)</option>
+                                <option value="EGRESADO">EGRESADO (Créditos Concluidos)</option>
+                                <option value="TITULADO">TITULADO (Grado Obtenido)</option>
+                                <option value="BAJA">BAJA (Deserción)</option>
+                                <option value="BAJA_POR_CAMBIO">BAJA POR CAMBIO (Carrera Previa)</option>
+                              </select>
+                            )}
+                          </div>
+
+                          {(() => {
+                            const isConcluido = ['EGRESADO', 'TITULADO'].includes(nuevoPrograma.estatus);
+                            const isBaja = ['BAJA', 'BAJA_POR_CAMBIO'].includes(nuevoPrograma.estatus);
+
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-400">
+                                    Modalidad de Trayectoria / Motivo
+                                  </label>
+                                  {isConcluido && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-200 dark:border-purple-800/60">
+                                      🔒 Logro Concluido
+                                    </span>
+                                  )}
+                                </div>
+                                <select
+                                  disabled={isConcluido}
+                                  value={isConcluido ? 'PLAN_CONCLUIDO' : (nuevoPrograma.motivo_estatus || 'REGULAR')}
+                                  onChange={e => setNuevoPrograma(p => ({ ...p, motivo_estatus: e.target.value }))}
+                                  className={`w-full border rounded-lg p-2 text-xs outline-none font-medium transition-all ${
+                                    isConcluido
+                                      ? 'bg-gray-100 dark:bg-gray-800/70 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-90'
+                                      : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
+                                  }`}
+                                >
+                                  {isConcluido ? (
+                                    <option value="PLAN_CONCLUIDO">PLAN CONCLUIDO (Logro completado)</option>
+                                  ) : isBaja ? (
+                                    <>
+                                      <option value="DESERCION_VOLUNTARIA">DESERCIÓN VOLUNTARIA (Baja del alumno)</option>
+                                      <option value="CAMBIO_DE_CARRERA">CAMBIO DE CARRERA (Transferencia a otro plan)</option>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <option value="REGULAR">REGULAR (Carrera única ordinaria)</option>
+                                      <option value="CARRERA_SIMULTANEA">CARRERA SIMULTÁNEA (2 carreras a la vez)</option>
+                                      <option value="SEGUNDA_CARRERA">SEGUNDA CARRERA (Egresado de carrera previa)</option>
+                                      <option value="REINGRESO">REINGRESO (Reactivado tras baja académica)</option>
+                                    </>
+                                  )}
+                                </select>
+                                {isConcluido && (
+                                  <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-1 leading-tight italic">
+                                    Protegido: Al ser un plan acreditado como egresado/titulado, su modalidad oficial queda fijada como Plan Concluido.
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {nuevoPrograma.estatus === 'EGRESADO' && (
+                          <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl text-xs text-indigo-900 dark:text-indigo-300 flex items-start gap-2">
+                            <GraduationCap size={15} className="shrink-0 mt-0.5 text-indigo-600 dark:text-indigo-400" />
+                            <div>
+                              <strong>🎓 Protocolo Oficial de Titulación:</strong> Para titular formalmente este plan de estudios asentando Libro, Foja, Folio de Control y Acta/Examen oficial, realiza el trámite en la pestaña <strong>Titulación</strong>.
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                              Fecha de Inscripción
+                            </label>
+                            <input
+                              type="date"
+                              value={nuevoPrograma.fecha_inscripcion}
+                              onChange={e => setNuevoPrograma(p => ({ ...p, fecha_inscripcion: e.target.value }))}
+                              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100"
+                            />
+                          </div>
+
+                          {nuevoPrograma.estatus_previo && (
+                            <div>
+                              <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                                Estatus Previo Respaldado
+                              </label>
+                              <div className="p-2 border border-gray-200 dark:border-gray-800 bg-gray-100/60 dark:bg-gray-800/60 rounded-lg text-xs font-mono text-gray-700 dark:text-gray-300">
+                                {nuevoPrograma.estatus_previo}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-200 dark:border-gray-800">
+                          {programas.length <= 1 ? (
+                            <div className="flex items-start gap-2.5 p-2.5 bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-xl">
+                              <ShieldCheck size={16} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="text-xs font-bold text-blue-900 dark:text-blue-200">
+                                  Plan Rector Oficial del Expediente
+                                </span>
+                                <p className="text-[11px] text-blue-700 dark:text-blue-300/80 leading-tight mt-0.5">
+                                  Al ser el único plan registrado, se mantiene automáticamente como el plan rector del alumno para reportes y constancias. Para cambiarlo, inscribe primero la nueva carrera.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={nuevoPrograma.es_vigente}
+                                onChange={e => {
+                                  const isChecked = e.target.checked;
+                                  const planOriginal = programas.find(p => p.plan_id === nuevoPrograma.plan_id);
+                                  const eraBajaOriginal = ['BAJA', 'BAJA_POR_CAMBIO'].includes(nuevoPrograma.estatus_previo || planOriginal?.estatus || '');
+
+                                  setNuevoPrograma(p => {
+                                    if (isChecked && eraBajaOriginal) {
+                                      return {
+                                        ...p,
+                                        es_vigente: true,
+                                        estatus: 'CURSANDO',
+                                        motivo_estatus: 'REINGRESO',
+                                        estatus_previo: p.estatus_previo || planOriginal?.estatus
+                                      };
+                                    } else if (!isChecked && p.estatus_previo && p.motivo_estatus !== 'CARRERA_SIMULTANEA') {
+                                      return {
+                                        ...p,
+                                        es_vigente: false,
+                                        estatus: p.estatus_previo,
+                                        motivo_estatus: 'DESERCION_VOLUNTARIA'
+                                      };
+                                    }
+                                    return { ...p, es_vigente: isChecked };
+                                  });
+                                }}
+                                className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                              />
+                              <div>
+                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                  Establecer como Programa Rector Vigente del Alumno
+                                </span>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
+                                  Define este plan como la carrera oficial activa del expediente universitario.
+                                </p>
+                              </div>
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Alertas Inteligentes para Modo Nuevo */}
+                    {programas.some(p => p.estatus === 'CURSANDO') && (
+                      <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl text-xs text-indigo-900 dark:text-indigo-300 flex items-start gap-2.5">
+                        <Sparkles size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                        <div>
+                          <strong>⚡ Detección de Carrera Simultánea:</strong> El alumno ya tiene un plan en estatus <em>CURSANDO</em>. Si cursará ambas carreras al mismo tiempo, selecciona la modalidad <strong>CARRERA SIMULTÁNEA</strong>. Si abandona el plan previo para cursar este nuevo, selecciona <strong>CAMBIO DE CARRERA</strong>.
+                        </div>
+                      </div>
+                    )}
+
+                    {programas.some(p => ['EGRESADO', 'TITULADO'].includes(p.estatus)) && !programas.some(p => p.estatus === 'CURSANDO') && (
+                      <div className="p-3 bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/50 rounded-xl text-xs text-teal-900 dark:text-teal-300 flex items-start gap-2.5">
+                        <GraduationCap size={16} className="text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
+                        <div>
+                          <strong>🎓 Detección de Segunda Carrera:</strong> El alumno ya completó un programa académico previamente. Se asigna la modalidad <strong>SEGUNDA CARRERA</strong> manteniendo intacto el título de su plan anterior.
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cascada 1: Selección de Carrera */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                        1. Carrera Oficial <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={carreraInscripcionId}
+                        onChange={e => {
+                          const cId = e.target.value;
+                          setCarreraInscripcionId(cId);
+                          const esAlumnoEgresado = alumno.estatus?.includes('EGRESADO') || alumno.estatus?.includes('TITULADO');
+                          const hasCursando = programas.some(p => p.estatus === 'CURSANDO');
+                          setNuevoPrograma(prev => ({
+                            ...prev,
+                            plan_id: '',
+                            estatus: 'CURSANDO',
+                            motivo_estatus: hasCursando ? 'CARRERA_SIMULTANEA' : (esAlumnoEgresado ? 'SEGUNDA_CARRERA' : 'REGULAR'),
+                            fecha_inscripcion: new Date().toISOString().split('T')[0]
+                          }));
+                        }}
+                        className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100"
+                      >
+                        <option value="">-- Selecciona Carrera --</option>
+                        {carreras.map(c => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Cascada 2: Plan de Estudios */}
+                    {/* Cascada 2: Plan de Estudios */}
+                    {(() => {
+                      const planesDeCarrera = planesDisponibles.filter(p => p.carrera_id === carreraInscripcionId);
+                      const planesInscritosIds = new Set(programas.map(p => p.plan_id));
+                      const planesNuevosDisponibles = planesDeCarrera.filter(p => !planesInscritosIds.has(p.id));
+                      const todosLosPlanesYaInscritos = Boolean(carreraInscripcionId && planesDeCarrera.length > 0 && planesNuevosDisponibles.length === 0);
+
+                      return (
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                            2. Plan de Estudios <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            disabled={!carreraInscripcionId || todosLosPlanesYaInscritos || planesDeCarrera.length === 0}
+                            value={nuevoPrograma.plan_id}
+                            onChange={e => {
+                              const pId = e.target.value;
+                              if (!pId) {
+                                setNuevoPrograma(prev => ({ ...prev, plan_id: '' }));
+                                return;
+                              }
+                              const esAlumnoEgresado = alumno.estatus?.includes('EGRESADO') || alumno.estatus?.includes('TITULADO');
+                              const hasCursando = programas.some(p => p.estatus === 'CURSANDO');
+                              setNuevoPrograma(prev => ({
+                                ...prev,
+                                plan_id: pId,
+                                estatus: 'CURSANDO',
+                                motivo_estatus: hasCursando ? 'CARRERA_SIMULTANEA' : (esAlumnoEgresado ? 'SEGUNDA_CARRERA' : 'REGULAR'),
+                                fecha_inscripcion: new Date().toISOString().split('T')[0]
+                              }));
+                            }}
+                            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100 disabled:opacity-50"
+                          >
+                            <option value="">
+                              {!carreraInscripcionId
+                                ? '-- Primero selecciona una carrera --'
+                                : todosLosPlanesYaInscritos
+                                ? '-- Todos los planes de esta carrera ya están registrados --'
+                                : planesDeCarrera.length === 0
+                                ? '-- Sin planes en catálogo para esta carrera --'
+                                : '-- Selecciona Plan Curricular --'}
+                            </option>
+                            {planesNuevosDisponibles.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.clave_legado ? `${p.clave_legado} - ` : ''}{p.nombre} ({p.total_periodos || 10} periodos)
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* Aviso si todos los planes ya están en el historial */}
+                          {todosLosPlanesYaInscritos && (
+                            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2 mt-2">
+                              <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                              <div>
+                                <strong>Carrera ya en el expediente:</strong> Todos los planes de estudio registrados para esta carrera ya se encuentran en el historial del alumno. Si deseas reactivar o cambiar su estatus, dirígete a la pestaña <strong>"Planes Registrados"</strong>.
+                              </div>
+                            </div>
+                          )}
+
+                          {carreraInscripcionId && planesDeCarrera.length === 0 && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                              No hay planes registrados para esta carrera en el catálogo institucional. Crea uno en Configuración Académica primero.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                          Fecha de Inscripción
+                        </label>
+                        <input
+                          type="date"
+                          value={nuevoPrograma.fecha_inscripcion}
+                          onChange={e => setNuevoPrograma(p => ({ ...p, fecha_inscripcion: e.target.value }))}
+                          className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                          Estatus Curricular
+                        </label>
+                        <select
+                          value={nuevoPrograma.estatus}
+                          onChange={e => {
+                            const newEstatus = e.target.value;
+                            const isEgresado = ['EGRESADO', 'TITULADO'].includes(newEstatus);
+                            setNuevoPrograma(p => {
+                              let nextMotivo = p.motivo_estatus;
+                              if (isEgresado) {
+                                nextMotivo = 'PLAN_CONCLUIDO';
+                              } else if (newEstatus === 'BAJA') {
+                                nextMotivo = 'DESERCION_VOLUNTARIA';
+                              } else if (newEstatus === 'BAJA_POR_CAMBIO') {
+                                nextMotivo = 'CAMBIO_DE_CARRERA';
+                              } else if (newEstatus === 'CURSANDO' && p.motivo_estatus === 'PLAN_CONCLUIDO') {
+                                const hasCursando = programas.some(pr => pr.estatus === 'CURSANDO');
+                                const hasEgresado = programas.some(pr => ['EGRESADO', 'TITULADO'].includes(pr.estatus));
+                                nextMotivo = hasCursando ? 'CARRERA_SIMULTANEA' : (hasEgresado ? 'SEGUNDA_CARRERA' : 'REGULAR');
+                              }
+                              return { ...p, estatus: newEstatus, motivo_estatus: nextMotivo };
+                            });
+                          }}
+                          className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100"
+                        >
+                          <option value="CURSANDO">CURSANDO (Cursando materias)</option>
+                          <option value="EGRESADO">EGRESADO (Créditos concluidos)</option>
+                          <option value="TITULADO">TITULADO (Grado obtenido)</option>
+                          <option value="BAJA">BAJA (Baja académica)</option>
+                          <option value="BAJA_POR_CAMBIO">BAJA POR CAMBIO (Transferido a otro plan)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const isConcluido = ['EGRESADO', 'TITULADO'].includes(nuevoPrograma.estatus);
+                      const isBaja = ['BAJA', 'BAJA_POR_CAMBIO'].includes(nuevoPrograma.estatus);
+
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                              Modalidad de Trayectoria / Motivo
+                            </label>
+                            {isConcluido && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-200 dark:border-purple-800/60">
+                                🔒 Logro Concluido
+                              </span>
+                            )}
+                          </div>
+                          <select
+                            disabled={isConcluido}
+                            value={isConcluido ? 'PLAN_CONCLUIDO' : (nuevoPrograma.motivo_estatus || 'REGULAR')}
+                            onChange={e => setNuevoPrograma(p => ({ ...p, motivo_estatus: e.target.value }))}
+                            className={`w-full border rounded-xl p-2.5 text-sm outline-none font-medium transition-all ${
+                              isConcluido
+                                ? 'bg-gray-100 dark:bg-gray-800/70 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-90'
+                                : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
+                            }`}
+                          >
+                            {isConcluido ? (
+                              <option value="PLAN_CONCLUIDO">PLAN CONCLUIDO (Logro completado)</option>
+                            ) : isBaja ? (
+                              <>
+                                <option value="DESERCION_VOLUNTARIA">DESERCIÓN VOLUNTARIA (Baja del alumno)</option>
+                                <option value="CAMBIO_DE_CARRERA">CAMBIO DE CARRERA (Transferencia a este nuevo plan)</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="REGULAR">REGULAR (Carrera única ordinaria)</option>
+                                <option value="CARRERA_SIMULTANEA">CARRERA SIMULTÁNEA (2 carreras a la vez)</option>
+                                <option value="SEGUNDA_CARRERA">SEGUNDA CARRERA (Egresado de carrera previa)</option>
+                                <option value="REINGRESO">REINGRESO (Reactivado tras baja académica)</option>
+                                <option value="CAMBIO_DE_CARRERA">CAMBIO DE CARRERA (Transferencia a este nuevo plan)</option>
+                              </>
+                            )}
+                          </select>
+                          {isConcluido && (
+                            <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-1 leading-tight italic">
+                              Protegido: Al ser un plan acreditado como egresado/titulado, su modalidad oficial queda fijada como Plan Concluido.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    <div className="p-3 bg-gray-50 dark:bg-[#161b22] border border-gray-200 dark:border-gray-800 rounded-xl">
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={nuevoPrograma.es_vigente}
+                          onChange={e => setNuevoPrograma(p => ({ ...p, es_vigente: e.target.checked }))}
+                          className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                            Establecer como Programa Rector Vigente del Alumno
+                          </span>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
+                            Define este plan como la carrera oficial activa del expediente universitario.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Botones de acción */}
+              <div className="p-3.5 sm:p-4 bg-gray-50/70 dark:bg-[#181e25] border-t border-gray-100 dark:border-gray-800/60 flex items-center justify-between gap-2.5 shrink-0">
+                <div>
+                  {modoModalProg === 'existente' && sinCambios && (
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400 italic">
+                      Sin cambios pendientes.
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowModalInscripcion(false)}
+                    disabled={submittingPrograma}
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGuardarPrograma}
+                    disabled={botonDeshabilitado}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer ${
+                      botonDeshabilitado
+                        ? 'bg-gray-300 dark:bg-gray-800 text-gray-500 dark:text-gray-500 cursor-not-allowed'
+                        : 'bg-[#1456f0] hover:bg-[#1d4ed8] dark:bg-blue-600 dark:hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    {submittingPrograma ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Guardando...
+                      </>
+                    ) : !nuevoPrograma.plan_id ? (
+                      <>
+                        <GraduationCap size={15} />
+                        Selecciona un Plan
+                      </>
+                    ) : modoModalProg === 'nuevo' ? (
+                      <>
+                        <GraduationCap size={15} />
+                        {nuevoPrograma.es_vigente ? 'Inscribir como Plan Vigente' : 'Inscribir Nuevo Plan'}
+                      </>
+                    ) : sinCambios ? (
+                      <>
+                        <Check size={14} />
+                        Plan Registrado (Sin Cambios)
+                      </>
+                    ) : nuevoPrograma.es_vigente && (!programaExistente || !programaExistente.es_vigente) ? (
+                      <>
+                        <GraduationCap size={15} />
+                        Activar como Programa Vigente
+                      </>
+                    ) : (
+                      <>
+                        <Save size={15} />
+                        Actualizar Plan
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
+
       <ModalConfirmacion {...systemConfirmModal} />
     </div>
   );

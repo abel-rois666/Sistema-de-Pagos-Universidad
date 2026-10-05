@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -16,11 +16,15 @@ import {
   CheckCircle,
   Users,
   FileText,
-  BookUser
+  BookUser,
+  Bell,
+  UserCheck
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAppStore } from '../store/useAppStore';
 import { supabase, updateUserPreferences } from '../lib/supabase';
 import DarkModeToggle from './DarkModeToggle';
+import { playNotificationSound } from '../utils/notificationSound';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -35,6 +39,55 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const [showCicloMenu, setShowCicloMenu] = useState(false);
   const cicloMenuRef = useRef<HTMLDivElement>(null);
+
+  // ── Notificaciones en tiempo real (prospectos pendientes) ──────────────
+  const [pendingCount, setPendingCount] = useState(0);
+  const canSeeNotifications = currentUser?.rol === 'ADMINISTRADOR' || currentUser?.rol === 'COORDINADOR CONTROL ESCOLAR';
+
+  const fetchPendingCount = useCallback(async () => {
+    if (!canSeeNotifications) return;
+    const { count, error } = await supabase
+      .from('alumnos')
+      .select('id', { count: 'exact', head: true })
+      .eq('estatus', 'PENDIENTE_APROBACION')
+      .not('crm_lead_id', 'is', null);
+    if (!error && count !== null) setPendingCount(count);
+  }, [canSeeNotifications]);
+
+  useEffect(() => {
+    if (!canSeeNotifications) return;
+    fetchPendingCount();
+
+    const channel = supabase
+      .channel('prospectos-pendientes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'alumnos', filter: 'estatus=eq.PENDIENTE_APROBACION' },
+        (payload) => {
+          if (payload.new && (payload.new as any).crm_lead_id) {
+            setPendingCount(prev => prev + 1);
+            playNotificationSound();
+            toast('🔔 Nuevo prospecto: ' + ((payload.new as any).nombre_completo || 'Sin nombre'), {
+              duration: 5000,
+              style: { fontWeight: 600 }
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'alumnos' },
+        () => {
+          // Como 'payload.old' no trae el estatus sin REPLICA IDENTITY FULL, simplemente recalculamos.
+          fetchPendingCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [canSeeNotifications, fetchPendingCount]);
 
   // Cerrar menú de ciclos al hacer clic fuera
   useEffect(() => {
@@ -73,7 +126,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           { name: 'Calificaciones', path: '/calificaciones', icon: <BookOpen size={16}/> },
           { name: 'Certificación', path: '/certificacion', icon: <FileText size={16}/> },
           { name: 'Titulación', path: '/titulacion', icon: <FileText size={16}/> },
-          { name: 'Reportes', path: '/reportes-escolares', icon: <FileText size={16}/> }
+          { name: 'Reportes', path: '/reportes-escolares', icon: <FileText size={16}/> },
+          { name: 'Aprobación Prospectos', path: '/aprobacion-prospectos', icon: <UserCheck size={16}/> }
         ]
       },
       { name: 'Control Financiero', icon: <Wallet size={20} />, path: '/' },
@@ -296,6 +350,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                  location.pathname === '/plantillas' ? 'Plantillas y Documentos' :
                  location.pathname === '/configuracion-app' ? 'Configuración General' :
                  location.pathname === '/usuarios' ? 'Módulo de Usuarios' :
+                 location.pathname === '/aprobacion-prospectos' ? 'Aprobación de Prospectos' :
                  'Gestión Universitaria'}
              </h2>
           </div>
@@ -388,6 +443,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
 
             <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 hidden sm:block shrink-0"></div>
+
+            {/* Campana de Notificaciones — solo Admin y Coord. Control Escolar */}
+            {canSeeNotifications && (
+              <button
+                onClick={() => navigate('/aprobacion-prospectos')}
+                className="relative p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title={`${pendingCount} prospecto${pendingCount !== 1 ? 's' : ''} pendiente${pendingCount !== 1 ? 's' : ''}`}
+              >
+                <Bell size={18} />
+                {pendingCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 shadow-sm animate-pulse">
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             <DarkModeToggle 
               initialTheme={currentUser.preferencia_tema} 

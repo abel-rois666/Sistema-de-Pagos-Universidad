@@ -41,3 +41,25 @@ export const normalizeGrado = (grado: string | number | null | undefined): strin
   
   return strGrado;
 };
+
+/**
+ * Normaliza cualquier formato de fecha (ISO con/sin hora, DD/MM/YYYY, YYYY/MM/DD) a formato input 'YYYY-MM-DD'.
+ */
+export const normalizeDateToInput = (val?: string | null): string => {
+  if (!val) return '';
+  const clean = String(val).trim();
+  if (clean.includes('T')) return clean.split('T')[0];
+  if (clean.includes('/')) {
+    const parts = clean.split('/');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        // DD/MM/YYYY -> YYYY-MM-DD
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      } else if (parts[0].length === 4) {
+        // YYYY/MM/DD -> YYYY-MM-DD
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+    }
+  }
+  return clean;
+};

@@ -164,7 +164,7 @@ export default function WizardLayoutDGAIR() {
         return cA.localeCompare(cB);
       });
 
-      const analisis = analizarObservacionesDGAIR(inscAprobadas);
+      const analisis = analizarObservacionesDGAIR(inscAprobadas, { ...plan, carrera });
       const avance = calcularAvanceTipo(inscAprobadas.length, totalAsignaturasKardex);
 
       const newItem: QueueItem = {
