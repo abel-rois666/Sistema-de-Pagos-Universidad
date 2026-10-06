@@ -88,6 +88,7 @@ export default function ControlAcademico() {
     nombre: '',
     clave_legado: '',
     creditos: 0,
+    horas_semanales: '' as number | '',
     clasificacion_clave: '263',
   });
 
@@ -98,6 +99,7 @@ export default function ControlAcademico() {
     id: string;
     nombre: string;
     creditos?: number;
+    horas_semanales?: number | null;
     tipo_periodo?: string;
     modelo?: string;
     numero_periodo?: number;
@@ -120,7 +122,7 @@ export default function ControlAcademico() {
 
   const handleEditAsignatura = (e: React.MouseEvent, asig: Asignatura) => {
     e.stopPropagation();
-    setEditModal({ isOpen: true, type: 'asignatura', id: asig.id, nombre: asig.nombre, creditos: asig.creditos, numero_periodo: asig.numero_periodo || 1 });
+    setEditModal({ isOpen: true, type: 'asignatura', id: asig.id, nombre: asig.nombre, creditos: asig.creditos, horas_semanales: asig.horas_semanales, numero_periodo: asig.numero_periodo || 1 });
   };
 
   const saveEdit = async () => {
@@ -128,10 +130,15 @@ export default function ControlAcademico() {
       if (editModal.type === 'plan') {
         // Obsoleto: Edit de plan se maneja por ModalPlanEstudio
       } else {
-        const { error } = await supabase.from('asignaturas').update({ nombre: editModal.nombre, creditos: editModal.creditos, numero_periodo: editModal.numero_periodo }).eq('id', editModal.id);
+        if (editModal.horas_semanales != null && (!Number.isInteger(editModal.horas_semanales) || editModal.horas_semanales < 1 || editModal.horas_semanales > 40)) {
+          toast.error('Las horas semanales deben ser un entero entre 1 y 40.'); return;
+        }
+        const { error } = await supabase.from('asignaturas').update({ nombre: editModal.nombre, creditos: editModal.creditos,
+          ...(editModal.horas_semanales !== undefined ? { horas_semanales: editModal.horas_semanales } : {}),
+          numero_periodo: editModal.numero_periodo }).eq('id', editModal.id);
         if (error) throw error;
-        setAsignaturasPlan(prev => prev.map(a => a.id === editModal.id ? { ...a, nombre: editModal.nombre, creditos: Number(editModal.creditos), numero_periodo: Number(editModal.numero_periodo) } : a));
-        setAsignaturasLocal(prev => prev.map(a => a.id === editModal.id ? { ...a, nombre: editModal.nombre, creditos: Number(editModal.creditos), numero_periodo: Number(editModal.numero_periodo) } : a));
+        setAsignaturasPlan(prev => prev.map(a => a.id === editModal.id ? { ...a, nombre: editModal.nombre, creditos: Number(editModal.creditos), horas_semanales: editModal.horas_semanales ?? null, numero_periodo: Number(editModal.numero_periodo) } : a));
+        setAsignaturasLocal(prev => prev.map(a => a.id === editModal.id ? { ...a, nombre: editModal.nombre, creditos: Number(editModal.creditos), horas_semanales: editModal.horas_semanales ?? null, numero_periodo: Number(editModal.numero_periodo) } : a));
         toast.success('Asignatura actualizada');
       }
       setEditModal(prev => ({ ...prev, isOpen: false }));
@@ -146,12 +153,14 @@ export default function ControlAcademico() {
   const saveNewAsignatura = async () => {
     if (!selectedPlan) return;
     if (!newAsigForm.nombre || !newAsigForm.clave_legado) return toast.error("Llena nombre y clave.");
+    if (newAsigForm.horas_semanales !== '' && (!Number.isInteger(newAsigForm.horas_semanales) || newAsigForm.horas_semanales < 1 || newAsigForm.horas_semanales > 40)) return toast.error('Las horas semanales deben ser un entero entre 1 y 40.');
     try {
       const nuevaAsig = {
         plan_id: selectedPlan.id,
         clave_legado: newAsigForm.clave_legado,
         nombre: newAsigForm.nombre,
         creditos: newAsigForm.creditos,
+        ...(newAsigForm.horas_semanales === '' ? {} : { horas_semanales: newAsigForm.horas_semanales }),
         numero_periodo: isCreatingAsignatura.periodo,
         etapa_clave: String(isCreatingAsignatura.periodo), // fallback retrocompatibilidad
         etapa_nombre: `Bloque ${isCreatingAsignatura.periodo}`, // fallback retrocompatibilidad
@@ -166,7 +175,7 @@ export default function ControlAcademico() {
       setAsignaturasPlan(prev => [...prev, data]);
       setAsignaturasLocal(prev => [...prev, data]);
       setIsCreatingAsignatura({ isOpen: false, periodo: 1 });
-      setNewAsigForm({ nombre: '', clave_legado: '', creditos: 0, clasificacion_clave: '263' });
+      setNewAsigForm({ nombre: '', clave_legado: '', creditos: 0, horas_semanales: '', clasificacion_clave: '263' });
       toast.success('Asignatura añadida');
     } catch (err) {
       console.error(err);
@@ -1023,6 +1032,7 @@ export default function ControlAcademico() {
                                         <option value="266" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">Complementaria</option>
                                       </select>
                                     </div>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">Horas por semana: <b>{asig.horas_semanales ?? 'Sin definir'}</b></span>
                                   </div>
                                 </div>
                               );
@@ -1266,6 +1276,13 @@ export default function ControlAcademico() {
                         className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1456f0] focus:border-transparent dark:text-white"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Horas de clase por semana</label>
+                      <input type="number" min="1" max="40" step="1" value={editModal.horas_semanales ?? ''}
+                        onChange={e => setEditModal(prev => ({ ...prev, horas_semanales: e.target.value === '' ? null : Number(e.target.value) }))}
+                        className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 dark:text-white"
+                        placeholder="Pendiente de definir" />
+                    </div>
                   </>
                 )}
               </div>
@@ -1344,6 +1361,13 @@ export default function ControlAcademico() {
                     <option value="264">Optativa</option>
                     <option value="266">Complementaria</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Horas de clase por semana</label>
+                  <input type="number" min="1" max="40" step="1" value={newAsigForm.horas_semanales}
+                    onChange={e => setNewAsigForm(prev => ({ ...prev, horas_semanales: e.target.value === '' ? '' : Number(e.target.value) }))}
+                    className="w-full bg-gray-50 dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 dark:text-white"
+                    placeholder="Pendiente de definir" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bloque / Periodo (Número)</label>

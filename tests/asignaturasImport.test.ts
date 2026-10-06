@@ -4,6 +4,15 @@ import test from 'node:test';
 import * as XLSX from 'xlsx';
 import { leerArchivoAsignaturas, leerCSV, prepararAsignaturas } from '../src/utils/asignaturasImport.ts';
 
+test('horas semanales opcionales se validan sin afectar archivos anteriores', () => {
+  const anterior = prepararAsignaturas(leerCSV('clave,nombre,creditos,clasificacion,periodo\nA1,Historia,2,Obligatoria,1'))[0];
+  assert.equal('horas_semanales' in anterior.asignatura!, false);
+  const nueva = prepararAsignaturas(leerCSV('clave,nombre,creditos,clasificacion,periodo,horas_semanales\nA1,Historia,2,Obligatoria,1,4'))[0];
+  assert.equal(nueva.asignatura?.horas_semanales, 4);
+  const invalida = prepararAsignaturas(leerCSV('clave,nombre,creditos,clasificacion,periodo,horas_semanales\nA1,Historia,2,Obligatoria,1,0'))[0];
+  assert.ok(invalida.errores.includes('Horas semanales inválidas'));
+});
+
 test('CSV con separador, comillas, salto de línea y crédito cero', () => {
   const filas = leerCSV('\uFEFFclave;nombre;creditos;clasificacion;periodo\r\nMAT01;"Historia; ""Universal""";0;Obligatoria;1\r\n');
   assert.equal(filas[0][0], 'clave');

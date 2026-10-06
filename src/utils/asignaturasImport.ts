@@ -2,6 +2,7 @@ export type AsignaturaImportada = {
   clave_legado: string;
   nombre: string;
   creditos: number;
+  horas_semanales?: number;
   clasificacion_clave: '263' | '264' | '266';
   clasificacion_nombre: 'Obligatoria' | 'Optativa' | 'Complementaria';
   numero_periodo: number;
@@ -25,7 +26,7 @@ export type FilaAsignatura = {
 
 const encabezados = ['clave', 'nombre', 'creditos', 'clasificacion', 'periodo'] as const;
 type Encabezado = typeof encabezados[number];
-type EncabezadoOpcional = 'etapa_clave' | 'etapa_nombre' | 'clave_certificacion';
+type EncabezadoOpcional = 'etapa_clave' | 'etapa_nombre' | 'clave_certificacion' | 'horas_semanales';
 
 const normalizar = (valor: string) => valor.trim().toLowerCase().normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '').replace(/[\s-]+/g, '_');
@@ -34,6 +35,7 @@ const alias: Record<string, Encabezado | EncabezadoOpcional> = {
   clave: 'clave', clave_legado: 'clave', clave_asignatura: 'clave',
   nombre: 'nombre', asignatura: 'nombre', nombre_asignatura: 'nombre',
   creditos: 'creditos', credito: 'creditos',
+  horas_semanales: 'horas_semanales', horas_semana: 'horas_semanales', horas_de_clase: 'horas_semanales',
   clasificacion: 'clasificacion', clasificacion_nombre: 'clasificacion', clasificacion_clave: 'clasificacion',
   periodo: 'periodo', numero_periodo: 'periodo', bloque: 'periodo', bloque_periodo: 'periodo',
   etapa_clave: 'etapa_clave', etapa_nombre: 'etapa_nombre',
@@ -113,6 +115,7 @@ export function prepararAsignaturas(filas: string[][]): FilaAsignatura[] {
     const clasificacion = obtener('clasificacion');
     const periodo = obtener('periodo');
     const claveCertificacion = obtener('clave_certificacion');
+    const horasSemanales = obtener('horas_semanales');
     const errores: string[] = [];
     if (!clave) errores.push('Falta la clave');
     if (!nombre) errores.push('Falta el nombre');
@@ -122,6 +125,8 @@ export function prepararAsignaturas(filas: string[][]): FilaAsignatura[] {
     const numeroPeriodo = Number(periodo);
     if (!periodo || !Number.isSafeInteger(numeroPeriodo) || numeroPeriodo < 1) errores.push('Periodo inválido');
     const numeroCertificacion = Number(claveCertificacion);
+    const numeroHoras = Number(horasSemanales);
+    if (horasSemanales && (!Number.isSafeInteger(numeroHoras) || numeroHoras < 1 || numeroHoras > 40)) errores.push('Horas semanales inválidas');
     if (claveCertificacion && (!Number.isSafeInteger(numeroCertificacion) || numeroCertificacion < 0)) errores.push('Clave de certificación inválida');
     const clasificaciones: Record<string, ['263' | '264' | '266', 'Obligatoria' | 'Optativa' | 'Complementaria']> = {
       '263': ['263', 'Obligatoria'], obligatoria: ['263', 'Obligatoria'],
@@ -139,9 +144,10 @@ export function prepararAsignaturas(filas: string[][]): FilaAsignatura[] {
         numero_periodo: numeroPeriodo, etapa_clave: obtener('etapa_clave') || String(numeroPeriodo),
         etapa_nombre: obtener('etapa_nombre') || `Bloque ${numeroPeriodo}`,
         clave_certificacion: claveCertificacion ? numeroCertificacion : null, activo: true,
+        ...(horasSemanales ? { horas_semanales: numeroHoras } : {}),
       },
     };
   });
 }
 
-export const plantillaAsignaturasCSV = '\uFEFFclave,nombre,creditos,clasificacion,periodo,etapa_clave,etapa_nombre,clave_certificacion\r\n';
+export const plantillaAsignaturasCSV = '\uFEFFclave,nombre,creditos,clasificacion,periodo,horas_semanales,etapa_clave,etapa_nombre,clave_certificacion\r\n';

@@ -8,7 +8,7 @@ React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4, Zustand y Supabase. `src/compo
 
 ## Comandos y verificación
 
-Ejecuta `npm ci` para instalar, `npm run dev` para servir en el puerto 3000, `npm run lint` para verificar tipos y `npm run build` para generar `dist/`. Usa `node --import tsx --test tests/asignaturasImport.test.ts tests/planCoverageUtils.test.ts` para probar importación y cobertura. Al terminar, ejecuta lint, build y pruebas; revisa móvil, tableta, escritorio y ambos temas.
+Ejecuta `npm ci` para instalar, `npm run dev` para servir en el puerto 3000, `npm run lint` para verificar tipos y `npm run build` para generar `dist/`. Usa `node --import tsx --test tests/asignaturasImport.test.ts tests/planCoverageUtils.test.ts tests/horariosMotor.test.ts` para probar importación, cobertura y horarios. Al terminar, ejecuta lint, build y pruebas; revisa móvil, tableta, escritorio y ambos temas.
 
 ## Convenciones y reglas de dominio
 
@@ -19,6 +19,8 @@ En ciclos, conserva fechas y valida inicio ≤ término. El formulario adaptable
 Reportes: filtra antes de contar o exportar; permite multiselección, orden y paginación. El PDF abarca todas las filas filtradas. Conserva enlaces y filtros. En cobertura, usa detalles normalizados si existen; si no, campos numerados. Ignora filas vacías y `0` aislados; `$0` vale en filas usadas. Incluye `ACTIVO`, `EGRESADO` y titulados solo con plan del ciclo; excluye `BAJA`. Referencias: `src/utils/planCoverageUtils.ts`, `src/components/reportes/CoberturaPlanesPago.tsx`.
 
 En cobertura, «Integral» requiere plan semestral o cuatrimestral con al menos una observación; quitar todas revoca esa clasificación, sin alterar completo/incompleto. Cuenta planes y alumnos distintos, filtra observaciones con coincidencia de cualquiera y refleja las columnas visibles en el PDF.
+
+Horarios: usa `ciclo_id` exacto; cada hora dura 60 minutos y no hay receso obligatorio. Matutino L–V 07:00–13:00, vespertino L–V 16:00–21:00 y Mixto sábado 07:00–15:00. Cada grupo requiere materias; el usuario define horas presenciales y asíncronas de cada materia Mixta sin conversión automática. Permite varias sesiones de una materia el sábado, cada una de 1–4 horas. Conserva al docente asignado hasta publicar; máximo tres materias distintas del mismo grupo. Evita choques de grupo, docente y aula asignada. El hueco diario máximo de una hora es preferencia editable; prioriza al grupo. Referencias: `src/horarios/motor.ts`, `src/components/horarios/`, `supabase/migrations/20261006121000_publicar_horario_academico.sql`. La primera migración tiene 21 verificaciones `OK` comunicadas por el usuario; la de publicación sigue pendiente. Consulta `docs/APLICACION_SEGURA_HORARIOS.md` antes de continuar.
 
 Retícula: la importación CSV/XLSX se limita al plan abierto, previsualiza y valida filas antes de guardar. Exige clave, nombre, créditos ≥ 0, clasificación y periodo entero positivo; acepta opcionalmente etapa y clave de certificación. Omite duplicados sin sobrescribir. Conserva la unicidad `(plan_id, clave_legado)` y el comportamiento de alta individual. Referencias: `src/utils/asignaturasImport.ts`, `src/components/modals/ImportarAsignaturas.tsx`.
 

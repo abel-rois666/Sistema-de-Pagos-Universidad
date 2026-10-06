@@ -528,6 +528,7 @@ export interface Asignatura {
   clave_legado: string;
   nombre: string;
   creditos: number;
+  horas_semanales?: number | null;
   etapa_clave: string;
   etapa_nombre: string;
   clasificacion_nombre?: string;
@@ -598,6 +599,8 @@ export interface Grupo {
   codigo_grupo: string;
   grado: string;
   turno: string;
+  aula?: string | null;
+  sede?: string | null;
   estatus: string;
   ciclo?: { nombre: string; tipo_periodo?: string };
   plan?: { nombre: string };
@@ -608,6 +611,8 @@ export interface DocenteGrupoAsignatura {
   docente_id: string;
   grupo_id: string;
   asignatura_id: string;
+  horas_presenciales?: number | null;
+  horas_asincronas?: number | null;
   docentes?: Docente;
   grupos?: Grupo;
   asignaturas?: Asignatura;

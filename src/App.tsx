@@ -25,6 +25,7 @@ import AppLayout from './components/AppLayout';
 import ControlAcademico from './components/ControlAcademico';
 import GruposConfig from './components/GruposConfig';
 import DocentesConfig from './components/DocentesConfig';
+import HorariosAcademicos from './components/horarios/HorariosAcademicos';
 import Dashboard from './components/Dashboard';
 import CalificacionesModule from './components/CalificacionesModule';
 import RecursosHumanosConfig from './components/RecursosHumanosConfig';
@@ -380,6 +381,11 @@ export default function App() {
             <PageWrapper keyStr="docentes">
               <DocentesConfig />
             </PageWrapper>
+          } />
+          <Route path="/horarios" element={
+            currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR ACADEMICO'
+              ? <PageWrapper keyStr="horarios"><HorariosAcademicos /></PageWrapper>
+              : <Navigate to="/" replace />
           } />
           <Route path="/rh" element={
             <PageWrapper keyStr="rh">

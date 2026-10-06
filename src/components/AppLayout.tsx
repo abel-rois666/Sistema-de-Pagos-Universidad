@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ChevronDown,
   Calendar,
+  CalendarClock,
   CheckCircle,
   Users,
   FileText,
@@ -136,7 +137,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
         icon: <BookOpen size={20} />, 
         path: '/control-academico',
         children: [
-          { name: 'Docentes', path: '/docentes', icon: <BookUser size={16}/> }
+          { name: 'Docentes', path: '/docentes', icon: <BookUser size={16}/> },
+          { name: 'Generador de Horarios', path: '/horarios', icon: <CalendarClock size={16}/> }
         ]
       },
       { name: 'Recursos Humanos', icon: <Briefcase size={20} />, path: '/rh' },
@@ -345,6 +347,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                  location.pathname === '/control-academico' ? 'Control Académico' :
                  location.pathname === '/grupos' ? 'Gestión de Grupos' :
                  location.pathname === '/docentes' ? 'Gestión de Docentes' :
+                 location.pathname === '/horarios' ? 'Generador de Horarios' :
                  location.pathname === '/rh' ? 'Recursos Humanos' :
                  location.pathname === '/catalogos' ? 'Catálogos' :
                  location.pathname === '/plantillas' ? 'Plantillas y Documentos' :

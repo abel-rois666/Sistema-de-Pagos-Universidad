@@ -1,6 +1,6 @@
 # Propuesta — Generador de Horarios Académicos
 
-**Estado:** diseño pendiente de implementación. Este documento registra decisiones de producto y una propuesta técnica; no describe funciones disponibles actualmente. Referencias actuales: `src/components/ControlAcademico.tsx`, `src/components/modals/ModalDocente.tsx`, `src/components/modals/ModalGestionarMateriasGrupo.tsx`, `src/components/GruposConfig.tsx` y `db_schema.sql`. El esquema compartido por el usuario el 6 de octubre de 2026 confirma las columnas principales, pero no enumera todas las claves foráneas, restricciones e índices.
+**Estado:** código y migraciones SQL preparados; las migraciones no se han aplicado a ningún entorno. Este documento distingue las decisiones de producto de la disponibilidad operativa. Referencias: `src/components/horarios/`, `src/horarios/`, `src/components/ControlAcademico.tsx`, `src/components/modals/ModalDocente.tsx` y `supabase/migrations/`. El esquema compartido por el usuario el 6 de octubre de 2026 confirma las columnas principales, pero no enumera todas las claves foráneas, restricciones e índices.
 
 ## Datos de entrada
 
@@ -23,18 +23,18 @@ Antes de generar, la pantalla mostrará para cada grupo Mixto la suma de horas p
 
 ## Docente ya asignado
 
-La revisión previa mostrará docente actual, elegibilidad, disponibilidad y carga. Si es compatible, quedará **fijo por defecto**. Si hay conflicto, mostrará la causa y docentes alternativos disponibles, ordenados por preferencias y carga. El usuario podrá conservarlo ajustando datos reales, elegir una alternativa o dejar la materia pendiente. El cambio propuesto permanecerá en el borrador; la publicación confirmada actualizará la asignación y el horario en una sola operación transaccional. Si no existe solución, el sistema mostrará materias sin ubicar y razones, sin publicar un horario inválido.
+La revisión previa muestra docente actual, elegibilidad, disponibilidad y carga de cada materia. Si es compatible, queda **seleccionado por defecto**. Si hay conflicto, muestra la causa y docentes alternativos habilitados, ordenados primero por preferencia de asignatura y después por nombre. El usuario puede conservarlo ajustando su configuración, elegir una alternativa o dejar la materia pendiente. El cambio propuesto permanece en el borrador; al publicar, se actualizan la asignación y el horario en una sola operación transaccional. Si no existe solución, el sistema muestra materias sin ubicar y razones, sin publicar un horario inválido.
 
 ## Estructura técnica propuesta
 
 1. Añadir `horas_semanales` a `asignaturas`; guardar la división presencial/asíncrona por relación grupo–asignatura, asociada a `docentes_grupos_asignaturas`.
-2. Crear relaciones normalizadas de disponibilidad docente por ciclo, planes habilitados, asignaturas preferidas y grupos restringidos.
-3. Guardar **versiones** de horario por ciclo (`borrador`, `publicado`) y sesiones con grupo, asignatura, docente, día, inicio y fin. Mantener las decisiones y restricciones usadas en cada generación para poder reproducir y auditar el resultado.
+2. Guardar la configuración de cada docente y ciclo en una fila con intervalos de disponibilidad, planes habilitados, asignaturas preferidas y grupos restringidos. El formulario la actualiza de forma atómica; la función de publicación vuelve a validar sus elementos.
+3. Mantener el **borrador en la interfaz** hasta publicarlo. Guardar versiones publicadas y sustituidas por ciclo, con instantáneas de cargas y sesiones para poder consultar y exportar el resultado anterior.
 4. Separar un motor de generación y validación de la interfaz. La revisión previa comprobará datos faltantes, capacidad del turno, conflictos y duplicados de grupo–asignatura antes de ejecutar el motor. Los cambios manuales volverán a pasar por el mismo validador.
 5. Exportar desde la misma versión publicada horarios de todos los grupos, de un grupo, de todos los docentes o de uno, en PDF y Word. Las horas asíncronas irán en un apartado separado, sin día ni hora ficticios.
 
 ## Decisiones pendientes
 
-- Confirmar que el máximo de una hora de hueco se evalúa por día, y no como acumulado semanal.
-- Antes de preparar SQL, revisar el DDL real de claves foráneas, índices, restricciones, triggers y políticas de las tablas académicas. El extracto aportado incluye políticas `ALL` amplias en `grupos`, `docentes` y `docentes_grupos_asignaturas`; la publicación necesita autorización y validación del lado del servidor.
-- La exportación PDF puede usar dependencias actuales. Para `.docx` habrá que elegir una implementación y consultar antes de añadir una dependencia nueva.
+- Antes de aplicar SQL, contrastar las migraciones preparadas con el DDL real de claves foráneas, índices, restricciones, triggers y políticas del entorno. El extracto aportado incluye políticas `ALL` amplias en tablas académicas; las migraciones protegen los campos nuevos y limitan la publicación, pero no cambian los permisos heredados de las demás columnas.
+- Probar en una base de desarrollo la función transaccional, los roles, la sustitución de versiones y los choques entre ciclos. No se ha ejecutado SQL ni una prueba integrada contra una base real.
+- La exportación PDF usa `jspdf`; Word se genera con `jszip`, ya instalado. Verificar los archivos descargados en lectores de escritorio antes de desplegar.
