@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { FileText, User, BarChart3, Users, GraduationCap, Calendar, AlertCircle, Wallet, ChevronDown, TrendingDown, ClipboardList } from 'lucide-react';
+import { FileText, User, BarChart3, Users, GraduationCap, Calendar, AlertCircle, Wallet, ChevronDown, TrendingDown, ClipboardList, FileCheck2 } from 'lucide-react';
 
 import { useAppStore } from '../store/useAppStore';
 import { useDashboardStats } from '../hooks/useDashboardStats';
@@ -332,6 +332,19 @@ export default function Dashboard() {
                                <AlertCircle size={10} /> {totalDeudores}
                             </div>
                           )}
+                        </button>
+                      )}
+
+                      {(currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR FINANCIERO') && (
+                        <button
+                          onClick={() => navigate('/cobertura-planes-pago')}
+                          className="card-interactive bg-white dark:bg-[#1c2228] p-6 rounded-[20px] shadow-[var(--shadow-subtle)] hover:shadow-[var(--shadow-brand)] hover:-translate-y-1.5 transition-all duration-300 group text-left flex flex-col items-start border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] relative focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1456f0]"
+                        >
+                          <div className="bg-[#1456f0] p-3 rounded-[13px] text-white mb-4 group-hover:scale-110 transition-transform duration-300 shadow-[var(--shadow-subtle)]">
+                            <FileCheck2 size={24} />
+                          </div>
+                          <h2 className="text-[18px] font-semibold text-[#18181b] dark:text-gray-100 mb-1" style={{ fontFamily: 'var(--font-display)' }}>Cobertura de planes de pago</h2>
+                          <p className="text-[13px] text-[#45515e] dark:text-[#8e8e93] leading-[1.50]">Planes completos, alumnos sin plan y tipos por ciclo. Consulta y descarga PDF.</p>
                         </button>
                       )}
 

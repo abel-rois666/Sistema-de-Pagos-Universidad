@@ -1,5 +1,5 @@
 import { useState, useEffect, ReactNode } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, AlertCircle, LayoutDashboard, Briefcase } from 'lucide-react';
 import { supabase, savePlan, saveAlumno, deleteAlumno, saveCiclo, deleteCiclo, saveCatalogoItem, deleteCatalogoItem, savePlantilla, deletePlantilla, getAppConfig, updateUserPreferences, fetchAllSupabase } from './lib/supabase';
@@ -33,6 +33,7 @@ import WizardLayoutDGAIR from './components/certificacion/WizardLayoutDGAIR';
 import WizardLayoutTitulacion from './components/titulacion/WizardLayoutTitulacion';
 import { ReportesControlEscolar } from './components/reportes/ReportesControlEscolar';
 import AprobacionProspectos from './components/AprobacionProspectos';
+import CoberturaPlanesPago from './components/reportes/CoberturaPlanesPago';
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -106,6 +107,7 @@ export default function App() {
 
   // ── Toast global ─────────────────────────────────────────────────────────
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [authConnectionError, setAuthConnectionError] = useState('');
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 4000);
@@ -121,14 +123,25 @@ export default function App() {
   // ── Supabase Auth: verificar sesión al montar y escuchar cambios ──────────────────────
   useEffect(() => {
     // Al recargar la página: busca sesión JWT activa
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    void supabase.auth.getSession().then(async ({ data: { session }, error: sessionError }) => {
+      if (sessionError) {
+        console.error('Error al recuperar la sesión:', sessionError);
+        setAuthConnectionError('No se pudo conectar con el servidor de autenticación. Revisa tu conexión e inténtalo de nuevo.');
+        return;
+      }
       if (session?.user) {
         // Hay sesión — cargar el perfil del usuario
-        const { data: perfil } = await supabase
+        const { data: perfil, error: perfilError } = await supabase
           .from('usuarios')
           .select('id, username, rol, preferencia_tema, ultimo_ciclo_id')
           .eq('auth_id', session.user.id)
           .maybeSingle();
+
+        if (perfilError) {
+          console.error('Error al cargar el perfil:', perfilError);
+          setAuthConnectionError('No se pudo cargar tu perfil. Revisa la conexión y vuelve a intentarlo.');
+          return;
+        }
 
         if (perfil) {
           const u = perfil as Usuario;
@@ -152,9 +165,10 @@ export default function App() {
           await supabase.auth.signOut();
         }
       }
-      // Sin sesión o perfil no encontrado
-      setAuthChecked(true);
-    });
+    }).catch((error) => {
+      console.error('Error al verificar la sesión:', error);
+      setAuthConnectionError('No se pudo conectar con el servidor de autenticación. Revisa tu conexión e inténtalo de nuevo.');
+    }).finally(() => setAuthChecked(true));
 
     // Escuchar cambios de estado (logout desde otra pestaña, expiración de token)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -207,7 +221,7 @@ export default function App() {
 
   // Sin sesión válida → mostrar Login
   if (!currentUser) {
-    return <Login onLogin={(u) => {
+    return <Login connectionError={authConnectionError} onLogin={(u) => {
       setCurrentUser(u);
 
       // Aplicar tema del usuario recién autenticado
@@ -250,10 +264,10 @@ export default function App() {
         <Routes>
           <Route path="/plan-pagos" element={
             <PageWrapper keyStr="plan_pagos">
-              <PlanPagos initialAlumnoId={selectedAlumnoId || navState.alumnoId} initialPlanId={navState.initialPlanId}
+              <PlanPagos initialAlumnoId={navState.alumnoId || selectedAlumnoId} initialPlanId={navState.initialPlanId}
                 onSavePlan={handleSavePlan}
                 onDeletePlan={(planId) => setPlans(prev => prev.filter(p => p.id !== planId))}
-                onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
+                onBack={() => { setSelectedAlumnoId(null); navigate(navState.fromCoverageReport ? '/cobertura-planes-pago' : '/', navState.fromCoverageReport ? { state: { coverageFilters: navState.coverageFilters } } : undefined); }}
                 onGoToPagos={(aId, cIdx, pId) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, initialPlanId: pId, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
                 onViewReceipt={(folio, aId) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: aId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
                 onBackToFicha={navState.fromFicha ? (id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: navState.fromAlumnos } }); } : undefined}
@@ -263,8 +277,8 @@ export default function App() {
           } />
           <Route path="/ficha-alumno" element={
             <PageWrapper keyStr="ficha_alumno">
-              <FichaAlumno initialAlumnoId={selectedAlumnoId || navState.alumnoId}
-                onBack={() => { setSelectedAlumnoId(null); navigate('/'); }}
+              <FichaAlumno initialAlumnoId={navState.alumnoId || selectedAlumnoId}
+                onBack={() => { setSelectedAlumnoId(null); navigate(navState.fromCoverageReport ? '/cobertura-planes-pago' : '/', navState.fromCoverageReport ? { state: { coverageFilters: navState.coverageFilters } } : undefined); }}
                 onGoToPlan={(id, planId) => { setSelectedAlumnoId(id); navigate('/plan-pagos', { state: { alumnoId: id, initialPlanId: planId, fromFicha: true, fromAlumnos: navState.fromAlumnos } }); }}
                 onBackToAlumnos={navState.fromAlumnos ? () => { setSelectedAlumnoId(null); navigate('/alumnos'); } : undefined}
                 onBackToReporteEgresados={navState.fromReporteEgresados ? () => { setSelectedAlumnoId(null); navigate('/reporte-egresados'); } : undefined}
@@ -272,6 +286,11 @@ export default function App() {
             </PageWrapper>
           } />
           <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas onBack={() => navigate('/')} /></PageWrapper>} />
+          <Route path="/cobertura-planes-pago" element={
+            currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR FINANCIERO'
+              ? <PageWrapper keyStr="cobertura-planes-pago"><CoberturaPlanesPago /></PageWrapper>
+              : <Navigate to="/" replace />
+          } />
           <Route path="/deudores" element={<PageWrapper keyStr="deudores"><Deudores onBack={() => navigate('/')} onNavigateToAlumno={(alumnoId) => { setSelectedAlumnoId(alumnoId); navigate('/ficha-alumno', { state: { alumnoId } }); }} /></PageWrapper>} />
           <Route path="/ciclos" element={<PageWrapper keyStr="ciclos"><CiclosConfig onBack={() => navigate('/')} /></PageWrapper>} />
           <Route path="/alumnos" element={

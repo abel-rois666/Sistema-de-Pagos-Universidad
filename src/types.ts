@@ -533,6 +533,7 @@ export interface Asignatura {
   clasificacion_nombre?: string;
   clasificacion_clave?: string;
   numero_periodo?: number;
+  clave_certificacion?: number | null;
   activo?: boolean;
   created_at: string;
 }

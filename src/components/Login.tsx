@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Lock, User, LogIn, Loader2, AlertCircle } from 'lucide-react';
 import { supabase, getAppConfig } from '../lib/supabase';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import type { Usuario } from '../types';
 
 interface LoginProps {
   onLogin: (user: Usuario) => void;
+  connectionError?: string;
 }
 
-export default function Login({ onLogin }: LoginProps) {
+export default function Login({ onLogin, connectionError }: LoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,8 +22,12 @@ export default function Login({ onLogin }: LoginProps) {
       if (config && config.logoUrl) {
         setLogoUrl(config.logoUrl);
       }
-    });
+    }).catch(error => console.warn('No se pudo cargar el logo:', error));
   }, []);
+
+  useEffect(() => {
+    if (connectionError) setError(connectionError);
+  }, [connectionError]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +62,9 @@ export default function Login({ onLogin }: LoginProps) {
       });
 
       if (authError || !authData.user) {
-        setError('Usuario o contraseña incorrectos.');
+        setError(isAuthRetryableFetchError(authError)
+          ? 'No se pudo conectar con el servidor de autenticación. Revisa tu conexión e inténtalo de nuevo.'
+          : 'Usuario o contraseña incorrectos.');
         return;
       }
 
@@ -72,7 +80,13 @@ export default function Login({ onLogin }: LoginProps) {
 
 
 
-      if (perfilError || !perfil) {
+      if (perfilError) {
+        console.error('Error al consultar el perfil:', perfilError);
+        setError('No se pudo cargar tu perfil. Revisa la conexión e inténtalo de nuevo.');
+        return;
+      }
+
+      if (!perfil) {
         setError('Usuario autenticado pero sin perfil en el sistema. Contacta al administrador.');
         await supabase.auth.signOut();
         return;

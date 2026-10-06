@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, BookOpen, Layers, AlertCircle, FileText, Trash2, X, CheckSquare, Square, Edit2, Save, ChevronUp, ChevronDown, ArrowUp, ArrowDown, Plus, Eye } from 'lucide-react';
+import { RefreshCw, BookOpen, Layers, AlertCircle, FileText, Trash2, X, CheckSquare, Square, Edit2, Save, ChevronUp, ChevronDown, ArrowUp, ArrowDown, Plus, Eye, UploadCloud } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import type { PlanEstudio, Asignatura, Carrera } from '../types';
 import ModalCarrera from './modals/ModalCarrera';
 import ModalPlanEstudio from './modals/ModalPlanEstudio';
+import ImportarAsignaturas from './modals/ImportarAsignaturas';
 
 const normalizeText = (text: string) => {
   if (!text) return '';
@@ -56,6 +57,7 @@ export default function ControlAcademico() {
   const [selectedPlan, setSelectedPlan] = useState<PlanEstudio | null>(null);
   const [asignaturasPlan, setAsignaturasPlan] = useState<Asignatura[]>([]);
   const [isLoadingReticula, setIsLoadingReticula] = useState(false);
+  const [showImportarAsignaturas, setShowImportarAsignaturas] = useState(false);
   const [selectedMaterias, setSelectedMaterias] = useState<string[]>([]);
   const [categoriasAbiertas, setCategoriasAbiertas] = useState<Record<string, boolean>>({});
   const [ordenCategorias, setOrdenCategorias] = useState<string[]>(['Obligatoria', 'Optativa', 'Complementaria', 'Sin Clasificación']);
@@ -442,6 +444,7 @@ export default function ControlAcademico() {
   const countMaterias = (planId: string) => asignaturasLocal.filter(a => a.plan_id === planId).length;
 
   const handleViewPlan = async (plan: PlanEstudio) => {
+    setShowImportarAsignaturas(false);
     setSelectedPlan(plan);
     setIsLoadingReticula(true);
     setAsignaturasPlan([]);
@@ -745,7 +748,7 @@ export default function ControlAcademico() {
           <div>
             {selectedPlan ? (
               <>
-                <button onClick={() => setSelectedPlan(null)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#1456f0] dark:text-gray-400 dark:hover:text-blue-400 font-medium mb-3 transition-colors text-sm">
+                <button onClick={() => { setSelectedPlan(null); setShowImportarAsignaturas(false); }} className="flex items-center gap-1.5 text-gray-500 hover:text-[#1456f0] dark:text-gray-400 dark:hover:text-blue-400 font-medium mb-3 transition-colors text-sm">
                   <RefreshCw size={14} className="rotate-180" /> Volver a planes
                 </button>
                 <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
@@ -776,7 +779,11 @@ export default function ControlAcademico() {
           </div>
           
           {/* Botones Globales */}
-          {!selectedPlan && (
+          {selectedPlan ? (
+            <button onClick={() => setShowImportarAsignaturas(true)} className="flex items-center justify-center gap-2 rounded-xl bg-[#1456f0] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">
+              <UploadCloud size={17} /> Importar asignaturas
+            </button>
+          ) : (
             <div className="flex flex-wrap items-center gap-3">
               {selectedCarrera && (
                 <button onClick={() => { setPlanToEdit(null); setShowModalPlan(true); }} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#181e25] border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold rounded-xl shadow-sm transition-all text-sm">
@@ -854,12 +861,15 @@ export default function ControlAcademico() {
             <div className="text-center py-12 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 rounded-2xl">
               <BookOpen size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
               No hay asignaturas registradas para este plan.
-              <div className="mt-4">
+              <div className="mt-4 flex flex-wrap justify-center gap-3">
                 <button 
                   onClick={() => setIsCreatingAsignatura({ isOpen: true, periodo: 1 })}
                   className="px-4 py-2 bg-[#1456f0] text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
                 >
                   + Añadir Primera Asignatura
+                </button>
+                <button onClick={() => setShowImportarAsignaturas(true)} className="inline-flex items-center gap-2 rounded-xl border border-blue-300 px-4 py-2 font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40">
+                  <UploadCloud size={17} /> Importar archivo
                 </button>
               </div>
             </div>
@@ -1369,6 +1379,18 @@ export default function ControlAcademico() {
       )}
 
       {/* MODALES EXTERNOS DE ENTIDADES */}
+      {showImportarAsignaturas && selectedPlan && (
+        <ImportarAsignaturas
+          planId={selectedPlan.id}
+          planNombre={selectedPlan.nombre}
+          clavesExistentes={asignaturasPlan.map(asignatura => asignatura.clave_legado)}
+          onClose={() => setShowImportarAsignaturas(false)}
+          onImported={importadas => {
+            setAsignaturasPlan(prev => [...prev, ...importadas]);
+            setAsignaturasLocal(prev => [...prev, ...importadas]);
+          }}
+        />
+      )}
       {showModalCarrera && (
         <ModalCarrera 
           onClose={() => setShowModalCarrera(false)}
