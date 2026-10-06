@@ -251,7 +251,7 @@ export default function ModalDocente({ isOpen, onClose, docente, onDocenteSaved,
 
         {/* Footer */}
         <div className="p-5 border-t border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] bg-gray-50/50 dark:bg-[#1c2228]/50 flex justify-end gap-3">
-          {docente?.id && cicloId && (rol === 'ADMINISTRADOR' || rol === 'COORDINADOR ACADEMICO') && <button type="button" onClick={() => setConfiguracionAbierta(true)} className="mr-auto inline-flex items-center gap-2 rounded-lg border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40"><CalendarClock size={16}/> Disponibilidad y materias</button>}
+          {docente?.id && (rol === 'ADMINISTRADOR' || rol === 'COORDINADOR ACADEMICO') && <button type="button" onClick={() => setConfiguracionAbierta(true)} className="mr-auto inline-flex items-center gap-2 rounded-lg border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40"><CalendarClock size={16}/> Disponibilidad y materias</button>}
           <button
             type="button"
             onClick={onClose}
@@ -272,7 +272,7 @@ export default function ModalDocente({ isOpen, onClose, docente, onDocenteSaved,
         </div>
 
       </div>
-      {configuracionAbierta && docente?.id && cicloId && <ConfiguracionDocenteHorario docenteId={docente.id} docenteNombre={docente.nombre_completo} cicloId={cicloId} onClose={() => setConfiguracionAbierta(false)} />}
+      {configuracionAbierta && docente?.id && <ConfiguracionDocenteHorario docenteId={docente.id} docenteNombre={docente.nombre_completo} cicloId={cicloId} onClose={() => setConfiguracionAbierta(false)} />}
     </div>
   );
 }

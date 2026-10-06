@@ -364,7 +364,16 @@ export default function DocentesConfig() {
                         {docente.clave_legado}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-[#222222] dark:text-gray-200 font-medium">{toTitleCase(docente.nombre_completo)}</div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDocente(docente);
+                            setReadOnlyMode(true);
+                            setIsModalDocenteOpen(true);
+                          }}
+                          className="text-left font-medium text-[#1456f0] underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1456f0] dark:text-blue-400"
+                          aria-label={`Ver ficha de ${toTitleCase(docente.nombre_completo)}`}
+                        >{toTitleCase(docente.nombre_completo)}</button>
                         <div className="text-xs text-[#8e8e93] mt-0.5">{docente.email || 'Sin correo'}</div>
                       </td>
                       <td className="px-6 py-4">

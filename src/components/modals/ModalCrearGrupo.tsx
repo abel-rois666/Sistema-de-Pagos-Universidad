@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
 import toast from 'react-hot-toast';
 import { Grupo } from '../../types';
+import { formatCicloEscolar } from '../../utils/formatUtils';
 
 interface Props {
   isOpen: boolean;
@@ -149,8 +150,8 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
                 required
               >
                 <option value="">Seleccione un ciclo...</option>
-                {[...ciclos].sort((a, b) => (b.nombre || '').localeCompare(a.nombre || '')).map(c => (
-                  <option key={c.id} value={c.id}>{c.nombre || (c as any).descripcion || 'Ciclo sin nombre'}</option>
+                {[...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es', { numeric: true }) || formatCicloEscolar(a).localeCompare(formatCicloEscolar(b), 'es')).map(c => (
+                  <option key={c.id} value={c.id}>{formatCicloEscolar(c)}</option>
                 ))}
               </select>
             </div>

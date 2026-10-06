@@ -25,6 +25,10 @@ export const formatGrado = (grado: string | number | null | undefined): string =
   }
 };
 
+/** Distingue ciclos que comparten nombre pero tienen distinta periodicidad. */
+export const formatCicloEscolar = (ciclo: { nombre?: string | null; tipo_periodo?: string | null }): string =>
+  `${ciclo.nombre?.trim() || 'Ciclo sin nombre'} · ${ciclo.tipo_periodo?.trim() || 'Tipo sin definir'}`;
+
 /**
  * Convierte un formato ordinal ("1ER", "2DO") o numérico a su equivalente numérico puro en texto ("1", "2").
  * Útil para limpiar entradas de CSV.
