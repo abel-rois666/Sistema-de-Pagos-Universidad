@@ -6,10 +6,12 @@ import { leerTodasFilas } from '../../horarios/consultas';
 import { DIAS_HORARIO, NOMBRES_DIAS, type DiaHorario, type VentanaHorario } from '../../horarios/types';
 import { useAppStore } from '../../store/useAppStore';
 import { formatCicloEscolar } from '../../utils/formatUtils';
+import ModalConfirmacion from '../ui/ModalConfirmacion';
+import SelectorAsignaturasPreferidas from './SelectorAsignaturasPreferidas';
 
 interface Props { docenteId: string; docenteNombre: string; cicloId: string; onClose: () => void }
 interface PlanOpcion { id: string; nombre: string; carrera?: { nombre: string } | null }
-interface AsignaturaOpcion { id: string; nombre: string; plan_id: string }
+interface AsignaturaOpcion { id: string; nombre: string; clave_legado: string; plan_id: string }
 interface GrupoOpcion { id: string; codigo_grupo: string; turno: string }
 interface ConfiguracionGuardada {
   disponibilidad: VentanaHorario[];
@@ -18,6 +20,16 @@ interface ConfiguracionGuardada {
   grupo_ids_restringidos: string[];
 }
 interface ConfiguracionPorCiclo extends ConfiguracionGuardada { ciclo_id: string }
+type ConfirmacionPendiente =
+  | { tipo: 'ciclo'; destinoId: string }
+  | { tipo: 'cerrar' }
+  | { tipo: 'copiar'; origenId: string };
+
+const textosConfirmacion: Record<ConfirmacionPendiente['tipo'], { titulo: string; mensaje: string; confirmar: string }> = {
+  ciclo: { titulo: 'Cambiar ciclo escolar', mensaje: 'Se descartarán los cambios sin guardar de este ciclo.', confirmar: 'Cambiar ciclo' },
+  cerrar: { titulo: 'Cerrar disponibilidad', mensaje: 'Se perderán los cambios de disponibilidad y materias que aún no has guardado.', confirmar: 'Descartar y cerrar' },
+  copiar: { titulo: 'Reemplazar configuración', mensaje: 'La copia reemplazará los cambios sin guardar de este ciclo. Los grupos restringidos no se copian.', confirmar: 'Copiar configuración' },
+};
 
 const snapshot = (horas: Set<string>, planes: string[], asignaturas: string[], grupos: string[]) =>
   JSON.stringify([Array.from(horas).sort(), [...planes].sort(), [...asignaturas].sort(), [...grupos].sort()]);
@@ -57,6 +69,7 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
   const [configuraciones, setConfiguraciones] = useState<ConfiguracionPorCiclo[]>([]);
   const [origenId, setOrigenId] = useState('');
   const [snapshotGuardado, setSnapshotGuardado] = useState<string | null>(null);
+  const [confirmacion, setConfirmacion] = useState<ConfirmacionPendiente | null>(null);
   const ciclosOrdenados = useMemo(() => [...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es', { numeric: true }) || formatCicloEscolar(a).localeCompare(formatCicloEscolar(b), 'es')), [ciclos]);
   const configuracionesOrigen = configuraciones.filter(config => config.ciclo_id !== cicloSeleccionadoId && ciclos.some(ciclo => ciclo.id === config.ciclo_id));
   const cambiosSinGuardar = snapshotGuardado !== null && snapshot(horas, planIds, asignaturaIds, grupoIds) !== snapshotGuardado;
@@ -74,7 +87,7 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
         const [config, planesData, asignaturasData, gruposData] = await Promise.all([
           supabase.from('docente_configuraciones_horario').select('ciclo_id,disponibilidad,plan_ids,asignatura_ids_preferidas,grupo_ids_restringidos').eq('docente_id', docenteId),
           leerTodasFilas<PlanOpcion>('planes_estudio', 'id,nombre,carrera:carreras(nombre)'),
-          leerTodasFilas<AsignaturaOpcion>('asignaturas', 'id,nombre,plan_id', 'id', { campo: 'activo', valor: true }),
+          leerTodasFilas<AsignaturaOpcion>('asignaturas', 'id,nombre,clave_legado,plan_id', 'id', { campo: 'activo', valor: true }),
           leerTodasFilas<GrupoOpcion>('grupos', 'id,codigo_grupo,turno', 'id', { campo: 'ciclo_id', valor: cicloSeleccionadoId }),
         ]);
         if (config.error) throw config.error;
@@ -118,27 +131,49 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
   });
 
   const cambiarCiclo = (nuevoId: string) => {
-    if (nuevoId === cicloSeleccionadoId) return;
-    if (cambiosSinGuardar && !window.confirm('Hay cambios sin guardar en este ciclo. ¿Deseas descartarlos y cambiar de ciclo?')) return;
+    if (nuevoId === cicloSeleccionadoId || guardando) return;
+    if (cambiosSinGuardar) { setConfirmacion({ tipo: 'ciclo', destinoId: nuevoId }); return; }
+    aplicarCiclo(nuevoId);
+  };
+
+  const aplicarCiclo = (nuevoId: string) => {
     setCargando(true);
     setSnapshotGuardado(null);
     setCicloSeleccionadoId(nuevoId);
   };
 
   const cerrar = () => {
-    if (cambiosSinGuardar && !window.confirm('Hay cambios sin guardar. ¿Deseas descartarlos y cerrar?')) return;
-    onClose();
+    if (guardando) return;
+    if (cambiosSinGuardar) setConfirmacion({ tipo: 'cerrar' });
+    else onClose();
   };
 
   const copiarOtroCiclo = () => {
     const origen = configuracionesOrigen.find(config => config.ciclo_id === origenId);
     if (!origen) return toast.error('Selecciona un ciclo con configuración para copiar.');
-    if (cambiosSinGuardar && !window.confirm('La copia reemplazará los cambios sin guardar de este ciclo. ¿Continuar?')) return;
+    if (cambiosSinGuardar) { setConfirmacion({ tipo: 'copiar', origenId }); return; }
+    aplicarCopia(origen);
+  };
+
+  const aplicarCopia = (origen: ConfiguracionPorCiclo) => {
     setHoras(horasDeVentanas(origen.disponibilidad || []));
     setPlanIds(origen.plan_ids || []);
     setAsignaturaIds(origen.asignatura_ids_preferidas || []);
     setGrupoIds([]);
     toast('Disponibilidad y materias copiadas. Los grupos restringidos no se copian; revisa y guarda la configuración.');
+  };
+
+  const confirmarCambio = () => {
+    if (!confirmacion || guardando) return;
+    const pendiente = confirmacion;
+    setConfirmacion(null);
+    if (pendiente.tipo === 'cerrar') onClose();
+    else if (pendiente.tipo === 'ciclo') aplicarCiclo(pendiente.destinoId);
+    else {
+      const origen = configuracionesOrigen.find(config => config.ciclo_id === pendiente.origenId);
+      if (origen) aplicarCopia(origen);
+      else toast.error('El ciclo de origen ya no está disponible. Selecciona otro.');
+    }
   };
 
   const guardar = async () => {
@@ -175,11 +210,11 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
             </select>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Esta selección solo cambia la ficha del docente; el ciclo global permanece igual.</p>
           </div>
-          <button type="button" onClick={cerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X size={20}/></button>
+          <button type="button" onClick={cerrar} disabled={guardando} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"><X size={20}/></button>
         </div>
         <div className="space-y-7 overflow-y-auto p-5 sm:p-6">
           {cargando ? <div className="flex justify-center p-12"><Loader2 className="animate-spin text-blue-600"/></div> : !cicloSeleccionadoId ? <p className="py-8 text-center text-sm text-slate-500">Selecciona un ciclo para configurar la disponibilidad.</p> : errorCarga ? <p className="py-8 text-center text-sm text-red-600">No se pudo cargar este ciclo. Ciérralo e inténtalo de nuevo.</p> : <>
-            <section><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold text-slate-900 dark:text-white">Horas disponibles</h3><p className="text-xs text-slate-500 dark:text-slate-400">Pulsa cada hora de 07:00 a 21:00. Las celdas azules están disponibles.</p></div>
+            <section><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-bold text-slate-900 dark:text-white">Horas disponibles</h3><p className="text-xs text-slate-500 dark:text-slate-400">Cada botón indica la hora de inicio: 20:00 corresponde a 20:00–21:00. Las celdas azules están disponibles.</p></div>
               </div>
               <div className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                 <div className="min-w-[12rem] flex-1"><label htmlFor="ciclo-origen-docente" className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Copiar configuración desde</label>
@@ -196,15 +231,16 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
                 { texto: 'Mixto sábado', dias: [6] as DiaHorario[], inicio: 7, fin: 15 },
               ].map(p => <button key={p.texto} type="button" onClick={() => aplicarTurno(p.dias, p.inicio, p.fin)} className="rounded-full bg-blue-50 px-3 py-1.5 font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300">+ {p.texto}</button>)}
                 <button type="button" onClick={() => setHoras(new Set())} className="rounded-full px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Limpiar</button></div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{DIAS_HORARIO.map(dia => <div key={dia} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><h4 className="mb-2 text-sm font-bold text-slate-800 dark:text-slate-100">{NOMBRES_DIAS[dia]}</h4><div className="grid grid-cols-4 gap-1.5">{Array.from({length:14},(_,i) => i+7).map(hora => <button key={hora} type="button" aria-pressed={horas.has(claveHora(dia,hora))} onClick={() => alternarHora(dia,hora)} className={`rounded-md px-1 py-1.5 text-xs font-semibold transition-colors ${horas.has(claveHora(dia,hora)) ? 'bg-[#1456f0] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'}`}>{String(hora).padStart(2,'0')}:00</button>)}</div></div>)}</div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{DIAS_HORARIO.map(dia => <div key={dia} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><h4 className="mb-2 text-sm font-bold text-slate-800 dark:text-slate-100">{NOMBRES_DIAS[dia]}</h4><div className="grid grid-cols-4 gap-1.5">{Array.from({length:14},(_,i) => i+7).map(hora => <button key={hora} type="button" aria-label={`${NOMBRES_DIAS[dia]}, ${String(hora).padStart(2,'0')}:00 a ${String(hora + 1).padStart(2,'0')}:00`} aria-pressed={horas.has(claveHora(dia,hora))} onClick={() => alternarHora(dia,hora)} className={`rounded-md px-1 py-1.5 text-xs font-semibold transition-colors ${horas.has(claveHora(dia,hora)) ? 'bg-[#1456f0] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'}`}>{String(hora).padStart(2,'0')}:00</button>)}</div></div>)}</div>
             </section>
             <section className="grid gap-5 lg:grid-cols-2"><div><h3 className="mb-1 font-bold text-slate-900 dark:text-white">Licenciaturas y planes donde imparte clase</h3><p className="mb-3 text-xs text-slate-500 dark:text-slate-400">Cada plan identifica su carrera; puedes elegir varios.</p><div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">{planes.map(plan => <label key={plan.id} className="flex cursor-pointer items-center gap-2 rounded-lg p-2 text-sm hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"><input type="checkbox" checked={planIds.includes(plan.id)} onChange={() => alternar(planIds,plan.id,setPlanIds)} /><span><strong className="block">{plan.carrera?.nombre || 'Carrera sin definir'}</strong><span className="text-xs text-slate-500">{plan.nombre}</span></span></label>)}</div></div>
-              <div><h3 className="mb-1 font-bold text-slate-900 dark:text-white">Asignaturas preferidas</h3><p className="mb-3 text-xs text-slate-500 dark:text-slate-400">Ayudan a ordenar alternativas; no sustituyen la disponibilidad.</p><div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">{visibles.length ? visibles.map(asignatura => <label key={asignatura.id} className="flex cursor-pointer items-center gap-2 rounded-lg p-2 text-sm hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"><input type="checkbox" checked={asignaturaIds.includes(asignatura.id)} onChange={() => alternar(asignaturaIds,asignatura.id,setAsignaturaIds)} />{asignatura.nombre}</label>) : <p className="p-2 text-sm text-slate-500">Selecciona un plan primero.</p>}</div></div></section>
+              <SelectorAsignaturasPreferidas planes={planes} planIds={planIds} asignaturas={asignaturas} asignaturaIds={asignaturaIds} onAlternar={id => alternar(asignaturaIds, id, setAsignaturaIds)} /></section>
             <section><h3 className="mb-1 font-bold text-slate-900 dark:text-white">Grupos restringidos</h3><p className="mb-3 text-xs text-slate-500 dark:text-slate-400">El generador no asignará este docente a los grupos marcados.</p><div className="grid max-h-40 gap-1 overflow-y-auto rounded-xl border border-slate-200 p-2 sm:grid-cols-2 lg:grid-cols-3 dark:border-slate-700">{grupos.map(grupo => <label key={grupo.id} className="flex cursor-pointer items-center gap-2 rounded-lg p-2 text-sm hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"><input type="checkbox" checked={grupoIds.includes(grupo.id)} onChange={() => alternar(grupoIds,grupo.id,setGrupoIds)} />{grupo.codigo_grupo} · {grupo.turno}</label>)}</div></section>
           </>}
         </div>
-        <div className="flex justify-end gap-2 border-t border-slate-200 p-4 dark:border-slate-700"><button type="button" onClick={cerrar} className="rounded-lg px-4 py-2 text-sm text-slate-600 dark:text-slate-300">Cancelar</button><button type="button" onClick={() => void guardar()} disabled={!cicloSeleccionadoId || cargando || guardando || errorCarga} className="rounded-lg bg-[#1456f0] px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{guardando ? 'Guardando…' : 'Guardar configuración'}</button></div>
+        <div className="flex justify-end gap-2 border-t border-slate-200 p-4 dark:border-slate-700"><button type="button" onClick={cerrar} disabled={guardando} className="rounded-lg px-4 py-2 text-sm text-slate-600 disabled:opacity-50 dark:text-slate-300">Cancelar</button><button type="button" onClick={() => void guardar()} disabled={!cicloSeleccionadoId || cargando || guardando || errorCarga} className="rounded-lg bg-[#1456f0] px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{guardando ? 'Guardando…' : 'Guardar configuración'}</button></div>
       </div>
+      <ModalConfirmacion isOpen={confirmacion !== null} title={confirmacion ? textosConfirmacion[confirmacion.tipo].titulo : ''} message={confirmacion ? textosConfirmacion[confirmacion.tipo].mensaje : ''} confirmText={confirmacion ? textosConfirmacion[confirmacion.tipo].confirmar : 'Continuar'} cancelText="Seguir editando" type={confirmacion?.tipo === 'cerrar' ? 'danger' : 'warning'} onConfirm={confirmarCambio} onCancel={() => setConfirmacion(null)} />
     </div>
   );
 }

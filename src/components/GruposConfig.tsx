@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Grupo } from '../types';
 import ModalDetallesGrupo from './modals/ModalDetallesGrupo';
 import ModalCrearGrupo from './modals/ModalCrearGrupo';
-import ModalConfiguracionGrupo from './modals/ModalConfiguracionGrupo';
 import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 import { Plus, X, Trash2, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '../store/useAppStore';
+import { formatCicloEscolar } from '../utils/formatUtils';
 
 export default function GruposConfig() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
@@ -15,34 +15,28 @@ export default function GruposConfig() {
   const [selectedGrupo, setSelectedGrupo] = useState<Grupo | null>(null);
   const [isModalDetallesOpen, setIsModalDetallesOpen] = useState(false);
   const [isModalCrearOpen, setIsModalCrearOpen] = useState(false);
-  const [isModalConfiguracionOpen, setIsModalConfiguracionOpen] = useState(false);
-  const [newlyCreatedGroupId, setNewlyCreatedGroupId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [licenciaturaFilter, setLicenciaturaFilter] = useState('');
   const [turnoFilter, setTurnoFilter] = useState('');
   const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
-  const { activeCicloId } = useAppStore();
+  const { activeCicloId, ciclos } = useAppStore();
+  const [cicloFiltroId, setCicloFiltroId] = useState(activeCicloId);
+  const consultaGrupos = useRef(0);
+
+  useEffect(() => { setCicloFiltroId(activeCicloId); }, [activeCicloId]);
 
   useEffect(() => {
-    if (activeCicloId) {
-      fetchGrupos();
-    }
-  }, [activeCicloId]);
+    setSelectedIds([]);
+    void fetchGrupos();
+  }, [cicloFiltroId]);
 
   const fetchGrupos = async () => {
+    const numeroConsulta = ++consultaGrupos.current;
     try {
       setLoading(true);
-      
-      // Obtenemos el nombre del ciclo activo para poder traer los grupos tanto Semestrales como Cuatrimestrales
-      const { data: cicloActivo } = await supabase
-        .from('ciclos_escolares')
-        .select('nombre')
-        .eq('id', activeCicloId)
-        .single();
-        
-      if (!cicloActivo) {
+      if (!cicloFiltroId) {
         setGrupos([]);
         return;
       }
@@ -50,19 +44,19 @@ export default function GruposConfig() {
       const { data, error } = await supabase
         .from('grupos')
         .select('*, ciclo:ciclos_escolares!inner(*), plan:planes_estudio(*, carrera:carreras(nombre)), alumnos:alumnos_grupos(count)')
-        .eq('ciclos_escolares.nombre', cicloActivo.nombre)
+        .eq('ciclo_id', cicloFiltroId)
         .order('created_at', { ascending: false });
 
       if (error) {
         throw error;
       }
 
-      setGrupos(data as unknown as Grupo[]);
+      if (numeroConsulta === consultaGrupos.current) setGrupos(data as unknown as Grupo[]);
     } catch (error: any) {
-      toast.error('Error al cargar los grupos: ' + error.message);
+      if (numeroConsulta === consultaGrupos.current) toast.error('Error al cargar los grupos: ' + error.message);
       console.error(error);
     } finally {
-      setLoading(false);
+      if (numeroConsulta === consultaGrupos.current) setLoading(false);
     }
   };
   const handleDeleteGrupo = async (id: string, codigo: string) => {
@@ -262,25 +256,36 @@ export default function GruposConfig() {
             </div>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={18} className="text-gray-400" />
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <div className="w-full lg:w-52 lg:shrink-0">
+              <label htmlFor="grupos-ciclo-filtro" className="mb-1 block text-xs font-semibold text-[#45515e] dark:text-gray-300">Ciclo de grupos</label>
+              <select id="grupos-ciclo-filtro" value={cicloFiltroId} onChange={event => setCicloFiltroId(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#222222] dark:border-gray-700 dark:bg-[#1c2228] dark:text-gray-200">
+                <option value="">Selecciona un ciclo...</option>
+                {[...ciclos].sort((a,b) => b.nombre.localeCompare(a.nombre, 'es', { numeric: true }) || formatCicloEscolar(a).localeCompare(formatCicloEscolar(b), 'es')).map(ciclo => <option key={ciclo.id} value={ciclo.id}>{formatCicloEscolar(ciclo)}</option>)}
+              </select>
+            </div>
+            <div className="min-w-0 flex-1">
+              <label htmlFor="grupos-buscar" className="mb-1 block text-xs font-semibold text-[#45515e] dark:text-gray-300">Buscar grupo</label>
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Search size={18} className="text-gray-400" />
+                </div>
+                <input
+                  id="grupos-buscar"
+                  type="text"
+                  placeholder="Buscar por código, plan o licenciatura..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-[#222222] transition-shadow focus:outline-none focus:ring-2 focus:ring-[#1456f0] dark:border-gray-700 dark:bg-[#1c2228] dark:text-gray-200"
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Buscar por código, plan o licenciatura..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1456f0] transition-shadow text-sm"
-              />
             </div>
             
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row lg:shrink-0">
               <select
                 value={licenciaturaFilter}
                 onChange={(e) => setLicenciaturaFilter(e.target.value)}
-                className="w-48 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1456f0] text-sm"
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#1456f0] dark:border-gray-700 dark:bg-[#1c2228] dark:text-gray-200 sm:w-48"
               >
                 <option value="">Todas las licenciaturas</option>
                 {Array.from(new Set(grupos.map((g: any) => g.plan?.carrera?.nombre || g.plan?.nombre || '').filter(Boolean))).map((lic: any) => (
@@ -291,7 +296,7 @@ export default function GruposConfig() {
               <select
                 value={turnoFilter}
                 onChange={(e) => setTurnoFilter(e.target.value)}
-                className="w-40 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1456f0] text-sm"
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#1456f0] dark:border-gray-700 dark:bg-[#1c2228] dark:text-gray-200 sm:w-40"
               >
                 <option value="">Todos los turnos</option>
                 {Array.from(new Set(grupos.map((g: any) => g.turno).filter(t => !!t && t !== 'undefined' && t !== 'null'))).map((t: any) => (
@@ -359,7 +364,7 @@ export default function GruposConfig() {
                         <div className="text-xs text-[#8e8e93] mt-0.5">{grupo.plan?.nombre || ''}</div>
                       </td>
                       <td className="px-6 py-4 text-[#45515e] dark:text-gray-300">
-                        {grupo.ciclo?.nombre || grupo.ciclo?.descripcion || (grupo.ciclo as any)?.periodo || 'N/A'}
+                        {grupo.ciclo ? formatCicloEscolar(grupo.ciclo) : 'N/A'}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-[#45515e] dark:text-gray-300">{grupo.grado || '-'}</div>
@@ -421,38 +426,13 @@ export default function GruposConfig() {
       <ModalCrearGrupo
         isOpen={isModalCrearOpen}
         onClose={() => setIsModalCrearOpen(false)}
-        onGrupoCreated={(grupoId) => {
-          fetchGrupos();
-          if (grupoId) {
-            setNewlyCreatedGroupId(grupoId);
-            setIsModalConfiguracionOpen(true);
-          }
+        onGrupoCreated={(_grupoId, nuevoCicloId) => {
+          setSearchTerm('');
+          setLicenciaturaFilter('');
+          setTurnoFilter('');
+          if (nuevoCicloId === cicloFiltroId) void fetchGrupos();
+          else setCicloFiltroId(nuevoCicloId);
         }}
-      />
-
-      <ModalConfiguracionGrupo
-        isOpen={isModalConfiguracionOpen}
-        onClose={() => {
-          setIsModalConfiguracionOpen(false);
-          const wasNew = !!newlyCreatedGroupId;
-          setNewlyCreatedGroupId(null);
-          fetchGrupos();
-          
-          if (wasNew) {
-            setConfirmModal({
-              isOpen: true,
-              title: '¡Grupo Configurado!',
-              message: 'El grupo y sus alumnos iniciales han sido guardados. Recuerda que queda pendiente la asignación de docentes para cada materia. Para realizarlo, selecciona el grupo en la tabla y usa la opción "Gestionar Materias / Docentes".',
-              type: 'info',
-              isAlert: true,
-              confirmText: 'Entendido',
-              onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
-              onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
-            });
-          }
-        }}
-        grupoId={newlyCreatedGroupId || ''}
-        isNewGroup={true}
       />
       
       <ModalConfirmacion {...confirmModal} />
