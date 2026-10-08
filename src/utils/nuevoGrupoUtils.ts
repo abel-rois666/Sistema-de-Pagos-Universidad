@@ -16,6 +16,7 @@ export interface AlumnoNuevoGrupo {
   grado_actual: string | null;
   turno: string | null;
   estatus: string | null;
+  planVigenteIds?: string[];
 }
 
 export const periodosDelPlan = (asignaturas: AsignaturaNuevoGrupo[]): number[] =>
@@ -32,6 +33,14 @@ export const coincideAlumnoGrupo = (alumno: AlumnoNuevoGrupo, carrera: string, g
   && !!carrera
   && !!alumno.licenciatura
   && alumno.licenciatura.toLocaleLowerCase('es').includes(carrera.toLocaleLowerCase('es'));
+
+export const coincideAlumnoMultigrado = (alumno: AlumnoNuevoGrupo, planId: string, gradoInicio: number, gradoFin: number, turno: string): boolean => {
+  const grado = Number(normalizeGrado(alumno.grado_actual));
+  return alumno.estatus?.toUpperCase() === 'ACTIVO'
+    && alumno.planVigenteIds?.includes(planId) === true
+    && Number.isInteger(grado) && grado >= gradoInicio && grado <= gradoFin
+    && alumno.turno?.trim().toUpperCase() === turno.toUpperCase();
+};
 
 export const ordenarAsignaturasGrupo = (asignaturas: AsignaturaNuevoGrupo[], grado: number): AsignaturaNuevoGrupo[] =>
   [...asignaturas].sort((a, b) => Number(b.numero_periodo === grado) - Number(a.numero_periodo === grado)

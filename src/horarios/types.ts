@@ -15,6 +15,13 @@ export interface GrupoHorario {
   turno: TurnoHorario;
   aula?: string | null;
   sede?: string | null;
+  grado?: number | null;
+  carreraNombre?: string | null;
+  planNombre?: string | null;
+  planClave?: string | null;
+  rvoe?: string | null;
+  /** Permite un grupo sin sesiones cuando todas sus materias son complementarias omitidas. */
+  soloComplementarias?: boolean;
 }
 
 export interface DocenteHorario {
@@ -22,6 +29,10 @@ export interface DocenteHorario {
   nombre: string;
   activo: boolean;
   disponibilidad: VentanaHorario[];
+  /** Las versiones publicadas antiguas no guardan una copia de esta disponibilidad. */
+  disponibilidadConocida?: boolean;
+  /** Límite presencial aplicable, incluido el más estricto de ciclos superpuestos. */
+  maxHorasSemanales?: number | null;
   planes: string[];
   asignaturasPreferidas: string[];
   gruposRestringidos: string[];
@@ -32,6 +43,9 @@ export interface CargaHorario {
   grupoId: string;
   asignaturaId: string;
   asignatura: string;
+  asignaturaClave?: string | null;
+  clasificacionClave?: string | null;
+  clasificacionNombre?: string | null;
   horasTotales: number | null;
   horasPresenciales: number | null;
   horasAsincronas: number | null;
@@ -62,6 +76,8 @@ export interface IncidenciaHorario {
 export interface ConfiguracionHorario {
   maxHuecoGrupo: number;
   maxHuecoDocente: number;
+  minHorasGrupo?: number;
+  minHorasDocente?: number;
 }
 
 export interface EntradaHorario {
@@ -78,6 +94,10 @@ export interface ResultadoHorario {
   huecosGrupo: Record<string, number>;
   huecosDocente: Record<string, number>;
 }
+
+export const incidenciaSuave = (incidencia: IncidenciaHorario) =>
+  ['HUECO_GRUPO', 'HUECO_DOCENTE', 'JORNADA_CORTA_GRUPO', 'JORNADA_CORTA_DOCENTE', 'VACANTE']
+    .includes(incidencia.codigo);
 
 export const DIAS_HORARIO: readonly DiaHorario[] = [1, 2, 3, 4, 5, 6];
 export const NOMBRES_DIAS: Record<DiaHorario, string> = {

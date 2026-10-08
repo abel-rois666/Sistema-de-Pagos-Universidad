@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { asignaturasDelGrado, coincideAlumnoGrupo, ordenarAsignaturasGrupo, periodosDelPlan } from '../src/utils/nuevoGrupoUtils';
+import { asignaturasDelGrado, coincideAlumnoGrupo, coincideAlumnoMultigrado, ordenarAsignaturasGrupo, periodosDelPlan } from '../src/utils/nuevoGrupoUtils';
 import type { AlumnoNuevoGrupo, AsignaturaNuevoGrupo } from '../src/utils/nuevoGrupoUtils';
 
 const materias: AsignaturaNuevoGrupo[] = [
@@ -27,4 +27,16 @@ test('la sugerencia de alumnos exige estatus activo, carrera, grado y turno comp
   assert.equal(coincideAlumnoGrupo(alumno, 'Pedagogía', 2, 'Matutino'), false);
   assert.equal(coincideAlumnoGrupo(alumno, 'Pedagogía', 1, 'Vespertino'), false);
   assert.equal(coincideAlumnoGrupo(alumno, 'Derecho', 1, 'Matutino'), false);
+});
+
+test('el rango multigrado es inclusivo y exige el mismo plan vigente y turno', () => {
+  const alumno: AlumnoNuevoGrupo = {
+    id: 'al', nombre_completo: 'ANA LÓPEZ', matricula: 'M1', licenciatura: 'Pedagogía',
+    grado_actual: '4TO', turno: 'Matutino', estatus: 'ACTIVO', planVigenteIds: ['plan-a'],
+  };
+  assert.equal(coincideAlumnoMultigrado(alumno, 'plan-a', 1, 4, 'Matutino'), true);
+  assert.equal(coincideAlumnoMultigrado(alumno, 'plan-a', 1, 3, 'Matutino'), false);
+  assert.equal(coincideAlumnoMultigrado(alumno, 'plan-b', 1, 4, 'Matutino'), false);
+  assert.equal(coincideAlumnoMultigrado({ ...alumno, estatus: 'BAJA' }, 'plan-a', 1, 4, 'Matutino'), false);
+  assert.equal(coincideAlumnoMultigrado(alumno, 'plan-a', 1, 4, 'Mixto'), false);
 });

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { toTitleCase } from '../utils';
-import { formatGrado } from '../utils/formatUtils';
+import { formatCicloEscolar, formatGrado } from '../utils/formatUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText, AlertCircle, Wand2, MapPin, ShieldCheck, ShieldX, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -14,6 +14,11 @@ import { useAppStore } from '../store/useAppStore';
 import { getMaxFolioCounter } from '../utils';
 import { getStateAbbr, ESTADOS_LIST, lookupCP, mapToLegacyCode } from '../utils/geoUtils';
 import { calcularCURPCompleta } from '../utils/curpUtils';
+import { cargarProgramasVigentesPromocion, guardarPromocionAlumno } from '../services/promocionAlumnosService';
+import {
+  calcularAccionPromocion, compararGrados, gradoCanonico, motivoNoPromocionTexto,
+  motivosBasePromocion, type ProgramaPromocion,
+} from '../utils/promocionAlumnos';
 
 // Helper para generar folios con base en el ciclo y un consecutivo, ej: 261-1002
 const generateFolio = (cicloNombre: string, counter: number) => {
@@ -41,13 +46,16 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   } = useAppStore();
 
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-  const activeCyclePlans = plans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
+  const activeCyclePlans = React.useMemo(() => plans.filter(p => p.ciclo_id === activeCicloId), [plans, activeCicloId]);
+  const alumnosConPlanCiclo = React.useMemo(() => new Set(activeCyclePlans.map(p => p.alumno_id).filter((id): id is string => !!id)), [activeCyclePlans]);
+  const planExistentePorAlumno = React.useMemo(() => new Map(activeCyclePlans.filter(p => p.alumno_id).map(p => [p.alumno_id!, p.id])), [activeCyclePlans]);
   const globalMaxCounter = getMaxFolioCounter(plans);
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Guardamos el contador mutable en un ref o variable local para iteraciones
   const localCounter = React.useRef(globalMaxCounter);
+  const idsPlanPromocion = React.useRef(new Map<string, string>());
 
   const onSave = async (alumno: Alumno) => {
     const { data, error } = await supabase.from('alumnos').upsert([alumno]).select();
@@ -83,6 +91,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     || currentUser.rol === 'COORDINADOR RECURSOS HUMANOS'
     || currentUser.rol === 'COORDINADOR ACADEMICO';
   const isCoordinador = isCoord;
+  const canPromote = currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR CONTROL ESCOLAR';
   const [editForm, setEditForm] = useState<Partial<Alumno> & { assignPlanType?: 'none' | 'blank' | 'template'; templateId?: string; plan_id?: string }>({});
 
   const [carrerasDisponibles, setCarrerasDisponibles] = useState<Carrera[]>([]);
@@ -130,7 +139,10 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     try { return JSON.parse(sessionStorage.getItem('alumnos_fLicenciaturas') || '[]'); } catch { return []; }
   });
   const [filterGrados, setFilterGrados] = useState<string[]>(() => {
-    try { return JSON.parse(sessionStorage.getItem('alumnos_fGrados') || '[]'); } catch { return []; }
+    try {
+      const guardados = JSON.parse(sessionStorage.getItem('alumnos_fGrados') || '[]');
+      return Array.isArray(guardados) ? Array.from(new Set(guardados.map(gradoCanonico))) as string[] : [];
+    } catch { return []; }
   });
   const [filterTurnos, setFilterTurnos] = useState<string[]>(() => {
     try { return JSON.parse(sessionStorage.getItem('alumnos_fTurnos') || '[]'); } catch { return []; }
@@ -161,7 +173,16 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   const [showKardexModal, setShowKardexModal] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkCopyConcepts, setBulkCopyConcepts] = useState(false);
+  const [bulkIncluirConPlan, setBulkIncluirConPlan] = useState(false);
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [programasPromocion, setProgramasPromocion] = useState<Map<string, ProgramaPromocion>>(new Map());
+  const [cargandoProgramas, setCargandoProgramas] = useState(false);
+  const [programasListos, setProgramasListos] = useState(false);
+  const [errorProgramas, setErrorProgramas] = useState('');
+  const [mostrarNoElegibles, setMostrarNoElegibles] = useState(false);
+  const [confirmarBulk, setConfirmarBulk] = useState(false);
+  const [progresoBulk, setProgresoBulk] = useState({ actual: 0, total: 0 });
+  const [resultadoPromocion, setResultadoPromocion] = useState<{ exitos: number; omitidos: string[]; errores: string[] } | null>(null);
 
   const showNotification = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -551,64 +572,44 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   };
 
 
-  const handlePromote = (alumno: Alumno) => {
-    if (alumno.estatus?.includes('EGRESADO') || alumno.grado_actual?.includes('EGRESADO')) {
-      showAlert("Error", "Los alumnos egresados no pueden ser promovidos.");
+  const handlePromote = async (alumno: Alumno) => {
+    const planExistenteId = planExistentePorAlumno.get(alumno.id);
+    const motivos = motivosBasePromocion(alumno, activeCicloId, alumnosConPlanCiclo, !!planExistenteId);
+    if (motivos.length) {
+      showNotification('error', motivos.map(motivo => motivoNoPromocionTexto[motivo]).join(' · '));
       return;
     }
-
-    if (alumno.estatus === 'BAJA') {
-      showAlert("Error", "Los alumnos dados de baja no pueden ser promovidos. Cambia su estatus a ACTIVO primero.");
-      return;
-    }
-
-    if (alumno.ciclo_ultima_asignacion_grado === activeCicloId) {
-      showAlert("Error", "El grado de este alumno ya fue promovido o editado en el ciclo actual. Si es un error, edita su grado manualmente.");
-      return;
-    }
-
-    const nextGrade = getNextGrade(alumno.grado_actual, alumno.licenciatura);
-
-    if (nextGrade && nextGrade !== alumno.grado_actual) {
+    try {
+      setSaving(true);
+      const programas = await cargarProgramasVigentesPromocion([alumno.id]);
+      const accion = calcularAccionPromocion(alumno, programas.get(alumno.id));
+      if (accion.tipo === 'REVISION') {
+        showNotification('error', motivoNoPromocionTexto[accion.motivo]);
+        return;
+      }
       showConfirm(
-        "Confirmar Promoción",
-        `¿Promover a ${toTitleCase(alumno.nombre_completo)} de ${formatGrado(alumno.grado_actual)} a ${formatGrado(nextGrade)}? Esto simulará su inscripción al nuevo ciclo.`,
+        accion.tipo === 'EGRESO' ? 'Confirmar egreso' : 'Confirmar promoción',
+        accion.tipo === 'EGRESO'
+          ? `¿Marcar como EGRESADO el programa vigente de ${toTitleCase(alumno.nombre_completo)}? Conservará ${formatGrado(alumno.grado_actual)} y ${planExistenteId ? 'su plan de pago de este ciclo sin modificarlo' : 'no se creará un plan de pago ordinario'}.`
+          : `¿Promover a ${toTitleCase(alumno.nombre_completo)} de ${formatGrado(alumno.grado_actual)} a ${formatGrado(accion.gradoDestino)}? ${planExistenteId ? 'Conservará su plan de pago de este ciclo, sin copiarlo ni crear otro.' : `Se creará un plan de pago en ${activeCiclo?.nombre}.`}`,
         async () => {
           setSaving(true);
-          const updated = alumnos.map(a => a.id === alumno.id ? { ...a, grado_actual: nextGrade!, ciclo_ultima_asignacion_grado: activeCicloId } : a);
-
-          const { error } = await supabase.from('alumnos').update({ grado_actual: nextGrade, ciclo_ultima_asignacion_grado: activeCicloId }).eq('id', alumno.id);
-          if (error) console.warn('[AlumnosConfig] promote:', error.message);
-
-          const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-          if (activeCiclo) {
-            localCounter.current++;
-            const newPlan: PaymentPlan = {
-              id: crypto.randomUUID(),
-              alumno_id: alumno.id,
-              ciclo_id: activeCiclo.id,
-              nombre_alumno: alumno.nombre_completo,
-              no_plan_pagos: generateFolio(activeCiclo.nombre, localCounter.current),
-              fecha_plan: new Date().toLocaleDateString('es-MX'),
-              beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
-              ciclo_escolar: activeCiclo.nombre,
-              tipo_plan: 'Cuatrimestral',
-              licenciatura: alumno.licenciatura,
-              grado_turno: `${nextGrade} / ${alumno.turno}`
-            };
-            setPlans((prev) => [...prev, newPlan]);
-            const planToDb = toDBPlan(newPlan);
-            const { error: planErr } = await supabase.from('planes_pago').insert(planToDb);
-            if (planErr) console.warn('[AlumnosConfig] insert plan:', planErr.message);
+          try {
+            if (!idsPlanPromocion.current.has(alumno.id)) idsPlanPromocion.current.set(alumno.id, crypto.randomUUID());
+            const resultado = await guardarPromocionAlumno(alumno.id, activeCicloId, accion.programaId, alumno.grado_actual, planExistenteId ?? idsPlanPromocion.current.get(alumno.id)!, false, !planExistenteId);
+            await Promise.all([useAppStore.getState().refreshAlumnos(), useAppStore.getState().refreshPlans()]);
+            showNotification('success', resultado.tipo === 'EGRESO' ? 'Programa marcado como EGRESADO.' : `Alumno promovido a ${formatGrado(resultado.grado)}.`);
+          } catch (error) {
+            showNotification('error', error instanceof Error ? error.message : 'No se pudo completar la promoción.');
+          } finally {
+            setSaving(false);
           }
-
-          setAlumnos(updated);
-          setSaving(false);
-          showNotification('success', `Alumno promovido a ${formatGrado(nextGrade)}.`);
-        }
+        },
       );
-    } else {
-      showAlert("Error", "No se pudo determinar el siguiente grado. Edítalo manualmente.");
+    } catch (error) {
+      showNotification('error', error instanceof Error ? error.message : 'No se pudo consultar el programa vigente.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -702,7 +703,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   }, [searchTerm, sortField, sortDirection, itemsPerPage, filterLicenciaturas, filterGrados, filterTurnos, filterEstatusList]);
 
   const licenciaturas = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.licenciatura).filter(Boolean))).sort(), [alumnos]);
-  const grados = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.grado_actual).filter(Boolean))).sort(), [alumnos]);
+  const grados = React.useMemo(() => Array.from(new Set(alumnos.map(a => gradoCanonico(a.grado_actual)))).sort(compararGrados), [alumnos]);
   const turnos = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.turno).filter(Boolean))).sort(), [alumnos]);
   const estatusList = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.estatus).filter(Boolean))).sort(), [alumnos]);
 
@@ -711,7 +712,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       const matchSearch = a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         a.licenciatura.toLowerCase().includes(searchTerm.toLowerCase());
       const matchLic = filterLicenciaturas.length === 0 || filterLicenciaturas.includes(a.licenciatura);
-      const matchGrado = filterGrados.length === 0 || filterGrados.includes(a.grado_actual);
+      const matchGrado = filterGrados.length === 0 || filterGrados.includes(gradoCanonico(a.grado_actual));
       const matchTurno = filterTurnos.length === 0 || filterTurnos.includes(a.turno);
       const matchEstatus = filterEstatusList.length === 0 || filterEstatusList.includes(a.estatus);
       return matchSearch && matchLic && matchGrado && matchTurno && matchEstatus;
@@ -783,23 +784,49 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     setSaving(false);
   };
 
-  const promotableAlumnos = filteredAlumnos.filter(a =>
-    !activeCyclePlans.some(p => p.alumno_id === a.id || p.nombre_alumno === a.nombre_completo) &&
-    a.estatus !== 'BAJA' &&
-    !a.estatus?.includes('EGRESADO') &&
-    !(a.grado_actual?.toUpperCase() || '').includes('EGRESADO') &&
-    a.ciclo_ultima_asignacion_grado !== activeCicloId
-  );
+  const idsFiltradosPromocion = showBulkModal ? filteredAlumnos.map(a => a.id).sort().join(',') : '';
+  React.useEffect(() => {
+    if (!showBulkModal) return;
+    let cancelado = false;
+    setBulkSelected(new Set());
+    setCargandoProgramas(true);
+    setProgramasListos(false);
+    setErrorProgramas('');
+    setProgramasPromocion(new Map());
+    cargarProgramasVigentesPromocion(idsFiltradosPromocion ? idsFiltradosPromocion.split(',') : [])
+      .then(programas => { if (!cancelado) { setProgramasPromocion(programas); setProgramasListos(true); } })
+      .catch(error => { if (!cancelado) setErrorProgramas(error instanceof Error ? error.message : 'No se pudieron consultar los programas.'); })
+      .finally(() => { if (!cancelado) setCargandoProgramas(false); });
+    return () => { cancelado = true; };
+  }, [showBulkModal, idsFiltradosPromocion, activeCicloId, searchTerm, filterLicenciaturas, filterGrados, filterTurnos, filterEstatusList]);
+
+  const evaluacionesPromocion = (showBulkModal ? filteredAlumnos : []).map(alumno => {
+    const motivosBase = motivosBasePromocion(alumno, activeCicloId, alumnosConPlanCiclo, bulkIncluirConPlan);
+    const motivos = [...motivosBase];
+    const accion = programasListos && !cargandoProgramas && !errorProgramas && showBulkModal
+      ? calcularAccionPromocion(alumno, programasPromocion.get(alumno.id)) : null;
+    if (accion?.tipo === 'REVISION') motivos.push(accion.motivo);
+    return { alumno, motivosBase, motivos, accion };
+  });
+  const elegiblesBase = evaluacionesPromocion.filter(item => item.motivosBase.length === 0);
+  const promotableAlumnos = evaluacionesPromocion.filter(item => item.motivos.length === 0 && item.accion && item.accion.tipo !== 'REVISION');
+  const avancesDisponibles = promotableAlumnos.filter(item => item.accion?.tipo === 'AVANCE').length;
+  const egresosDisponibles = promotableAlumnos.filter(item => item.accion?.tipo === 'EGRESO').length;
+  const conPlanExistenteDisponibles = promotableAlumnos.filter(item => planExistentePorAlumno.has(item.alumno.id)).length;
+  const noElegibles = evaluacionesPromocion.filter(item => item.motivos.length > 0);
+  const selectedElegibles = promotableAlumnos.filter(item => bulkSelected.has(item.alumno.id));
+  const allBulkSelected = promotableAlumnos.length > 0 && selectedElegibles.length === promotableAlumnos.length;
 
   // ── Lógica de Promoción Masiva ──
   const toggleBulkSelect = (id: string) => {
+    if (!promotableAlumnos.some(item => item.alumno.id === id)) return;
     const next = new Set(bulkSelected);
     if (next.has(id)) next.delete(id); else next.add(id);
     setBulkSelected(next);
   };
   const toggleAllBulk = () => {
-    if (bulkSelected.size === promotableAlumnos.length && promotableAlumnos.length > 0) setBulkSelected(new Set());
-    else setBulkSelected(new Set(promotableAlumnos.map(a => a.id)));
+    if (allBulkSelected) setBulkSelected(new Set());
+    else setBulkSelected(new Set(promotableAlumnos.map(item => item.alumno.id)));
   };
 
   const getPlanTotalPeriodos = (planOrLic: string) => {
@@ -828,107 +855,53 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     return getPlanTotalPeriodos(licenciatura) <= 8;
   };
 
-  const getNextGrade = (currentGrade: string, licenciatura: string) => {
-    if (currentGrade?.includes('EGRESADO')) return currentGrade;
-    if (currentGrade?.includes('POR DEFINIR')) return '1';
-    
-    const maxPeriodos = getPlanTotalPeriodos(licenciatura);
-    const currentNum = parseInt(currentGrade) || 1;
-
-    if (currentNum >= maxPeriodos) return 'EGRESADO';
-    return String(currentNum + 1);
-  };
-
   const executeBulkPromotion = async () => {
-    if (bulkSelected.size === 0) return;
+    const seleccion = selectedElegibles.filter(item => item.accion?.tipo !== 'REVISION');
+    if (!activeCicloId || seleccion.length === 0 || cargandoProgramas || errorProgramas) return;
     setBulkProcessing(true);
-
-    const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-    if (!activeCiclo) {
-      showNotification('error', 'No hay ciclo activo definido.');
-      setBulkProcessing(false);
-      return;
-    }
-
-    const selectedAlumnos = alumnos.filter(a => bulkSelected.has(a.id));
-    const nextGrades = selectedAlumnos.map(a => ({ ...a, nextGrade: getNextGrade(a.grado_actual, a.licenciatura), ciclo_ultima_asignacion_grado: activeCicloId }));
-
-    // Actualizar alumnos en DB
-    const updatePromises = nextGrades.map(a =>
-      supabase.from('alumnos').update({ grado_actual: a.nextGrade, ciclo_ultima_asignacion_grado: a.ciclo_ultima_asignacion_grado }).eq('id', a.id)
-    );
-    await Promise.all(updatePromises);
-
-    // Actualizar estado local
-    const updatedAlumnos = alumnos.map(a => {
-      if (bulkSelected.has(a.id)) return { ...a, grado_actual: getNextGrade(a.grado_actual, a.licenciatura), ciclo_ultima_asignacion_grado: activeCicloId };
-      return a;
-    });
-
-    // Fetchear planes previos si hay que copiar conceptos
-    let previousPlansMap = new Map<string, PaymentPlan>();
-    if (bulkCopyConcepts) {
-      const { data } = await supabase.from('vista_planes_pago')
-        .select('*')
-        .in('alumno_id', Array.from(bulkSelected))
-        .order('fecha_plan', { ascending: false });
-      if (data) {
-        // Guardar solo el plan más reciente por alumno
-        data.forEach(p => {
-          if (!previousPlansMap.has(p.alumno_id)) previousPlansMap.set(p.alumno_id, p as PaymentPlan);
-        });
+    setResultadoPromocion(null);
+    setProgresoBulk({ actual: 0, total: seleccion.length });
+    const omitidos: string[] = [];
+    const errores: string[] = [];
+    const idsFallidos = new Set<string>();
+    let exitos = 0;
+    try {
+      const vigentes = await cargarProgramasVigentesPromocion(seleccion.map(item => item.alumno.id));
+      for (const [indice, item] of seleccion.entries()) {
+        const { alumno, accion } = item;
+        const actual = calcularAccionPromocion(alumno, vigentes.get(alumno.id));
+        if (actual.tipo === 'REVISION' || actual.tipo !== accion?.tipo || actual.gradoDestino !== accion?.gradoDestino) {
+          omitidos.push(`${toTitleCase(alumno.nombre_completo)}: cambió su programa o grado; vuelve a revisar.`);
+          idsFallidos.add(alumno.id);
+        } else {
+          try {
+            if (!idsPlanPromocion.current.has(alumno.id)) idsPlanPromocion.current.set(alumno.id, crypto.randomUUID());
+            const planExistenteId = planExistentePorAlumno.get(alumno.id);
+            await guardarPromocionAlumno(alumno.id, activeCicloId, actual.programaId, alumno.grado_actual, planExistenteId ?? idsPlanPromocion.current.get(alumno.id)!, !planExistenteId && bulkCopyConcepts, !planExistenteId);
+            exitos++;
+          } catch (error) {
+            const mensaje = error instanceof Error ? error.message : 'Error desconocido';
+            errores.push(`${toTitleCase(alumno.nombre_completo)}: ${mensaje}`);
+            idsFallidos.add(alumno.id);
+            if (mensaje.includes('aún no está instalada')) {
+              for (const pendiente of seleccion.slice(indice + 1)) omitidos.push(`${toTitleCase(pendiente.alumno.nombre_completo)}: operación pendiente de instalación.`);
+              break;
+            }
+          }
+        }
+        setProgresoBulk({ actual: indice + 1, total: seleccion.length });
       }
+      await Promise.all([useAppStore.getState().refreshAlumnos(), useAppStore.getState().refreshPlans()]);
+      setResultadoPromocion({ exitos, omitidos, errores });
+      setBulkSelected(idsFallidos);
+      setConfirmarBulk(false);
+      if (exitos) showNotification('success', `${exitos} alumnos guardados; ${omitidos.length} omitidos y ${errores.length} errores.`);
+      else showNotification('error', errores[0] || omitidos[0] || 'No se guardó ninguna promoción.');
+    } catch (error) {
+      showNotification('error', error instanceof Error ? error.message : 'No se pudo verificar la selección.');
+    } finally {
+      setBulkProcessing(false);
     }
-
-    // Crear nuevos planes
-    let currentBatchCounter = localCounter.current;
-    const newPlans: PaymentPlan[] = nextGrades.map(a => {
-      currentBatchCounter++;
-      const prevPlan = previousPlansMap.get(a.id);
-      return {
-        id: crypto.randomUUID(),
-        alumno_id: a.id,
-        ciclo_id: activeCiclo.id,
-        nombre_alumno: a.nombre_completo,
-        no_plan_pagos: generateFolio(activeCiclo.nombre, currentBatchCounter),
-        fecha_plan: new Date().toLocaleDateString('es-MX'),
-        beca_porcentaje: prevPlan?.beca_porcentaje || '0%',
-        beca_tipo: prevPlan?.beca_tipo || 'NINGUNA',
-        ciclo_escolar: activeCiclo.nombre,
-        tipo_plan: prevPlan?.tipo_plan || 'Cuatrimestral',
-        licenciatura: a.licenciatura,
-        grado_turno: `${a.nextGrade} / ${a.turno}`,
-        grado: a.nextGrade,
-        turno: a.turno,
-        // Copiar conceptos
-        concepto_1: bulkCopyConcepts ? prevPlan?.concepto_1 : undefined, cantidad_1: bulkCopyConcepts ? prevPlan?.cantidad_1 : undefined,
-        concepto_2: bulkCopyConcepts ? prevPlan?.concepto_2 : undefined, cantidad_2: bulkCopyConcepts ? prevPlan?.cantidad_2 : undefined,
-        concepto_3: bulkCopyConcepts ? prevPlan?.concepto_3 : undefined, cantidad_3: bulkCopyConcepts ? prevPlan?.cantidad_3 : undefined,
-        concepto_4: bulkCopyConcepts ? prevPlan?.concepto_4 : undefined, cantidad_4: bulkCopyConcepts ? prevPlan?.cantidad_4 : undefined,
-        concepto_5: bulkCopyConcepts ? prevPlan?.concepto_5 : undefined, cantidad_5: bulkCopyConcepts ? prevPlan?.cantidad_5 : undefined,
-        concepto_6: bulkCopyConcepts ? prevPlan?.concepto_6 : undefined, cantidad_6: bulkCopyConcepts ? prevPlan?.cantidad_6 : undefined,
-        concepto_7: bulkCopyConcepts ? prevPlan?.concepto_7 : undefined, cantidad_7: bulkCopyConcepts ? prevPlan?.cantidad_7 : undefined,
-        concepto_8: bulkCopyConcepts ? prevPlan?.concepto_8 : undefined, cantidad_8: bulkCopyConcepts ? prevPlan?.cantidad_8 : undefined,
-        concepto_9: bulkCopyConcepts ? prevPlan?.concepto_9 : undefined, cantidad_9: bulkCopyConcepts ? prevPlan?.cantidad_9 : undefined,
-        // No copiamos fechas ni estatus
-      };
-    });
-
-    const dbPlans = newPlans.map(toDBPlan);
-    const { error: plansErr } = await supabase.from('planes_pago').insert(dbPlans);
-
-    if (plansErr) {
-      showNotification('error', `Error al crear planes: ${plansErr.message}`);
-    } else {
-      setPlans(prev => [...prev, ...newPlans]);
-      localCounter.current = currentBatchCounter;
-      showNotification('success', `${bulkSelected.size} alumnos promovidos exitosamente.`);
-    }
-
-    setAlumnos(updatedAlumnos);
-    setBulkSelected(new Set());
-    setShowBulkModal(false);
-    setBulkProcessing(false);
   };
 
   return (
@@ -951,10 +924,10 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
             <Database size={18} /> Sincronizador Kardex
           </button>
 
-          <button onClick={() => setShowBulkModal(true)} disabled={alumnos.length === 0}
+          {canPromote && <button onClick={() => { setResultadoPromocion(null); setConfirmarBulk(false); setBulkIncluirConPlan(false); setShowBulkModal(true); }} disabled={alumnos.length === 0}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
             <Users size={18} /> Promoción Masiva
-          </button>
+          </button>}
 
           <button onClick={() => setShowReportModal(true)} disabled={alumnos.length === 0}
             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
@@ -1021,6 +994,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                     options={grados}
                     selected={filterGrados}
                     onChange={setFilterGrados}
+                    formatLabel={formatGrado}
                   />
                   <MultiSelectFilter
                     label="Turno"
@@ -1133,10 +1107,17 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                             Ver Ficha
                           </button>
                         )}
-                        {activeCyclePlans.some(p => p.alumno_id === alumno.id || p.nombre_alumno === alumno.nombre_completo) ? (
-                          <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1.5 rounded border border-emerald-100 dark:border-emerald-800 shadow-[var(--shadow-subtle)]">
-                            <CheckCircle size={14} /> Inscrito
-                          </span>
+                        {alumnosConPlanCiclo.has(alumno.id) ? (
+                          <div className="flex items-center gap-1">
+                            <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1.5 rounded border border-emerald-100 dark:border-emerald-800 shadow-[var(--shadow-subtle)]">
+                              <CheckCircle size={14} /> Inscrito
+                            </span>
+                            {canPromote && <button onClick={() => handlePromote(alumno)} disabled={saving}
+                              title="Promover conservando el plan de pago de este ciclo"
+                              className="text-[#1456f0] dark:text-indigo-400 hover:text-[#1456f0] dark:hover:text-indigo-300 flex items-center gap-1 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 hover:bg-[#bfdbfe] dark:hover:bg-indigo-900/50 px-2 py-1.5 rounded transition-colors border border-indigo-100 dark:border-indigo-800 shadow-[var(--shadow-subtle)] disabled:opacity-50">
+                              <GraduationCap size={14} /> Promover
+                            </button>}
+                          </div>
                         ) : (
                           <div className="flex gap-1">
                             <button
@@ -1170,7 +1151,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                             >
                               <CheckCircle size={14} />
                             </button>
-                            {!isCoordinador && (
+                            {canPromote && (
                               <button onClick={() => handlePromote(alumno)} disabled={saving}
                                 className="text-[#1456f0] dark:text-indigo-400 hover:text-[#1456f0] dark:hover:text-indigo-300 flex items-center gap-1 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 hover:bg-[#bfdbfe] dark:hover:bg-indigo-900/50 px-2 py-1.5 rounded transition-colors border border-indigo-100 dark:border-indigo-800 shadow-[var(--shadow-subtle)]">
                                 <GraduationCap size={14} /> Promover
@@ -1910,70 +1891,119 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       <AnimatePresence>
         {showBulkModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sans">
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white dark:bg-gray-900 rounded-[20px] shadow-xl w-full max-w-3xl flex flex-col h-[85vh] overflow-hidden border border-[#e5e7eb] dark:border-gray-800">
-              <div className="p-6 border-b border-[#f2f3f5] dark:border-gray-800 flex justify-between items-center bg-[#f2f3f5] dark:bg-gray-800/50">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} transition={{ duration: 0.2 }} className="bg-white dark:bg-gray-900 rounded-[20px] shadow-xl w-full max-w-3xl flex flex-col h-[92dvh] sm:h-[85vh] overflow-hidden border border-[#e5e7eb] dark:border-gray-800">
+              <div className="p-4 sm:p-6 border-b border-[#f2f3f5] dark:border-gray-800 flex justify-between items-start gap-3 bg-[#f2f3f5] dark:bg-gray-800/50">
                 <div>
                   <h3 className="text-xl font-bold text-[#222222] dark:text-gray-100 flex items-center gap-2"><Users size={24} className="text-amber-500" /> Promoción Masiva de Alumnos</h3>
-                  <p className="text-sm text-[#8e8e93] dark:text-[#8e8e93] mt-1">Sube de grado a múltiples alumnos y créales un nuevo plan de pagos para el ciclo activo ({ciclos.find(c => c.id === activeCicloId)?.nombre}).</p>
+                  <p className="text-sm text-[#8e8e93] dark:text-[#8e8e93] mt-1">Ciclo de trabajo: {activeCiclo ? formatCicloEscolar(activeCiclo) : 'sin seleccionar'}. El avance crea un plan solo si el alumno aún no tiene uno en este ciclo; el egreso actualiza el programa vigente.</p>
                 </div>
                 <button disabled={bulkProcessing} onClick={() => setShowBulkModal(false)} className="text-[#8e8e93] hover:text-[#45515e] p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                   <X size={24} />
                 </button>
               </div>
 
-              <div className="p-4 border-b border-[#f2f3f5] dark:border-gray-800 bg-white dark:bg-gray-900">
+              <div className="p-4 border-b border-[#f2f3f5] dark:border-gray-800 bg-white dark:bg-gray-900 space-y-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-slate-800 dark:text-slate-200">{filteredAlumnos.length} resultados del filtro</span>
+                  <span className="rounded-lg bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 text-blue-700 dark:text-blue-300">{elegiblesBase.length} cumplen reglas iniciales de promoción</span>
+                  <span className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 text-emerald-700 dark:text-emerald-300">{!programasListos && !errorProgramas ? 'Revisando programas…' : `${promotableAlumnos.length} listos para promover`}</span>
+                  {programasListos && <span className="text-xs text-slate-600 dark:text-slate-300">{avancesDisponibles} avanzan · {egresosDisponibles} egresan</span>}
+                  {conPlanExistenteDisponibles > 0 && <span className="text-xs text-slate-600 dark:text-slate-300">{conPlanExistenteDisponibles} conservan su plan</span>}
+                  <button type="button" onClick={() => setMostrarNoElegibles(value => !value)} className="rounded-lg px-3 py-1.5 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 underline">
+                    {mostrarNoElegibles ? 'Ocultar' : 'Ver'} {noElegibles.length} no elegibles
+                  </button>
+                </div>
+                {errorProgramas && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{errorProgramas}</p>}
+                {resultadoPromocion && <div role="status" className="text-sm text-slate-700 dark:text-slate-200">
+                  Resultado: {resultadoPromocion.exitos} guardados, {resultadoPromocion.omitidos.length} omitidos y {resultadoPromocion.errores.length} errores.
+                  {(resultadoPromocion.omitidos.length > 0 || resultadoPromocion.errores.length > 0) && <details className="mt-1 max-h-28 overflow-y-auto">
+                    <summary className="cursor-pointer text-blue-700 dark:text-blue-300">Ver casos que requieren revisión</summary>
+                    <ul className="list-disc pl-5 mt-1">{[...resultadoPromocion.omitidos, ...resultadoPromocion.errores].map((mensaje, indice) => <li key={indice}>{mensaje}</li>)}</ul>
+                  </details>}
+                </div>}
+                {confirmarBulk && <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-900 dark:text-amber-100">
+                  Confirma {selectedElegibles.length} alumnos: {selectedElegibles.filter(item => item.accion?.tipo === 'AVANCE').length} avanzarán de grado y {selectedElegibles.filter(item => item.accion?.tipo === 'EGRESO').length} concluirán su programa. {selectedElegibles.filter(item => planExistentePorAlumno.has(item.alumno.id)).length} conservarán su plan de pago sin copiarlo ni crear otro. Los egresados conservarán el último grado cursado.
+                </div>}
+                {bulkProcessing && <p role="status" className="text-sm text-blue-700 dark:text-blue-300">Procesando {progresoBulk.actual} de {progresoBulk.total}…</p>}
                 <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 p-3 rounded-[13px] border border-blue-100 dark:border-blue-800 mb-0">
                   <input type="checkbox" id="copyConcepts" className="w-5 h-5 text-blue-600 rounded border-gray-300"
-                    checked={bulkCopyConcepts} onChange={e => setBulkCopyConcepts(e.target.checked)} />
+                    checked={bulkCopyConcepts} onChange={e => setBulkCopyConcepts(e.target.checked)} disabled={bulkProcessing || confirmarBulk} />
                   <label htmlFor="copyConcepts" className="text-sm font-medium cursor-pointer">
-                    Copiar conceptos y montos del último plan de pagos de cada alumno (las fechas se omitirán).
+                    Para avances sin plan en este ciclo, copiar conceptos y montos del último plan de pagos (sin fechas).
                   </label>
                 </div>
+                <label className="flex items-start gap-3 rounded-[13px] border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-900 dark:text-amber-200 cursor-pointer">
+                  <input type="checkbox" className="mt-0.5 w-5 h-5 shrink-0" checked={bulkIncluirConPlan}
+                    onChange={event => { setBulkIncluirConPlan(event.target.checked); setBulkSelected(new Set()); setConfirmarBulk(false); }}
+                    disabled={bulkProcessing} />
+                  <span><strong>Incluir alumnos que ya tienen plan en este ciclo.</strong> Se promoverán sin copiarlo, modificarlo ni crear otro. Seguirán aplicando las demás reglas de elegibilidad.</span>
+                </label>
               </div>
 
               <div className="flex-1 overflow-y-auto p-0">
-                <table className="w-full text-left text-sm border-collapse">
+                {mostrarNoElegibles && noElegibles.length > 0 && <div className="border-b border-amber-200 dark:border-amber-900 p-4 bg-amber-50/50 dark:bg-amber-900/10 space-y-2">
+                  <h4 className="font-semibold text-amber-900 dark:text-amber-200">Alumnos que requieren revisión</h4>
+                  {noElegibles.map(({ alumno, motivos }) => <div key={alumno.id} className="text-sm text-slate-700 dark:text-slate-200"><strong>{toTitleCase(alumno.nombre_completo)}</strong>: {motivos.map(motivo => motivoNoPromocionTexto[motivo]).join(' · ')}</div>)}
+                </div>}
+                <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                  {promotableAlumnos.map(({ alumno: a, accion }) => (
+                    <button key={a.id} type="button" disabled={bulkProcessing}
+                      onClick={() => { setConfirmarBulk(false); toggleBulkSelect(a.id); }}
+                      aria-pressed={bulkSelected.has(a.id)}
+                      className={`w-full p-4 text-left flex items-start gap-3 ${bulkSelected.has(a.id) ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-white dark:bg-gray-900'}`}>
+                      <input type="checkbox" checked={bulkSelected.has(a.id)} readOnly tabIndex={-1} className="mt-1 pointer-events-none" />
+                      <span className="min-w-0">
+                        <strong className="block text-sm text-gray-900 dark:text-gray-100 break-words">{toTitleCase(a.nombre_completo)}</strong>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400">{toTitleCase(a.licenciatura)} · {a.turno}</span>
+                        <span className="block mt-1 text-xs font-semibold text-blue-700 dark:text-blue-300">{accion?.tipo === 'EGRESO' ? `Egresar · conservar ${formatGrado(a.grado_actual)}` : `${formatGrado(a.grado_actual)} → ${accion?.tipo === 'AVANCE' ? formatGrado(accion.gradoDestino) : ''}`}</span>
+                        {planExistentePorAlumno.has(a.id) && <span className="block mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">Plan del ciclo existente · se conservará</span>}
+                      </span>
+                    </button>
+                  ))}
+                  {!programasListos && !errorProgramas && <p className="p-4 text-sm text-gray-500">Revisando programas vigentes…</p>}
+                </div>
+                <div className="hidden sm:block overflow-x-auto"><table className="w-full text-left text-sm border-collapse min-w-[560px]">
                   <thead className="sticky top-0 bg-gray-100 dark:bg-[#1c2228] shadow-[var(--shadow-subtle)] z-10">
                     <tr>
                       <th className="py-3 px-4 w-12 text-center">
-                        <input type="checkbox" className="w-4 h-4" checked={promotableAlumnos.length > 0 && bulkSelected.size === promotableAlumnos.length} onChange={toggleAllBulk} />
+                        <input type="checkbox" className="w-4 h-4" checked={allBulkSelected} onChange={() => { setConfirmarBulk(false); toggleAllBulk(); }} disabled={!programasListos || !!errorProgramas || bulkProcessing} aria-label="Seleccionar todos los alumnos elegibles" />
                       </th>
                       <th className="py-3 px-4 font-semibold text-[#45515e] dark:text-gray-300">Alumno</th>
-                      <th className="py-3 px-4 font-semibold text-[#45515e] dark:text-gray-300 text-center">Cambio de Grado</th>
+                      <th className="py-3 px-4 font-semibold text-[#45515e] dark:text-gray-300 text-center">Resultado</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {promotableAlumnos.map(a => (
-                      <tr key={a.id} className={`hover:bg-[#f2f3f5] dark:hover:bg-[#1c2228] cursor-pointer ${bulkSelected.has(a.id) ? 'bg-amber-50/30 dark:bg-amber-900/20' : ''}`} onClick={() => toggleBulkSelect(a.id)}>
+                    {promotableAlumnos.map(({ alumno: a, accion }) => (
+                      <tr key={a.id} className={`hover:bg-[#f2f3f5] dark:hover:bg-[#1c2228] cursor-pointer ${bulkSelected.has(a.id) ? 'bg-amber-50/30 dark:bg-amber-900/20' : ''}`} onClick={() => { if (!bulkProcessing) { setConfirmarBulk(false); toggleBulkSelect(a.id); } }}>
                         <td className="py-3 px-4 text-center">
-                          <input type="checkbox" className="w-4 h-4 pointer-events-none" checked={bulkSelected.has(a.id)} readOnly />
+                          <input type="checkbox" className="w-4 h-4 pointer-events-none" checked={bulkSelected.has(a.id)} readOnly aria-label={`Seleccionar a ${a.nombre_completo}`} />
                         </td>
                         <td className="py-3 px-4 font-medium text-[#222222] dark:text-gray-100">
                           {toTitleCase(a.nombre_completo)}
                           <div className="text-xs text-[#8e8e93] dark:text-[#8e8e93] font-normal">{toTitleCase(a.licenciatura)} · {a.turno}</div>
+                          {planExistentePorAlumno.has(a.id) && <div className="text-xs text-amber-700 dark:text-amber-300 font-medium">Plan del ciclo existente · se conservará</div>}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="text-[#8e8e93] dark:text-[#8e8e93] line-through mr-2">{formatGrado(a.grado_actual)}</span>
-                          <span className="font-bold text-[#1456f0] dark:text-indigo-400 text-base">{formatGrado(getNextGrade(a.grado_actual, a.licenciatura))}</span>
+                          {accion?.tipo === 'EGRESO' ? <span className="font-bold text-emerald-700 dark:text-emerald-300">Egresar · conservar {formatGrado(a.grado_actual)}</span> : <><span className="text-[#8e8e93] dark:text-[#8e8e93] line-through mr-2">{formatGrado(a.grado_actual)}</span><span className="font-bold text-[#1456f0] dark:text-indigo-400 text-base">{accion?.tipo === 'AVANCE' ? formatGrado(accion.gradoDestino) : ''}</span></>}
                         </td>
                       </tr>
                     ))}
                     {promotableAlumnos.length === 0 && (
                       <tr><td colSpan={3} className="text-center py-8 text-[#8e8e93] dark:text-[#8e8e93]">
-                        {filteredAlumnos.length > 0 ? "Todos los alumnos filtrados ya están inscritos en el ciclo actual." : "No hay alumnos para mostrar."}
+                        {!programasListos && !errorProgramas ? 'Revisando los programas vigentes…' : filteredAlumnos.length > 0 ? 'Ningún alumno filtrado está listo para promover. Revisa los motivos.' : 'No hay alumnos para mostrar.'}
                       </td></tr>
                     )}
                   </tbody>
-                </table>
+                </table></div>
               </div>
 
-              <div className="p-5 border-t border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50 flex justify-between items-center">
-                <span className="text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-3 py-1 rounded-full">{bulkSelected.size} agrupados seleccionados</span>
-                <div className="flex gap-3">
+              <div className="p-4 sm:p-5 border-t border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-3 py-1 rounded-full">{selectedElegibles.length} alumnos seleccionados</span>
+                <div className="flex gap-3 flex-wrap justify-end w-full sm:w-auto">
                   <button disabled={bulkProcessing} onClick={() => setShowBulkModal(false)} className="px-5 py-2.5 text-[#45515e] dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[13px] font-medium transition-colors border border-gray-300 dark:border-gray-600">Cancelar</button>
-                  <button disabled={bulkProcessing || bulkSelected.size === 0} onClick={executeBulkPromotion} className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-[13px] font-bold transition-transform active:scale-95 disabled:opacity-50 disabled:active:scale-100">
+                  <button disabled={bulkProcessing || !programasListos || !!errorProgramas || selectedElegibles.length === 0} onClick={() => { if (confirmarBulk) void executeBulkPromotion(); else setConfirmarBulk(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-[13px] font-bold transition-transform active:scale-95 disabled:opacity-50 disabled:active:scale-100">
                     {bulkProcessing && <Loader2 size={18} className="animate-spin" />}
-                    Promover y Generar Planes
+                    {confirmarBulk ? 'Confirmar promoción' : 'Revisar promoción'}
                   </button>
                 </div>
               </div>

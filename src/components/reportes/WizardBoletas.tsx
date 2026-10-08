@@ -193,6 +193,22 @@ export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     return { data: allData, error: null };
   };
 
+  const cargarGruposBoletas = async (alumnosIds: string[], cicloId: string) => {
+    const consultar = (columnas: string) => fetchAll((start, end) => supabase
+      .from('alumnos_grupos')
+      .select(`alumno_id, grupos!inner(${columnas})`)
+      .in('alumno_id', alumnosIds)
+      .eq('grupos.ciclo_id', cicloId)
+      .range(start, end));
+    try {
+      return (await consultar('codigo_grupo, ciclo_id, grado, es_multigrado')).data;
+    } catch (error: any) {
+      // Permite consultar boletas mientras aún se instala la migración multigrado.
+      if (error?.code !== '42703' && error?.code !== 'PGRST200') throw error;
+      return (await consultar('codigo_grupo, ciclo_id, grado')).data;
+    }
+  };
+
   const handleLoadMasivo = async () => {
     if (!selectedCicloId) return toast.error('Selecciona un ciclo escolar');
     setLoadingGrupos(true);
@@ -385,13 +401,7 @@ export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       }
       
       // Obtener el grupo del alumno en este ciclo
-      const queryGruposFn = (start: number, end: number) => supabase
-        .from('alumnos_grupos')
-        .select(`alumno_id, grupos!inner(codigo_grupo, ciclo_id, grado)`)
-        .in('alumno_id', alumnosIds)
-        .eq('grupos.ciclo_id', selectedCicloId)
-        .range(start, end);
-      const { data: alumnosGruposData } = await fetchAll(queryGruposFn);
+      const alumnosGruposData = await cargarGruposBoletas(alumnosIds, selectedCicloId);
       
       const grupoMap = new Map();
       const gradoMap = new Map();
@@ -399,7 +409,7 @@ export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
          alumnosGruposData.forEach((ag: any) => {
             if (ag.grupos) {
                grupoMap.set(ag.alumno_id, ag.grupos.codigo_grupo);
-               gradoMap.set(ag.alumno_id, ag.grupos.grado);
+               gradoMap.set(ag.alumno_id, ag.grupos.es_multigrado ? null : ag.grupos.grado);
             }
          });
       }
@@ -531,13 +541,7 @@ export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       }
       
       // Obtener el grupo del alumno en este ciclo
-      const queryGruposFn = (start: number, end: number) => supabase
-        .from('alumnos_grupos')
-        .select(`alumno_id, grupos!inner(codigo_grupo, ciclo_id, grado)`)
-        .in('alumno_id', alumnosIds)
-        .eq('grupos.ciclo_id', selectedCicloId)
-        .range(start, end);
-      const { data: alumnosGruposData } = await fetchAll(queryGruposFn);
+      const alumnosGruposData = await cargarGruposBoletas(alumnosIds, selectedCicloId);
       
       const grupoMap = new Map();
       const gradoMap = new Map();
@@ -545,7 +549,7 @@ export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
          alumnosGruposData.forEach((ag: any) => {
             if (ag.grupos) {
                grupoMap.set(ag.alumno_id, ag.grupos.codigo_grupo);
-               gradoMap.set(ag.alumno_id, ag.grupos.grado);
+               gradoMap.set(ag.alumno_id, ag.grupos.es_multigrado ? null : ag.grupos.grado);
             }
          });
       }
@@ -702,13 +706,7 @@ export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       }
       
       // Obtener el grupo del alumno en este ciclo
-      const queryGruposFn = (start: number, end: number) => supabase
-        .from('alumnos_grupos')
-        .select(`alumno_id, grupos!inner(codigo_grupo, ciclo_id, grado)`)
-        .in('alumno_id', alumnosIds)
-        .eq('grupos.ciclo_id', selectedCicloId)
-        .range(start, end);
-      const { data: alumnosGruposData } = await fetchAll(queryGruposFn);
+      const alumnosGruposData = await cargarGruposBoletas(alumnosIds, selectedCicloId);
       
       const grupoMap = new Map();
       const gradoMap = new Map();
@@ -716,7 +714,7 @@ export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
          alumnosGruposData.forEach((ag: any) => {
             if (ag.grupos) {
                grupoMap.set(ag.alumno_id, ag.grupos.codigo_grupo);
-               gradoMap.set(ag.alumno_id, ag.grupos.grado);
+               gradoMap.set(ag.alumno_id, ag.grupos.es_multigrado ? null : ag.grupos.grado);
             }
          });
       }

@@ -161,6 +161,9 @@ export default function ModalDetallesGrupo({ isOpen, onClose, grupo }: ModalDeta
             <p className="text-sm text-[#45515e] dark:text-gray-400 mt-1">
               Ciclo: {grupo.ciclo?.nombre || 'N/A'} {grupo.ciclo?.tipo_periodo ? `(${grupo.ciclo.tipo_periodo})` : ''} | Plan: {grupo.plan?.nombre || 'N/A'}
             </p>
+            <p className="mt-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
+              {grupo.es_multigrado ? `Multigrado · Bloque ${grupo.grado} · Grados ${grupo.grado_inicio}–${grupo.grado_fin}` : `Grado ${grupo.grado ?? 'sin definir'}`} · {grupo.turno}
+            </p>
           </div>
           <button
             onClick={onClose}

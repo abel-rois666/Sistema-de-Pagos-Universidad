@@ -43,7 +43,7 @@ export default function GruposConfig() {
 
       const { data, error } = await supabase
         .from('grupos')
-        .select('*, ciclo:ciclos_escolares!inner(*), plan:planes_estudio(*, carrera:carreras(nombre)), alumnos:alumnos_grupos(count)')
+        .select('*, ciclo:ciclos_escolares!inner(*), plan:planes_estudio(*, carrera:carreras(nombre))')
         .eq('ciclo_id', cicloFiltroId)
         .order('created_at', { ascending: false });
 
@@ -51,7 +51,22 @@ export default function GruposConfig() {
         throw error;
       }
 
-      if (numeroConsulta === consultaGrupos.current) setGrupos(data as unknown as Grupo[]);
+      const filas = (data || []) as unknown as Grupo[];
+      const alumnosPorGrupo = new Map<string, Set<string>>();
+      for (let bloque = 0; bloque < filas.length; bloque += 50) {
+        const ids = filas.slice(bloque, bloque + 50).map(grupo => grupo.id);
+        for (let inicio = 0; ; inicio += 1000) {
+          const { data: relaciones, error: errorRelaciones } = await supabase.from('alumnos_grupos')
+            .select('id,grupo_id,alumno_id').in('grupo_id', ids).order('id').range(inicio, inicio + 999);
+          if (errorRelaciones) throw errorRelaciones;
+          for (const relacion of relaciones || []) {
+            if (!alumnosPorGrupo.has(relacion.grupo_id)) alumnosPorGrupo.set(relacion.grupo_id, new Set());
+            alumnosPorGrupo.get(relacion.grupo_id)!.add(relacion.alumno_id);
+          }
+          if (!relaciones || relaciones.length < 1000) break;
+        }
+      }
+      if (numeroConsulta === consultaGrupos.current) setGrupos(filas.map(grupo => ({ ...grupo, total_alumnos: alumnosPorGrupo.get(grupo.id)?.size || 0 })));
     } catch (error: any) {
       if (numeroConsulta === consultaGrupos.current) toast.error('Error al cargar los grupos: ' + error.message);
       console.error(error);
@@ -194,11 +209,11 @@ export default function GruposConfig() {
           valA = a.ciclo?.nombre || a.ciclo?.descripcion || '';
           valB = b.ciclo?.nombre || b.ciclo?.descripcion || '';
         } else if (sortConfig.key === 'grado_turno') {
-          valA = `${a.grado} ${a.turno}`;
-          valB = `${b.grado} ${b.turno}`;
+          valA = `${a.es_multigrado ? `Bloque ${a.grado} Grados ${a.grado_inicio}-${a.grado_fin}` : a.grado} ${a.turno}`;
+          valB = `${b.es_multigrado ? `Bloque ${b.grado} Grados ${b.grado_inicio}-${b.grado_fin}` : b.grado} ${b.turno}`;
         } else if (sortConfig.key === 'alumnos') {
-          valA = a.alumnos?.[0]?.count || 0;
-          valB = b.alumnos?.[0]?.count || 0;
+          valA = a.total_alumnos || 0;
+          valB = b.total_alumnos || 0;
         } else if (sortConfig.key === 'estatus') {
           valA = a.estatus || '';
           valB = b.estatus || '';
@@ -367,12 +382,12 @@ export default function GruposConfig() {
                         {grupo.ciclo ? formatCicloEscolar(grupo.ciclo) : 'N/A'}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-[#45515e] dark:text-gray-300">{grupo.grado || '-'}</div>
+                        <div className="text-[#45515e] dark:text-gray-300">{grupo.es_multigrado ? `Bloque ${grupo.grado} · Grados ${grupo.grado_inicio}–${grupo.grado_fin}` : grupo.grado || '-'}</div>
                         <div className="text-xs text-[#8e8e93] mt-0.5">{grupo.turno || '-'}</div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-bold text-sm">
-                          {grupo.alumnos?.[0]?.count || 0}
+                          {grupo.total_alumnos || 0}
                         </div>
                       </td>
                       <td className="px-6 py-4">

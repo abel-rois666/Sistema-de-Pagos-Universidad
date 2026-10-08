@@ -3,6 +3,8 @@ import { X, Loader2, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { formatGrado } from '../../utils/formatUtils';
+import { coincideAlumnoMultigrado } from '../../utils/nuevoGrupoUtils';
+import { cargarAlumnosNuevoGrupo } from '../../services/gruposCreacionService';
 import ModalConfirmacion, { ModalConfirmacionProps } from '../ui/ModalConfirmacion';
 
 interface Props {
@@ -68,14 +70,7 @@ export default function ModalGestionarAlumnosGrupo({ isOpen, onClose, grupoId }:
       setAlumnosActuales(Array.from(uniqueAl.values()));
 
       // Obtener alumnos activos para añadir
-      const { data: allData, error: allError } = await supabase
-        .from('alumnos')
-        .select('id, matricula, nombre_completo, licenciatura, grado_actual, turno, estatus')
-        .ilike('estatus', 'activo')
-        .order('nombre_completo');
-      if (allError) throw allError;
-      
-      setAlumnosDisponibles(allData || []);
+      setAlumnosDisponibles(await cargarAlumnosNuevoGrupo(gData.es_multigrado ? gData.plan_id : undefined));
 
     } catch (err: any) {
       toast.error('Error al cargar datos: ' + err.message);
@@ -85,6 +80,10 @@ export default function ModalGestionarAlumnosGrupo({ isOpen, onClose, grupoId }:
   };
 
   const handleAddAlumno = async (alumnoId: string) => {
+    if (grupo?.es_multigrado && isAlumnoWarning(alumnosDisponibles.find(alumno => alumno.id === alumnoId))) {
+      toast.error('El alumno debe estar activo en el mismo plan, turno y rango de grados.');
+      return;
+    }
     if (materiasGrupo.length === 0) {
       toast.error('El grupo no tiene materias asignadas. Agrega materias primero.');
       return;
@@ -135,6 +134,8 @@ export default function ModalGestionarAlumnosGrupo({ isOpen, onClose, grupoId }:
 
   const isAlumnoWarning = (al: any) => {
     if (!grupo) return false;
+    if (!al) return true;
+    if (grupo.es_multigrado) return !coincideAlumnoMultigrado(al, grupo.plan_id, grupo.grado_inicio, grupo.grado_fin, grupo.turno);
     if (String(al.grado_actual) !== String(grupo.grado)) return true;
     if (al.turno?.toUpperCase() !== grupo.turno?.toUpperCase()) return true;
     return false;
@@ -146,8 +147,9 @@ export default function ModalGestionarAlumnosGrupo({ isOpen, onClose, grupoId }:
   const noInscritos = alumnosDisponibles.filter(a => !currentIds.has(a.id));
   
   const filteredNoInscritos = noInscritos.filter(a => {
+    if (grupo?.es_multigrado && isAlumnoWarning(a)) return false;
     // Check career first
-    if (carreraFiltro && a.licenciatura && !a.licenciatura.toLowerCase().includes(carreraFiltro.toLowerCase())) {
+    if (!grupo?.es_multigrado && carreraFiltro && a.licenciatura && !a.licenciatura.toLowerCase().includes(carreraFiltro.toLowerCase())) {
       return false; // Skip if from another career
     }
 

@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, BookOpen, Check, ChevronLeft, ChevronRight, Loader2, Users, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '../../store/useAppStore';
 import { formatCicloEscolar, formatGrado } from '../../utils/formatUtils';
-import { asignaturasDelGrado, coincideAlumnoGrupo, ordenarAsignaturasGrupo, periodosDelPlan } from '../../utils/nuevoGrupoUtils';
+import { asignaturasDelGrado, coincideAlumnoGrupo, coincideAlumnoMultigrado, ordenarAsignaturasGrupo, periodosDelPlan } from '../../utils/nuevoGrupoUtils';
 import type { AlumnoNuevoGrupo, AsignaturaNuevoGrupo } from '../../utils/nuevoGrupoUtils';
 import { cargarAlumnosNuevoGrupo, cargarAsignaturasNuevoGrupo, cargarPlanesNuevoGrupo, crearGrupoCompleto } from '../../services/gruposCreacionService';
 import type { PlanNuevoGrupo } from '../../services/gruposCreacionService';
 import ModalConfirmacion from '../ui/ModalConfirmacion';
+import SelectorRangoMultigrado from './SelectorRangoMultigrado';
 
 interface Props {
   isOpen: boolean;
@@ -21,7 +22,9 @@ type ConfirmacionPendiente =
   | { tipo: 'cerrar' }
   | { tipo: 'plan'; valor: string }
   | { tipo: 'turno'; valor: Turno }
-  | { tipo: 'grado'; valor: number };
+  | { tipo: 'grado'; valor: number }
+  | { tipo: 'modo'; valor: boolean }
+  | { tipo: 'rango'; inicio: number | null; fin: number | null };
 const campo = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-[#1456f0] focus:ring-2 focus:ring-[#1456f0]/15 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
 const etiqueta = 'mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200';
 
@@ -29,7 +32,9 @@ const textosConfirmacion: Record<ConfirmacionPendiente['tipo'], { titulo: string
   cerrar: { titulo: 'Descartar borrador', mensaje: 'El grupo aún no se ha guardado. Se perderán los datos capturados.', confirmar: 'Descartar borrador' },
   plan: { titulo: 'Cambiar plan de estudios', mensaje: 'Se borrarán el grado, las materias y los alumnos seleccionados para este borrador.', confirmar: 'Cambiar plan' },
   turno: { titulo: 'Cambiar turno', mensaje: 'Se descartará la selección actual de alumnos y se calcularán nuevas sugerencias.', confirmar: 'Cambiar turno' },
-  grado: { titulo: 'Cambiar grado', mensaje: 'Se reemplazarán las materias seleccionadas y se volverán a calcular los alumnos sugeridos. Este aviso se mostrará una sola vez durante el alta del grupo.', confirmar: 'Cambiar grado' },
+  grado: { titulo: 'Cambiar bloque', mensaje: 'Se reemplazarán las materias seleccionadas. Todos los alumnos elegidos cursarán el nuevo bloque. Este aviso se mostrará una sola vez durante el alta del grupo.', confirmar: 'Cambiar bloque' },
+  modo: { titulo: 'Cambiar tipo de grupo', mensaje: 'Se descartará la selección de alumnos para aplicar las reglas del nuevo tipo de grupo.', confirmar: 'Cambiar tipo' },
+  rango: { titulo: 'Cambiar rango de grados', mensaje: 'Se reemplazará la selección de alumnos por los sugeridos en el nuevo rango.', confirmar: 'Cambiar rango' },
 };
 
 export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Props) {
@@ -42,6 +47,9 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
   const [turno, setTurno] = useState<Turno>('Matutino');
   const [estatus, setEstatus] = useState<'activo' | 'inactivo'>('activo');
   const [grado, setGrado] = useState<number | null>(null);
+  const [esMultigrado, setEsMultigrado] = useState(false);
+  const [gradoInicio, setGradoInicio] = useState<number | null>(null);
+  const [gradoFin, setGradoFin] = useState<number | null>(null);
   const [asignaturaIds, setAsignaturaIds] = useState<Set<string>>(new Set());
   const [alumnoIds, setAlumnoIds] = useState<Set<string>>(new Set());
   const [planes, setPlanes] = useState<PlanNuevoGrupo[]>([]);
@@ -57,30 +65,37 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
   const [alumnosInicializadosPara, setAlumnosInicializadosPara] = useState('');
   const [confirmacion, setConfirmacion] = useState<ConfirmacionPendiente | null>(null);
   const [gradoAdvertido, setGradoAdvertido] = useState(false);
+  const solicitudAlumnos = useRef(0);
 
   const plan = planes.find(item => item.id === planId);
+  const planFlexible = plan?.modelo?.toUpperCase() === 'FLEXIBLE';
   const periodos = useMemo(() => periodosDelPlan(asignaturas), [asignaturas]);
+  const gradosDisponibles = useMemo(() => Array.from({ length: Math.max(plan?.total_periodos || 0, ...periodos, 1) }, (_, index) => index + 1), [plan?.total_periodos, periodos]);
   const asignaturasOrdenadas = useMemo(() => ordenarAsignaturasGrupo(asignaturas.filter(item => item.activo !== false), grado || 0), [asignaturas, grado]);
   const carrera = plan?.carrera?.nombre || '';
-  const alumnosSugeridos = useMemo(() => alumnos.filter(alumno => grado !== null && coincideAlumnoGrupo(alumno, carrera, grado, turno)), [alumnos, carrera, grado, turno]);
+  const esSugerido = (alumno: AlumnoNuevoGrupo) => esMultigrado
+    ? gradoInicio !== null && gradoFin !== null && coincideAlumnoMultigrado(alumno, planId, gradoInicio, gradoFin, turno)
+    : grado !== null && coincideAlumnoGrupo(alumno, carrera, grado, turno);
+  const alumnosSugeridos = useMemo(() => alumnos.filter(esSugerido), [alumnos, carrera, grado, turno, esMultigrado, gradoInicio, gradoFin, planId]);
   const idsSugeridos = useMemo(() => new Set(alumnosSugeridos.map(alumno => alumno.id)), [alumnosSugeridos]);
   const alumnosVisibles = useMemo(() => {
     const buscar = busquedaAlumno.trim().toLocaleLowerCase('es');
     return alumnos.filter(alumno => {
-      const esCarrera = !carrera || alumno.licenciatura?.toLocaleLowerCase('es').includes(carrera.toLocaleLowerCase('es'));
-      if (!esCarrera && !alumnoIds.has(alumno.id)) return false;
+      const esCarrera = esMultigrado ? alumno.planVigenteIds?.includes(planId) : !carrera || alumno.licenciatura?.toLocaleLowerCase('es').includes(carrera.toLocaleLowerCase('es'));
+      if ((!esCarrera || (esMultigrado && !esSugerido(alumno))) && !alumnoIds.has(alumno.id)) return false;
       if (buscar) return alumno.nombre_completo.toLocaleLowerCase('es').includes(buscar) || alumno.matricula?.toLocaleLowerCase('es').includes(buscar);
       return alumnoIds.has(alumno.id) || idsSugeridos.has(alumno.id);
     });
-  }, [alumnos, alumnoIds, idsSugeridos, busquedaAlumno, carrera]);
+  }, [alumnos, alumnoIds, idsSugeridos, busquedaAlumno, carrera, esMultigrado, planId]);
 
   useEffect(() => {
     if (!isOpen) return;
     let vigente = true;
+    solicitudAlumnos.current += 1;
     setBorradorId(crypto.randomUUID());
     setPaso(1);
     setCodigo(''); setCicloId(''); setPlanId(''); setTurno('Matutino'); setEstatus('activo');
-    setGrado(null); setAsignaturaIds(new Set()); setAlumnoIds(new Set());
+    setGrado(null); setEsMultigrado(false); setGradoInicio(null); setGradoFin(null); setAsignaturaIds(new Set()); setAlumnoIds(new Set());
     setPlanes([]); setAsignaturas([]); setAlumnos([]); setBusquedaAlumno(''); setAlumnosInicializadosPara('');
     setConfirmacion(null); setGradoAdvertido(false);
     setCargandoAsignaturas(false); setCargandoAlumnos(false); setErrorAsignaturas(false); setErrorAlumnos(false);
@@ -109,7 +124,9 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
   };
 
   const aplicarPlan = (nuevoId: string) => {
-    setPlanId(nuevoId); setGrado(null); setAsignaturaIds(new Set()); setAlumnoIds(new Set()); setAlumnosInicializadosPara('');
+    solicitudAlumnos.current += 1;
+    setPlanId(nuevoId); setGrado(null); setEsMultigrado(false); setGradoInicio(null); setGradoFin(null);
+    setAsignaturaIds(new Set()); setAlumnoIds(new Set()); setAlumnosInicializadosPara(''); setAlumnos([]);
   };
   const cambiarPlan = (nuevoId: string) => {
     if (nuevoId === planId) return;
@@ -118,6 +135,7 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
   };
 
   const aplicarTurno = (nuevoTurno: Turno) => {
+    solicitudAlumnos.current += 1;
     setTurno(nuevoTurno); setAlumnoIds(new Set()); setAlumnosInicializadosPara('');
   };
   const cambiarTurno = (nuevoTurno: Turno) => {
@@ -127,14 +145,36 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
   };
 
   const aplicarGrado = (nuevoGrado: number) => {
+    if (!esMultigrado) solicitudAlumnos.current += 1;
     setGrado(nuevoGrado);
     setAsignaturaIds(new Set(asignaturasDelGrado(asignaturas, nuevoGrado)));
-    setAlumnoIds(new Set()); setAlumnosInicializadosPara('');
+    if (!esMultigrado) { setAlumnoIds(new Set()); setAlumnosInicializadosPara(''); }
   };
   const cambiarGrado = (nuevoGrado: number) => {
     if (nuevoGrado === grado) return;
     if (grado !== null && (asignaturaIds.size || alumnoIds.size) && !gradoAdvertido) setConfirmacion({ tipo: 'grado', valor: nuevoGrado });
     else aplicarGrado(nuevoGrado);
+  };
+
+  const aplicarModo = (nuevoModo: boolean) => {
+    solicitudAlumnos.current += 1;
+    setEsMultigrado(nuevoModo); setGradoInicio(null); setGradoFin(null);
+    setAlumnoIds(new Set()); setAlumnosInicializadosPara(''); setAlumnos([]);
+  };
+  const cambiarModo = (nuevoModo: boolean) => {
+    if (nuevoModo === esMultigrado) return;
+    if (alumnoIds.size) setConfirmacion({ tipo: 'modo', valor: nuevoModo });
+    else aplicarModo(nuevoModo);
+  };
+  const aplicarRango = (inicio: number | null, fin: number | null) => {
+    solicitudAlumnos.current += 1;
+    setCargandoAlumnos(false);
+    setGradoInicio(inicio); setGradoFin(fin);
+    setAlumnoIds(new Set()); setAlumnosInicializadosPara('');
+  };
+  const cambiarRango = (inicio: number | null, fin: number | null) => {
+    if (alumnoIds.size) setConfirmacion({ tipo: 'rango', inicio, fin });
+    else aplicarRango(inicio, fin);
   };
 
   const confirmarCambio = () => {
@@ -144,6 +184,8 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
       case 'plan': aplicarPlan(confirmacion.valor); break;
       case 'turno': aplicarTurno(confirmacion.valor); break;
       case 'grado': aplicarGrado(confirmacion.valor); setGradoAdvertido(true); break;
+      case 'modo': aplicarModo(confirmacion.valor); break;
+      case 'rango': aplicarRango(confirmacion.inicio, confirmacion.fin); break;
     }
     setConfirmacion(null);
   };
@@ -156,30 +198,42 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
   };
 
   const irAAlumnos = async () => {
-    if (grado === null || !periodos.includes(grado)) return toast.error('Selecciona un grado disponible en este plan.');
+    if (grado === null || !periodos.includes(grado)) return toast.error('Selecciona un bloque disponible en este plan.');
     if (!asignaturaIds.size) return toast.error('Selecciona al menos una materia.');
     setPaso(3);
-    const claveSeleccion = `${planId}|${grado}|${turno}`;
-    if (alumnosInicializadosPara === claveSeleccion) return;
+    const claveSeleccion = `${planId}|${esMultigrado ? `multi|${gradoInicio}|${gradoFin}` : grado}|${turno}`;
+    if (alumnosInicializadosPara === claveSeleccion || (esMultigrado && (gradoInicio === null || gradoFin === null))) return;
+    const solicitud = ++solicitudAlumnos.current;
     setCargandoAlumnos(true);
     setErrorAlumnos(false);
     try {
-      const datos = alumnos.length ? alumnos : await cargarAlumnosNuevoGrupo();
+      const datos = alumnos.length ? alumnos : await cargarAlumnosNuevoGrupo(esMultigrado ? planId : undefined);
+      if (solicitud !== solicitudAlumnos.current) return;
       setAlumnos(datos);
-      setAlumnoIds(new Set(datos.filter(alumno => coincideAlumnoGrupo(alumno, carrera, grado, turno)).map(alumno => alumno.id)));
+      setAlumnoIds(new Set(datos.filter(alumno => esMultigrado
+        ? coincideAlumnoMultigrado(alumno, planId, gradoInicio!, gradoFin!, turno)
+        : coincideAlumnoGrupo(alumno, carrera, grado, turno)).map(alumno => alumno.id)));
       setAlumnosInicializadosPara(claveSeleccion);
     } catch (error) {
+      if (solicitud !== solicitudAlumnos.current) return;
       setErrorAlumnos(true);
       toast.error(`No se pudieron cargar los alumnos: ${error instanceof Error ? error.message : String(error)}`);
-    } finally { setCargandoAlumnos(false); }
+    } finally { if (solicitud === solicitudAlumnos.current) setCargandoAlumnos(false); }
   };
+
+  useEffect(() => {
+    if (isOpen && paso === 3 && esMultigrado && gradoInicio !== null && gradoFin !== null && gradoInicio <= gradoFin) {
+      void irAAlumnos();
+    }
+  }, [isOpen, paso, esMultigrado, gradoInicio, gradoFin, planId, turno]);
 
   const guardar = async () => {
     if (guardando || grado === null || !asignaturaIds.size || cargandoAlumnos || !alumnosInicializadosPara) return;
+    if (esMultigrado && (gradoInicio === null || gradoFin === null || gradoInicio > gradoFin)) return toast.error('Selecciona un rango de grados válido.');
     setGuardando(true);
     try {
       const id = await crearGrupoCompleto({
-        id: borradorId, codigo, cicloId, planId, grado, turno, estatus,
+        id: borradorId, codigo, cicloId, planId, grado, turno, estatus, esMultigrado, gradoInicio, gradoFin,
         asignaturaIds: [...asignaturaIds], alumnoIds: [...alumnoIds],
       });
       toast.success('Grupo, materias y alumnos guardados correctamente.');
@@ -187,7 +241,7 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
       onClose();
     } catch (error) {
       const mensaje = error instanceof Error ? error.message : String(error);
-      toast.error(mensaje.includes('crear_grupo_completo') ? 'No se pudo guardar. Comprueba que la migración de creación de grupos esté aplicada.' : `No se guardó el grupo: ${mensaje}`);
+      toast.error(mensaje.includes('crear_grupo_') ? 'No se pudo guardar. Comprueba que la migración de creación de grupos esté aplicada.' : `No se guardó el grupo: ${mensaje}`);
     } finally { setGuardando(false); }
   };
 
@@ -202,7 +256,7 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
             <button type="button" onClick={cerrar} disabled={guardando} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"><X size={20}/></button>
           </div>
           <ol className="mt-5 grid grid-cols-3 gap-2" aria-label="Progreso de creación">
-            {(['Datos del grupo', 'Grado y materias', 'Alumnos'] as const).map((nombre, indice) => <li key={nombre} className={`rounded-lg border px-2 py-2 text-center text-xs font-semibold sm:text-sm ${paso === indice + 1 ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' : paso > indice + 1 ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300' : 'border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400'}`} aria-current={paso === indice + 1 ? 'step' : undefined}>{indice + 1}. {nombre}</li>)}
+            {(['Datos del grupo', 'Bloque y materias', 'Alumnos'] as const).map((nombre, indice) => <li key={nombre} className={`rounded-lg border px-2 py-2 text-center text-xs font-semibold sm:text-sm ${paso === indice + 1 ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' : paso > indice + 1 ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300' : 'border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400'}`} aria-current={paso === indice + 1 ? 'step' : undefined}>{indice + 1}. {nombre}</li>)}
           </ol>
         </header>
 
@@ -213,18 +267,21 @@ export default function ModalCrearGrupo({ isOpen, onClose, onGrupoCreated }: Pro
             <div><label htmlFor="grupo-plan" className={etiqueta}>Plan de estudios *</label><select id="grupo-plan" value={planId} onChange={event => cambiarPlan(event.target.value)} disabled={cargandoPlanes} className={campo}><option value="">{cargandoPlanes ? 'Cargando planes...' : 'Selecciona un plan...'}</option>{planes.map(item => <option key={item.id} value={item.id}>{item.carrera?.nombre || 'Carrera sin definir'} · {item.nombre}</option>)}</select></div>
             <div><label htmlFor="grupo-turno" className={etiqueta}>Turno *</label><select id="grupo-turno" value={turno} onChange={event => cambiarTurno(event.target.value as Turno)} className={campo}><option value="Matutino">Matutino · L–V 07:00–13:00</option><option value="Vespertino">Vespertino · L–V 16:00–21:00</option><option value="Mixto">Mixto · sábado 07:00–15:00</option></select><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">El turno determina qué alumnos se sugieren y la ventana del generador de horarios.</p></div>
             <div><label htmlFor="grupo-estatus" className={etiqueta}>Estatus</label><select id="grupo-estatus" value={estatus} onChange={event => setEstatus(event.target.value as 'activo' | 'inactivo')} className={campo}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+            {planFlexible && <fieldset className="sm:col-span-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700"><legend className="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">Tipo de grupo</legend><div className="grid gap-2 sm:grid-cols-2">{([{ valor: false, titulo: 'Un solo grado', detalle: 'Materias y alumnos del mismo periodo.' }, { valor: true, titulo: 'Multigrado', detalle: 'Un bloque de materias para alumnos de varios grados.' }] as const).map(opcion => <button key={opcion.titulo} type="button" aria-pressed={esMultigrado === opcion.valor} onClick={() => cambiarModo(opcion.valor)} className={`rounded-xl border p-3 text-left transition-colors ${esMultigrado === opcion.valor ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-slate-200 hover:border-blue-300 dark:border-slate-700'}`}><strong className="block text-sm text-slate-900 dark:text-white">{opcion.titulo}</strong><span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{opcion.detalle}</span></button>)}</div></fieldset>}
           </div>}
 
           {paso === 2 && <div className="space-y-5">
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30"><div className="flex items-center gap-2 font-semibold text-blue-900 dark:text-blue-200"><BookOpen size={18}/> Materias del plan</div><p className="mt-1 text-sm text-blue-800 dark:text-blue-300">Elige un grado existente. Sus materias se marcarán automáticamente; puedes ajustar la selección.</p></div>
-            <div className="flex flex-wrap items-end justify-between gap-3"><div className="w-full max-w-xs"><label htmlFor="grupo-grado" className={etiqueta}>Grado / bloque *</label><select id="grupo-grado" value={grado ?? ''} onChange={event => cambiarGrado(Number(event.target.value))} className={campo}><option value="" disabled>Selecciona un grado...</option>{periodos.map(numero => <option key={numero} value={numero}>{formatGrado(numero)} · {asignaturasDelGrado(asignaturas, numero).length} materias</option>)}</select></div><span className="text-sm font-semibold text-[#1456f0] dark:text-blue-400">{asignaturaIds.size} materias elegidas</span></div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30"><div className="flex items-center gap-2 font-semibold text-blue-900 dark:text-blue-200"><BookOpen size={18}/> Materias del plan</div><p className="mt-1 text-sm text-blue-800 dark:text-blue-300">{esMultigrado ? 'Elige el bloque común de materias. En el siguiente paso definirás por separado el rango de grados de los alumnos.' : 'Elige un grado existente. Sus materias se marcarán automáticamente; puedes ajustar la selección.'}</p></div>
+            <div className="flex flex-wrap items-end justify-between gap-3"><div className="w-full max-w-xs"><label htmlFor="grupo-grado" className={etiqueta}>{esMultigrado ? 'Bloque de materias *' : 'Grado / bloque *'}</label><select id="grupo-grado" value={grado ?? ''} onChange={event => cambiarGrado(Number(event.target.value))} className={campo}><option value="" disabled>Selecciona un bloque...</option>{periodos.map(numero => <option key={numero} value={numero}>{formatGrado(numero)} · {asignaturasDelGrado(asignaturas, numero).length} materias</option>)}</select></div><span className="text-sm font-semibold text-[#1456f0] dark:text-blue-400">{asignaturaIds.size} materias elegidas</span></div>
             {cargandoAsignaturas ? <div className="flex justify-center py-12"><Loader2 className="animate-spin text-blue-600"/></div> : <div className="grid gap-3 md:grid-cols-2">{asignaturasOrdenadas.map(asignatura => <label key={asignatura.id} className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors ${asignaturaIds.has(asignatura.id) ? 'border-blue-400 bg-blue-50/70 dark:border-blue-700 dark:bg-blue-950/30' : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'}`}><input type="checkbox" checked={asignaturaIds.has(asignatura.id)} onChange={() => setAsignaturaIds(actual => { const siguiente = new Set(actual); if (siguiente.has(asignatura.id)) siguiente.delete(asignatura.id); else siguiente.add(asignatura.id); return siguiente; })} className="mt-1 accent-[#1456f0]"/><span className="min-w-0"><strong className="block text-sm text-slate-900 dark:text-white">{asignatura.nombre}</strong><span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{asignatura.clave_legado} · Grado {asignatura.numero_periodo ?? 'sin definir'}</span></span></label>)}</div>}
           </div>}
 
           {paso === 3 && <div className="space-y-4">
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30"><div className="flex items-center gap-2 font-semibold text-blue-900 dark:text-blue-200"><Users size={18}/> Alumnos del grupo</div><p className="mt-1 text-sm text-blue-800 dark:text-blue-300">Se sugieren alumnos activos de {carrera || 'la carrera'} con grado {formatGrado(grado)} y turno {turno}. Puedes guardar el grupo sin alumnos.</p></div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30"><div className="flex items-center gap-2 font-semibold text-blue-900 dark:text-blue-200"><Users size={18}/> Alumnos del grupo</div><p className="mt-1 text-sm text-blue-800 dark:text-blue-300">{esMultigrado ? `Se sugieren alumnos activos del plan ${plan?.nombre || ''}, turno ${turno} y grados del rango elegido. Todos cursarán las mismas materias.` : `Se sugieren alumnos activos de ${carrera || 'la carrera'} con grado ${formatGrado(grado)} y turno ${turno}.`} Puedes guardar el grupo sin alumnos.</p></div>
+            {esMultigrado && <SelectorRangoMultigrado grados={gradosDisponibles} inicio={gradoInicio} fin={gradoFin} alumnosSugeridos={alumnosSugeridos} onChange={cambiarRango} />}
             <div className="flex flex-wrap items-center justify-between gap-3"><input type="search" value={busquedaAlumno} onChange={event => setBusquedaAlumno(event.target.value)} placeholder="Buscar por nombre o matrícula..." aria-label="Buscar alumno" className={`${campo} max-w-md`}/><span className="text-sm font-semibold text-[#1456f0] dark:text-blue-400">{alumnoIds.size} alumnos seleccionados</span></div>
-            {cargandoAlumnos ? <div className="flex justify-center py-12"><Loader2 className="animate-spin text-blue-600"/></div> : errorAlumnos ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">No se pudieron cargar los alumnos. <button type="button" onClick={() => void irAAlumnos()} className="font-semibold underline">Reintentar</button></div> : <div className="max-h-80 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">{alumnosVisibles.length ? alumnosVisibles.slice(0, 100).map(alumno => { const sugerido = grado !== null && coincideAlumnoGrupo(alumno, carrera, grado, turno); return <label key={alumno.id} className="flex cursor-pointer items-start gap-3 rounded-lg p-2 hover:bg-slate-50 dark:hover:bg-slate-800"><input type="checkbox" checked={alumnoIds.has(alumno.id)} onChange={() => setAlumnoIds(actual => { const siguiente = new Set(actual); if (siguiente.has(alumno.id)) siguiente.delete(alumno.id); else siguiente.add(alumno.id); return siguiente; })} className="mt-1 accent-[#1456f0]"/><span className="min-w-0 flex-1"><strong className="block text-sm text-slate-900 dark:text-white">{alumno.nombre_completo}</strong><span className="text-xs text-slate-500 dark:text-slate-400">{alumno.matricula || 'Sin matrícula'} · Grado {formatGrado(alumno.grado_actual)} · {alumno.turno || 'Sin turno'}</span></span>{!sugerido && alumnoIds.has(alumno.id) && <AlertTriangle size={16} className="shrink-0 text-amber-500" aria-label="Revisar grado o turno"/>}</label>; }) : <p className="p-4 text-sm text-slate-500 dark:text-slate-400">{busquedaAlumno ? 'No hay coincidencias. Prueba otra búsqueda.' : 'No hay alumnos sugeridos; puedes buscar y seleccionar alumnos activos.'}</p>}{alumnosVisibles.length > 100 && <p className="p-2 text-xs text-slate-500">Se muestran 100 resultados. Busca por nombre o matrícula para encontrar más.</p>}</div>}
+            {cargandoAlumnos ? <div className="flex justify-center py-12"><Loader2 className="animate-spin text-blue-600"/></div> : errorAlumnos ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">No se pudieron cargar los alumnos. <button type="button" onClick={() => void irAAlumnos()} className="font-semibold underline">Reintentar</button></div> : <div className="max-h-80 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">{alumnosVisibles.length ? alumnosVisibles.slice(0, 100).map(alumno => { const sugerido = esSugerido(alumno); return <label key={alumno.id} className="flex cursor-pointer items-start gap-3 rounded-lg p-2 hover:bg-slate-50 dark:hover:bg-slate-800"><input type="checkbox" checked={alumnoIds.has(alumno.id)} onChange={() => setAlumnoIds(actual => { const siguiente = new Set(actual); if (siguiente.has(alumno.id)) siguiente.delete(alumno.id); else siguiente.add(alumno.id); return siguiente; })} className="mt-1 accent-[#1456f0]"/><span className="min-w-0 flex-1"><strong className="block text-sm text-slate-900 dark:text-white">{alumno.nombre_completo}</strong><span className="text-xs text-slate-500 dark:text-slate-400">{alumno.matricula || 'Sin matrícula'} · Grado {formatGrado(alumno.grado_actual)} · {alumno.turno || 'Sin turno'}</span></span>{!sugerido && alumnoIds.has(alumno.id) && <AlertTriangle size={16} className="shrink-0 text-amber-500" aria-label="Revisar grado o turno"/>}</label>; }) : <p className="p-4 text-sm text-slate-500 dark:text-slate-400">{busquedaAlumno ? 'No hay coincidencias. Prueba otra búsqueda.' : esMultigrado && gradoInicio === null ? 'Elige el rango de grados para ver alumnos sugeridos.' : 'No hay alumnos sugeridos; puedes buscar y seleccionar alumnos activos.'}</p>}{alumnosVisibles.length > 100 && <p className="p-2 text-xs text-slate-500">Se muestran 100 resultados. Busca por nombre o matrícula para encontrar más.</p>}</div>}
+            <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700 dark:bg-slate-800/60 dark:text-slate-200"><strong>Resumen:</strong> {plan?.nombre} · {turno} · Bloque {grado} {esMultigrado ? `· Grados ${gradoInicio ?? '—'}–${gradoFin ?? '—'}` : ''} · {asignaturaIds.size} materias · {alumnoIds.size} alumnos</div>
             <p className="text-xs text-slate-500 dark:text-slate-400">Al guardar, cada alumno elegido se vincula a las {asignaturaIds.size} materias seleccionadas. Los docentes se asignan después.</p>
           </div>}
         </div>

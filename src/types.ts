@@ -597,7 +597,11 @@ export interface Grupo {
   ciclo_id: string;
   plan_id: string;
   codigo_grupo: string;
-  grado: string;
+  grado: number | null;
+  es_multigrado?: boolean;
+  grado_inicio?: number | null;
+  grado_fin?: number | null;
+  total_alumnos?: number;
   turno: string;
   aula?: string | null;
   sede?: string | null;

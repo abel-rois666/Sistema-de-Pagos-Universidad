@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import React, { useRef, useState } from 'react';
 import { Loader2, X, RefreshCcw, DollarSign, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CicloEscolar } from '../../types';
 import ModalGenerarCarga from './ModalGenerarCarga';
-import { formatGrado } from '../../utils/formatUtils';
-import { calcularEstatusInstitucional } from '../../services/academicosService';
+import { formatCicloEscolar, formatGrado } from '../../utils/formatUtils';
 import { useAppStore } from '../../store/useAppStore';
+import { cargarProgramasVigentesPromocion, guardarPromocionAlumno } from '../../services/promocionAlumnosService';
 
 interface ModalReinscripcionProps {
   alumnoId: string;
@@ -20,27 +19,6 @@ interface ModalReinscripcionProps {
   onSuccess: (cicloDestino: string) => void;
 }
 
-const calcularSiguienteGradoYEstatus = (gradoActual: string | null, planNombre: string, tipoPeriodo: string) => {
-  let limite = 10;
-  const nombreLower = planNombre?.toLowerCase() || '';
-  const periodoLower = tipoPeriodo?.toLowerCase() || '';
-
-  if (nombreLower.includes('especialidad')) limite = 3;
-  else if (periodoLower.includes('semestral')) limite = 8;
-  else if (periodoLower.includes('cuatrimestral')) limite = 10;
-
-  // Si viene nulo, vacío o es "0" del GES 4, asume que pasa a 1er grado
-  if (!gradoActual || gradoActual === '0' || gradoActual.trim() === '') {
-    return { nuevoGrado: '1', nuevoEstatus: 'CURSANDO' };
-  }
-  
-  const num = parseInt(gradoActual.replace(/\D/g, ''), 10) || 1;
-  if (num >= limite) {
-    return { nuevoGrado: 'EGRESADO', nuevoEstatus: 'EGRESADO' };
-  }
-  return { nuevoGrado: String(num + 1), nuevoEstatus: 'CURSANDO' };
-};
-
 export default function ModalReinscripcion({ 
   alumnoId, alumnoGradoActual, alumnoEstatus, planActivoId, planActivoNombre, planActivoTipoPeriodo, ciclos, onClose, onSuccess 
 }: ModalReinscripcionProps) {
@@ -48,89 +26,34 @@ export default function ModalReinscripcion({
   const [cicloDestino, setCicloDestino] = useState<string>('');
   const [metodoPago, setMetodoPago] = useState<'CLONAR' | 'MANUAL'>('CLONAR');
   const [procesando, setProcesando] = useState(false);
+  const planOperacionId = useRef(crypto.randomUUID());
 
   const procesarReinscripcion = async () => {
-    if (!cicloDestino) return toast.error('Selecciona el ciclo de destino');
+    const cicloSeleccionado = ciclos.find(c => c.id === cicloDestino);
+    if (!cicloSeleccionado) return toast.error('Selecciona el ciclo de destino');
     
     setProcesando(true);
     try {
-      if (metodoPago === 'CLONAR') {
-        const { data: ultimoPlan } = await supabase
-          .from('planes_pago')
-          .select('*')
-          .eq('alumno_id', alumnoId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-        
-        if (ultimoPlan) {
-          let resolvedCicloId = ciclos.find(c => c.nombre === cicloDestino && c.tipo_periodo?.toLowerCase() === planActivoTipoPeriodo?.toLowerCase())?.id;
-          if (!resolvedCicloId) resolvedCicloId = ciclos.find(c => c.nombre === cicloDestino)?.id;
-          
-          const nuevoPlan: any = {
-            id: crypto.randomUUID(),
-            alumno_id: alumnoId,
-            ciclo_id: resolvedCicloId,
-            licenciatura: ultimoPlan.licenciatura,
-            nombre_alumno: ultimoPlan.nombre_alumno,
-            no_plan_pagos: ultimoPlan.no_plan_pagos + '-R', // Distintivo de clonación
-            fecha_plan: new Date().toLocaleDateString('es-MX'),
-            beca_porcentaje: ultimoPlan.beca_porcentaje,
-            beca_tipo: ultimoPlan.beca_tipo,
-            tipo_plan: ultimoPlan.tipo_plan,
-            ciclo_escolar: cicloDestino || ultimoPlan.ciclo_escolar,
-            grado_turno: ultimoPlan.grado_turno,
-            grado: ultimoPlan.grado,
-            turno: ultimoPlan.turno,
-          };
-          
-          for (let i = 1; i <= 18; i++) {
-            if (ultimoPlan[`concepto_${i}`]) {
-              nuevoPlan[`concepto_${i}`] = ultimoPlan[`concepto_${i}`];
-              nuevoPlan[`cantidad_${i}`] = ultimoPlan[`cantidad_${i}`];
-              nuevoPlan[`estatus_${i}`] = 'PENDIENTE';
-              nuevoPlan[`fecha_${i}`] = null;
-            }
-          }
-          await supabase.from('planes_pago').insert(nuevoPlan);
-        }
+      const programas = await cargarProgramasVigentesPromocion([alumnoId]);
+      const programa = programas.get(alumnoId);
+      if (programa?.plan_id !== planActivoId) {
+        throw new Error('El programa vigente cambió. Vuelve a abrir la ficha antes de continuar.');
       }
-
-      const { nuevoGrado, nuevoEstatus } = calcularSiguienteGradoYEstatus(alumnoGradoActual, planActivoNombre, planActivoTipoPeriodo);
-      
-      if (nuevoEstatus === 'EGRESADO') {
-         await supabase.from('alumno_programas').update({ 
-           estatus: 'EGRESADO',
-           motivo_estatus: 'PLAN_CONCLUIDO',
-           fecha_ultimo_cambio: new Date().toISOString()
-         })
-         .eq('alumno_id', alumnoId).eq('plan_id', planActivoId);
-      }
-
-      // Derivar estatus institucional a partir de todos los programas del alumno
-      const { data: todosProgramas } = await supabase
-        .from('alumno_programas')
-        .select('estatus, es_vigente')
-        .eq('alumno_id', alumnoId);
-
-      const estatusFinalAlumno = calcularEstatusInstitucional(todosProgramas || [{ estatus: nuevoEstatus, es_vigente: true }]);
-
-      const updatesAlumno = {
-        grado_actual: nuevoGrado,
-        estatus: estatusFinalAlumno,
-        ciclo_ultima_asignacion_grado: ciclos.find(c => c.nombre === cicloDestino)?.id || cicloDestino
-      };
-
-      await supabase.from('alumnos').update(updatesAlumno).eq('id', alumnoId);
-
-      useAppStore.getState().setAlumnos((prev: any[]) =>
-        prev.map((a: any) => (a.id === alumnoId ? { ...a, ...updatesAlumno } : a))
+      const resultado = await guardarPromocionAlumno(
+        alumnoId, cicloDestino, programa.id, alumnoGradoActual, planOperacionId.current,
+        metodoPago === 'CLONAR', metodoPago === 'CLONAR',
       );
-
-      setStep(2); 
+      await Promise.all([useAppStore.getState().refreshAlumnos(), useAppStore.getState().refreshPlans()]);
+      if (resultado.tipo === 'EGRESO') {
+        toast.success(`Programa concluido. Se conserva el grado ${formatGrado(alumnoGradoActual)}.`);
+        onSuccess(cicloSeleccionado.nombre);
+      } else {
+        toast.success(`Alumno promovido a ${formatGrado(resultado.grado)}.`);
+        setStep(2);
+      }
     } catch (error) {
       console.error(error);
-      toast.error('Error al procesar la reinscripción');
+      toast.error(error instanceof Error ? error.message : 'Error al procesar la reinscripción');
     } finally {
       setProcesando(false);
     }
@@ -141,12 +64,12 @@ export default function ModalReinscripcion({
       <ModalGenerarCarga 
         alumnoId={alumnoId}
         planId={planActivoId}
-        cicloId={ciclos.find(c => c.nombre === cicloDestino)?.id || cicloDestino}
+        cicloId={cicloDestino}
         onClose={() => {
-          onSuccess(cicloDestino);
+          onSuccess(ciclos.find(c => c.id === cicloDestino)?.nombre || '');
         }}
         onSuccess={() => {
-          onSuccess(cicloDestino);
+          onSuccess(ciclos.find(c => c.id === cicloDestino)?.nombre || '');
         }}
       />
     );
@@ -185,8 +108,8 @@ export default function ModalReinscripcion({
                   onChange={e => setCicloDestino(e.target.value)}
                 >
                   <option value="">-- Seleccionar Periodo --</option>
-                  {Array.from(new Set(ciclos.map(c => c.nombre))).map(nombre => (
-                    <option key={nombre} value={nombre}>{nombre}</option>
+                  {ciclos.map(ciclo => (
+                    <option key={ciclo.id} value={ciclo.id}>{formatCicloEscolar(ciclo)}</option>
                   ))}
                 </select>
               </div>
@@ -197,7 +120,7 @@ export default function ModalReinscripcion({
                   <label className={`cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-colors ${metodoPago === 'CLONAR' ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'}`}>
                     <input type="radio" name="metodo" className="hidden" checked={metodoPago === 'CLONAR'} onChange={() => setMetodoPago('CLONAR')} />
                     <DollarSign size={20} />
-                    <span className="text-xs font-semibold text-center">Clonar Anterior</span>
+                    <span className="text-xs font-semibold text-center">Crear plan (copiar anterior si existe)</span>
                   </label>
                   <label className={`cursor-pointer border rounded-xl p-3 flex flex-col items-center gap-2 transition-colors ${metodoPago === 'MANUAL' ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'}`}>
                     <input type="radio" name="metodo" className="hidden" checked={metodoPago === 'MANUAL'} onChange={() => setMetodoPago('MANUAL')} />
@@ -209,7 +132,7 @@ export default function ModalReinscripcion({
 
               <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
                 <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-                  Al continuar, el grado del alumno subirá automáticamente (respetando el límite de <strong>{planActivoNombre}</strong>) y pasarás a generar su carga académica.
+                  Se usará la duración registrada en <strong>{planActivoNombre} ({planActivoTipoPeriodo})</strong>. Si cursa el último grado, su programa pasará a EGRESADO sin crear un nuevo plan de pago ni generar carga académica.
                 </p>
               </div>
             </>

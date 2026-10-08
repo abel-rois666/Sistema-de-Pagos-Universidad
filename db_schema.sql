@@ -313,10 +313,17 @@ CREATE TABLE IF NOT EXISTS public.grupos (
   plan_id uuid NOT NULL,
   codigo_grupo character varying NOT NULL,
   grado integer,
+  es_multigrado boolean NOT NULL DEFAULT false,
+  grado_inicio integer,
+  grado_fin integer,
   turno character varying,
   estatus character varying DEFAULT 'activo'::character varying,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT grupos_pkey PRIMARY KEY (id),
+  CONSTRAINT grupos_rango_multigrado_valido CHECK (
+    (es_multigrado = false AND grado_inicio IS NULL AND grado_fin IS NULL)
+    OR (es_multigrado = true AND grado_inicio >= 1 AND grado_fin >= grado_inicio)
+  ),
   CONSTRAINT grupos_ciclo_id_fkey FOREIGN KEY (ciclo_id) REFERENCES public.ciclos_escolares(id) ON DELETE CASCADE,
   CONSTRAINT grupos_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.planes_estudio(id) ON DELETE CASCADE
 );

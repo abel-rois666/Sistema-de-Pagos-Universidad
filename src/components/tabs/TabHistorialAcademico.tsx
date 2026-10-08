@@ -68,7 +68,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   const [planActivoId, setPlanActivoId] = useState<string | null>(null);
   const [showModalReinscripcion, setShowModalReinscripcion] = useState(false);
   
-  const { ciclos, carreras } = useAppStore();
+  const { ciclos, carreras, currentUser } = useAppStore();
 
   const toTitleCase = (str: string) => {
     if (!str) return '';
@@ -721,7 +721,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                   </select>
                 </div>
                 
-                {!['BAJA', 'EGRESADO', 'TITULADO'].includes(alumno.estatus?.toUpperCase() || '') && planActivoId && (
+                {(currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR CONTROL ESCOLAR')
+                  && !['BAJA', 'EGRESADO', 'TITULADO'].includes(alumno.estatus?.toUpperCase() || '') && planActivoId && (
                   <button 
                     onClick={() => setShowModalReinscripcion(true)}
                     className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors shadow-sm flex items-center gap-2"

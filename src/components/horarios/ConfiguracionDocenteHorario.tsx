@@ -15,6 +15,7 @@ interface AsignaturaOpcion { id: string; nombre: string; clave_legado: string; p
 interface GrupoOpcion { id: string; codigo_grupo: string; turno: string }
 interface ConfiguracionGuardada {
   disponibilidad: VentanaHorario[];
+  max_horas_semanales?: number | null;
   plan_ids: string[];
   asignatura_ids_preferidas: string[];
   grupo_ids_restringidos: string[];
@@ -31,8 +32,8 @@ const textosConfirmacion: Record<ConfirmacionPendiente['tipo'], { titulo: string
   copiar: { titulo: 'Reemplazar configuración', mensaje: 'La copia reemplazará los cambios sin guardar de este ciclo. Los grupos restringidos no se copian.', confirmar: 'Copiar configuración' },
 };
 
-const snapshot = (horas: Set<string>, planes: string[], asignaturas: string[], grupos: string[]) =>
-  JSON.stringify([Array.from(horas).sort(), [...planes].sort(), [...asignaturas].sort(), [...grupos].sort()]);
+const snapshot = (horas: Set<string>, planes: string[], asignaturas: string[], grupos: string[], maximo: string) =>
+  JSON.stringify([Array.from(horas).sort(), [...planes].sort(), [...asignaturas].sort(), [...grupos].sort(), maximo.trim()]);
 
 const claveHora = (dia: number, hora: number) => `${dia}-${hora}`;
 const horasDeVentanas = (ventanas: VentanaHorario[]) => new Set(ventanas.flatMap(v =>
@@ -66,13 +67,16 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
   const [planIds, setPlanIds] = useState<string[]>([]);
   const [asignaturaIds, setAsignaturaIds] = useState<string[]>([]);
   const [grupoIds, setGrupoIds] = useState<string[]>([]);
+  const [maxHorasSemanales, setMaxHorasSemanales] = useState('');
+  const [limiteDisponible, setLimiteDisponible] = useState(false);
   const [configuraciones, setConfiguraciones] = useState<ConfiguracionPorCiclo[]>([]);
   const [origenId, setOrigenId] = useState('');
   const [snapshotGuardado, setSnapshotGuardado] = useState<string | null>(null);
   const [confirmacion, setConfirmacion] = useState<ConfirmacionPendiente | null>(null);
   const ciclosOrdenados = useMemo(() => [...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es', { numeric: true }) || formatCicloEscolar(a).localeCompare(formatCicloEscolar(b), 'es')), [ciclos]);
   const configuracionesOrigen = configuraciones.filter(config => config.ciclo_id !== cicloSeleccionadoId && ciclos.some(ciclo => ciclo.id === config.ciclo_id));
-  const cambiosSinGuardar = snapshotGuardado !== null && snapshot(horas, planIds, asignaturaIds, grupoIds) !== snapshotGuardado;
+  const cambiosSinGuardar = snapshotGuardado !== null
+    && snapshot(horas, planIds, asignaturaIds, grupoIds, maxHorasSemanales) !== snapshotGuardado;
   const visibles = useMemo(() => asignaturas.filter(asignatura => planIds.includes(asignatura.plan_id)), [asignaturas, planIds]);
 
   useEffect(() => {
@@ -84,8 +88,9 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
       setOrigenId('');
       if (!cicloSeleccionadoId) { setCargando(false); return; }
       try {
-        const [config, planesData, asignaturasData, gruposData] = await Promise.all([
-          supabase.from('docente_configuraciones_horario').select('ciclo_id,disponibilidad,plan_ids,asignatura_ids_preferidas,grupo_ids_restringidos').eq('docente_id', docenteId),
+        const [config, campoMaximo, planesData, asignaturasData, gruposData] = await Promise.all([
+          supabase.from('docente_configuraciones_horario').select('*').eq('docente_id', docenteId),
+          supabase.from('docente_configuraciones_horario').select('max_horas_semanales').limit(1),
           leerTodasFilas<PlanOpcion>('planes_estudio', 'id,nombre,carrera:carreras(nombre)'),
           leerTodasFilas<AsignaturaOpcion>('asignaturas', 'id,nombre,clave_legado,plan_id', 'id', { campo: 'activo', valor: true }),
           leerTodasFilas<GrupoOpcion>('grupos', 'id,codigo_grupo,turno', 'id', { campo: 'ciclo_id', valor: cicloSeleccionadoId }),
@@ -98,15 +103,18 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
         const planesCargados = guardada?.plan_ids || [];
         const asignaturasCargadas = guardada?.asignatura_ids_preferidas || [];
         const gruposCargados = guardada?.grupo_ids_restringidos || [];
+        const maximoCargado = guardada?.max_horas_semanales?.toString() || '';
         setHoras(horasCargadas);
         setPlanIds(planesCargados);
         setAsignaturaIds(asignaturasCargadas);
         setGrupoIds(gruposCargados);
+        setMaxHorasSemanales(maximoCargado);
+        setLimiteDisponible(!campoMaximo.error);
         setConfiguraciones(todas);
         setPlanes(planesData.sort((a,b) => a.nombre.localeCompare(b.nombre, 'es')));
         setAsignaturas(asignaturasData.sort((a,b) => a.nombre.localeCompare(b.nombre, 'es')));
         setGrupos(gruposData.sort((a,b) => a.codigo_grupo.localeCompare(b.codigo_grupo, 'es')));
-        setSnapshotGuardado(snapshot(horasCargadas, planesCargados, asignaturasCargadas, gruposCargados));
+        setSnapshotGuardado(snapshot(horasCargadas, planesCargados, asignaturasCargadas, gruposCargados, maximoCargado));
       } catch (error) {
         if (vigente) setErrorCarga(true);
         toast.error(`No se pudo cargar la configuración: ${error instanceof Error ? error.message : String(error)}`);
@@ -160,7 +168,8 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
     setPlanIds(origen.plan_ids || []);
     setAsignaturaIds(origen.asignatura_ids_preferidas || []);
     setGrupoIds([]);
-    toast('Disponibilidad y materias copiadas. Los grupos restringidos no se copian; revisa y guarda la configuración.');
+    setMaxHorasSemanales(origen.max_horas_semanales?.toString() || '');
+    toast('Disponibilidad, materias y máximo semanal copiados. Los grupos restringidos no se copian; revisa y guarda la configuración.');
   };
 
   const confirmarCambio = () => {
@@ -180,12 +189,18 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
     if (!ciclos.some(ciclo => ciclo.id === cicloSeleccionadoId) || cargando || errorCarga) return toast.error('Selecciona y carga un ciclo escolar válido.');
     if (!horas.size) return toast.error('Selecciona al menos una hora disponible.');
     if (!planIds.length) return toast.error('Selecciona al menos un plan de estudio.');
+    const maximo = maxHorasSemanales.trim() === '' ? null : Number(maxHorasSemanales);
+    if (limiteDisponible && maximo !== null && (!Number.isInteger(maximo) || maximo < 1 || maximo > 84)) {
+      return toast.error('El máximo semanal debe ser un entero entre 1 y 84 horas, o quedar vacío.');
+    }
     setGuardando(true);
     try {
       const { error } = await supabase.from('docente_configuraciones_horario').upsert({
         docente_id: docenteId, ciclo_id: cicloSeleccionadoId, disponibilidad: ventanasDeHoras(horas),
         plan_ids: planIds, asignatura_ids_preferidas: asignaturaIds.filter(id => visibles.some(a => a.id === id)),
         grupo_ids_restringidos: grupoIds, actualizado_en: new Date().toISOString(),
+        ...(limiteDisponible && (maximo !== null || configuraciones.some(config => 'max_horas_semanales' in config))
+          ? { max_horas_semanales: maximo } : {}),
       }, { onConflict: 'docente_id,ciclo_id' });
       if (error) throw error;
       toast.success('Configuración docente guardada para este ciclo.');
@@ -232,6 +247,17 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
               ].map(p => <button key={p.texto} type="button" onClick={() => aplicarTurno(p.dias, p.inicio, p.fin)} className="rounded-full bg-blue-50 px-3 py-1.5 font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300">+ {p.texto}</button>)}
                 <button type="button" onClick={() => setHoras(new Set())} className="rounded-full px-3 py-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Limpiar</button></div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{DIAS_HORARIO.map(dia => <div key={dia} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><h4 className="mb-2 text-sm font-bold text-slate-800 dark:text-slate-100">{NOMBRES_DIAS[dia]}</h4><div className="grid grid-cols-4 gap-1.5">{Array.from({length:14},(_,i) => i+7).map(hora => <button key={hora} type="button" aria-label={`${NOMBRES_DIAS[dia]}, ${String(hora).padStart(2,'0')}:00 a ${String(hora + 1).padStart(2,'0')}:00`} aria-pressed={horas.has(claveHora(dia,hora))} onClick={() => alternarHora(dia,hora)} className={`rounded-md px-1 py-1.5 text-xs font-semibold transition-colors ${horas.has(claveHora(dia,hora)) ? 'bg-[#1456f0] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'}`}>{String(hora).padStart(2,'0')}:00</button>)}</div></div>)}</div>
+            </section>
+            <section className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+              <label htmlFor="max-horas-docente" className="block text-sm font-bold text-slate-900 dark:text-white">Máximo de horas presenciales por semana</label>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <input id="max-horas-docente" type="number" min="1" max="84" step="1" placeholder="Sin límite"
+                  value={maxHorasSemanales} disabled={!limiteDisponible}
+                  onChange={evento => setMaxHorasSemanales(evento.target.value)}
+                  className="w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"/>
+                <span className="text-xs text-slate-600 dark:text-slate-300">Vacío = sin límite. Se cuentan también las clases publicadas de ciclos superpuestos.</span>
+              </div>
+              {!limiteDisponible && <p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300">Aplica la migración del máximo semanal para habilitar este campo. Puedes seguir editando la disponibilidad.</p>}
             </section>
             <section className="grid gap-5 lg:grid-cols-2"><div><h3 className="mb-1 font-bold text-slate-900 dark:text-white">Licenciaturas y planes donde imparte clase</h3><p className="mb-3 text-xs text-slate-500 dark:text-slate-400">Cada plan identifica su carrera; puedes elegir varios.</p><div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">{planes.map(plan => <label key={plan.id} className="flex cursor-pointer items-center gap-2 rounded-lg p-2 text-sm hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"><input type="checkbox" checked={planIds.includes(plan.id)} onChange={() => alternar(planIds,plan.id,setPlanIds)} /><span><strong className="block">{plan.carrera?.nombre || 'Carrera sin definir'}</strong><span className="text-xs text-slate-500">{plan.nombre}</span></span></label>)}</div></div>
               <SelectorAsignaturasPreferidas planes={planes} planIds={planIds} asignaturas={asignaturas} asignaturaIds={asignaturaIds} onAlternar={id => alternar(asignaturaIds, id, setAsignaturaIds)} /></section>

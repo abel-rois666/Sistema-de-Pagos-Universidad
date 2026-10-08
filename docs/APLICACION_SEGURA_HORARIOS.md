@@ -1,10 +1,10 @@
 # Revisión previa de horarios en Supabase Free
 
-**Estado:** el agente no se ha conectado ni ha ejecutado SQL contra la base real. El usuario informó que ya ejecutó `supabase/migrations/20261006120000_horarios_academicos.sql`; la segunda migración sigue pendiente. Una prueba con `ROLLBACK` detecta errores de instalación, pero no sustituye las pruebas funcionales con una copia de la base.
+**Estado:** el agente no se ha conectado ni ha ejecutado SQL contra la base real. El usuario informó que ya ejecutó `supabase/migrations/20261006120000_horarios_academicos.sql`; el usuario también informó que ejecutó la migración de continuidad de publicación; falta verificar la definición instalada. Una prueba con `ROLLBACK` detecta errores de instalación, pero no sustituye las pruebas funcionales con una copia de la base.
 
 **Preflight informado por el usuario (6 de octubre de 2026, antes de instalar):** resultado 1: las 19 columnas base y sus tipos coinciden; resultado 2: los cinco campos nuevos aún no existían; resultado 3: las cuatro tablas y dos funciones nuevas tenían nombres libres, y `get_my_rol()` existía; resultado 4: los seis nombres de restricciones y disparadores estaban libres; resultado 5: no había disparadores propios en `asignaturas`, `docentes_grupos_asignaturas` ni `grupos`. Estos resultados reducían el riesgo de colisiones, pero no prueban la instalación ni el funcionamiento posterior.
 
-**Estado actual comunicado por el usuario:** ya ejecutó `20261006120000_horarios_academicos.sql` y compartió los 21 resultados `OK` de `supabase/checks/verificar_base_horarios.sql`. Quiere omitir el ensayo con `ROLLBACK` y probar las funciones nuevas directamente. La migración de publicación sigue pendiente. El ensayo de ambas migraciones ya no sirve para este estado porque la primera crea políticas que no se pueden crear por segunda vez.
+**Estado actual comunicado por el usuario:** ya ejecutó `20261006120000_horarios_academicos.sql` y compartió los 21 resultados `OK` de `supabase/checks/verificar_base_horarios.sql`. Quiere omitir el ensayo con `ROLLBACK` y probar las funciones nuevas directamente. El usuario informó posteriormente que ejecutó la migración de continuidad de publicación. Antes de cualquier otra migración, confirma la función instalada con `supabase/checks/verificar_publicacion_materias_continuas.sql`; no repitas migraciones ya aplicadas. El ensayo de ambas migraciones ya no sirve para este estado porque la primera crea políticas que no se pueden crear por segunda vez.
 
 ## 1. Revisar el esquema sin escribir (antes de la primera migración)
 
@@ -38,3 +38,27 @@ Si finaliza correctamente, confirma que la última operación fue `ROLLBACK` y v
 ## 4. Instalación posterior
 
 El ensayo no instala nada. Antes de aplicar realmente las migraciones, resuelve los hallazgos del chequeo y obtén autorización explícita para escribir en la base. Después de instalarlas, verifica alta y edición de asignaturas, grupos y docentes con los roles habituales; configura un ciclo de ejemplo y prueba generación, publicación, sustitución y exportación. Publicar un horario sí puede actualizar docentes y horas en asignaciones existentes. Conserva el respaldo hasta completar esta revisión.
+
+## 5. Máximo semanal por docente
+
+La migración adicional `supabase/migrations/20261007170000_max_horas_semanales_docente.sql` requiere que ya existan las tablas creadas por la primera migración y la función de publicación de la segunda. Antes de aplicarla, ejecuta `supabase/checks/preflight_max_horas_docente.sql` y revisa sus tres resultados: tablas presentes, columna libre o `integer`, y nombres de función/disparador libres. Después ejecuta el archivo de migración completo en SQL Editor y confirma los cuatro `OK` de `supabase/checks/verificar_max_horas_docente.sql`. El agente no ha ejecutado ninguno de estos archivos contra Supabase.
+
+Esta migración añade una columna anulable y un disparador para futuras inserciones o modificaciones de cargas publicadas. No borra ni cambia filas actuales. Un máximo configurado que sea menor que una carga ya publicada requiere ajustar y volver a publicar ese horario antes de poder añadir horas al docente. La interfaz sigue permitiendo editar la disponibilidad si esta migración aún no se aplicó; el nuevo campo aparece deshabilitado.
+
+## 6. Omitir materias complementarias del horario oficial
+
+`supabase/migrations/20261007190000_publicar_horario_omitir_complementarias.sql` reemplaza la función de publicación **con la misma firma**, después de la migración de publicación original. Exige todos los grupos activos y sus asignaturas no complementarias; permite omitir solo asignaturas con clave `266` o, si la clave está vacía, nombre «Complementaria». La clave prevalece si ambos campos discrepan. No borra ni modifica datos al instalarse. Al publicar, conserva sin cambios las asignaciones omitidas y crea el snapshot solo con las incluidas. La interfaz depende de esta actualización para publicar con complementarias desmarcadas; si no está instalada, el servidor rechazará ese borrador. Este agente solo preparó el archivo y no lo ejecutó en Supabase.
+
+## 7. Continuidad de materias al publicar
+
+`supabase/migrations/20261007200000_publicar_horario_materias_continuas.sql` vuelve a definir la función `publicar_horario_academico` con **la misma firma, permisos y validaciones** de la versión que permite omitir complementarias. Aplícala después de `20261007190000_publicar_horario_omitir_complementarias.sql`. Antes de sustituir un horario publicado o insertar filas, rechaza las sesiones de una misma asignación y día cuando dejan un intervalo entre sí; acepta sesiones adyacentes y sesiones en días distintos. El mensaje identifica materia, grupo y número de día (1 = lunes). Instalar el archivo no publica horarios, no modifica tablas ni borra datos. El agente no lo ejecutó; el usuario informó que ya lo aplicó en Supabase.
+
+Después de aplicarla, ejecuta `supabase/checks/verificar_publicacion_materias_continuas.sql`: debe devolver `OK: VALIDACIÓN INSTALADA`. Este chequeo solo lee la definición de la función; una prueba funcional real sigue pendiente hasta que se use en el entorno de destino. La regla se exige a **nuevas publicaciones**; no modifica ni revisa automáticamente versiones históricas.
+
+## 8. Guardar y retomar borradores
+
+Antes, ejecuta `supabase/checks/preflight_horarios_borradores.sql`: debe devolver `LIBRE` para la tabla y `PRESENTE` para la tabla de ciclos y la función de rol. Si el nombre ya existe, revisa su estructura antes de aplicar el archivo.
+
+`supabase/migrations/20261007210000_horarios_borradores.sql` crea únicamente la tabla `horarios_borradores`, su índice y políticas RLS para Administración y Coordinación Académica. No altera asignaciones, horarios publicados ni datos existentes. Requiere `ciclos_escolares` y `get_my_rol()`. Ejecútala una sola vez desde SQL Editor en el proyecto correcto; no la mezcles con las migraciones de publicación. Después comprueba que la tabla aparece y que un usuario autorizado puede guardar, abrir y eliminar un borrador desde la pantalla de horarios. Un usuario sin esos roles no debe poder consultarlos ni escribirlos.
+
+La interfaz puede desplegarse antes de esta migración, pero la sección de borradores mostrará un error de consulta hasta que se aplique. Abrir un borrador nunca escribe asignaciones docentes ni crea una versión oficial; publicar sigue siendo un paso separado con sus propias validaciones. El agente preparó el SQL pero no lo ejecutó en la base real.
