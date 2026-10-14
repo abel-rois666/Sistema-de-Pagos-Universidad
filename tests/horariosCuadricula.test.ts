@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import JSZip from 'jszip';
 import ExcelJS from 'exceljs';
-import { opcionesVistaHorario, seccionesCuadriculaHorario } from '../src/horarios/cuadricula.ts';
-import { crearDocxHorario, crearPdfHorario } from '../src/horarios/exportar.ts';
+import { opcionesVistaHorario, seccionesCuadriculaHorario, tablaMateriasHorario } from '../src/horarios/cuadricula.ts';
+import { crearDocxHorario, crearPdfHorario, crearZipPdfHorarios } from '../src/horarios/exportar.ts';
 import { crearXlsxHorario } from '../src/horarios/exportarXlsx.ts';
 import { aplicarHorasPresencialesMasivas } from '../src/horarios/horasMasivas.ts';
 import { agruparVacantes, idVacante } from '../src/horarios/vacantes.ts';
@@ -49,12 +49,95 @@ test('vista y exportación admiten varios grupos seleccionados', async () => {
   assert.deepEqual(seccionesCuadriculaHorario(datos, horarios, '2027-1', vista).map(seccion => seccion.id), ['g2']);
   const pdf = crearPdfHorario(datos, horarios, '2027-1', vista);
   assert.equal(pdf.getNumberOfPages(), 1);
+  assert.ok(pdf.internal.pageSize.getWidth() > pdf.internal.pageSize.getHeight());
   const docx = await crearDocxHorario(datos, horarios, '2027-1', vista);
   const zip = await JSZip.loadAsync(await docx.arrayBuffer());
   const xml = await zip.file('word/document.xml')?.async('string');
   assert.ok(xml?.includes('Historia del Derecho'));
   assert.ok(!xml?.includes('Derecho Civil'));
   assert.equal(crearPdfHorario(datos, horarios, '2027-1', { tipo: 'grupos' }).getNumberOfPages(), 2);
+});
+
+test('plan flexible omite grado, Mixto estrecha horario y opciones ocultan detalles sin alterar datos', async () => {
+  const datos = entrada();
+  datos.grupos[0].turno = 'MIXTO';
+  datos.grupos[0].grado = 4;
+  datos.grupos[0].planModelo = 'FLEXIBLE';
+  datos.cargas[0].horasAsincronas = 2;
+  const [seccion] = seccionesCuadriculaHorario(datos, [], '2027-1', { tipo: 'grupos', ids: ['g1'] });
+  assert.ok(!seccion.encabezado.some(linea => linea.includes('grado 4')));
+  assert.deepEqual(tablaMateriasHorario(seccion, 'grupos', { mostrarAsincronas: false,
+    mostrarHorasGrupo: false }).encabezado, ['CLAVE', 'MATERIA', 'DOCENTE']);
+  assert.equal(seccion.materias[0][1], '2');
+  datos.grupos[0].planModelo = 'RIGIDO';
+  assert.ok(seccionesCuadriculaHorario(datos, [], '2027-1', { tipo: 'grupos', ids: ['g1'] })[0]
+    .encabezado.some(linea => linea.includes('grado 4')));
+  datos.grupos[0].planModelo = 'FLEXIBLE';
+  const opciones = { mostrarAsincronas: false, mostrarHorasGrupo: false };
+  const docx = await crearDocxHorario(datos, [], '2027-1', { tipo: 'grupos', ids: ['g1'] }, opciones);
+  const zip = await JSZip.loadAsync(await docx.arrayBuffer());
+  const xml = await zip.file('word/document.xml')?.async('string');
+  assert.ok(xml?.includes('w:gridCol w:w="1400"'));
+  assert.ok(xml?.includes('w:gridCol w:w="13600"'));
+  assert.ok(xml?.includes('w:pgSz w:w="16838" w:h="11906" w:orient="landscape"'));
+  const tituloWord = [...(xml || '').matchAll(/<w:p>.*?<\/w:p>/gs)]
+    .map(coincidencia => coincidencia[0]).find(parrafo => parrafo.includes('Materias y docentes'));
+  assert.ok(tituloWord?.includes('<w:jc w:val="center"/>'));
+  assert.ok(!xml?.includes('Trabajo asíncrono sin horario fijo'));
+  assert.ok(!xml?.includes('HORAS PRES.'));
+  assert.ok(!xml?.includes('grado 4'));
+  assert.ok(crearPdfHorario(datos, [], '2027-1', { tipo: 'grupos', ids: ['g1'] }, opciones)
+    .output('arraybuffer').byteLength > 1000);
+});
+
+test('ZIP contiene un PDF individual por cada grupo o docente seleccionado', async () => {
+  const datos = entrada();
+  const zipGrupos = await JSZip.loadAsync(await (await crearZipPdfHorarios(datos, sesiones(), '2027-1',
+    { tipo: 'grupos' })).arrayBuffer());
+  const nombresGrupos = Object.keys(zipGrupos.files).filter(nombre => nombre.endsWith('.pdf'));
+  assert.deepEqual(nombresGrupos, ['grupos/01-Grupo-1A.pdf', 'grupos/02-Grupo-1B.pdf']);
+  assert.ok((await zipGrupos.file(nombresGrupos[0])!.async('uint8array')).length > 1000);
+  const zipDocentes = await JSZip.loadAsync(await (await crearZipPdfHorarios(datos, sesiones(), '2027-1',
+    { tipo: 'docentes', ids: ['d1'] })).arrayBuffer());
+  assert.deepEqual(Object.keys(zipDocentes.files).filter(nombre => nombre.endsWith('.pdf')),
+    ['docentes-y-vacantes/01-Docente-Ana.pdf']);
+});
+
+test('PDF vertical mantiene en una página un horario docente con varias materias y asíncronas', () => {
+  const datos = entrada();
+  const cargaBase = datos.cargas[0];
+  datos.cargas = Array.from({ length: 10 }, (_, indice) => ({ ...cargaBase,
+    id: `c${indice}`, asignaturaId: `a${indice}`, asignaturaClave: `CL${indice}`,
+    asignatura: `Asignatura extensa de práctica profesional y fundamentos ${indice}`,
+    horasAsincronas: 2 }));
+  const pdf = crearPdfHorario(datos, [], '2027-1', { tipo: 'docentes', ids: ['d1'] });
+  assert.equal(pdf.getNumberOfPages(), 1);
+  assert.ok(pdf.internal.pageSize.getHeight() > pdf.internal.pageSize.getWidth());
+});
+
+test('contenido denso usa A3 vertical en PDF y Word sin dividir el horario', async () => {
+  const datos = entrada();
+  const cargaBase = datos.cargas[0];
+  datos.cargas = Array.from({ length: 30 }, (_, indice) => ({ ...cargaBase,
+    id: `c${indice}`, asignaturaId: `a${indice}`, asignaturaClave: `CL${indice}`,
+    asignatura: `Asignatura extensa de práctica profesional y fundamentos ${indice}`,
+    horasAsincronas: 2 }));
+  const vista = { tipo: 'docentes' as const, ids: ['d1'] };
+  const pdf = crearPdfHorario(datos, [], '2027-1', vista);
+  assert.equal(pdf.getNumberOfPages(), 1);
+  assert.ok(pdf.internal.pageSize.getHeight() > pdf.internal.pageSize.getWidth());
+  assert.ok(pdf.internal.pageSize.getHeight() > 400);
+  const docx = await JSZip.loadAsync(await (await crearDocxHorario(datos, [], '2027-1', vista)).arrayBuffer());
+  const xml = await docx.file('word/document.xml')?.async('string');
+  assert.ok(xml?.includes('w:pgSz w:w="16838" w:h="23811" w:orient="portrait"'));
+  datos.docentes.push({ ...datos.docentes[0], id: 'd2', nombre: 'Bruno' });
+  datos.cargas.push({ ...cargaBase, id: 'c-extra', asignaturaId: 'a-extra', docenteId: 'd2' });
+  const combinado = crearPdfHorario(datos, [], '2027-1', { tipo: 'docentes' });
+  assert.equal(combinado.getNumberOfPages(), 2);
+  combinado.setPage(1);
+  assert.ok(combinado.internal.pageSize.getHeight() > 400);
+  combinado.setPage(2);
+  assert.ok(combinado.internal.pageSize.getHeight() < 400);
 });
 
 test('borrador y versión consultada ordenan grupos por licenciatura, turno y nombre', () => {
@@ -92,6 +175,35 @@ test('la cuadrícula docente distingue las materias por grupo', () => {
   assert.ok(seccion.materias.some(materia => materia.at(-1) === '1B'));
 });
 
+test('docentes mantienen orden alfabético en selector, vista y hojas Excel', async () => {
+  const datos = entrada();
+  const baseDocente = datos.docentes[0];
+  const baseCarga = datos.cargas[0];
+  datos.docentes = [
+    { ...baseDocente, id: 'z', nombre: 'Zoe' },
+    { ...baseDocente, id: 'b', nombre: 'Beatriz' },
+    { ...baseDocente, id: 'a', nombre: 'Álvaro' },
+  ];
+  datos.cargas = [
+    { ...baseCarga, id: 'cz', docenteId: 'z' },
+    { ...baseCarga, id: 'cb', docenteId: 'b' },
+    { ...baseCarga, id: 'ca', docenteId: 'a' },
+  ];
+  const original = datos.docentes.map(docente => docente.id);
+  const esperado = ['a', 'b', 'z'];
+  assert.deepEqual(opcionesVistaHorario(datos, 'docentes').map(opcion => opcion.id), esperado);
+  assert.deepEqual(seccionesCuadriculaHorario(datos, [], '2027-1', { tipo: 'docentes' })
+    .map(seccion => seccion.id), esperado);
+  assert.deepEqual(seccionesCuadriculaHorario(datos, [], '2027-1',
+    { tipo: 'docentes', ids: ['z', 'a'] }).map(seccion => seccion.id), ['a', 'z']);
+  const archivo = await crearXlsxHorario(datos, [], '2027-1', { tipo: 'docentes' });
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(await archivo.arrayBuffer());
+  assert.deepEqual(libro.worksheets.map(hoja => String(hoja.getCell('A1').value)),
+    ['Docente: Álvaro', 'Docente: Beatriz', 'Docente: Zoe']);
+  assert.deepEqual(datos.docentes.map(docente => docente.id), original);
+});
+
 test('la exportación docente marca las horas sin disponibilidad y conserva clave y grupo', async () => {
   const datos = entrada();
   const vista = { tipo: 'docentes' as const, ids: ['d1'] };
@@ -101,6 +213,10 @@ test('la exportación docente marca las horas sin disponibilidad y conserva clav
   assert.ok(xml?.includes('DER101 · 1A'));
   assert.ok(xml?.includes('HORAS POR DÍA'));
   assert.ok(xml?.includes('w:shd w:fill="BEC2C7"'));
+  assert.ok(xml?.includes('w:pgSz w:w="11906" w:h="16838" w:orient="portrait"'));
+  const tituloWord = [...(xml || '').matchAll(/<w:p>.*?<\/w:p>/gs)]
+    .map(coincidencia => coincidencia[0]).find(parrafo => parrafo.includes('Materias y grupos'));
+  assert.ok(tituloWord?.includes('<w:jc w:val="center"/>'));
   assert.ok(crearPdfHorario(datos, sesiones(), '2027-1', vista).output('arraybuffer').byteLength > 2000);
 });
 
@@ -121,11 +237,27 @@ test('Excel exporta la cuadrícula docente, detalle y horas no disponibles', asy
   assert.ok(texto.includes('HORAS POR DÍA'));
   assert.ok(texto.includes('Trabajo asíncrono sin horario fijo'));
   assert.ok(texto.includes('2 h/semana'));
+  let formulaTotal: unknown;
+  hoja.eachRow(fila => { if (fila.getCell(1).value === 'TOTAL') formulaTotal = fila.getCell(2).value; });
+  assert.equal(typeof formulaTotal, 'object');
+  assert.match((formulaTotal as { formula: string }).formula, /^SUM\(B\d+:B\d+\)$/);
+  assert.equal((formulaTotal as { result: number }).result, 3);
   let filaPrimeraHora = 0;
   hoja.eachRow(fila => { if (fila.getCell(1).value === '07:00 a 08:00') filaPrimeraHora = fila.number; });
   assert.ok(filaPrimeraHora > 0);
   assert.equal(hoja.getCell(filaPrimeraHora, 3).fill.type, 'pattern');
   assert.ok(hoja.views.some(vista => vista.state === 'frozen'));
+  let tituloMaterias = 0;
+  hoja.eachRow(fila => { if (fila.getCell(1).value === 'Materias y grupos') tituloMaterias = fila.number; });
+  assert.equal(hoja.getCell(tituloMaterias, 1).alignment.horizontal, 'center');
+  assert.equal(hoja.pageSetup.orientation, 'portrait');
+  assert.equal(hoja.pageSetup.fitToWidth, 1);
+  assert.equal(hoja.pageSetup.fitToHeight, 1);
+  assert.match(hoja.pageSetup.printArea || '', /^A1:G\d+$/);
+  const oculto = new ExcelJS.Workbook();
+  await oculto.xlsx.load(await (await crearXlsxHorario(datos, sesiones(), '2027-1',
+    { tipo: 'docentes', ids: ['d1'] }, { mostrarAsincronas: false, mostrarHorasGrupo: false })).arrayBuffer());
+  assert.ok(!oculto.worksheets[0].getSheetValues().flat().includes('Trabajo asíncrono sin horario fijo'));
   await assert.rejects(crearXlsxHorario(datos, sesiones(), '2027-1', { tipo: 'grupos' }), /docentes y vacantes/);
 });
 

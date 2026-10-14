@@ -27,6 +27,26 @@ test('genera bloques de 60 minutos dentro del turno y no más de cuatro horas co
     resultado.sesiones.filter(s => s.dia === dia).reduce((n, s) => n + s.fin - s.inicio, 0)), [3, 2]);
 });
 
+test('Mixta Mixto reparte sábado presencial y lunes a viernes en línea sin alterar otros turnos', () => {
+  const datos = entrada('MIXTO', 4);
+  datos.grupos[0].planModalidad = 'MIXTA';
+  datos.cargas[0].horasEnLinea = 2;
+  const resultado = generarHorario(datos);
+  assert.equal(resultado.sesiones.reduce((total, sesion) => total + sesion.fin - sesion.inicio, 0), 4);
+  assert.equal(resultado.sesiones.filter(sesion => sesion.medio === 'PRESENCIAL')
+    .reduce((total, sesion) => total + sesion.fin - sesion.inicio, 0), 2);
+  assert.equal(resultado.sesiones.filter(sesion => sesion.medio === 'EN_LINEA')
+    .reduce((total, sesion) => total + sesion.fin - sesion.inicio, 0), 2);
+  assert.ok(resultado.sesiones.filter(sesion => sesion.medio === 'PRESENCIAL')
+    .every(sesion => sesion.dia === 6 && sesion.inicio >= 7 && sesion.fin <= 15));
+  assert.ok(resultado.sesiones.filter(sesion => sesion.medio === 'EN_LINEA')
+    .every(sesion => sesion.dia <= 5 && sesion.inicio >= 16 && sesion.fin <= 21 && !sesion.aula));
+  assert.deepEqual(validarSesiones(resultado.sesiones, datos), []);
+  datos.grupos[0].planModalidad = 'ESCOLARIZADA';
+  assert.ok(validarEntradas(datos).some(incidencia => incidencia.codigo === 'MEDIO_NO_PERMITIDO'));
+  assert.ok(validarSesiones(resultado.sesiones, datos).some(incidencia => incidencia.codigo === 'SESION_INVALIDA'));
+});
+
 test('informa jornadas cortas por nombre y día sin bloquear el horario', () => {
   const datos = entrada('MATUTINO', 1);
   datos.docentes[0].disponibilidad = [{ dia: 1, inicio: 7, fin: 8 }];

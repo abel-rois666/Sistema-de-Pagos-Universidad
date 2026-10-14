@@ -1,13 +1,18 @@
-import { encabezadosDias, type SeccionCuadriculaHorario, type VistaHorario } from '../../horarios/cuadricula';
+import { encabezadosDias, OPCIONES_PRESENTACION_PREDETERMINADAS, tablaMateriasHorario,
+  type OpcionesPresentacionHorario, type SeccionCuadriculaHorario, type VistaHorario } from '../../horarios/cuadricula';
 
-interface Props { secciones: SeccionCuadriculaHorario[]; tipo: VistaHorario['tipo'] }
+interface Props { secciones: SeccionCuadriculaHorario[]; tipo: VistaHorario['tipo']; opciones?: OpcionesPresentacionHorario }
 
-export default function CuadriculaHorario({ secciones, tipo }: Props) {
+export default function CuadriculaHorario({ secciones, tipo,
+  opciones = OPCIONES_PRESENTACION_PREDETERMINADAS }: Props) {
   if (!secciones.length) return <p className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
     Selecciona al menos un {tipo === 'grupos' ? 'grupo' : 'docente o licenciatura con vacantes'} para mostrar el horario.
   </p>;
 
-  return <div className="space-y-6">{secciones.map(seccion => <article key={seccion.id}
+  return <div className="space-y-6">{secciones.map(seccion => {
+    const detalle = tablaMateriasHorario(seccion, tipo, opciones);
+    const mixto = tipo === 'grupos' && seccion.turno === 'MIXTO';
+    return <article key={seccion.id}
     className="rounded-xl border border-slate-300 bg-white p-4 text-slate-900 shadow-sm sm:p-6 dark:border-slate-600">
     <header className="mb-5 space-y-1 text-center">
       {seccion.encabezado.map((linea, indice) => <p key={`${seccion.id}-${indice}`}
@@ -16,7 +21,8 @@ export default function CuadriculaHorario({ secciones, tipo }: Props) {
       </p>)}
     </header>
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[680px] table-fixed border-collapse text-center text-[11px] sm:text-xs">
+      <table className={`w-full table-fixed border-collapse text-center text-[11px] sm:text-xs ${mixto ? 'min-w-[360px]' : 'min-w-[680px]'}`}>
+        {mixto && <colgroup><col style={{ width: '104px' }}/><col/></colgroup>}
         <thead><tr>{encabezadosDias(seccion.dias).map(encabezado => <th key={encabezado}
           className="border border-slate-600 bg-slate-300 px-2 py-2 font-bold">{encabezado}</th>)}</tr></thead>
         <tbody>{seccion.filas.map((fila, indice) => <tr key={`${seccion.id}-${seccion.horas[indice]}`}>
@@ -35,11 +41,11 @@ export default function CuadriculaHorario({ secciones, tipo }: Props) {
       </table>
     </div>
     <div className="mt-6 overflow-x-auto">
+      <h3 className="mb-2 text-center text-sm font-bold">{tipo === 'grupos' ? 'Materias y docentes' : 'Materias y grupos'}</h3>
       <table className="w-full min-w-[560px] border-collapse text-center text-[11px] sm:text-xs">
-        <thead><tr>{(tipo === 'grupos' ? ['CLAVE', 'HORAS PRES.', 'MATERIA', 'DOCENTE']
-          : ['CLAVE', 'HORAS PRES.', 'MATERIA', 'GRUPO']).map(encabezado => <th key={encabezado}
+        <thead><tr>{detalle.encabezado.map(encabezado => <th key={encabezado}
           className="border border-slate-600 bg-slate-300 px-2 py-2 font-bold">{encabezado}</th>)}</tr></thead>
-        <tbody>{seccion.materias.map((materia, indice) => <tr key={`${seccion.id}-materia-${indice}`}>
+        <tbody>{detalle.filas.map((materia, indice) => <tr key={`${seccion.id}-materia-${indice}`}>
           {materia.map((dato, columna) => <td key={columna} className="border border-slate-500 px-2 py-2">{dato}</td>)}
         </tr>)}</tbody>
         {tipo === 'docentes' && <tfoot><tr><th className="border border-slate-600 bg-slate-200 px-2 py-2">TOTAL</th>
@@ -47,7 +53,7 @@ export default function CuadriculaHorario({ secciones, tipo }: Props) {
           <td colSpan={2} className="border border-slate-600 bg-slate-100" /></tr></tfoot>}
       </table>
     </div>
-    {seccion.asincronas.length > 0 && <div className="mt-5 overflow-x-auto">
+    {opciones.mostrarAsincronas && seccion.asincronas.length > 0 && <div className="mt-5 overflow-x-auto">
       <h4 className="mb-2 text-sm font-bold">Trabajo asíncrono sin horario fijo</h4>
       <table className="w-full min-w-[420px] border-collapse text-center text-[11px] sm:text-xs">
         <thead><tr>{(tipo === 'grupos' ? ['MATERIA', 'HORAS / SEMANA']
@@ -58,5 +64,5 @@ export default function CuadriculaHorario({ secciones, tipo }: Props) {
         </tr>)}</tbody>
       </table>
     </div>}
-  </article>)}</div>;
+  </article>; })}</div>;
 }

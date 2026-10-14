@@ -5,6 +5,7 @@ import type { DetalleAsignacionAutomatica } from '../../horarios/asignacionAutom
 import type { CargaHorario, EntradaHorario, GrupoHorario } from '../../horarios/types';
 import { esVacante, etiquetaVacante, siguienteVacante, vacantesDeLicenciatura } from '../../horarios/vacantes';
 import { esMateriaComplementaria } from '../../horarios/seleccion';
+import { esModalidadMixta } from '../../horarios/medios';
 
 interface Props {
   entrada: EntradaHorario;
@@ -55,8 +56,11 @@ export default function PanelCargasHorario({ entrada, grupos, cargas, cargasIncl
         <h3 className="font-bold">{grupo.codigo} · {grupo.turno}</h3>
         <span className="text-xs text-slate-500 dark:text-slate-400">
           {cargas.filter(carga => carga.grupoId === grupo.id && cargasIncluidas.has(carga.id))
-            .reduce((total, carga) => total + (carga.horasPresenciales || 0), 0)} h presenciales incluidas
-          {grupo.turno === 'MIXTO' ? ' / 8 h disponibles' : ''}
+            .reduce((total, carga) => total + (carga.horasPresenciales || 0) - (carga.horasEnLinea || 0), 0)} h presenciales
+          {grupo.turno === 'MIXTO' ? ' / 8 h sábado' : ''}
+          {esModalidadMixta(grupo.planModalidad) && grupo.turno === 'MIXTO'
+            ? ` · ${cargas.filter(carga => carga.grupoId === grupo.id && cargasIncluidas.has(carga.id))
+              .reduce((total, carga) => total + (carga.horasEnLinea || 0), 0)} h en línea L–V` : ''}
         </span>
       </div>
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -83,6 +87,11 @@ export default function PanelCargasHorario({ entrada, grupos, cargas, cargasIncl
                   <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">{incluida ? 'Incluida' : 'Omitida'}</span></span>
               </label>
               <p className="text-xs text-slate-500 dark:text-slate-400">{carga.horasTotales ?? 'Sin definir'} h por semana</p>
+              {incluida && (!Number.isInteger(carga.horasTotales) || (carga.horasTotales || 0) < 1)
+                && <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  Define las horas semanales en Control Académico → Planes de estudio → Asignaturas.
+                  Guarda una copia de este borrador antes de salir; después vuelve a abrirla.
+                </p>}
               <label className="mt-2 block text-xs text-slate-500 dark:text-slate-400">Máximo por sesión
                 <select value={carga.maxBloque || 4} disabled={deshabilitado || !incluida}
                   onChange={evento => onCambiarCarga(carga.id, { maxBloque: Number(evento.target.value) as 1 | 2 | 3 | 4 })}
@@ -91,11 +100,33 @@ export default function PanelCargasHorario({ entrada, grupos, cargas, cargasIncl
                 </select>
               </label>
             </div>
-            <div>{grupo.turno === 'MIXTO' ? <label className="block text-xs font-medium">Presenciales / asíncronas
+            <div>{grupo.turno === 'MIXTO' && esModalidadMixta(grupo.planModalidad) ? <div className="space-y-1 text-xs font-medium">
+              <span className="block">Reparto semanal (horas de 60 min)</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <label>Presenciales sábado<input type="number" min="0" max="8" step="1"
+                  value={carga.horasPresenciales == null ? '' : carga.horasPresenciales - (carga.horasEnLinea || 0)}
+                  disabled={deshabilitado || !incluida || bloquearHorasIndividuales}
+                  onChange={evento => { const valor = evento.target.value === '' ? null : Number(evento.target.value);
+                    const programadas = valor === null ? null : valor + (carga.horasEnLinea || 0);
+                    onCambiarCarga(carga.id, { horasPresenciales: programadas,
+                      horasAsincronas: programadas === null || carga.horasTotales === null ? null : carga.horasTotales - programadas }); }}
+                  className="mt-1 block w-20 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"/></label>
+                <label>En línea L–V<input type="number" min="0" max={carga.horasTotales ?? 0} step="1"
+                  value={carga.horasEnLinea ?? 0} disabled={deshabilitado || !incluida || bloquearHorasIndividuales}
+                  onChange={evento => { const valor = evento.target.value === '' ? 0 : Number(evento.target.value);
+                    const fisicas = carga.horasPresenciales == null ? null : carga.horasPresenciales - (carga.horasEnLinea || 0);
+                    const programadas = fisicas === null ? null : fisicas + valor;
+                    onCambiarCarga(carga.id, { horasEnLinea: valor, horasPresenciales: programadas,
+                      horasAsincronas: programadas === null || carga.horasTotales === null ? null : carga.horasTotales - programadas }); }}
+                  className="mt-1 block w-20 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"/></label>
+                <span className="self-end pb-2 text-sm text-slate-500">Asíncronas: {carga.horasAsincronas ?? '—'} h</span>
+              </div>
+            </div> : grupo.turno === 'MIXTO' || esModalidadMixta(grupo.planModalidad)
+              ? <label className="block text-xs font-medium">{grupo.turno === 'MIXTO' ? 'Presenciales' : 'Síncronas'} / asíncronas
               <div className="mt-1 flex items-center gap-2"><input type="number" min="0" max={carga.horasTotales ?? 0} step="1"
                 value={carga.horasPresenciales ?? ''} disabled={deshabilitado || !incluida || bloquearHorasIndividuales}
                 onChange={evento => { const valor = evento.target.value === '' ? null : Number(evento.target.value);
-                  onCambiarCarga(carga.id, { horasPresenciales: valor,
+                  onCambiarCarga(carga.id, { horasPresenciales: valor, horasEnLinea: 0,
                     horasAsincronas: valor === null || carga.horasTotales === null ? null : carga.horasTotales - valor }); }}
                 className="w-20 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"/>
                 <span className="text-sm text-slate-500">/ {carga.horasAsincronas ?? '—'} h</span>

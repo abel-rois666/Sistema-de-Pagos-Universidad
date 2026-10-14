@@ -26,6 +26,7 @@ import ControlAcademico from './components/ControlAcademico';
 import GruposConfig from './components/GruposConfig';
 import DocentesConfig from './components/DocentesConfig';
 import HorariosAcademicos from './components/horarios/HorariosAcademicos';
+import CalendarioAcademico from './components/calendario/CalendarioAcademico';
 import Dashboard from './components/Dashboard';
 import CalificacionesModule from './components/CalificacionesModule';
 import RecursosHumanosConfig from './components/RecursosHumanosConfig';
@@ -371,6 +372,11 @@ export default function App() {
             <PageWrapper keyStr="grupos">
               <GruposConfig />
             </PageWrapper>
+          } />
+          <Route path="/calendarios" element={
+            currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR CONTROL ESCOLAR'
+              ? <PageWrapper keyStr="calendarios"><CalendarioAcademico /></PageWrapper>
+              : <Navigate to="/" replace />
           } />
           <Route path="/calificaciones" element={
             <PageWrapper keyStr="calificaciones">

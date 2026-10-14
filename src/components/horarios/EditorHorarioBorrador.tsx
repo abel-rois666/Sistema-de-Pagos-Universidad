@@ -8,6 +8,7 @@ import { NOMBRES_DIAS, VENTANAS_TURNO,
 import type { PoliticaHorario } from '../../horarios/politicaHorario';
 import { ordenarGruposHorario } from '../../horarios/ordenGruposHorario';
 import { opcionesVistaHorario, type VistaHorario } from '../../horarios/cuadricula';
+import { ventanasPorMedio } from '../../horarios/medios';
 
 interface Props {
   entrada: EntradaHorario;
@@ -45,7 +46,8 @@ export default function EditorHorarioBorrador({ entrada, sesiones, politica, vis
   const [tramoElegido, setTramoElegido] = useState('');
   const [mensajeDestino, setMensajeDestino] = useState('');
   const grupo = vista.tipo === 'grupos' ? gruposOrdenados.find(item => item.id === entidadId) : undefined;
-  const ventanas: VentanaHorario[] = grupo ? VENTANAS_TURNO[grupo.turno]
+  const ventanas: VentanaHorario[] = grupo ? [...ventanasPorMedio(grupo.turno, grupo.planModalidad, 'PRESENCIAL'),
+    ...ventanasPorMedio(grupo.turno, grupo.planModalidad, 'EN_LINEA')]
     : vista.tipo === 'docentes' ? Object.values(VENTANAS_TURNO).flat() : [];
   const dias = [...new Set(ventanas.map(ventana => ventana.dia))].sort((a, b) => a - b);
   const diaVisible = dias.includes(diaMovil) ? diaMovil : dias[0];

@@ -1,8 +1,9 @@
 import {
   type CargaHorario, type DiaHorario, type DocenteHorario, type EntradaHorario,
   type GrupoHorario, type IncidenciaHorario, type ResultadoHorario, type SesionHorario,
-  DIAS_HORARIO, NOMBRES_DIAS, VENTANAS_TURNO,
+  DIAS_HORARIO, NOMBRES_DIAS,
 } from './types';
+import { capacidadPorMedio, esModalidadMixta, medioSesion, ventanasPorMedio } from './medios';
 import { horasAsignadasDocente, horasTrasAsignar, superaCupoDocente } from './cupoDocente';
 import { docentesConVacantes, esVacante } from './vacantes';
 import { buscarHoras } from './busquedaHoras';
@@ -23,13 +24,13 @@ export function docentesElegibles(
     && !docente.gruposRestringidos.includes(grupo.id)
     && (carga.horasPresenciales === 0
       || !superaCupoDocente(docente, horasTrasAsignar(docente, carga, cargasAsignadas, ocupaciones)))
-    && (carga.horasPresenciales === 0 || VENTANAS_TURNO[grupo.turno].reduce((total, turno) => {
+    && (carga.horasPresenciales === 0 || (['PRESENCIAL', 'EN_LINEA'] as const).every(medio => ventanasPorMedio(grupo.turno, grupo.planModalidad, medio).reduce((total, turno) => {
       for (let hora = turno.inicio; hora < turno.fin; hora++) {
         if (docente.disponibilidad.some(ventana => ventana.dia === turno.dia && ventana.inicio <= hora && ventana.fin > hora)
           && !ocupaciones.some(s => s.docenteId === docente.id && s.dia === turno.dia && s.inicio <= hora && s.fin > hora)) total++;
       }
       return total;
-    }, 0) >= (carga.horasPresenciales || 1)))
+    }, 0) >= (medio === 'EN_LINEA' ? carga.horasEnLinea || 0 : (carga.horasPresenciales || 0) - (carga.horasEnLinea || 0)))))
     .sort((a, b) => Number(b.asignaturasPreferidas.includes(carga.asignaturaId))
       - Number(a.asignaturasPreferidas.includes(carga.asignaturaId))
       || a.nombre.localeCompare(b.nombre, 'es'));
@@ -60,7 +61,7 @@ export function validarEntradas(entrada: EntradaHorario): IncidenciaHorario[] {
   const materiasPorGrupo = new Set<string>();
   const gruposConCarga = new Set<string>();
   const materiasPorDocenteGrupo = new Map<string, Set<string>>();
-  const horasPorGrupo = new Map<string, number>();
+  const horasPorGrupo = new Map<string, { presenciales: number; enLinea: number }>();
 
   for (const carga of entrada.cargas) {
     const grupo = grupos.get(carga.grupoId);
@@ -81,8 +82,18 @@ export function validarEntradas(entrada: EntradaHorario): IncidenciaHorario[] {
       error('REPARTO_INVALIDO', `Las horas presenciales y asíncronas de ${carga.asignatura} deben sumar ${carga.horasTotales}.`);
       continue;
     }
-    if (grupo.turno !== 'MIXTO' && carga.horasAsincronas !== 0) error('ASINCRONO_NO_MIXTO', `${grupo.codigo} no admite horas asíncronas en este turno.`);
-    horasPorGrupo.set(grupo.id, (horasPorGrupo.get(grupo.id) || 0) + carga.horasPresenciales!);
+    if (!Number.isInteger(carga.horasEnLinea ?? 0) || (carga.horasEnLinea || 0) < 0
+      || (carga.horasEnLinea || 0) > carga.horasPresenciales!) {
+      error('REPARTO_MEDIO_INVALIDO', `Las horas en línea de ${carga.asignatura} deben estar entre cero y sus horas síncronas.`);
+      continue;
+    }
+    if (grupo.turno !== 'MIXTO' && !esModalidadMixta(grupo.planModalidad) && carga.horasAsincronas !== 0)
+      error('ASINCRONO_NO_MIXTO', `${grupo.codigo} no admite horas asíncronas en este turno y modalidad.`);
+    if ((carga.horasEnLinea || 0) > 0 && !ventanasPorMedio(grupo.turno, grupo.planModalidad, 'EN_LINEA').length)
+      error('MEDIO_NO_PERMITIDO', `${grupo.codigo} no admite clases en línea para esta modalidad y turno.`);
+    const horas = horasPorGrupo.get(grupo.id) || { presenciales: 0, enLinea: 0 };
+    horasPorGrupo.set(grupo.id, { presenciales: horas.presenciales + carga.horasPresenciales! - (carga.horasEnLinea || 0),
+      enLinea: horas.enLinea + (carga.horasEnLinea || 0) });
     if (!carga.docenteId) { error('SIN_DOCENTE', `Elige un docente para ${carga.asignatura} en ${grupo.codigo}.`); continue; }
     const docente = docentes.get(carga.docenteId);
     if (!docente || !docentesElegibles(carga, grupo, [docente], entrada.ocupacionesExternas).length) {
@@ -96,8 +107,10 @@ export function validarEntradas(entrada: EntradaHorario): IncidenciaHorario[] {
   }
   for (const [grupoId, horas] of horasPorGrupo) {
     const grupo = grupos.get(grupoId)!;
-    const capacidad = VENTANAS_TURNO[grupo.turno].reduce((total, v) => total + v.fin - v.inicio, 0);
-    if (horas > capacidad) errores.push({ codigo: 'CAPACIDAD_TURNO', grupoId, mensaje: `${grupo.codigo} requiere ${horas} horas presenciales; su turno solo permite ${capacidad}.` });
+    const capacidad = capacidadPorMedio(grupo.turno, grupo.planModalidad, 'PRESENCIAL');
+    const capacidadEnLinea = capacidadPorMedio(grupo.turno, grupo.planModalidad, 'EN_LINEA');
+    if (horas.presenciales > capacidad) errores.push({ codigo: 'CAPACIDAD_TURNO', grupoId, mensaje: `${grupo.codigo} requiere ${horas.presenciales} horas presenciales; su turno solo permite ${capacidad}.` });
+    if (horas.enLinea > capacidadEnLinea) errores.push({ codigo: 'CAPACIDAD_EN_LINEA', grupoId, mensaje: `${grupo.codigo} requiere ${horas.enLinea} horas en línea; su turno solo permite ${capacidadEnLinea}.` });
   }
   for (const docente of entrada.docentes) {
     if (!entrada.cargas.some(carga => carga.docenteId === docente.id && (carga.horasPresenciales || 0) > 0)) continue;
@@ -128,18 +141,18 @@ function huecos(sesiones: SesionHorario[], atributo: 'grupoId' | 'docenteId',
   for (const [id, dias] of mapa) {
     resultado[id] = [...dias.entries()].reduce((total, [dia, horas]) =>
       total + horasLibresEntreClases([...horas], dia, atributo === 'grupoId'
-        ? grupos.get(id)?.turno : undefined).length, 0);
+        ? grupos.get(id)?.turno : undefined, atributo === 'grupoId' ? grupos.get(id)?.planModalidad : undefined).length, 0);
   }
   return resultado;
 }
 
 function huecoDiario(sesiones: SesionHorario[], id: string, dia: DiaHorario,
-  atributo: 'grupoId' | 'docenteId', turno?: GrupoHorario['turno']): number {
+  atributo: 'grupoId' | 'docenteId', turno?: GrupoHorario['turno'], modalidad?: string | null): number {
   const horas = new Set<number>();
   for (const sesion of sesiones) if (sesion[atributo] === id && sesion.dia === dia) {
     for (let hora = sesion.inicio; hora < sesion.fin; hora++) horas.add(hora);
   }
-  return horasLibresEntreClases([...horas], dia, turno).length;
+  return horasLibresEntreClases([...horas], dia, turno, modalidad).length;
 }
 
 /** Una materia puede dividirse en sesiones contiguas, pero no reaparecer tras un hueco el mismo día. */
@@ -209,7 +222,9 @@ export function evaluarHoras(entrada: EntradaHorario, horas: SesionHorario[]): R
   const sesiones: SesionHorario[] = [];
   const maxPorCarga = new Map(entrada.cargas.map(c => [c.id, c.maxBloque || 4]));
   for (const hora of horas.sort((a, b) => a.dia - b.dia || a.inicio - b.inicio || a.cargaId.localeCompare(b.cargaId))) {
-    const anterior = sesiones.find(s => s.cargaId === hora.cargaId && s.dia === hora.dia && s.fin === hora.inicio && s.fin - s.inicio < (maxPorCarga.get(hora.cargaId) || 4));
+    const anterior = sesiones.find(s => s.cargaId === hora.cargaId && s.dia === hora.dia
+      && medioSesion(s.medio) === medioSesion(hora.medio)
+      && s.fin === hora.inicio && s.fin - s.inicio < (maxPorCarga.get(hora.cargaId) || 4));
     if (anterior) anterior.fin = hora.fin;
     else sesiones.push({ ...hora });
   }
@@ -218,7 +233,8 @@ export function evaluarHoras(entrada: EntradaHorario, horas: SesionHorario[]): R
   incidencias.push(...validarContinuidadMaterias(sesiones, entrada));
   for (const [grupoId] of Object.entries(huecosGrupo)) {
     for (const dia of DIAS_HORARIO) {
-      const cantidad = huecoDiario(sesiones, grupoId, dia, 'grupoId', grupos.get(grupoId)?.turno);
+      const cantidad = huecoDiario(sesiones, grupoId, dia, 'grupoId', grupos.get(grupoId)?.turno,
+        grupos.get(grupoId)?.planModalidad);
       const nombre = grupos.get(grupoId)?.codigo || grupoId;
       if (cantidad > entrada.configuracion.maxHuecoGrupo) incidencias.push({ codigo: 'HUECO_GRUPO', grupoId, mensaje: `El grupo ${nombre} tiene ${cantidad} hora(s) libres el ${NOMBRES_DIAS[dia]}; preferencia máxima: ${entrada.configuracion.maxHuecoGrupo}.` });
       const clases = horasDiarias(sesiones, grupoId, dia, 'grupoId');
@@ -236,7 +252,7 @@ export function evaluarHoras(entrada: EntradaHorario, horas: SesionHorario[]): R
       if (cantidad > entrada.configuracion.maxHuecoDocente) incidencias.push({ codigo: 'HUECO_DOCENTE', docenteId, mensaje: `El docente ${nombre} tiene ${cantidad} hora(s) libres el ${NOMBRES_DIAS[dia]}; preferencia máxima: ${entrada.configuracion.maxHuecoDocente}.` });
       const clases = horasDiarias([...externas, ...sesiones], docenteId, dia, 'docenteId');
       const minimo = entrada.configuracion.minHorasDocente ?? 2;
-      if (clases > 0 && clases < minimo) incidencias.push({ codigo: 'JORNADA_CORTA_DOCENTE', docenteId,
+      if (clases > 0 && clases < minimo) incidencias.push({ codigo: 'JORNADA_CORTA_DOCENTE', docenteId, dia,
         mensaje: `El docente ${nombre} tiene solo ${clases} hora(s) de clase el ${NOMBRES_DIAS[dia]}; preferencia mínima: ${minimo}.` });
     }
   }
@@ -257,7 +273,8 @@ export function validarSesiones(sesiones: SesionHorario[], entrada: EntradaHorar
     const grupo = grupos.get(sesion.grupoId);
     const docente = docentes.get(sesion.docenteId);
     const carga = cargas.get(sesion.cargaId);
-    const turno = grupo && VENTANAS_TURNO[grupo.turno].find(v => v.dia === sesion.dia && v.inicio <= sesion.inicio && v.fin >= sesion.fin);
+    const turno = grupo && ventanasPorMedio(grupo.turno, grupo.planModalidad, medioSesion(sesion.medio))
+      .find(v => v.dia === sesion.dia && v.inicio <= sesion.inicio && v.fin >= sesion.fin);
     if (!grupo || !docente || !carga || carga.grupoId !== grupo.id || carga.asignaturaId !== sesion.asignaturaId || carga.docenteId !== docente.id
       || !turno || sesion.fin - sesion.inicio < 1 || sesion.fin - sesion.inicio > (carga.maxBloque || 4) || !Number.isInteger(sesion.inicio) || !Number.isInteger(sesion.fin)
       || !docente.disponibilidad.some(v => v.dia === sesion.dia && v.inicio <= sesion.inicio && v.fin >= sesion.fin)) {
@@ -274,8 +291,12 @@ export function validarSesiones(sesiones: SesionHorario[], entrada: EntradaHorar
     }
   }
   for (const carga of entrada.cargas) {
-    const total = sesiones.filter(s => s.cargaId === carga.id).reduce((n, s) => n + s.fin - s.inicio, 0);
-    if (total !== carga.horasPresenciales) errores.push({ codigo: 'HORAS_INCOMPLETAS', grupoId: carga.grupoId, cargaId: carga.id, mensaje: `${carga.asignatura} tiene ${total} de ${carga.horasPresenciales} horas presenciales.` });
+    const propias = sesiones.filter(s => s.cargaId === carga.id);
+    const total = propias.reduce((n, s) => n + s.fin - s.inicio, 0);
+    const enLinea = propias.filter(s => medioSesion(s.medio) === 'EN_LINEA').reduce((n, s) => n + s.fin - s.inicio, 0);
+    if (total !== carga.horasPresenciales || enLinea !== (carga.horasEnLinea || 0))
+      errores.push({ codigo: 'HORAS_INCOMPLETAS', grupoId: carga.grupoId, cargaId: carga.id,
+        mensaje: `${carga.asignatura} tiene ${total} de ${carga.horasPresenciales} horas síncronas, ${enLinea} de ${carga.horasEnLinea || 0} en línea.` });
   }
   errores.push(...validarContinuidadMaterias(sesiones, entrada));
   return errores;

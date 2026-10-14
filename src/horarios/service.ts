@@ -3,20 +3,30 @@ import { leerPorIds, leerTodasFilas } from './consultas';
 import { normalizarTurno, type CargaHorario, type DocenteHorario, type EntradaHorario, type GrupoHorario, type SesionHorario, type VentanaHorario } from './types';
 import { esVacante } from './vacantes';
 import { esMateriaComplementaria } from './seleccion';
+import type { AutorizacionJornadaDocente } from './autorizacionesJornada';
 
 interface CicloFechas { id: string; fecha_inicio: string | null; fecha_termino: string | null }
 interface GrupoRow { id: string; ciclo_id: string; plan_id: string; codigo_grupo: string; grado: number | null; turno: string; estatus: string | null; aula: string | null; sede: string | null }
-interface PlanRow { id: string; nombre: string; clave_legado: string; rvoe: string | null; carrera: { nombre: string } | null }
+interface PlanRow { id: string; nombre: string; clave_legado: string; modelo: string | null; modalidad?: string | null; rvoe: string | null; carrera: { nombre: string } | null }
 interface DocenteRow { id: string; nombre_completo: string; estatus: string | null }
 interface ConfigRow { docente_id: string; ciclo_id: string; disponibilidad: VentanaHorario[]; plan_ids: string[]; asignatura_ids_preferidas: string[]; grupo_ids_restringidos: string[]; max_horas_semanales?: number | null }
-interface VersionRow { id: string; ciclo_id: string; version: number; estado: string; grupos_id: string[] | null }
-interface AsignacionRow { id: string; grupo_id: string; asignatura_id: string; docente_id: string | null; horas_presenciales: number | null; horas_asincronas: number | null; asignaturas: { id: string; nombre: string; clave_legado: string; horas_semanales: number | null; plan_id: string; clasificacion_clave: string | null; clasificacion_nombre: string | null } | null }
-interface SesionRow { horario_id: string; carga_id: string; grupo_id: string | null; docente_id: string | null; dia_semana: number; hora_inicio: number; hora_fin: number; aula: string | null; sede: string | null }
-interface CargaPublicadaRow { id: string; asignacion_id: string | null; grupo_id: string | null; asignatura_id: string | null; docente_id: string | null; grupo_codigo: string; grupo_turno: string; asignatura_nombre: string; docente_nombre: string; horas_totales: number; horas_presenciales: number; horas_asincronas: number; max_bloque: 1 | 2 | 3 | 4; aula: string | null; sede: string | null }
+export interface ExcepcionJornadaPublicada {
+  docente_id: string;
+  dia: number;
+  motivo: string;
+  autorizado_por: string;
+  autorizado_en: string;
+}
+interface VersionRow { id: string; ciclo_id: string; version: number; estado: string; grupos_id: string[] | null;
+  excepciones_jornada_docente?: ExcepcionJornadaPublicada[] }
+interface AsignacionRow { id: string; grupo_id: string; asignatura_id: string; docente_id: string | null; horas_presenciales: number | null; horas_en_linea?: number | null; horas_asincronas: number | null; asignaturas: { id: string; nombre: string; clave_legado: string; horas_semanales: number | null; plan_id: string; clasificacion_clave: string | null; clasificacion_nombre: string | null } | null }
+interface SesionRow { horario_id: string; carga_id: string; grupo_id: string | null; docente_id: string | null; dia_semana: number; hora_inicio: number; hora_fin: number; medio?: string | null; aula: string | null; sede: string | null }
+interface CargaPublicadaRow { id: string; asignacion_id: string | null; grupo_id: string | null; asignatura_id: string | null; docente_id: string | null; grupo_codigo: string; grupo_turno: string; asignatura_nombre: string; docente_nombre: string; horas_totales: number; horas_presenciales: number; horas_en_linea?: number | null; horas_asincronas: number; max_bloque: 1 | 2 | 3 | 4; aula: string | null; sede: string | null }
 export interface DatosHorario {
   entrada: EntradaHorario;
   ciclo: CicloFechas & { nombre: string; tipo_periodo: string | null };
-  publicado: { id: string; version: number; entrada: EntradaHorario; sesiones: SesionHorario[] } | null;
+  publicado: { id: string; version: number; entrada: EntradaHorario; sesiones: SesionHorario[];
+    excepcionesJornada: ExcepcionJornadaPublicada[] } | null;
 }
 
 function assertResult<T>(resultado: { data: T; error: { message: string } | null }, contexto: string): T {
@@ -30,13 +40,13 @@ export async function cargarDatosHorario(cicloId: string): Promise<DatosHorario>
     leerTodasFilas<GrupoRow>('grupos', 'id,ciclo_id,plan_id,codigo_grupo,grado,turno,estatus,aula,sede', 'id', { campo: 'ciclo_id', valor: cicloId }),
     leerTodasFilas<DocenteRow>('docentes', 'id,nombre_completo,estatus'),
     leerTodasFilas<ConfigRow>('docente_configuraciones_horario', '*', 'docente_id', { campo: 'ciclo_id', valor: cicloId }),
-    leerTodasFilas<VersionRow>('horarios_versiones', 'id,ciclo_id,version,estado,grupos_id', 'id', { campo: 'estado', valor: 'publicado' }),
+    leerTodasFilas<VersionRow>('horarios_versiones', '*', 'id', { campo: 'estado', valor: 'publicado' }),
     leerTodasFilas<CicloFechas>('ciclos_escolares', 'id,fecha_inicio,fecha_termino'),
   ]);
   const ciclo = assertResult(cicloRes, 'Ciclo escolar') as DatosHorario['ciclo'];
   // Los metadatos mejoran el encabezado; su ausencia no debe bloquear la generación.
   const planesRaw = await leerPorIds<PlanRow>('planes_estudio',
-    'id,nombre,clave_legado,rvoe,carrera:carreras(nombre)', 'id', [...new Set(gruposRaw.map(grupo => grupo.plan_id))])
+    '*,carrera:carreras(nombre)', 'id', [...new Set(gruposRaw.map(grupo => grupo.plan_id))])
     .catch(() => [] as PlanRow[]);
   const planes = new Map(planesRaw.map(plan => [plan.id, plan]));
   const grupos: GrupoHorario[] = gruposRaw.filter(g => String(g.estatus || 'activo').toLowerCase() === 'activo').map(g => {
@@ -45,7 +55,8 @@ export async function cargarDatosHorario(cicloId: string): Promise<DatosHorario>
     const plan = planes.get(g.plan_id);
     return { id: g.id, codigo: g.codigo_grupo, cicloId: g.ciclo_id, planId: g.plan_id,
       turno, aula: g.aula, sede: g.sede, grado: g.grado, carreraNombre: plan?.carrera?.nombre,
-      planNombre: plan?.nombre, planClave: plan?.clave_legado, rvoe: plan?.rvoe };
+      planNombre: plan?.nombre, planClave: plan?.clave_legado, planModelo: plan?.modelo,
+      planModalidad: plan?.modalidad || 'ESCOLARIZADA', rvoe: plan?.rvoe };
   });
   const configuraciones = new Map(configRaw.map(c => [c.docente_id, c]));
   const docentes: DocenteHorario[] = docentesRaw.map(d => {
@@ -58,16 +69,18 @@ export async function cargarDatosHorario(cicloId: string): Promise<DatosHorario>
   });
   const grupoIds = grupos.map(g => g.id);
   const asignaciones = await leerPorIds<AsignacionRow>('docentes_grupos_asignaturas',
-    'id,grupo_id,asignatura_id,docente_id,horas_presenciales,horas_asincronas,asignaturas(id,nombre,clave_legado,horas_semanales,plan_id,clasificacion_clave,clasificacion_nombre)', 'grupo_id', grupoIds);
+    '*,asignaturas(id,nombre,clave_legado,horas_semanales,plan_id,clasificacion_clave,clasificacion_nombre)', 'grupo_id', grupoIds);
   const mapaGrupos = new Map(grupos.map(g => [g.id, g]));
   const cargas: CargaHorario[] = asignaciones.map(a => {
     const materia = a.asignaturas;
     const total = materia?.horas_semanales ?? null;
-    const mixto = mapaGrupos.get(a.grupo_id)?.turno === 'MIXTO';
+    const grupo = mapaGrupos.get(a.grupo_id);
+    const mixto = grupo?.turno === 'MIXTO' || grupo?.planModalidad === 'MIXTA';
     return { id: a.id, grupoId: a.grupo_id, asignaturaId: a.asignatura_id, asignatura: materia?.nombre || 'Asignatura sin ficha',
       asignaturaClave: materia?.clave_legado, clasificacionClave: materia?.clasificacion_clave,
       clasificacionNombre: materia?.clasificacion_nombre,
       horasTotales: total, horasPresenciales: a.horas_presenciales ?? (mixto ? null : total),
+      horasEnLinea: a.horas_en_linea ?? 0,
       horasAsincronas: a.horas_asincronas ?? (mixto ? null : 0), docenteId: a.docente_id };
   });
   for (const grupo of grupos) {
@@ -84,7 +97,7 @@ export async function cargarDatosHorario(cicloId: string): Promise<DatosHorario>
   const publicada = versiones.find(v => v.ciclo_id === cicloId);
   const idsVersiones = [...otras.map(v => v.id), ...(publicada ? [publicada.id] : [])];
   const sesionesRaw = await leerPorIds<SesionRow>('horarios_sesiones',
-    'horario_id,carga_id,grupo_id,docente_id,dia_semana,hora_inicio,hora_fin,aula,sede', 'horario_id', idsVersiones);
+    '*', 'horario_id', idsVersiones);
   const configuracionesExternas = await leerPorIds<ConfigRow>('docente_configuraciones_horario', '*',
     'ciclo_id', [...new Set(otras.map(version => version.ciclo_id))], 'docente_id');
   const cicloPorVersion = new Map(otras.map(version => [version.id, version.ciclo_id]));
@@ -103,14 +116,15 @@ export async function cargarDatosHorario(cicloId: string): Promise<DatosHorario>
     docente.maxHorasSemanales = limites.length ? Math.min(...limites) : null;
   }
   const cargasPublicadas = publicada ? await leerTodasFilas<CargaPublicadaRow>('horarios_cargas',
-    'id,asignacion_id,grupo_id,asignatura_id,docente_id,grupo_codigo,grupo_turno,asignatura_nombre,docente_nombre,horas_totales,horas_presenciales,horas_asincronas,max_bloque,aula,sede',
+    '*',
     'id', { campo: 'horario_id', valor: publicada.id }) : [];
   const snapshots = new Map(cargasPublicadas.map(c => [c.id, c]));
   const aSesion = (s: SesionRow): SesionHorario => ({
     cargaId: s.carga_id, grupoId: s.grupo_id || snapshots.get(s.carga_id)?.grupo_codigo || '',
     asignaturaId: snapshots.get(s.carga_id)?.asignatura_id || '',
     docenteId: s.docente_id || snapshots.get(s.carga_id)?.docente_nombre || '',
-    dia: s.dia_semana as SesionHorario['dia'], inicio: s.hora_inicio, fin: s.hora_fin, aula: s.aula, sede: s.sede,
+    dia: s.dia_semana as SesionHorario['dia'], inicio: s.hora_inicio, fin: s.hora_fin,
+    medio: s.medio === 'EN_LINEA' ? 'EN_LINEA' : 'PRESENCIAL', aula: s.aula, sede: s.sede,
   });
   const clavesAsignatura = new Map(asignaciones.map(asignacion => [asignacion.asignatura_id, asignacion.asignaturas?.clave_legado || null]));
   const gruposPublicadosPorId = new Map(cargasPublicadas.map(c => [c.grupo_id || c.grupo_codigo, {
@@ -120,6 +134,8 @@ export async function cargarDatosHorario(cicloId: string): Promise<DatosHorario>
     carreraNombre: mapaGrupos.get(c.grupo_id || '')?.carreraNombre,
     planNombre: mapaGrupos.get(c.grupo_id || '')?.planNombre,
     planClave: mapaGrupos.get(c.grupo_id || '')?.planClave,
+    planModelo: mapaGrupos.get(c.grupo_id || '')?.planModelo,
+    planModalidad: mapaGrupos.get(c.grupo_id || '')?.planModalidad,
     rvoe: mapaGrupos.get(c.grupo_id || '')?.rvoe,
   }]));
   for (const id of publicada?.grupos_id || []) {
@@ -130,7 +146,8 @@ export async function cargarDatosHorario(cicloId: string): Promise<DatosHorario>
     gruposPublicadosPorId.set(id, { id, codigo: g.codigo_grupo, cicloId, planId: g.plan_id,
       turno: normalizarTurno(g.turno) || 'MATUTINO', aula: g.aula, sede: g.sede, grado: g.grado,
       carreraNombre: plan?.carrera?.nombre, planNombre: plan?.nombre,
-      planClave: plan?.clave_legado, rvoe: plan?.rvoe });
+      planClave: plan?.clave_legado, planModelo: plan?.modelo,
+      planModalidad: plan?.modalidad || 'ESCOLARIZADA', rvoe: plan?.rvoe });
   }
   const gruposPublicados: GrupoHorario[] = [...gruposPublicadosPorId.values()];
   const docentesPublicados: DocenteHorario[] = [...new Map(cargasPublicadas.map(c => [c.docente_id || c.docente_nombre, {
@@ -142,31 +159,53 @@ export async function cargarDatosHorario(cicloId: string): Promise<DatosHorario>
     id: c.id, grupoId: c.grupo_id || c.grupo_codigo, asignaturaId: c.asignatura_id || c.id,
     asignatura: c.asignatura_nombre, asignaturaClave: clavesAsignatura.get(c.asignatura_id || '') || null,
     docenteId: c.docente_id || c.docente_nombre,
-    horasTotales: c.horas_totales, horasPresenciales: c.horas_presenciales, horasAsincronas: c.horas_asincronas,
+    horasTotales: c.horas_totales, horasPresenciales: c.horas_presenciales,
+    horasEnLinea: c.horas_en_linea ?? 0, horasAsincronas: c.horas_asincronas,
     maxBloque: c.max_bloque,
   }));
   return { ciclo, entrada: {
     grupos, docentes, cargas, ocupacionesExternas: sesionesRaw.filter(s => otras.some(v => v.id === s.horario_id)).map(aSesion),
     configuracion: { maxHuecoGrupo: 1, maxHuecoDocente: 1, minHorasGrupo: 2, minHorasDocente: 2 },
   }, publicado: publicada ? { id: publicada.id, version: publicada.version,
+    excepcionesJornada: Array.isArray(publicada.excepciones_jornada_docente)
+      ? publicada.excepciones_jornada_docente : [],
     entrada: { grupos: gruposPublicados, docentes: docentesPublicados, cargas: cargasSnapshot,
       configuracion: { maxHuecoGrupo: 1, maxHuecoDocente: 1, minHorasGrupo: 2, minHorasDocente: 2 } },
     sesiones: sesionesRaw.filter(s => s.horario_id === publicada.id).map(aSesion) } : null };
 }
 
-export async function publicarHorario(cicloId: string, entrada: EntradaHorario, sesiones: SesionHorario[]): Promise<string> {
+export async function publicarHorario(cicloId: string, entrada: EntradaHorario, sesiones: SesionHorario[],
+  autorizaciones: AutorizacionJornadaDocente[] = []): Promise<string> {
   if (entrada.cargas.some(carga => esVacante(carga.docenteId)) || sesiones.some(sesion => esVacante(sesion.docenteId))) {
     throw new Error('Asigna un docente activo a todas las vacantes antes de publicar el horario.');
   }
-  const { data, error } = await supabase.rpc('publicar_horario_academico', {
+  const requiereModalidad = entrada.cargas.some(carga => (carga.horasEnLinea || 0) > 0)
+    || sesiones.some(sesion => sesion.medio === 'EN_LINEA');
+  const parametros = {
     p_ciclo_id: cicloId,
     p_grupos: entrada.grupos.map(g => g.id),
-    p_cargas: entrada.cargas.map(c => ({ id: c.id, docente_id: c.docenteId, horas_presenciales: c.horasPresenciales, horas_asincronas: c.horasAsincronas, max_bloque: c.maxBloque || 4 })),
-    p_sesiones: sesiones.map(s => ({ carga_id: s.cargaId, dia: s.dia, inicio: s.inicio, fin: s.fin })),
+    p_cargas: entrada.cargas.map(c => ({ id: c.id, docente_id: c.docenteId, horas_presenciales: c.horasPresenciales,
+      horas_en_linea: c.horasEnLinea || 0, horas_asincronas: c.horasAsincronas, max_bloque: c.maxBloque || 4 })),
+    p_sesiones: sesiones.map(s => ({ carga_id: s.cargaId, dia: s.dia, inicio: s.inicio, fin: s.fin,
+      medio: s.medio || 'PRESENCIAL' })),
     p_max_hueco_grupo: entrada.configuracion.maxHuecoGrupo,
     p_max_hueco_docente: entrada.configuracion.maxHuecoDocente,
-  });
-  if (error) throw new Error(error.message);
+  };
+  const excepciones = {
+    p_min_horas_docente: entrada.configuracion.minHorasDocente ?? 2,
+    p_excepciones: autorizaciones.map(item => ({ docente_id: item.docenteId, dia: item.dia, motivo: item.motivo })),
+  };
+  const { data, error } = requiereModalidad
+    ? await supabase.rpc('publicar_horario_academico_modalidad', { ...parametros, ...excepciones })
+    : autorizaciones.length ? await supabase.rpc('publicar_horario_academico_con_excepciones', {
+      ...parametros,
+      ...excepciones,
+    })
+    : await supabase.rpc('publicar_horario_academico', parametros);
+  if (error) throw new Error(requiereModalidad && error.message.includes('Could not find the function')
+    ? 'Aplica la migración de modalidad y sesiones en línea antes de publicar este borrador.'
+    : autorizaciones.length && error.message.includes('Could not find the function')
+      ? 'Aplica la migración de excepciones docentes antes de publicar este borrador.' : error.message);
   return data as string;
 }
 

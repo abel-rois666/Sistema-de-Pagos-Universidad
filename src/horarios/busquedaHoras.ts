@@ -1,12 +1,14 @@
 import {
   type CargaHorario, type DiaHorario, type DocenteHorario, type EntradaHorario,
-  type GrupoHorario, type SesionHorario, VENTANAS_TURNO,
+  type GrupoHorario, type SesionHorario,
 } from './types';
+import { type MedioSesion, ventanasPorMedio } from './medios';
 import { docentesConVacantes } from './vacantes';
 import { horasLibresEntreClases } from './reglasJornada';
 
 interface Espacio { dia: DiaHorario; inicio: number }
-interface Pendiente { carga: CargaHorario; grupo: GrupoHorario; docente: DocenteHorario; espacios: Espacio[] }
+interface Pendiente { carga: CargaHorario; grupo: GrupoHorario; docente: DocenteHorario;
+  medio: MedioSesion; cantidad: number; espacios: Espacio[] }
 
 export interface ResultadoBusquedaHoras {
   horas: SesionHorario[] | null;
@@ -33,12 +35,12 @@ function horasDiarias(sesiones: SesionHorario[], id: string, dia: DiaHorario, ca
 }
 
 function huecoDiario(sesiones: SesionHorario[], id: string, dia: DiaHorario, campo: 'grupoId' | 'docenteId',
-  turno?: GrupoHorario['turno']): number {
+  turno?: GrupoHorario['turno'], modalidad?: string | null): number {
   const horas = new Set<number>();
   for (const sesion of sesiones) if (sesion[campo] === id && sesion.dia === dia) {
     for (let hora = sesion.inicio; hora < sesion.fin; hora++) horas.add(hora);
   }
-  return horasLibresEntreClases([...horas], dia, turno).length;
+  return horasLibresEntreClases([...horas], dia, turno, modalidad).length;
 }
 
 /** Recorre combinaciones de horas con retroceso; un límite agotado no demuestra imposibilidad. */
@@ -56,18 +58,24 @@ export function buscarHoras(entrada: EntradaHorario, limite: number, configuraci
     if (ubicacion(sesion)) ocupadasAula.add(`${ubicacion(sesion)}:${sitio}`);
   }
 
-  const pendientes: Pendiente[] = entrada.cargas.filter(carga => (carga.horasPresenciales || 0) > 0).map(carga => {
+  const pendientes: Pendiente[] = entrada.cargas.flatMap(carga => {
     const grupo = grupos.get(carga.grupoId)!;
     // Las vacantes también figuran en la entrada validada del motor.
     const docente = docentes.get(carga.docenteId!)!;
-    const espacios: Espacio[] = [];
-    for (const ventana of VENTANAS_TURNO[grupo.turno]) for (let hora = ventana.inicio; hora < ventana.fin; hora++) {
-      if (docente.disponibilidad.some(disponible => disponible.dia === ventana.dia
-        && disponible.inicio <= hora && disponible.fin > hora)) espacios.push({ dia: ventana.dia, inicio: hora });
-    }
-    return { carga, grupo, docente, espacios };
-  }).sort((a, b) => (a.espacios.length - a.carga.horasPresenciales!) - (b.espacios.length - b.carga.horasPresenciales!)
-    || b.carga.horasPresenciales! - a.carga.horasPresenciales!
+    return (['PRESENCIAL', 'EN_LINEA'] as const).flatMap(medio => {
+      const cantidad = medio === 'EN_LINEA' ? carga.horasEnLinea || 0
+        : (carga.horasPresenciales || 0) - (carga.horasEnLinea || 0);
+      if (!cantidad) return [];
+      const espacios: Espacio[] = [];
+      for (const ventana of ventanasPorMedio(grupo.turno, grupo.planModalidad, medio))
+        for (let hora = ventana.inicio; hora < ventana.fin; hora++) {
+          if (docente.disponibilidad.some(disponible => disponible.dia === ventana.dia
+            && disponible.inicio <= hora && disponible.fin > hora)) espacios.push({ dia: ventana.dia, inicio: hora });
+        }
+      return [{ carga, grupo, docente, medio, cantidad, espacios }];
+    });
+  }).sort((a, b) => (a.espacios.length - a.cantidad) - (b.espacios.length - b.cantidad)
+    || b.cantidad - a.cantidad
     || a.carga.id.localeCompare(b.carga.id));
 
   const horas: SesionHorario[] = [];
@@ -86,7 +94,7 @@ export function buscarHoras(entrada: EntradaHorario, limite: number, configuraci
 
   const libre = (pendiente: Pendiente, espacio: Espacio) => {
     const sitio = lugar(espacio.dia, espacio.inicio);
-    const aula = ubicacion(pendiente.grupo);
+    const aula = pendiente.medio === 'EN_LINEA' ? '' : ubicacion(pendiente.grupo);
     return !ocupadasGrupo.has(`${pendiente.grupo.id}:${sitio}`)
       && !ocupadasDocente.has(`${pendiente.docente.id}:${sitio}`)
       && (!aula || !ocupadasAula.has(`${aula}:${sitio}`));
@@ -104,7 +112,8 @@ export function buscarHoras(entrada: EntradaHorario, limite: number, configuraci
     const grupoId = pendiente.grupo.id;
     const docenteId = pendiente.docente.id;
     const dia = sesion.dia;
-    const huecoGrupo = huecoDiario(temporal, grupoId, dia, 'grupoId', pendiente.grupo.turno);
+    const huecoGrupo = huecoDiario(temporal, grupoId, dia, 'grupoId', pendiente.grupo.turno,
+      pendiente.grupo.planModalidad);
     const huecoDocente = huecoDiario([...externas, ...temporal], docenteId, dia, 'docenteId');
     const cargaGrupo = horasDiarias(temporal, grupoId, dia, 'grupoId');
     const cargaDocente = horasDiarias([...externas, ...temporal], docenteId, dia, 'docenteId');
@@ -137,7 +146,7 @@ export function buscarHoras(entrada: EntradaHorario, limite: number, configuraci
       return false;
     }
     const pendiente = pendientes[indiceCarga];
-    const restantes = pendiente.carga.horasPresenciales! - colocadas;
+    const restantes = pendiente.cantidad - colocadas;
     if (pendiente.espacios.slice(indiceMinimo).filter(espacio => libre(pendiente, espacio)).length < restantes) {
       cargaBloqueadaId ||= pendiente.carga.id;
       return false;
@@ -150,8 +159,9 @@ export function buscarHoras(entrada: EntradaHorario, limite: number, configuraci
       .map(({ espacio, indice }) => {
         const sesion: SesionHorario = { cargaId: pendiente.carga.id, grupoId: pendiente.grupo.id,
           asignaturaId: pendiente.carga.asignaturaId, docenteId: pendiente.docente.id,
-          dia: espacio.dia, inicio: espacio.inicio, fin: espacio.inicio + 1,
-          aula: pendiente.grupo.aula, sede: pendiente.grupo.sede };
+          dia: espacio.dia, inicio: espacio.inicio, fin: espacio.inicio + 1, medio: pendiente.medio,
+          aula: pendiente.medio === 'EN_LINEA' ? null : pendiente.grupo.aula,
+          sede: pendiente.medio === 'EN_LINEA' ? null : pendiente.grupo.sede };
         return { sesion, indice, puntaje: puntuar(pendiente, sesion) };
       }).sort((a, b) => a.puntaje - b.puntaje || a.indice - b.indice);
     for (const opcion of opciones) {
@@ -159,10 +169,10 @@ export function buscarHoras(entrada: EntradaHorario, limite: number, configuraci
       evaluaciones++;
       marcar(opcion.sesion, true);
       horas.push(opcion.sesion);
-      const completa = colocadas + 1 === pendiente.carga.horasPresenciales;
+      const completa = colocadas + 1 === pendiente.cantidad;
       // Si una materia posterior ya no tiene suficientes horas libres, esta rama no puede completarse.
       const posteriorSinCupo = pendientes.slice(indiceCarga + 1).find(otra =>
-        otra.espacios.filter(espacio => libre(otra, espacio)).length < otra.carga.horasPresenciales!);
+        otra.espacios.filter(espacio => libre(otra, espacio)).length < otra.cantidad);
       if (!posteriorSinCupo && explorar(completa ? indiceCarga + 1 : indiceCarga,
         completa ? 0 : colocadas + 1, completa ? 0 : opcion.indice + 1)) return true;
       if (posteriorSinCupo) cargaBloqueadaId ||= posteriorSinCupo.carga.id;

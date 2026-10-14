@@ -15,7 +15,10 @@ import PoliticaHorarioPanel, { type ResumenPoliticaHorario } from './PoliticaHor
 import GuiaDesbloqueoHorario from './GuiaDesbloqueoHorario';
 import AsistenteIAHorario from './AsistenteIAHorario';
 import PanelBorradoresHorario from './PanelBorradoresHorario';
-import { crearContenidoBorrador, firmaContenidoBorrador, recuperarContenidoBorrador } from '../../horarios/borradores';
+import AutorizacionJornadaDocente from './AutorizacionJornadaDocente';
+import { autorizacionesAplicables, esJornadaDocenteAutorizable, huellaJornadaDocente,
+  incumplimientosEstrictosPendientes, type AutorizacionJornadaDocente as AutorizacionJornada } from '../../horarios/autorizacionesJornada';
+import { borradorPierdeHoras, crearContenidoBorrador, firmaContenidoBorrador, recuperarContenidoBorrador } from '../../horarios/borradores';
 import { eliminarBorradorHorario, guardarBorradorHorario, listarBorradoresHorario,
   type BorradorHorarioGuardado } from '../../horarios/borradoresService';
 import type { AccionDesbloqueo } from '../../horarios/orientacionHorario';
@@ -25,17 +28,19 @@ import type { ResultadoAsignacionAutomatica, DetalleAsignacionAutomatica } from 
 import type { ResultadoOptimizacionHorario } from '../../horarios/optimizacionHorario';
 import type { PropuestaHorario } from '../../horarios/evaluacionHorario';
 import { useBusquedaHorario } from '../../hooks/useBusquedaHorario';
-import { seccionesCuadriculaHorario } from '../../horarios/cuadricula';
+import { seccionesCuadriculaHorario, type OpcionesPresentacionHorario } from '../../horarios/cuadricula';
 import { ordenarGruposHorario } from '../../horarios/ordenGruposHorario';
 import { aplicarHorasPresencialesMasivas } from '../../horarios/horasMasivas';
 import { revisarAjusteManual } from '../../horarios/ajusteManual';
 import { incumplimientosEstrictos, type PoliticaHorario } from '../../horarios/politicaHorario';
 import { esMateriaComplementaria, prepararBorradorHorario, seleccionCompletaHorario } from '../../horarios/seleccion';
-import { crearDocxHorario, crearPdfHorario, type VistaHorario } from '../../horarios/exportar';
+import { crearDocxHorario, crearPdfHorario, crearZipPdfHorarios, type VistaHorario } from '../../horarios/exportar';
 import { cargarDatosHorario, guardarUbicacionGrupo, publicarHorario, type DatosHorario } from '../../horarios/service';
-import { incidenciaSuave, type CargaHorario, type ConfiguracionHorario, type EntradaHorario, type GrupoHorario, type IncidenciaHorario, type SesionHorario } from '../../horarios/types';
+import { incidenciaSuave, NOMBRES_DIAS, type CargaHorario, type ConfiguracionHorario, type EntradaHorario, type GrupoHorario, type IncidenciaHorario, type SesionHorario } from '../../horarios/types';
 import { agruparVacantes, esVacante, siguienteVacante, vacantesDeLicenciatura } from '../../horarios/vacantes';
 import { probarCambioDocente, repararAsignacionLocal, type CambioLocalHorario } from '../../horarios/edicionLocal';
+import { datosPendientesParaComplecion, prepararComplecionGrupos,
+  validarComplecionGrupos } from '../../horarios/completarBorrador';
 
 const descargar = (archivo: Blob, nombre: string) => {
   const url = URL.createObjectURL(archivo);
@@ -46,6 +51,15 @@ const snapshotBorrador = (entrada: EntradaHorario, seleccionados: string[]) => J
   { ...entrada, grupos: entrada.grupos.map(({ aula: _aula, sede: _sede, ...grupo }) => grupo) },
   [...seleccionados].sort(),
 ]);
+
+interface EstadoEdicionHorario {
+  entrada: EntradaHorario;
+  sesiones: SesionHorario[];
+  cargasFijas: Set<string>;
+  vista: VistaHorario;
+  seleccionados: string[];
+  cargasIncluidas: Set<string>;
+}
 
 export default function HorariosAcademicos() {
   const cicloGlobalId = useAppStore(state => state.activeCicloId);
@@ -72,8 +86,10 @@ export default function HorariosAcademicos() {
   const [sesiones, setSesiones] = useState<SesionHorario[]>([]);
   const [sesionesOriginales, setSesionesOriginales] = useState<SesionHorario[]>([]);
   const [entradaOriginal, setEntradaOriginal] = useState<EntradaHorario | null>(null);
-  const [estadosAnteriores, setEstadosAnteriores] = useState<{ entrada: EntradaHorario; sesiones: SesionHorario[]; cargasFijas: Set<string>; vista: VistaHorario }[]>([]);
-  const [estadosSiguientes, setEstadosSiguientes] = useState<{ entrada: EntradaHorario; sesiones: SesionHorario[]; cargasFijas: Set<string>; vista: VistaHorario }[]>([]);
+  const [seleccionOriginal, setSeleccionOriginal] = useState<string[]>([]);
+  const [cargasIncluidasOriginales, setCargasIncluidasOriginales] = useState<Set<string>>(new Set());
+  const [estadosAnteriores, setEstadosAnteriores] = useState<EstadoEdicionHorario[]>([]);
+  const [estadosSiguientes, setEstadosSiguientes] = useState<EstadoEdicionHorario[]>([]);
   const [cargaEnEdicion, setCargaEnEdicion] = useState<string | null>(null);
   const [cambioLocalPendiente, setCambioLocalPendiente] = useState<CambioLocalHorario | null>(null);
   const [asignacionPendiente, setAsignacionPendiente] = useState<{ cargaId: string; docenteId: string; motivo: string } | null>(null);
@@ -84,7 +100,11 @@ export default function HorariosAcademicos() {
   const [generado, setGenerado] = useState(false);
   const [vistaPublicada, setVistaPublicada] = useState(false);
   const [incidencias, setIncidencias] = useState<IncidenciaHorario[]>([]);
+  const [autorizacionesJornada, setAutorizacionesJornada] = useState<AutorizacionJornada[]>([]);
   const [vista, setVista] = useState<VistaHorario>({ tipo: 'grupos' });
+  const [opcionesPresentacion, setOpcionesPresentacion] = useState<OpcionesPresentacionHorario>({
+    mostrarAsincronas: true, mostrarHorasGrupo: true,
+  });
   const [ubicacionesEditadas, setUbicacionesEditadas] = useState<Record<string, { aula: string; sede: string }>>({});
   const [modo, setModo] = useState<'manual' | 'automatico'>('manual');
   const [politica, setPolitica] = useState<PoliticaHorario>('flexible');
@@ -104,10 +124,13 @@ export default function HorariosAcademicos() {
   const [horasComunes, setHorasComunes] = useState('1');
   const [borradoresGuardados, setBorradoresGuardados] = useState<BorradorHorarioGuardado[]>([]);
   const [borradorActivoId, setBorradorActivoId] = useState<string | null>(null);
+  const [soloGuardarCopia, setSoloGuardarCopia] = useState(false);
   const [nombreBorradorActivo, setNombreBorradorActivo] = useState('');
   const [firmaBorradorGuardado, setFirmaBorradorGuardado] = useState('');
   const [ocupadoBorradores, setOcupadoBorradores] = useState(false);
   const [errorBorradores, setErrorBorradores] = useState('');
+  const [errorComplecion, setErrorComplecion] = useState('');
+  const [gruposPendientesComplecion, setGruposPendientesComplecion] = useState<string[]>([]);
   const [abrirBorradorPendiente, setAbrirBorradorPendiente] = useState<BorradorHorarioGuardado | null>(null);
   const [eliminarBorradorPendiente, setEliminarBorradorPendiente] = useState<BorradorHorarioGuardado | null>(null);
   const [confirmarAbrirPublicada, setConfirmarAbrirPublicada] = useState(false);
@@ -129,9 +152,10 @@ export default function HorariosAcademicos() {
   const cargar = async () => {
     if (!cicloId) return;
     const solicitud = ++solicitudCarga.current;
-    setCargando(true); setError('');
-    setDatos(null); setEntrada(null); setSesiones([]); setIncidencias([]);
-    setSesionesOriginales([]); setEntradaOriginal(null); setEstadosAnteriores([]); setEstadosSiguientes([]); setAjusteActivo(false);
+    setCargando(true); setError(''); setErrorComplecion(''); setGruposPendientesComplecion([]);
+    setDatos(null); setEntrada(null); setSesiones([]); setIncidencias([]); setAutorizacionesJornada([]);
+    setSesionesOriginales([]); setEntradaOriginal(null); setSeleccionOriginal([]);
+    setCargasIncluidasOriginales(new Set()); setEstadosAnteriores([]); setEstadosSiguientes([]); setAjusteActivo(false);
     setCargaEnEdicion(null); setCambioLocalPendiente(null); setAsignacionPendiente(null);
     limpiarPropuestas();
     setBusquedaAmpliadaUsada(false);
@@ -144,7 +168,7 @@ export default function HorariosAcademicos() {
     setModoHorasMixto('individual'); setHorasComunes('1');
     setModo('manual'); setPolitica('flexible'); setPermitirVacantes(false); setPermitirNoPreferidas(false);
     setDetalleAutomatico({}); setCargasFijas(new Set()); setCargasFijasOriginales(new Set());
-    setBorradoresGuardados([]); setBorradorActivoId(null); setNombreBorradorActivo('');
+    setBorradoresGuardados([]); setBorradorActivoId(null); setSoloGuardarCopia(false); setNombreBorradorActivo('');
     setFirmaBorradorGuardado(''); setErrorBorradores('');
     try {
       const resultado = await cargarDatosHorario(cicloId);
@@ -182,7 +206,9 @@ export default function HorariosAcademicos() {
   const cantidadVacantes = cargas.filter(carga => esVacante(carga.docenteId)).length;
   const horarioAjustado = generado && (JSON.stringify(sesiones) !== JSON.stringify(sesionesOriginales)
     || JSON.stringify(entrada?.cargas.map(c => [c.id, c.docenteId]))
-      !== JSON.stringify(entradaOriginal?.cargas.map(c => [c.id, c.docenteId])));
+      !== JSON.stringify(entradaOriginal?.cargas.map(c => [c.id, c.docenteId]))
+    || JSON.stringify([...seleccionados].sort()) !== JSON.stringify([...seleccionOriginal].sort())
+    || JSON.stringify([...cargasIncluidas].sort()) !== JSON.stringify([...cargasIncluidasOriginales].sort()));
   const cargasVisibles = useMemo(() => entrada?.cargas.filter(carga => gruposSeleccionados.has(carga.grupoId)) || [],
     [entrada, gruposSeleccionados]);
   const seleccionCompleta = !!entrada && seleccionCompletaHorario(entrada, gruposSeleccionados, cargasIncluidas);
@@ -192,6 +218,15 @@ export default function HorariosAcademicos() {
   [entradaVista, sesiones, datos, vista]);
   const cantidadMixtas = cargas.filter(carga => grupos.some(grupo => grupo.id === carga.grupoId && grupo.turno === 'MIXTO')).length;
   const preflight = useMemo(() => borrador ? validarEntradas(borrador) : [], [borrador]);
+  const bloqueosBorrador = useMemo(() => generado && !vistaPublicada && borrador
+    ? validarSesiones(sesiones, borrador).filter(i => !incidenciaSuave(i)) : [],
+  [generado, vistaPublicada, borrador, sesiones]);
+  const incidenciasRevision = useMemo(() => generado && !vistaPublicada && borrador
+    ? revisarAjusteManual(borrador, sesiones) : incidencias,
+  [generado, vistaPublicada, borrador, sesiones, incidencias]);
+  const autorizacionesVigentes = useMemo(() => borrador
+    ? autorizacionesAplicables(borrador, sesiones, incidenciasRevision, autorizacionesJornada) : [],
+  [borrador, sesiones, incidenciasRevision, autorizacionesJornada]);
   const bloqueosGeneracion = modo === 'automatico'
     ? preflight.filter(incidencia => !['SIN_DOCENTE', 'DOCENTE_NO_ELEGIBLE', 'MAX_TRES_MATERIAS', 'CUPO_DOCENTE_EXCEDIDO'].includes(incidencia.codigo))
     : preflight;
@@ -206,10 +241,13 @@ export default function HorariosAcademicos() {
       gruposSeleccionados: seleccionados, cargasIncluidas: [...cargasIncluidas],
       ubicacionesEditadas, sesiones: generado ? sesiones : [], modo, politica,
       permitirVacantes, permitirNoPreferidas, cargasFijas: [...cargasFijas], omitirComplementarias,
+      ...(autorizacionesJornada.length ? { autorizacionesJornada } : {}),
     }) : null, [entrada, datos, vistaPublicada, seleccionados, cargasIncluidas, ubicacionesEditadas,
-    generado, sesiones, modo, politica, permitirVacantes, permitirNoPreferidas, cargasFijas, omitirComplementarias]);
+    generado, sesiones, modo, politica, permitirVacantes, permitirNoPreferidas, cargasFijas, omitirComplementarias, autorizacionesJornada]);
   const firmaBorradorActual = useMemo(() => contenidoBorradorActual
     ? firmaContenidoBorrador(contenidoBorradorActual) : '', [contenidoBorradorActual]);
+  const sesionesGuardadas = borradoresGuardados.find(item => item.id === borradorActivoId)?.contenido.sesiones || [];
+  const protegerOriginal = soloGuardarCopia || borradorPierdeHoras(sesionesGuardadas, contenidoBorradorActual?.sesiones || []);
   const borradorSinGuardarPrevio = !!entrada && (
     snapshotBorrador(entrada, seleccionados) !== snapshotCargado
     || JSON.stringify([...cargasFijas].sort()) !== snapshotCargasFijas
@@ -222,6 +260,7 @@ export default function HorariosAcademicos() {
     ? firmaBorradorActual !== firmaBorradorGuardado : borradorSinGuardarPrevio);
   const limpiarEdicionManual = () => {
     setAjusteActivo(false); setSesionesOriginales([]); setEntradaOriginal(null);
+    setSeleccionOriginal([]); setCargasIncluidasOriginales(new Set());
     setEstadosAnteriores([]); setEstadosSiguientes([]); setCargaEnEdicion(null);
     setCambioLocalPendiente(null); setAsignacionPendiente(null);
   };
@@ -232,7 +271,8 @@ export default function HorariosAcademicos() {
     setConfirmarDescarteAjuste(true);
   };
   const invalidarHorario = (conservarComparacion = false) => {
-    setSesiones([]); setIncidencias([]); setVistaPublicada(false); setGenerado(false);
+    setSesiones([]); setIncidencias([]); setAutorizacionesJornada([]); setVistaPublicada(false); setGenerado(false);
+    setErrorComplecion(''); setGruposPendientesComplecion([]);
     limpiarPropuestas(); limpiarEdicionManual();
     setBusquedaAmpliadaUsada(false);
     if (!conservarComparacion) { setComparacionPoliticas({}); entradaComparacion.current = null; }
@@ -251,7 +291,7 @@ export default function HorariosAcademicos() {
     setOmitirComplementarias(false); complementariasPrevias.current = new Set();
     setModo('manual'); setPolitica('flexible'); setPermitirVacantes(false); setPermitirNoPreferidas(false);
     setVistaPublicada(false); setGenerado(false); setError('');
-    setBorradoresGuardados([]); setBorradorActivoId(null); setNombreBorradorActivo('');
+    setBorradoresGuardados([]); setBorradorActivoId(null); setSoloGuardarCopia(false); setNombreBorradorActivo('');
     setFirmaBorradorGuardado(''); setErrorBorradores('');
     setCicloId(nuevoId);
   };
@@ -272,6 +312,18 @@ export default function HorariosAcademicos() {
   };
   const cambiarCarga = (id: string, cambio: Partial<CargaHorario>) => {
     if (generandoAutomatico) return;
+    if (entrada && generado && !vistaPublicada && !sesiones.some(sesion => sesion.cargaId === id)) {
+      const siguiente = { ...entrada,
+        cargas: entrada.cargas.map(carga => carga.id === id ? { ...carga, ...cambio } : carga) };
+      setEstadosAnteriores(actual => [...actual, { entrada, sesiones, cargasFijas, vista,
+        seleccionados: [...seleccionados], cargasIncluidas: new Set(cargasIncluidas) }].slice(-30));
+      setEstadosSiguientes([]);
+      setEntrada(siguiente);
+      setIncidencias(revisarAjusteManual(prepararBorradorHorario(siguiente,
+        gruposSeleccionados, cargasIncluidas), sesiones));
+      if (borradorActivoId) setSoloGuardarCopia(true);
+      return;
+    }
     antesDeDescartarAjuste(() => cambiarCargaDirecto(id, cambio));
   };
   const seleccionarDocente = (cargaId: string, docenteId: string | null) => {
@@ -350,11 +402,101 @@ export default function HorariosAcademicos() {
     });
   };
   const cambiarGrupos = (ids: string[]) => {
-    if (generandoAutomatico) return;
+    if (generandoAutomatico || guardando || ocupadoBorradores) return;
     if (ids.length === seleccionados.length && ids.every(id => seleccionados.includes(id))) return;
+    const nuevos = ids.filter(id => !seleccionados.includes(id));
+    if (entrada && generado && !vistaPublicada && nuevos.length
+      && seleccionados.every(id => ids.includes(id))) {
+      void completarGrupos(nuevos);
+      return;
+    }
     antesDeDescartarAjuste(() => {
       setSeleccionados(ids); invalidarHorario(); setDetalleAutomatico({});
     });
+  };
+  const completarGrupos = async (ids: string[]) => {
+    if (ubicacionesPendientes) {
+      toast.error('Guarda las sedes y aulas editadas antes de completar los grupos.');
+      return;
+    }
+    if (!entrada || !generado || vistaPublicada || generandoAutomatico || guardando || exportando
+      || ocupadoBorradores) return;
+    setErrorComplecion(''); setGruposPendientesComplecion([]);
+    try {
+      const preparacion = prepararComplecionGrupos(entrada, seleccionados, cargasIncluidas, sesiones, ids);
+      const datosPendientes = datosPendientesParaComplecion(preparacion);
+      if (datosPendientes.length) {
+        incluirGruposPendientes(ids, datosPendientes[0].mensaje);
+        return;
+      }
+      const resultado = preparacion.entradaBusqueda ? await buscarHorario({
+        modo: 'automatico', politica, entrada: preparacion.entradaBusqueda,
+        permitirNoPreferidas, permitirVacantes,
+        cargasFijas: preparacion.cargasPendientes.filter(id => cargasFijas.has(id)),
+        busquedaAmpliada: true,
+      }) : null;
+      const candidatas = resultado?.propuestas || [{
+        entrada: { ...entrada, cargas: [] }, sesiones: [], detalle: [],
+      }];
+      let motivo = resultado?.incidencias[0]?.mensaje || 'No se encontró espacio para todas las materias del grupo pendiente.';
+      for (const propuesta of candidatas) {
+        const validada = validarComplecionGrupos(entrada, seleccionados, cargasIncluidas,
+          sesiones, preparacion, propuesta, politica, autorizacionesJornada);
+        if (typeof validada === 'string') { motivo = validada; continue; }
+        setEstadosAnteriores(actual => [...actual, { entrada, sesiones, cargasFijas,
+          vista, seleccionados: [...seleccionados], cargasIncluidas: new Set(cargasIncluidas) }].slice(-30));
+        setEstadosSiguientes([]);
+        setEntrada(validada.entrada); setSesiones(validada.sesiones);
+        setSeleccionados(preparacion.gruposSeleccionados);
+        setCargasIncluidas(preparacion.cargasIncluidas);
+        setVista(actual => ({ tipo: actual.tipo }));
+        setIncidencias(validada.incidencias);
+        setDetalleAutomatico(actual => ({ ...actual,
+          ...Object.fromEntries(propuesta.detalle.map(detalle => [detalle.cargaId, detalle])) }));
+        setCargaEnEdicion(null); setCambioLocalPendiente(null); setAsignacionPendiente(null);
+        limpiarPropuestas(); setComparacionPoliticas({}); entradaComparacion.current = null;
+        if (borradorActivoId) setSoloGuardarCopia(true);
+        toast.success(`${ids.length} grupo(s) incorporado(s) sin mover las horas existentes. ${borradorActivoId
+          ? 'Guarda una copia para conservar el borrador original.' : 'Guarda el borrador para retomarlo después.'}`);
+        return;
+      }
+      setErrorComplecion(motivo); setGruposPendientesComplecion(ids);
+      toast.error(motivo);
+    } catch (e) {
+      if (e instanceof Error && e.message === 'BUSQUEDA_CANCELADA') {
+        toast('Búsqueda cancelada; el borrador se conservó.');
+        return;
+      }
+      const motivo = e instanceof Error ? e.message : 'No se pudo completar el grupo.';
+      setErrorComplecion(motivo); toast.error(motivo);
+    }
+  };
+  const incluirGruposPendientes = (ids = gruposPendientesComplecion, motivo?: string) => {
+    if (!entrada || !generado || vistaPublicada || generandoAutomatico
+      || !ids.length) return;
+    try {
+      const preparacion = prepararComplecionGrupos(entrada, seleccionados, cargasIncluidas,
+        sesiones, ids);
+      setEstadosAnteriores(actual => [...actual, { entrada, sesiones, cargasFijas,
+        vista, seleccionados: [...seleccionados], cargasIncluidas: new Set(cargasIncluidas) }].slice(-30));
+      setEstadosSiguientes([]);
+      setSeleccionados(preparacion.gruposSeleccionados);
+      setCargasIncluidas(preparacion.cargasIncluidas);
+      setVista(actual => ({ tipo: actual.tipo }));
+      const parcial = prepararBorradorHorario(entrada,
+        new Set(preparacion.gruposSeleccionados), preparacion.cargasIncluidas);
+      setIncidencias(revisarAjusteManual(parcial, sesiones));
+      setCargaEnEdicion(null); setCambioLocalPendiente(null); setAsignacionPendiente(null);
+      limpiarPropuestas(); setComparacionPoliticas({}); entradaComparacion.current = null;
+      setGruposPendientesComplecion([]); setErrorComplecion('');
+      if (borradorActivoId) setSoloGuardarCopia(true);
+      toast(motivo
+        ? `Grupo incluido con datos pendientes. ${motivo} Corrige los datos señalados antes de publicar.`
+        : 'Grupo incluido con materias pendientes. Abre «Revisar asignación en este borrador» para ubicarlas una por una.');
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : 'No se pudo incluir el grupo pendiente.';
+      setErrorComplecion(motivo); toast.error(motivo);
+    }
   };
   const aplicarHorasComunes = () => {
     if (!entrada || generandoAutomatico) return;
@@ -384,6 +526,24 @@ export default function HorariosAcademicos() {
     incidencia.grupoId && `Grupo: ${entrada?.grupos.find(g => g.id === incidencia.grupoId)?.codigo || incidencia.grupoId}`,
     incidencia.cargaId && `Materia: ${entrada?.cargas.find(c => c.id === incidencia.cargaId)?.asignatura || incidencia.cargaId}`,
   ].filter(Boolean).join(' · ');
+  const autorizarJornada = (incidencia: IncidenciaHorario, motivo: string) => {
+    if (!borrador || !esJornadaDocenteAutorizable(incidencia, borrador, sesiones)
+      || motivo.trim().length < 10 || motivo.trim().length > 500) return;
+    const autorizacion: AutorizacionJornada = { docenteId: incidencia.docenteId, dia: incidencia.dia,
+      huella: huellaJornadaDocente(borrador, sesiones, incidencia.docenteId, incidencia.dia), motivo: motivo.trim() };
+    setAutorizacionesJornada(actual => [...actual.filter(item =>
+      item.docenteId !== autorizacion.docenteId || item.dia !== autorizacion.dia), autorizacion]);
+    if (borradorActivoId) setSoloGuardarCopia(true);
+    toast.success('Excepción registrada en el borrador.');
+  };
+  const retirarAutorizacion = (docenteId: string, dia: number) => {
+    setAutorizacionesJornada(actual => actual.filter(item => item.docenteId !== docenteId || item.dia !== dia));
+    if (borradorActivoId) setSoloGuardarCopia(true);
+  };
+  const descartarAutorizacionesObsoletas = () => {
+    setAutorizacionesJornada(autorizacionesVigentes);
+    if (borradorActivoId) setSoloGuardarCopia(true);
+  };
   const aplicarPropuesta = (propuesta: PropuestaHorario, indice: number,
     baseEntrada = entrada!, fijas = cargasFijas) => {
     const agrupada = agruparVacantes(propuesta.entrada, propuesta.sesiones);
@@ -392,8 +552,10 @@ export default function HorariosAcademicos() {
     setEntrada(siguiente); setEntradaOriginal(siguiente);
     setDetalleAutomatico(Object.fromEntries(propuesta.detalle.map(detalle => [detalle.cargaId, detalle])));
     setSesiones(agrupada.sesiones);
+    setAutorizacionesJornada([]);
     setIncidencias(revisarAjusteManual(agrupada.entrada, agrupada.sesiones));
     setSesionesOriginales(agrupada.sesiones);
+    setSeleccionOriginal([...seleccionados]); setCargasIncluidasOriginales(new Set(cargasIncluidas));
     setCargasFijasOriginales(new Set(fijas));
     setEstadosAnteriores([]); setEstadosSiguientes([]);
     setAjusteActivo(false); setCargaEnEdicion(null); setCambioLocalPendiente(null); setAsignacionPendiente(null);
@@ -401,10 +563,12 @@ export default function HorariosAcademicos() {
     setVista(actual => actual.tipo === 'docentes' ? { tipo: 'docentes' } : actual);
   };
   const cambiarSesionesManual = (siguientes: SesionHorario[]) => {
-    if (!borrador || !generado || vistaPublicada || guardando || exportando || guardandoUbicacion) return;
+    if (!borrador || !generado || vistaPublicada || guardando || exportando
+      || guardandoUbicacion || generandoAutomatico) return;
     setCargaEnEdicion(null); setCambioLocalPendiente(null); setAsignacionPendiente(null);
     setSesiones(siguientes);
-    setEstadosAnteriores(actual => [...actual, { entrada: entrada!, sesiones, cargasFijas, vista }].slice(-30));
+    setEstadosAnteriores(actual => [...actual, { entrada: entrada!, sesiones, cargasFijas, vista,
+      seleccionados: [...seleccionados], cargasIncluidas: new Set(cargasIncluidas) }].slice(-30));
     setEstadosSiguientes([]);
     setIncidencias(revisarAjusteManual(borrador, siguientes));
   };
@@ -414,7 +578,8 @@ export default function HorariosAcademicos() {
     const siguiente = { ...entrada, cargas: entrada.cargas.map(carga => porId.get(carga.id) || carga) };
     const docenteAnterior = entrada.cargas.find(c => c.id === cargaEnEdicion)?.docenteId;
     const docenteNuevo = porId.get(cargaEnEdicion!)?.docenteId;
-    setEstadosAnteriores(actual => [...actual, { entrada, sesiones, cargasFijas, vista }].slice(-30));
+    setEstadosAnteriores(actual => [...actual, { entrada, sesiones, cargasFijas, vista,
+      seleccionados: [...seleccionados], cargasIncluidas: new Set(cargasIncluidas) }].slice(-30));
     setEstadosSiguientes([]);
     setEntrada(siguiente); setSesiones(cambioLocalPendiente.sesiones);
     if (docenteAnterior && docenteNuevo) setVista(actual => actual.tipo === 'docentes' && actual.ids
@@ -442,9 +607,12 @@ export default function HorariosAcademicos() {
     setCargaEnEdicion(null); setCambioLocalPendiente(null); setAsignacionPendiente(null);
     const anterior = estadosAnteriores.at(-1)!;
     setEstadosAnteriores(actual => actual.slice(0, -1));
-    setEstadosSiguientes(actual => [...actual, { entrada: entrada!, sesiones, cargasFijas, vista }]);
+    setEstadosSiguientes(actual => [...actual, { entrada: entrada!, sesiones, cargasFijas, vista,
+      seleccionados: [...seleccionados], cargasIncluidas: new Set(cargasIncluidas) }]);
     setEntrada(anterior.entrada); setSesiones(anterior.sesiones); setCargasFijas(anterior.cargasFijas); setVista(anterior.vista);
-    const parcial = prepararBorradorHorario(anterior.entrada, gruposSeleccionados, cargasIncluidas);
+    setSeleccionados(anterior.seleccionados); setCargasIncluidas(anterior.cargasIncluidas);
+    const parcial = prepararBorradorHorario(anterior.entrada,
+      new Set(anterior.seleccionados), anterior.cargasIncluidas);
     setIncidencias(revisarAjusteManual(parcial, anterior.sesiones));
   };
   const rehacerAjuste = () => {
@@ -452,15 +620,20 @@ export default function HorariosAcademicos() {
     setCargaEnEdicion(null); setCambioLocalPendiente(null); setAsignacionPendiente(null);
     const siguiente = estadosSiguientes.at(-1)!;
     setEstadosSiguientes(actual => actual.slice(0, -1));
-    setEstadosAnteriores(actual => [...actual, { entrada: entrada!, sesiones, cargasFijas, vista }].slice(-30));
+    setEstadosAnteriores(actual => [...actual, { entrada: entrada!, sesiones, cargasFijas, vista,
+      seleccionados: [...seleccionados], cargasIncluidas: new Set(cargasIncluidas) }].slice(-30));
     setEntrada(siguiente.entrada); setSesiones(siguiente.sesiones); setCargasFijas(siguiente.cargasFijas); setVista(siguiente.vista);
-    const parcial = prepararBorradorHorario(siguiente.entrada, gruposSeleccionados, cargasIncluidas);
+    setSeleccionados(siguiente.seleccionados); setCargasIncluidas(siguiente.cargasIncluidas);
+    const parcial = prepararBorradorHorario(siguiente.entrada,
+      new Set(siguiente.seleccionados), siguiente.cargasIncluidas);
     setIncidencias(revisarAjusteManual(parcial, siguiente.sesiones));
   };
   const restaurarPropuesta = () => antesDeDescartarAjuste(() => {
     if (!entradaOriginal) return;
-    const parcial = prepararBorradorHorario(entradaOriginal, gruposSeleccionados, cargasIncluidas);
+    const parcial = prepararBorradorHorario(entradaOriginal,
+      new Set(seleccionOriginal), cargasIncluidasOriginales);
     setEntrada(entradaOriginal); setSesiones(sesionesOriginales);
+    setSeleccionados(seleccionOriginal); setCargasIncluidas(cargasIncluidasOriginales);
     setCargasFijas(new Set(cargasFijasOriginales));
     setVista(actual => ({ tipo: actual.tipo }));
     setIncidencias(revisarAjusteManual(parcial, sesionesOriginales));
@@ -551,23 +724,34 @@ export default function HorariosAcademicos() {
     if (!entrada || !seleccionCompleta) return toast.error('La publicación requiere todos los grupos y materias no complementarias del ciclo. Puedes exportar esta selección como borrador parcial.');
     const errores = validarSesiones(sesiones, borrador).filter(i => !incidenciaSuave(i));
     if (errores.length) { setIncidencias(errores); return toast.error('La revisión final encontró conflictos.'); }
+    const revision = revisarAjusteManual(borrador, sesiones);
+    if (autorizacionesJornada.length !== autorizacionesVigentes.length)
+      return toast.error('Revisa o descarta las autorizaciones docentes que ya no corresponden al horario.');
     if (politica === 'estricto') {
-      const incumplimientos = incumplimientosEstrictos(revisarAjusteManual(borrador, sesiones));
+      const incumplimientos = incumplimientosEstrictosPendientes(borrador, sesiones,
+        revision, autorizacionesJornada);
       if (incumplimientos.length) {
         setIncidencias(incumplimientos);
         return toast.error('El horario incumple los límites diarios del modo estricto.');
       }
+    } else if (autorizacionesVigentes.length) {
+      const pendientes = revision.filter(incidencia => incidencia.codigo === 'JORNADA_CORTA_DOCENTE'
+        && !autorizacionesVigentes.some(autorizacion => autorizacion.docenteId === incidencia.docenteId
+          && autorizacion.dia === incidencia.dia));
+      if (pendientes.length) return toast.error('Para registrar excepciones en Flexible, autoriza todas las jornadas cortas docentes de esta propuesta.');
     }
+    if (autorizacionesVigentes.length && borradorActivoId && protegerOriginal)
+      return toast.error('Guarda una copia revisada del borrador antes de publicar estas excepciones.');
     if (!datos.ciclo.fecha_inicio || !datos.ciclo.fecha_termino) return toast.error('Define las fechas exactas del ciclo antes de publicar.');
     setGuardando(true);
     try {
-      await publicarHorario(cicloId, borrador, sesiones);
+      await publicarHorario(cicloId, borrador, sesiones, autorizacionesVigentes);
       toast.success('Horario publicado y docentes actualizados en una operación.');
       await cargar();
     } catch (e) { toast.error(e instanceof Error ? e.message : 'No se pudo publicar el horario.'); }
     finally { setGuardando(false); }
   };
-  const exportar = async (formato: 'pdf' | 'docx' | 'xlsx') => {
+  const exportar = async (formato: 'pdf' | 'zip' | 'docx' | 'xlsx') => {
     if (!entradaVista || !datos || (!generado && !vistaPublicada)) return toast.error('Genera o abre un horario antes de exportar.');
     if (!seccionesVista.length) return toast.error('Selecciona al menos un horario para exportar.');
     if (formato === 'xlsx' && vista.tipo !== 'docentes') return toast.error('Excel está disponible en la vista de docentes y vacantes.');
@@ -576,11 +760,16 @@ export default function HorariosAcademicos() {
       const variante = horarioAjustado ? '-ajustado' : propuestas.length > 1
         ? `-${propuestaSeleccionada === 0 ? 'recomendada' : 'alternativa'}` : '';
       const nombre = `horario-${datos.ciclo.nombre.replace(/[^a-z0-9-]+/gi, '-')}-${vista.tipo}${variante}${vista.ids ? '-seleccionados' : '-todos'}`;
-      if (formato === 'pdf') crearPdfHorario(entradaVista, sesiones, datos.ciclo.nombre, vista).save(`${nombre}.pdf`);
-      else if (formato === 'docx') descargar(await crearDocxHorario(entradaVista, sesiones, datos.ciclo.nombre, vista), `${nombre}.docx`);
+      if (formato === 'pdf') crearPdfHorario(entradaVista, sesiones, datos.ciclo.nombre, vista,
+        opcionesPresentacion).save(`${nombre}.pdf`);
+      else if (formato === 'zip') descargar(await crearZipPdfHorarios(entradaVista, sesiones, datos.ciclo.nombre,
+        vista, opcionesPresentacion), `${nombre}-individuales.zip`);
+      else if (formato === 'docx') descargar(await crearDocxHorario(entradaVista, sesiones, datos.ciclo.nombre,
+        vista, opcionesPresentacion), `${nombre}.docx`);
       else {
         const { crearXlsxHorario } = await import('../../horarios/exportarXlsx');
-        descargar(await crearXlsxHorario(entradaVista, sesiones, datos.ciclo.nombre, vista), `${nombre}.xlsx`);
+        descargar(await crearXlsxHorario(entradaVista, sesiones, datos.ciclo.nombre, vista,
+          opcionesPresentacion), `${nombre}.xlsx`);
       }
     } catch (e) { toast.error(e instanceof Error ? e.message : 'No se pudo exportar el horario.'); }
     finally { setExportando(false); }
@@ -627,11 +816,12 @@ export default function HorariosAcademicos() {
     if (!cicloId || !contenidoBorradorActual || ocupadoBorradores || generandoAutomatico) return;
     setOcupadoBorradores(true); setErrorBorradores('');
     try {
-      const id = nuevo ? undefined : borradorActivoId || undefined;
+      const id = nuevo || protegerOriginal ? undefined : borradorActivoId || undefined;
       const version = borradoresGuardados.find(item => item.id === id)?.actualizado_en;
       const guardado = await guardarBorradorHorario(cicloId, nombre, contenidoBorradorActual, id, version);
       setBorradoresGuardados(actual => [guardado, ...actual.filter(item => item.id !== guardado.id)]);
       setBorradorActivoId(guardado.id); setNombreBorradorActivo(guardado.nombre);
+      setSoloGuardarCopia(false);
       setFirmaBorradorGuardado(firmaBorradorActual);
       toast.success(nuevo || !id ? 'Borrador guardado.' : 'Borrador actualizado.');
     } catch (e) { const mensaje = e instanceof Error ? e.message : 'No se pudo guardar el borrador.';
@@ -647,6 +837,7 @@ export default function HorariosAcademicos() {
   };
   const abrirBorrador = (guardado: BorradorHorarioGuardado) => {
     if (!datos || guardado.ciclo_id !== cicloId) return;
+    setErrorComplecion(''); setGruposPendientesComplecion([]);
     try {
       const recuperado = recuperarContenidoBorrador(datos.entrada, guardado.contenido);
       const agrupado = agruparVacantes(recuperado.entrada, recuperado.sesiones);
@@ -655,7 +846,7 @@ export default function HorariosAcademicos() {
       const entradaParcial = prepararBorradorHorario(agrupado.entrada, seleccion, incluido);
       const errores = agrupado.sesiones.length
         ? validarSesiones(agrupado.sesiones, entradaParcial).filter(i => !incidenciaSuave(i)) : [];
-      const sesionesRecuperadas = errores.length ? [] : agrupado.sesiones;
+      const sesionesRecuperadas = agrupado.sesiones;
       setEntrada(agrupado.entrada); setSeleccionados(guardado.contenido.gruposSeleccionados);
       setCargasIncluidas(incluido); setUbicacionesEditadas(guardado.contenido.ubicacionesEditadas);
       setModo(guardado.contenido.modo); setPolitica(guardado.contenido.politica);
@@ -665,6 +856,10 @@ export default function HorariosAcademicos() {
       setCargasFijasOriginales(new Set(guardado.contenido.cargasFijas));
       setOmitirComplementarias(guardado.contenido.omitirComplementarias);
       setSesiones(sesionesRecuperadas); setSesionesOriginales(sesionesRecuperadas);
+      setSeleccionOriginal([...guardado.contenido.gruposSeleccionados]);
+      setCargasIncluidasOriginales(new Set(incluido));
+      setAutorizacionesJornada(Array.isArray(guardado.contenido.autorizacionesJornada)
+        ? guardado.contenido.autorizacionesJornada : []);
       setEntradaOriginal(agrupado.entrada);
       setGenerado(sesionesRecuperadas.length > 0); setVistaPublicada(false);
       setIncidencias(sesionesRecuperadas.length ? revisarAjusteManual(entradaParcial, sesionesRecuperadas) : []);
@@ -674,9 +869,11 @@ export default function HorariosAcademicos() {
       setCargaEnEdicion(null); setCambioLocalPendiente(null); setAsignacionPendiente(null);
       setComparacionPoliticas({}); entradaComparacion.current = null;
       setVista({ tipo: 'grupos' }); setBorradorActivoId(guardado.id);
+      setSoloGuardarCopia(recuperado.cambiado || !recuperado.sesionesCompatibles || errores.length > 0);
       setNombreBorradorActivo(guardado.nombre);
       setFirmaBorradorGuardado(firmaContenidoBorrador(guardado.contenido));
-      if (recuperado.cambiado || errores.length) toast('Los datos académicos cambiaron o hay conflictos. Se recuperaron los ajustes; genera de nuevo antes de publicar.');
+      if (recuperado.cambiado || errores.length || !recuperado.sesionesCompatibles)
+        toast('Se conservaron todas las sesiones. Revisa los conflictos antes de publicar; el original queda protegido y los cambios se guardan como copia.');
       else toast.success('Borrador recuperado.');
     } catch (e) { toast.error(e instanceof Error ? e.message : 'No se pudo abrir el borrador.'); }
   };
@@ -687,7 +884,7 @@ export default function HorariosAcademicos() {
       await eliminarBorradorHorario(cicloId, guardado.id);
       setBorradoresGuardados(actual => actual.filter(item => item.id !== guardado.id));
       if (borradorActivoId === guardado.id) {
-        setBorradorActivoId(null); setNombreBorradorActivo(''); setFirmaBorradorGuardado('');
+        setBorradorActivoId(null); setSoloGuardarCopia(false); setNombreBorradorActivo(''); setFirmaBorradorGuardado('');
       }
       toast.success('Borrador eliminado. El horario abierto permanece en pantalla.');
     } catch (e) { toast.error(e instanceof Error ? e.message : 'No se pudo eliminar el borrador.'); }
@@ -746,13 +943,22 @@ export default function HorariosAcademicos() {
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><b>No se pudo cargar el módulo.</b> {error}<p className="mt-2 text-xs">Si faltan columnas o tablas de horarios, revisa la migración SQL preparada en el repositorio.</p></div>}
       {entrada && datos && <>
         <PanelBorradoresHorario borradores={borradoresGuardados} activoId={borradorActivoId}
-          activoNombre={nombreBorradorActivo} bloqueado={guardando || exportando || guardandoUbicacion || generandoAutomatico}
+          activoNombre={nombreBorradorActivo} soloGuardarCopia={protegerOriginal}
+          bloqueado={guardando || exportando || guardandoUbicacion || generandoAutomatico}
           ocupado={ocupadoBorradores} error={errorBorradores} puedeGuardar={!vistaPublicada}
           onGuardar={(nombre, nuevo) => void guardarBorrador(nombre, nuevo)}
           onAbrir={guardado => { if (borradorSinGuardar) setAbrirBorradorPendiente(guardado); else abrirBorrador(guardado); }}
           onEliminar={setEliminarBorradorPendiente} onActualizar={() => void actualizarBorradores()}/>
         <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-[#182c4e] p-5 text-white"><p className="text-xs uppercase tracking-wider text-blue-200">Grupos incluidos</p><p className="mt-1 text-3xl font-bold">{grupos.length}<span className="text-base font-normal text-blue-200"> / {entrada.grupos.length}</span></p></div><div className="rounded-xl bg-[#1456f0] p-5 text-white"><p className="text-xs uppercase tracking-wider text-blue-100">Materias incluidas</p><p className="mt-1 text-3xl font-bold">{cargas.length}</p></div><div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1c2228]"><p className="text-xs uppercase tracking-wider text-slate-500">Horario publicado</p><p className="mt-1 text-xl font-bold">{datos.publicado ? `Versión ${datos.publicado.version}` : 'Aún no hay'}</p>{datos.publicado && <button disabled={generandoAutomatico || guardando || exportando} onClick={abrirPublicada} className="mt-2 text-xs font-semibold text-blue-700 underline dark:text-blue-300">Ver versión publicada</button>}</div></div>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1c2228]"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">1. Incluye u omite grupos</h2><p className="text-sm text-slate-500 dark:text-slate-400">Desmarca los grupos que no quieras en este borrador. Omitirlos no cambia sus registros. Para publicar se requieren todos los grupos y materias.</p></div><div className="flex gap-2 text-xs"><button disabled={generandoAutomatico} onClick={() => cambiarGrupos(entrada.grupos.map(g => g.id))} className="rounded-lg border px-3 py-1.5 dark:border-slate-600">Incluir todos</button><button disabled={generandoAutomatico} onClick={() => cambiarGrupos([])} className="rounded-lg border px-3 py-1.5 dark:border-slate-600">Omitir todos</button></div></div>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1c2228]"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">1. Incluye u omite grupos</h2><p className="text-sm text-slate-500 dark:text-slate-400">Desmarca los grupos que no quieras en este borrador. Para publicar se requieren todos los grupos y materias no complementarias.</p>{generado && !vistaPublicada && <p className="mt-2 text-sm text-blue-700 dark:text-blue-300">Marca un grupo omitido o pulsa «Completar todos»: se buscarán solo sus horas y se conservarán los ajustes existentes. Si faltan datos de una materia, se incluirá el grupo para que puedas revisarla en el paso 2.</p>}</div><div className="flex gap-2 text-xs"><button disabled={generandoAutomatico || guardando || ocupadoBorradores || ubicacionesPendientes} onClick={() => cambiarGrupos(entrada.grupos.map(g => g.id))} className="rounded-lg border px-3 py-1.5 dark:border-slate-600">{generado && !vistaPublicada ? 'Completar todos' : 'Incluir todos'}</button><button disabled={generandoAutomatico || guardando || ocupadoBorradores} onClick={() => cambiarGrupos([])} className="rounded-lg border px-3 py-1.5 dark:border-slate-600">Omitir todos</button></div></div>
+          {errorComplecion && <div role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            <p className="font-semibold">No se alteró el borrador: {errorComplecion}</p>
+            {!!gruposPendientesComplecion.length && <div className="mt-2 space-y-2">
+              <p>Puedes incorporar el grupo sin horas y ubicar sus materias una por una desde «Revisar asignación en este borrador». Las horas existentes permanecerán intactas; publicar seguirá bloqueado hasta completar las pendientes.</p>
+              <button type="button" onClick={() => incluirGruposPendientes()} disabled={generandoAutomatico || guardando || ocupadoBorradores}
+                className="rounded-lg border border-amber-600 px-3 py-2 font-bold disabled:opacity-50">Incluir grupo para completar manualmente</button>
+            </div>}
+          </div>}
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{gruposDelCiclo.map(g => { const u = ubicacionesEditadas[g.id] || {aula:'',sede:''}; return <div key={g.id} className={`rounded-xl border p-3 ${seleccionados.includes(g.id) ? 'border-blue-400 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/20' : 'border-slate-200 dark:border-slate-700'}`}><label className="flex cursor-pointer items-center gap-2 font-semibold"><input type="checkbox" checked={seleccionados.includes(g.id)} disabled={generandoAutomatico} onChange={() => cambiarGrupos(seleccionados.includes(g.id) ? seleccionados.filter(id => id !== g.id) : [...seleccionados, g.id])} />{g.codigo}<span className="ml-auto text-xs font-normal text-slate-500 dark:text-slate-400">{seleccionados.includes(g.id) ? 'Incluido' : 'Omitido'}</span></label><p className="ml-5 text-xs text-slate-500">{g.turno} · {entrada.cargas.filter(c => c.grupoId === g.id && cargasIncluidas.has(c.id)).length} de {entrada.cargas.filter(c => c.grupoId === g.id).length} materias incluidas</p><div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-1.5"><input aria-label={`Sede ${g.codigo}`} placeholder="Sede opcional" value={u.sede} disabled={generandoAutomatico || !seleccionados.includes(g.id)} onChange={e => setUbicacionesEditadas(prev => ({...prev,[g.id]:{...u,sede:e.target.value}}))} className="min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"/><input aria-label={`Aula ${g.codigo}`} placeholder="Aula opcional" value={u.aula} disabled={generandoAutomatico || !seleccionados.includes(g.id)} onChange={e => setUbicacionesEditadas(prev => ({...prev,[g.id]:{...u,aula:e.target.value}}))} className="min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"/><button disabled={generandoAutomatico || guardandoUbicacion || !seleccionados.includes(g.id)} onClick={() => antesDeDescartarAjuste(() => void guardarUbicacion(g), 'Guardar la ubicación descartará los ajustes manuales del horario actual.')} title="Guardar sede y aula" aria-label={`Guardar ubicación de ${g.codigo}`} className="rounded-md bg-blue-100 p-1.5 text-blue-700 dark:bg-blue-950 dark:text-blue-300"><Save size={14}/></button></div></div>; })}</div>
         </section>
         <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1c2228]">
@@ -828,14 +1034,28 @@ export default function HorariosAcademicos() {
             {generandoAutomatico && <button type="button" onClick={cancelarBusqueda}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200"><X size={16}/> Cancelar búsqueda</button>}
             {generado && !vistaPublicada && <button onClick={() => void publicar()}
-              disabled={guardando || generandoAutomatico || !seleccionCompleta || cantidadVacantes > 0}
+              disabled={guardando || generandoAutomatico || !seleccionCompleta || cantidadVacantes > 0 || bloqueosBorrador.length > 0}
               className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
               <CheckCircle2 size={17}/>{guardando ? 'Publicando…' : 'Publicar horario'}
             </button>}
           </div>
           {generandoAutomatico && <p role="status" className="mt-2 text-sm text-blue-700 dark:text-blue-300">Horarios completos revisados: {avance.soluciones.toLocaleString('es-MX')}. Puedes cancelar y ajustar las restricciones.</p>}
-          {!seleccionCompleta && <p className="mt-2 text-xs text-slate-500">Puedes generar y exportar este borrador parcial. Publicar exige incluir todos los grupos activos y sus materias no complementarias.</p>}
+          {!seleccionCompleta && <p className="mt-2 text-xs text-slate-500">Puedes generar y exportar este borrador parcial. Para publicar, completa los grupos omitidos desde el paso 1 e incluye sus materias no complementarias.</p>}
           {cantidadVacantes > 0 && <p className="mt-2 text-sm font-semibold text-amber-700 dark:text-amber-300">{cantidadVacantes} materia(s) con vacante. El borrador y sus exportaciones muestran los espacios reservados; asigna docentes activos y vuelve a generar para publicar.</p>}
+          {generado && autorizacionesJornada.length > autorizacionesVigentes.length
+            && <div role="status" className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+              {autorizacionesJornada.length - autorizacionesVigentes.length} autorización(es) ya no corresponden a las horas actuales. Revisa las incidencias y autoriza de nuevo solo las que procedan.
+              <button type="button" onClick={descartarAutorizacionesObsoletas}
+                className="rounded-md border border-amber-500 px-2 py-1 text-xs">Descartar obsoletas</button>
+            </div>}
+          {bloqueosBorrador.length > 0 && <div role="alert" className="mt-3 space-y-2 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+            <b>Horario conservado con {bloqueosBorrador.length} conflicto(s) por resolver</b>
+            <p>Las sesiones y ajustes siguen en el borrador. Puedes revisarlos y exportarlos; la publicación permanecerá bloqueada hasta corregirlos.</p>
+            {bloqueosBorrador.some(incidencia => incidencia.codigo === 'HORAS_INCOMPLETAS')
+              && <p>Para cada materia sin horas, usa «Revisar asignación en este borrador» y después «Reacomodar esta materia». Puedes cambiar de docente o elegir una vacante para el borrador; las materias con vacante deben asignarse a un docente activo antes de publicar.</p>}
+            {bloqueosBorrador.slice(0, 8).map((incidencia, indice) => <p key={`${incidencia.codigo}-${indice}`}>• {incidencia.mensaje}</p>)}
+            {bloqueosBorrador.length > 8 && <p>…y {bloqueosBorrador.length - 8} más.</p>}
+          </div>}
           {mostrarGuiaDesbloqueo && <GuiaDesbloqueoHorario
               entrada={borrador!} incidencias={[...bloqueosGeneracion, ...incidencias]}
               modo={modo} permitirVacantes={permitirVacantes} permitirNoPreferidas={permitirNoPreferidas}
@@ -845,13 +1065,25 @@ export default function HorariosAcademicos() {
             busquedaExhaustiva={resumenBusqueda.exhaustiva} solucionesEvaluadas={resumenBusqueda.soluciones}
             ajustado={horarioAjustado} deshabilitado={guardando || exportando || generandoAutomatico}
             onSeleccionar={elegirPropuesta}/>
-          {incidencias.length > 0 && !mostrarGuiaDesbloqueo && <div className="mt-4 space-y-2 rounded-xl border border-slate-200 p-4 text-sm dark:border-slate-700"><b>Resultado de la revisión ({incidencias.length})</b>
-            {incidencias.map((i,n) => <div key={`${i.codigo}-${n}`} className={`rounded-lg px-3 py-2 ${incidenciaSuave(i)
-              ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+          {incidenciasRevision.length > 0 && !mostrarGuiaDesbloqueo && <div className="mt-4 space-y-2 rounded-xl border border-slate-200 p-4 text-sm dark:border-slate-700"><b>Resultado de la revisión ({incidenciasRevision.length})</b>
+            {politica === 'flexible' && generado && borrador && incidenciasRevision.some(i => esJornadaDocenteAutorizable(i, borrador, sesiones))
+              && <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                En Flexible estas jornadas son avisos. Puedes documentar una excepción sin regenerar el borrador; si lo haces, autoriza todas las jornadas cortas docentes antes de publicar y guarda una copia del borrador original.
+              </p>}
+            {incidenciasRevision.map((i,n) => { const autorizable = generado && !vistaPublicada && borrador
+              && esJornadaDocenteAutorizable(i, borrador, sesiones);
+              const autorizacion = autorizable ? autorizacionesVigentes.find(item => item.docenteId === i.docenteId && item.dia === i.dia) : undefined;
+              return <div key={`${i.codigo}-${i.docenteId || i.grupoId || ''}-${i.dia || n}`} className={`rounded-lg px-3 py-2 ${autorizacion
+                ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'
+                : incidenciaSuave(i) ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
               : 'bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300'}`}>
               {contextoIncidencia(i) && <p className="font-bold">{contextoIncidencia(i)}</p>}
               <p>{i.mensaje}</p>
-            </div>)}
+              {autorizable && <AutorizacionJornadaDocente docente={entrada?.docentes.find(d => d.id === i.docenteId)?.nombre || i.docenteId}
+                dia={i.dia} autorizacion={autorizacion} bloqueado={guardando || generandoAutomatico}
+                onAutorizar={motivo => autorizarJornada(i, motivo)}
+                onRetirar={() => retirarAutorizacion(i.docenteId, i.dia)}/>}
+            </div>; })}
           </div>}
         </section>
         {!vistaPublicada && !horarioAjustado && !bloqueosGeneracion.length
@@ -872,28 +1104,47 @@ export default function HorariosAcademicos() {
         {(generado || vistaPublicada) && <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#1c2228]">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><h2 className="text-lg font-bold">Vista previa y descargas</h2>
-              {horarioAjustado && <p className="mt-1 text-xs font-bold text-amber-700 dark:text-amber-300">Horario ajustado manualmente</p>}
-              <p className="text-sm text-slate-500 dark:text-slate-400">Cuadrícula por día y hora con materias y docentes. Las horas asíncronas aparecen aparte.</p>
+              {horarioAjustado && <p className="mt-1 text-xs font-bold text-amber-700 dark:text-amber-300">Borrador con ajustes</p>}
+              <p className="text-sm text-slate-500 dark:text-slate-400">Una hoja por horario: grupos en horizontal y docentes en vertical (A4 o A3 si hay mucho contenido). El PDF reúne la selección; el ZIP incluye un PDF por horario.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button disabled={exportando || !seccionesVista.length} onClick={() => void exportar('pdf')}
-                className="inline-flex items-center gap-2 rounded-lg border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50 dark:border-blue-800 dark:text-blue-300"><Download size={15}/> PDF</button>
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50 dark:border-blue-800 dark:text-blue-300"><Download size={15}/> PDF único</button>
+              <button disabled={exportando || !seccionesVista.length} onClick={() => void exportar('zip')}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50 dark:border-blue-800 dark:text-blue-300"><Download size={15}/> ZIP · PDF individuales</button>
               <button disabled={exportando || !seccionesVista.length} onClick={() => void exportar('docx')}
                 className="inline-flex items-center gap-2 rounded-lg border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50 dark:border-blue-800 dark:text-blue-300"><FileText size={15}/> Word</button>
               {vista.tipo === 'docentes' && <button disabled={exportando || !seccionesVista.length} onClick={() => void exportar('xlsx')}
                 className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 disabled:opacity-50 dark:border-emerald-800 dark:text-emerald-300"><FileSpreadsheet size={15}/> Excel (.xlsx)</button>}
             </div>
           </div>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700">
+            <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={opcionesPresentacion.mostrarAsincronas}
+              onChange={evento => setOpcionesPresentacion(actual => ({ ...actual, mostrarAsincronas: evento.target.checked }))}/>
+              Mostrar trabajo asíncrono sin horario fijo</label>
+            {vista.tipo === 'grupos' && <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox"
+              checked={opcionesPresentacion.mostrarHorasGrupo}
+              onChange={evento => setOpcionesPresentacion(actual => ({ ...actual, mostrarHorasGrupo: evento.target.checked }))}/>
+              Mostrar columna HORAS en materias del grupo</label>}
+          </div>
           <SelectorVistaHorario entrada={entradaVista!} sesiones={sesiones} vista={vista} onCambiar={setVista}/>
+          {vistaPublicada && !!datos?.publicado?.excepcionesJornada.length && <div className="mt-4 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+            <p className="font-bold">Jornadas docentes autorizadas en esta versión ({datos.publicado.excepcionesJornada.length})</p>
+            <ul className="mt-2 space-y-2">{datos.publicado.excepcionesJornada.map((item, indice) => <li key={`${item.docente_id}-${item.dia}-${indice}`}>
+              <span className="font-semibold">{datos.publicado?.entrada.docentes.find(docente => docente.id === item.docente_id)?.nombre || item.docente_id} · {NOMBRES_DIAS[item.dia as keyof typeof NOMBRES_DIAS] || `día ${item.dia}`}</span>
+              <span className="block text-xs">{item.motivo}</span>
+            </li>)}</ul>
+          </div>}
           {generado && !vistaPublicada && <div className="mt-5"><EditorHorarioBorrador entrada={borrador!} sesiones={sesiones} politica={politica}
             vista={vista} onEditarCarga={editarCarga}
             activo={ajusteActivo} ajustado={horarioAjustado}
-            bloqueado={guardando || exportando || guardandoUbicacion || ubicacionesPendientes}
+            bloqueado={guardando || exportando || guardandoUbicacion || ubicacionesPendientes || generandoAutomatico}
             puedeDeshacer={estadosAnteriores.length > 0} puedeRehacer={estadosSiguientes.length > 0}
             onActivar={() => setAjusteActivo(true)} onDesactivar={() => setAjusteActivo(false)}
             onCambiar={cambiarSesionesManual} onDeshacer={deshacerAjuste} onRehacer={rehacerAjuste}
             onRestaurar={restaurarPropuesta}/></div>}
-          {!ajusteActivo || vistaPublicada ? <div className="mt-5"><CuadriculaHorario secciones={seccionesVista} tipo={vista.tipo}/></div> : null}
+          {!ajusteActivo || vistaPublicada ? <div className="mt-5"><CuadriculaHorario secciones={seccionesVista}
+            tipo={vista.tipo} opciones={opcionesPresentacion}/></div> : null}
         </section>}
       </>}
     </div>

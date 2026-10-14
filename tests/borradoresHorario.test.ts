@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { crearContenidoBorrador, firmaContenidoBorrador, recuperarContenidoBorrador } from '../src/horarios/borradores';
+import { borradorPierdeHoras, crearContenidoBorrador, firmaContenidoBorrador, recuperarContenidoBorrador } from '../src/horarios/borradores';
 import type { EntradaHorario, SesionHorario } from '../src/horarios/types';
 import { idVacanteLicenciatura } from '../src/horarios/vacantes.ts';
 
@@ -51,7 +51,7 @@ test('conserva la identidad compartida de una vacante al guardar y recuperar', (
   assert.deepEqual(recuperado.sesiones, sesiones);
 });
 
-test('conserva elecciones pero descarta sesiones cuando cambian datos académicos', () => {
+test('reabre todas las sesiones sin modificar el original cuando cambia la disponibilidad docente', () => {
   const contenido = crearContenidoBorrador(base(), base(), {
     gruposSeleccionados: ['grupo-1'], cargasIncluidas: ['carga-1'], ubicacionesEditadas: {},
     sesiones: [{ ...sesion, docenteId: 'docente-1' }], modo: 'manual', politica: 'flexible',
@@ -60,8 +60,42 @@ test('conserva elecciones pero descarta sesiones cuando cambian datos académico
   const actual = base(); actual.docentes[0].disponibilidad = [];
   const recuperado = recuperarContenidoBorrador(actual, contenido);
   assert.equal(recuperado.cambiado, true);
-  assert.deepEqual(recuperado.sesiones, []);
+  assert.equal(recuperado.sesionesCompatibles, true);
+  assert.deepEqual(recuperado.sesiones, [{ ...sesion, docenteId: 'docente-1' }]);
+  assert.notEqual(recuperado.sesiones[0], contenido.sesiones[0]);
   assert.deepEqual(contenido.sesiones, [{ ...sesion, docenteId: 'docente-1' }]);
+});
+
+test('conserva el ajuste guardado cuando cambia el máximo semanal de otro docente', () => {
+  const origen = base();
+  const contenido = crearContenidoBorrador(origen, origen, {
+    gruposSeleccionados: ['grupo-1'], cargasIncluidas: ['carga-1'], ubicacionesEditadas: {},
+    sesiones: [{ ...sesion, docenteId: 'docente-1', inicio: 9, fin: 11 }],
+    modo: 'manual', politica: 'flexible', permitirVacantes: false,
+    permitirNoPreferidas: false, cargasFijas: [], omitirComplementarias: false,
+  });
+  const actual = base();
+  actual.docentes.push({ ...actual.docentes[0], id: 'docente-2', maxHorasSemanales: 2 });
+  const recuperado = recuperarContenidoBorrador(actual, contenido);
+  assert.equal(recuperado.cambiado, true);
+  assert.equal(recuperado.sesionesCompatibles, true);
+  assert.deepEqual(recuperado.sesiones, contenido.sesiones);
+});
+
+test('recupera horas recién definidas para una materia regular sin tocar las sesiones anteriores', () => {
+  const origen = base(); origen.cargas[0].horasTotales = null;
+  origen.cargas[0].horasPresenciales = null; origen.cargas[0].horasAsincronas = null;
+  const contenido = crearContenidoBorrador(origen, origen, {
+    gruposSeleccionados: ['grupo-1'], cargasIncluidas: ['carga-1'], ubicacionesEditadas: {},
+    sesiones: [], modo: 'automatico', politica: 'flexible', permitirVacantes: false,
+    permitirNoPreferidas: false, cargasFijas: [], omitirComplementarias: false,
+  });
+  const recuperado = recuperarContenidoBorrador(base(), contenido);
+  assert.equal(recuperado.cambiado, true);
+  assert.equal(recuperado.entrada.cargas[0].horasTotales, 2);
+  assert.equal(recuperado.entrada.cargas[0].horasPresenciales, 2);
+  assert.equal(recuperado.entrada.cargas[0].horasAsincronas, 0);
+  assert.equal(contenido.cargas[0].horasPresenciales, null);
 });
 
 test('rechaza un borrador cuya materia ya no existe', () => {
@@ -74,6 +108,20 @@ test('rechaza un borrador cuya materia ya no existe', () => {
   assert.throws(() => recuperarContenidoBorrador(actual, contenido), /ya no existen/);
 });
 
+test('mantiene incluso una sesión incompatible para revisión sin cambiar el JSON guardado', () => {
+  const origen = base();
+  const contenido = crearContenidoBorrador(origen, origen, {
+    gruposSeleccionados: ['grupo-1'], cargasIncluidas: ['carga-1'], ubicacionesEditadas: {},
+    sesiones: [{ ...sesion, docenteId: 'docente-anterior' }],
+    modo: 'manual', politica: 'flexible', permitirVacantes: false,
+    permitirNoPreferidas: false, cargasFijas: [], omitirComplementarias: false,
+  });
+  const recuperado = recuperarContenidoBorrador(base(), contenido);
+  assert.equal(recuperado.sesionesCompatibles, false);
+  assert.deepEqual(recuperado.sesiones, contenido.sesiones);
+  assert.notEqual(recuperado.sesiones[0], contenido.sesiones[0]);
+});
+
 test('compara el contenido aunque JSONB reordene las claves', () => {
   const contenido = crearContenidoBorrador(base(), base(), {
     gruposSeleccionados: ['grupo-1'], cargasIncluidas: ['carga-1'], ubicacionesEditadas: {},
@@ -82,4 +130,9 @@ test('compara el contenido aunque JSONB reordene las claves', () => {
   });
   const reordenado = Object.fromEntries(Object.entries(contenido).reverse()) as typeof contenido;
   assert.equal(firmaContenidoBorrador(contenido), firmaContenidoBorrador(reordenado));
+});
+
+test('exige copia si una edición perdería horas del original guardado', () => {
+  assert.equal(borradorPierdeHoras([sesion], []), true);
+  assert.equal(borradorPierdeHoras([sesion], [{ ...sesion, dia: 2 }]), false);
 });

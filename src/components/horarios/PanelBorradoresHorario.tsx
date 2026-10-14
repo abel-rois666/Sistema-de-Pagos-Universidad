@@ -6,6 +6,7 @@ interface Props {
   borradores: BorradorHorarioGuardado[];
   activoId: string | null;
   activoNombre: string;
+  soloGuardarCopia: boolean;
   bloqueado: boolean;
   ocupado: boolean;
   error: string;
@@ -16,10 +17,11 @@ interface Props {
   onActualizar: () => void;
 }
 
-export default function PanelBorradoresHorario({ borradores, activoId, activoNombre, bloqueado,
+export default function PanelBorradoresHorario({ borradores, activoId, activoNombre, soloGuardarCopia, bloqueado,
   ocupado, error, puedeGuardar, onGuardar, onAbrir, onEliminar, onActualizar }: Props) {
   const [nombre, setNombre] = useState(activoNombre);
-  useEffect(() => { setNombre(activoNombre); }, [activoId, activoNombre]);
+  useEffect(() => { setNombre(soloGuardarCopia ? `${activoNombre} (revisión)` : activoNombre); },
+    [activoId, activoNombre, soloGuardarCopia]);
   return <section className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm dark:border-blue-900 dark:bg-[#162030]">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-300">Trabajo en curso</p>
@@ -37,13 +39,14 @@ export default function PanelBorradoresHorario({ borradores, activoId, activoNom
           placeholder="Ej. Propuesta de octubre" disabled={bloqueado || ocupado}
           className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"/>
       </label>
-      <button type="button" onClick={() => onGuardar(nombre, false)}
+      <button type="button" onClick={() => onGuardar(nombre, soloGuardarCopia)}
         disabled={!puedeGuardar || bloqueado || ocupado || !nombre.trim()}
-        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{activoId ? 'Actualizar borrador' : 'Guardar borrador'}</button>
-      {activoId && <button type="button" onClick={() => onGuardar(nombre, true)}
+        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"><Save size={15}/>{soloGuardarCopia ? 'Guardar copia revisada' : activoId ? 'Actualizar borrador' : 'Guardar borrador'}</button>
+      {activoId && !soloGuardarCopia && <button type="button" onClick={() => onGuardar(nombre, true)}
         disabled={!puedeGuardar || bloqueado || ocupado || !nombre.trim()}
         className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 disabled:opacity-40 dark:border-blue-700 dark:text-blue-300">Guardar copia</button>}
     </div>
+    {soloGuardarCopia && <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">El borrador original se conservará. Guarda los cambios en una copia después de revisar la configuración actual.</p>}
     {error && <p role="alert" className="mt-3 text-sm text-amber-700 dark:text-amber-300">{error}</p>}
     <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
       {borradores.map(b => <div key={b.id} className={`rounded-xl border p-3 ${activoId === b.id

@@ -1,4 +1,6 @@
 import type { PoliticaHorario } from './politicaHorario';
+import { esModalidadMixta } from './medios';
+import type { AutorizacionJornadaDocente } from './autorizacionesJornada';
 import type { CargaHorario, ConfiguracionHorario, EntradaHorario, GrupoHorario, SesionHorario } from './types';
 
 export interface ContenidoBorradorHorario {
@@ -8,7 +10,8 @@ export interface ContenidoBorradorHorario {
   cargasIncluidas: string[];
   ubicacionesEditadas: Record<string, { aula: string; sede: string }>;
   grupos: Pick<GrupoHorario, 'id' | 'aula' | 'sede'>[];
-  cargas: Pick<CargaHorario, 'id' | 'docenteId' | 'horasPresenciales' | 'horasAsincronas' | 'maxBloque'>[];
+  cargas: Array<Pick<CargaHorario, 'id' | 'docenteId' | 'horasPresenciales' | 'horasAsincronas' | 'maxBloque'>
+    & { horasEnLinea?: number }>;
   configuracion: ConfiguracionHorario;
   sesiones: SesionHorario[];
   modo: 'manual' | 'automatico';
@@ -17,6 +20,8 @@ export interface ContenidoBorradorHorario {
   permitirNoPreferidas: boolean;
   cargasFijas: string[];
   omitirComplementarias: boolean;
+  /** Opcional para leer sin cambios todos los borradores creados antes de esta función. */
+  autorizacionesJornada?: AutorizacionJornadaDocente[];
 }
 
 /** JSONB puede devolver claves en otro orden; compara el contenido, no la serialización. */
@@ -30,12 +35,12 @@ export function firmaContenidoBorrador(contenido: ContenidoBorradorHorario): str
   return JSON.stringify(ordenar(contenido));
 }
 
-/** Registra únicamente los datos de origen que invalidarían un horario ya colocado. */
+/** Detecta cambios de origen para revalidar el horario conservado al abrirlo. */
 export function firmaDatosHorario(entrada: EntradaHorario): string {
   return JSON.stringify({
-    grupos: entrada.grupos.map(g => [g.id, g.cicloId, g.planId, g.turno, g.aula, g.sede]).sort(),
+    grupos: entrada.grupos.map(g => [g.id, g.cicloId, g.planId, g.turno, g.planModalidad, g.aula, g.sede]).sort(),
     cargas: entrada.cargas.map(c => [c.id, c.grupoId, c.asignaturaId, c.horasTotales,
-      c.horasPresenciales, c.horasAsincronas, c.docenteId]).sort(),
+      c.horasPresenciales, c.horasEnLinea || 0, c.horasAsincronas, c.docenteId]).sort(),
     docentes: entrada.docentes.map(d => [d.id, d.activo, d.disponibilidad, d.planes,
       d.gruposRestringidos, d.maxHorasSemanales]).sort(),
     externas: entrada.ocupacionesExternas?.map(s => [s.cargaId, s.docenteId, s.dia, s.inicio, s.fin]).sort(),
@@ -48,10 +53,16 @@ export function crearContenidoBorrador(entradaBase: EntradaHorario, entrada: Ent
   return {
     ...opciones, esquema: 1, firmaDatos: firmaDatosHorario(entradaBase),
     grupos: entrada.grupos.map(({ id, aula, sede }) => ({ id, aula, sede })),
-    cargas: entrada.cargas.map(({ id, docenteId, horasPresenciales, horasAsincronas, maxBloque }) =>
-      ({ id, docenteId, horasPresenciales, horasAsincronas, maxBloque })),
+    cargas: entrada.cargas.map(({ id, docenteId, horasPresenciales, horasEnLinea, horasAsincronas, maxBloque }) =>
+      ({ id, docenteId, horasPresenciales, horasEnLinea: horasEnLinea || 0, horasAsincronas, maxBloque })),
     configuracion: { ...entrada.configuracion },
   };
+}
+
+/** Una pérdida de horas en el editor no puede sobrescribir un borrador que tenía más trabajo guardado. */
+export function borradorPierdeHoras(guardadas: SesionHorario[], actuales: SesionHorario[]): boolean {
+  const horas = (sesiones: SesionHorario[]) => sesiones.reduce((total, sesion) => total + sesion.fin - sesion.inicio, 0);
+  return horas(guardadas) > horas(actuales);
 }
 
 export function recuperarContenidoBorrador(base: EntradaHorario, contenido: ContenidoBorradorHorario) {
@@ -67,14 +78,25 @@ export function recuperarContenidoBorrador(base: EntradaHorario, contenido: Cont
     throw new Error('El borrador contiene grupos o materias que ya no existen en este ciclo.');
   const grupos = new Map(contenido.grupos.map(g => [g.id, g]));
   const cargas = new Map(contenido.cargas.map(c => [c.id, c]));
+  const grupoPorId = new Map(base.grupos.map(grupo => [grupo.id, grupo]));
   const entrada: EntradaHorario = { ...base,
     grupos: base.grupos.map(g => ({ ...g, ...grupos.get(g.id) })),
-    cargas: base.cargas.map(c => ({ ...c, ...cargas.get(c.id) })),
+    cargas: base.cargas.map(c => { const guardada = cargas.get(c.id);
+      if (!guardada) return c;
+      const grupo = grupoPorId.get(c.grupoId);
+      const totalDefinidoDespues = guardada.horasPresenciales == null
+        && Number.isInteger(c.horasTotales) && (c.horasTotales || 0) > 0
+        && grupo?.turno !== 'MIXTO' && !esModalidadMixta(grupo?.planModalidad);
+      return { ...c, ...guardada, horasEnLinea: guardada.horasEnLinea ?? 0,
+        ...(totalDefinidoDespues ? { horasPresenciales: c.horasTotales, horasAsincronas: 0 } : {}) };
+    }),
     configuracion: { ...base.configuracion, ...contenido.configuracion },
   };
   const cambiado = firmaDatosHorario(base) !== contenido.firmaDatos;
-  const sesionesValidas = contenido.sesiones.every(s => cargasBase.has(s.cargaId)
+  const sesionesCompatibles = contenido.sesiones.every(s => cargasBase.has(s.cargaId)
     && gruposBase.has(s.grupoId) && entrada.cargas.some(c => c.id === s.cargaId
       && c.grupoId === s.grupoId && c.asignaturaId === s.asignaturaId && c.docenteId === s.docenteId));
-  return { entrada, cambiado, sesiones: !cambiado && sesionesValidas ? contenido.sesiones : [] };
+  // La revalidación puede impedir publicar, pero nunca debe borrar el trabajo guardado.
+  return { entrada, cambiado, sesionesCompatibles,
+    sesiones: contenido.sesiones.map(s => ({ ...s })) };
 }

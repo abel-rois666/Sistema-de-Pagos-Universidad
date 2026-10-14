@@ -43,6 +43,17 @@ test('permite cambiar el docente de una materia sin regenerar ni mover otras ses
   assert.equal(entrada.cargas[1].docenteId, 'd2');
 });
 
+test('permite cambiar una asignación sin borrar una incidencia previa en otra materia', () => {
+  const { entrada, sesiones } = escenario();
+  entrada.docentes[0].disponibilidad = [];
+  const resultado = probarCambioDocente(entrada, sesiones, 'c2',
+    idVacanteLicenciatura(entrada.grupos[1], 1), 'flexible');
+  assert.notEqual(typeof resultado, 'string');
+  if (typeof resultado === 'string') return;
+  assert.equal(resultado.sesiones[0], sesiones[0]);
+  assert.ok(validarSesiones(resultado.sesiones, resultado.entrada).some(i => i.cargaId === 'c1'));
+});
+
 test('rechaza empalme directo y reacomoda únicamente la materia afectada', () => {
   const { entrada, sesiones } = escenario();
   assert.equal(typeof probarCambioDocente(entrada, sesiones, 'c2', 'd1', 'flexible'), 'string');

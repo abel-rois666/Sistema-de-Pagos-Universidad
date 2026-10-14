@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
-import { encabezadosDias, seccionesCuadriculaHorario, type VistaHorario } from './cuadricula';
+import { encabezadosDias, OPCIONES_PRESENTACION_PREDETERMINADAS, seccionesCuadriculaHorario,
+  type OpcionesPresentacionHorario, type VistaHorario } from './cuadricula';
 import type { EntradaHorario, SesionHorario } from './types';
 
 const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -16,6 +17,7 @@ function nombreHoja(titulo: string, indice: number): string {
 /** Exporta exactamente las secciones docentes o vacantes visibles, una por hoja. */
 export async function crearXlsxHorario(
   entrada: EntradaHorario, sesiones: SesionHorario[], cicloNombre: string, vista: VistaHorario,
+  opciones: OpcionesPresentacionHorario = OPCIONES_PRESENTACION_PREDETERMINADAS,
 ): Promise<Blob> {
   if (vista.tipo !== 'docentes') throw new Error('Excel está disponible para docentes y vacantes.');
   const secciones = seccionesCuadriculaHorario(entrada, sesiones, cicloNombre, vista);
@@ -23,8 +25,12 @@ export async function crearXlsxHorario(
 
   const libro = new ExcelJS.Workbook();
   libro.creator = 'Sistema de Control de Pagos';
+  libro.calcProperties.fullCalcOnLoad = true;
   secciones.forEach((seccion, indice) => {
-    const hoja = libro.addWorksheet(nombreHoja(seccion.titulo, indice));
+    const hoja = libro.addWorksheet(nombreHoja(seccion.titulo, indice), { pageSetup: {
+      paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 1,
+      margins: { left: 0.2, right: 0.2, top: 0.3, bottom: 0.3, header: 0.1, footer: 0.1 },
+    } });
     hoja.columns = [{ width: 20 }, ...seccion.dias.map(() => ({ width: 28 }))];
     const columnas = seccion.dias.length + 1;
 
@@ -71,13 +77,15 @@ export async function crearXlsxHorario(
     const tituloMaterias = hoja.addRow(['Materias y grupos']);
     hoja.mergeCells(tituloMaterias.number, 1, tituloMaterias.number, columnas);
     tituloMaterias.getCell(1).font = { bold: true, size: 12 };
-    const encabezadoMaterias = hoja.addRow(['CLAVE', 'HORAS PRES.', 'MATERIA', 'GRUPO']);
+    tituloMaterias.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    const encabezadoMaterias = hoja.addRow(['CLAVE', 'HORAS', 'MATERIA', 'GRUPO']);
     encabezadoMaterias.eachCell(celda => {
       celda.font = { bold: true };
       celda.fill = relleno('FFD1D5DB');
       celda.border = bordes;
       celda.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     });
+    const primeraFilaMateria = hoja.rowCount + 1;
     seccion.materias.forEach(materia => {
       const horas = Number(materia[1]);
       const fila = hoja.addRow([materia[0], Number.isFinite(horas) ? horas : materia[1], materia[2], materia[3]]);
@@ -87,11 +95,16 @@ export async function crearXlsxHorario(
         celda.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       });
     });
-    const totalMaterias = hoja.addRow(['TOTAL', seccion.totalesDiarios.reduce((a, b) => a + b, 0)]);
+    const ultimaFilaMateria = hoja.rowCount;
+    const totalMaterias = hoja.addRow(['TOTAL']);
+    totalMaterias.getCell(2).value = seccion.materias.length
+      ? { formula: `SUM(B${primeraFilaMateria}:B${ultimaFilaMateria})`,
+        result: seccion.materias.reduce((suma, materia) => suma + (Number(materia[1]) || 0), 0) }
+      : { formula: 'SUM(0)', result: 0 };
     totalMaterias.getCell(1).font = { bold: true };
     totalMaterias.getCell(2).font = { bold: true };
 
-    if (seccion.asincronas.length) {
+    if (opciones.mostrarAsincronas && seccion.asincronas.length) {
       hoja.addRow([]);
       const tituloAsincronas = hoja.addRow(['Trabajo asíncrono sin horario fijo']);
       hoja.mergeCells(tituloAsincronas.number, 1, tituloAsincronas.number, columnas);
@@ -107,6 +120,7 @@ export async function crearXlsxHorario(
         fila.eachCell(celda => { celda.border = bordes; celda.alignment = { wrapText: true }; });
       });
     }
+    hoja.pageSetup.printArea = `A1:${hoja.getColumn(columnas).letter}${hoja.rowCount}`;
   });
   const archivo = await libro.xlsx.writeBuffer();
   return new Blob([archivo], { type: TIPO_XLSX });

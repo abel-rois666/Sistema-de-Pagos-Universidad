@@ -836,7 +836,7 @@ export default function ControlAcademico() {
                 <span className="opacity-80 mr-1.5">Créditos Plan:</span> {Number(asignaturasPlan.reduce((sum, a) => sum + (Number(a.creditos) || 0), 0)).toFixed(2)}
               </span>
               <span className="bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 px-3 py-1.5 rounded-lg flex items-center border border-purple-100 dark:border-purple-900/30">
-                {selectedPlan.modelo || 'RIGIDO'} • {selectedPlan.tipo_periodo || 'Semestral'}
+                {selectedPlan.modelo || 'RIGIDO'} • {selectedPlan.tipo_periodo || 'Semestral'} • {selectedPlan.modalidad || 'ESCOLARIZADA'}
               </span>
               <span className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-lg flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/30">
                 {isEditingCreditos ? (

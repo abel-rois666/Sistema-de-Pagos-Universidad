@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Pin,
   Calendar,
   CalendarClock,
   CheckCircle,
@@ -36,7 +37,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sidebarFijada, setSidebarFijada] = useState(false);
+  const [cursorSobreSidebar, setCursorSobreSidebar] = useState(false);
+  const [ignorarHoverHastaSalir, setIgnorarHoverHastaSalir] = useState(false);
+  const isSidebarOpen = sidebarFijada || (cursorSobreSidebar && !ignorarHoverHastaSalir);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const [showCicloMenu, setShowCicloMenu] = useState(false);
   const cicloMenuRef = useRef<HTMLDivElement>(null);
@@ -123,6 +127,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         children: [
           { name: 'Gestión de Alumnos', path: '/alumnos', icon: <Users size={16}/> },
           { name: 'Grupos', path: '/grupos', icon: <Users size={16}/> },
+          { name: 'Calendarios académicos', path: '/calendarios', icon: <Calendar size={16}/> },
           { name: 'Planes de Estudio', path: '/planes-estudio', icon: <BookOpen size={16}/> },
           { name: 'Calificaciones', path: '/calificaciones', icon: <BookOpen size={16}/> },
           { name: 'Certificación', path: '/certificacion', icon: <FileText size={16}/> },
@@ -188,14 +193,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <motion.aside
         initial={false}
         animate={{ width: isSidebarOpen ? 260 : 76 }}
+        onPointerEnter={event => {
+          if (event.pointerType === 'mouse' || event.pointerType === 'pen') setCursorSobreSidebar(true);
+        }}
+        onPointerLeave={() => {
+          setCursorSobreSidebar(false);
+          setIgnorarHoverHastaSalir(false);
+        }}
         className="relative flex flex-col bg-white dark:bg-[#181e25] border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] shadow-[var(--shadow-subtle)] z-50 h-full flex-shrink-0 transition-all duration-300"
       >
         {/* Toggle Sidebar Button */}
         <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          type="button"
+          aria-label={sidebarFijada ? 'Contraer barra lateral' : 'Mantener barra lateral abierta'}
+          title={sidebarFijada ? 'Contraer barra lateral' : 'Mantener barra lateral abierta'}
+          onClick={() => {
+            setSidebarFijada(!sidebarFijada);
+            setIgnorarHoverHastaSalir(sidebarFijada);
+          }}
           className="absolute -right-3 top-6 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-blue-600 rounded-full p-1.5 shadow-md z-10 transition-colors"
         >
-          {isSidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+          {sidebarFijada ? <ChevronLeft size={14} /> : isSidebarOpen ? <Pin size={14} /> : <ChevronRight size={14} />}
         </button>
 
         {/* Logo / Title */}
@@ -227,7 +245,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
               if (hasChildren) {
                 e.preventDefault();
                 if (!isSidebarOpen) {
-                  setIsSidebarOpen(true);
+                  setSidebarFijada(true);
+                  setIgnorarHoverHastaSalir(false);
                   setOpenMenus(prev => ({ ...prev, [item.name]: true }));
                 } else {
                   setOpenMenus(prev => ({ ...prev, [item.name]: !prev[item.name] }));

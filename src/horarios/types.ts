@@ -1,5 +1,6 @@
 export type DiaHorario = 1 | 2 | 3 | 4 | 5 | 6;
 export type TurnoHorario = 'MATUTINO' | 'VESPERTINO' | 'MIXTO';
+export type MedioHorario = 'PRESENCIAL' | 'EN_LINEA';
 
 export interface VentanaHorario {
   dia: DiaHorario;
@@ -19,6 +20,8 @@ export interface GrupoHorario {
   carreraNombre?: string | null;
   planNombre?: string | null;
   planClave?: string | null;
+  planModelo?: string | null;
+  planModalidad?: string | null;
   rvoe?: string | null;
   /** Permite un grupo sin sesiones cuando todas sus materias son complementarias omitidas. */
   soloComplementarias?: boolean;
@@ -48,6 +51,8 @@ export interface CargaHorario {
   clasificacionNombre?: string | null;
   horasTotales: number | null;
   horasPresenciales: number | null;
+  /** Parte de horasPresenciales que se imparte en línea; el nombre legado cuenta todas las horas síncronas. */
+  horasEnLinea?: number;
   horasAsincronas: number | null;
   docenteId: string | null;
   maxBloque?: 1 | 2 | 3 | 4;
@@ -61,6 +66,8 @@ export interface SesionHorario {
   dia: DiaHorario;
   inicio: number;
   fin: number;
+  /** Ausente en borradores anteriores: equivale a PRESENCIAL. */
+  medio?: MedioHorario;
   aula?: string | null;
   sede?: string | null;
 }
@@ -68,6 +75,7 @@ export interface SesionHorario {
 export interface IncidenciaHorario {
   codigo: string;
   mensaje: string;
+  dia?: DiaHorario;
   grupoId?: string;
   cargaId?: string;
   docenteId?: string;

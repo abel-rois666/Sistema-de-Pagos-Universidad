@@ -3,6 +3,7 @@ import { docentesElegibles } from '../../horarios/motor';
 import type { CambioLocalHorario } from '../../horarios/edicionLocal';
 import { NOMBRES_DIAS, type EntradaHorario, type SesionHorario } from '../../horarios/types';
 import { etiquetaVacante, siguienteVacante, vacantesDeLicenciatura } from '../../horarios/vacantes';
+import { compararNombresDocentes } from '../../horarios/ordenDocentesHorario';
 
 interface Props {
   entrada: EntradaHorario;
@@ -30,7 +31,8 @@ export default function PanelEdicionAsignacion({ entrada, sesiones, cargaId, doc
   const grupo = entrada.grupos.find(item => item.id === carga?.grupoId);
   if (!carga || !grupo) return null;
   const elegibles = docentesElegibles(carga, grupo, entrada.docentes, entrada.ocupacionesExternas,
-    entrada.cargas.filter(item => item.id !== carga.id));
+    entrada.cargas.filter(item => item.id !== carga.id))
+    .sort((a, b) => compararNombresDocentes(a.nombre, b.nombre) || a.id.localeCompare(b.id));
   const vacantes = vacantesDeLicenciatura(entrada, grupo);
   const nuevaVacante = siguienteVacante(entrada, grupo);
   const destino = docenteId || carga.docenteId || '';

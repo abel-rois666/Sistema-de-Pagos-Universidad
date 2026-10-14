@@ -28,5 +28,5 @@ export function aplicarHorasPresencialesMasivas(
   }
   const ids = new Set(objetivo.map(carga => carga.id));
   return { cantidad: objetivo.length, entrada: { ...entrada, cargas: entrada.cargas.map(carga => ids.has(carga.id)
-    ? { ...carga, horasPresenciales: horas, horasAsincronas: carga.horasTotales! - horas } : carga) } };
+    ? { ...carga, horasPresenciales: horas, horasEnLinea: 0, horasAsincronas: carga.horasTotales! - horas } : carga) } };
 }

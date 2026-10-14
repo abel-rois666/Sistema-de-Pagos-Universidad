@@ -31,6 +31,7 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
     licenciatura_id: carreraIdActiva || (carreras[0]?.id ?? ''),
     tipo_periodo: 'SEMESTRAL',
     modelo: 'RIGIDO',
+    modalidad: 'ESCOLARIZADA',
     estatus: 'ACTIVO',
     id_plan_certificacion: undefined,
     id_autorizacion_reconocimiento: undefined,
@@ -51,6 +52,7 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         licenciatura_id: plan.licenciatura_id || plan.carrera_id || '',
         tipo_periodo: plan.tipo_periodo?.toUpperCase() || 'SEMESTRAL',
         modelo: plan.modelo || 'RIGIDO',
+        modalidad: plan.modalidad || 'ESCOLARIZADA',
         creditos_obligatorios: plan.creditos_obligatorios !== undefined && plan.creditos_obligatorios !== null ? plan.creditos_obligatorios : 0,
         estatus: plan.estatus || 'ACTIVO',
         id_plan_certificacion: plan.id_plan_certificacion || undefined,
@@ -68,6 +70,7 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         licenciatura_id: carreraIdActiva || (carreras[0]?.id ?? ''),
         tipo_periodo: 'SEMESTRAL',
         modelo: 'RIGIDO',
+        modalidad: 'ESCOLARIZADA',
         creditos_obligatorios: 0,
         estatus: 'ACTIVO',
         id_plan_certificacion: undefined,
@@ -111,6 +114,7 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
         tipo_periodo: form.tipo_periodo,
         id_tipo_periodo: TIPO_PERIODO_MAP[form.tipo_periodo?.toUpperCase() || ''] || null,
         modelo: form.modelo,
+        modalidad: form.modalidad || 'ESCOLARIZADA',
         creditos_obligatorios: form.creditos_obligatorios,
         carrera_id: form.carrera_id,
         licenciatura_id: form.licenciatura_id, // Mismo ID por retrocompatibilidad
@@ -292,6 +296,19 @@ export default function ModalPlanEstudio({ plan, carreraIdActiva, carreras, onCl
                 <option value="FLEXIBLE">FLEXIBLE</option>
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-[#45515e] dark:text-[#8e8e93]">Modalidad del plan</label>
+            <select value={form.modalidad || 'ESCOLARIZADA'}
+              onChange={e => setForm({ ...form, modalidad: e.target.value as PlanEstudio['modalidad'] })}
+              className="w-full rounded-[10px] border border-gray-300 bg-white px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1456f0] dark:border-white/10 dark:bg-[#181e25] dark:text-gray-100">
+              <option value="ESCOLARIZADA">Escolarizada</option>
+              <option value="MIXTA">Mixta</option>
+              <option value="NO_ESCOLARIZADA">No escolarizada</option>
+              <option value="COMBINADA">Combinada</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-500">La modalidad Mixta permite añadir clases síncronas en línea al turno Mixto. El turno sigue configurándose por grupo.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

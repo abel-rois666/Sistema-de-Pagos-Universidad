@@ -51,6 +51,16 @@ test('mover un bloque conserva duración, asignación y horas semanales', () => 
   assert.deepEqual(validarSesiones(resultado.sesiones!, entrada).filter(i => i.codigo !== 'JORNADA_CORTA_GRUPO'), []);
 });
 
+test('permite reparar un bloque aunque otra sesión recuperada siga fuera de la disponibilidad nueva', () => {
+  const { entrada, sesiones } = datos();
+  entrada.docentes[0].disponibilidad = [{ dia: 1, inicio: 7, fin: 13 }, { dia: 2, inicio: 9, fin: 13 }];
+  assert.ok(validarSesiones(sesiones, entrada).some(i => i.codigo === 'SESION_INVALIDA' && i.cargaId === 'c3'));
+  const resultado = evaluarDestinoBloque(entrada, sesiones, 0, 2, 9);
+  assert.equal(resultado.permitido, true);
+  assert.equal(resultado.sesiones?.find(s => s.cargaId === 'c3')?.inicio, 7);
+  assert.ok(validarSesiones(resultado.sesiones!, entrada).some(i => i.codigo === 'SESION_INVALIDA' && i.cargaId === 'c3'));
+});
+
 test('rechaza turno, indisponibilidad y empalmes de grupo, docente y aula', () => {
   const { entrada, sesiones } = datos();
   assert.match(evaluarDestinoBloque(entrada, sesiones, 0, 6, 7).motivo, /turno/);

@@ -1,4 +1,5 @@
-import { VENTANAS_TURNO, type CargaHorario, type DocenteHorario, type EntradaHorario, type GrupoHorario, type SesionHorario } from './types';
+import { type CargaHorario, type DocenteHorario, type EntradaHorario, type GrupoHorario, type SesionHorario } from './types';
+import { ventanasPorMedio } from './medios';
 
 const PREFIJO_VACANTE = 'vacante:';
 
@@ -41,7 +42,8 @@ export function docenteVacante(carga: CargaHorario, entrada: EntradaHorario, id 
   if (!grupo) return null;
   return {
     id, nombre: etiquetaVacante(id, grupo), activo: true,
-    disponibilidad: Object.values(VENTANAS_TURNO).flat(), planes: [grupo.planId],
+    disponibilidad: [...ventanasPorMedio(grupo.turno, grupo.planModalidad, 'PRESENCIAL'),
+      ...ventanasPorMedio(grupo.turno, grupo.planModalidad, 'EN_LINEA')], planes: [grupo.planId],
     asignaturasPreferidas: [carga.asignaturaId], gruposRestringidos: [],
   };
 }

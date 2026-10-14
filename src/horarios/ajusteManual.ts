@@ -2,7 +2,9 @@ import { evaluarHoras, validarContinuidadMaterias, validarSesiones } from './mot
 import { horasLibresEntreClases } from './reglasJornada';
 import { docenteVacante, esVacante } from './vacantes';
 import { incumplimientosEstrictos, type PoliticaHorario } from './politicaHorario';
-import { DIAS_HORARIO, NOMBRES_DIAS, VENTANAS_TURNO,
+import { conflictosNuevos } from './revisionProgresiva';
+import { medioSesion, ventanasPorMedio } from './medios';
+import { DIAS_HORARIO, NOMBRES_DIAS,
   type DiaHorario, type EntradaHorario, type IncidenciaHorario, type SesionHorario, type TurnoHorario } from './types';
 
 export interface DestinoBloque {
@@ -29,12 +31,12 @@ const horasDia = (sesiones: SesionHorario[], id: string, dia: DiaHorario, campo:
   return [...horas].sort((a, b) => a - b);
 };
 
-const hueco = (horas: number[], dia: DiaHorario, turno?: TurnoHorario) =>
-  horasLibresEntreClases(horas, dia, turno).length;
+const hueco = (horas: number[], dia: DiaHorario, turno?: TurnoHorario, modalidad?: string | null) =>
+  horasLibresEntreClases(horas, dia, turno, modalidad).length;
 
 function penalizacionDia(horas: number[], dia: DiaHorario, maxHueco: number, minHoras: number,
-  turno?: TurnoHorario): number {
-  return Math.max(0, hueco(horas, dia, turno) - maxHueco)
+  turno?: TurnoHorario, modalidad?: string | null): number {
+  return Math.max(0, hueco(horas, dia, turno, modalidad) - maxHueco)
     + (horas.length > 0 ? Math.max(0, minHoras - horas.length) : 0);
 }
 
@@ -45,7 +47,8 @@ function penalizacionAfectada(entrada: EntradaHorario, sesiones: SesionHorario[]
   for (const dia of dias) {
     total += penalizacionDia(horasDia(sesiones, sesion.grupoId, dia, 'grupoId'), dia,
       entrada.configuracion.maxHuecoGrupo, entrada.configuracion.minHorasGrupo ?? 2,
-      entrada.grupos.find(grupo => grupo.id === sesion.grupoId)?.turno);
+      entrada.grupos.find(grupo => grupo.id === sesion.grupoId)?.turno,
+      entrada.grupos.find(grupo => grupo.id === sesion.grupoId)?.planModalidad);
     if (!esVacante(sesion.docenteId)
       && horasDia(sesiones, sesion.docenteId, dia, 'docenteId').length) total += penalizacionDia(
       horasDia(conExternas, sesion.docenteId, dia, 'docenteId'), dia,
@@ -83,7 +86,7 @@ export function evaluarDestinoTramo(entrada: EntradaHorario, sesiones: SesionHor
     return { permitido: false, motivo: 'El destino debe comenzar en una hora completa de lunes a sábado.' };
   if (dia === original.dia && inicio === tramoInicio)
     return { permitido: true, motivo: 'El bloque ya está en este espacio.', sesiones };
-  if (!VENTANAS_TURNO[grupo.turno].some(ventana => ventana.dia === dia
+  if (!ventanasPorMedio(grupo.turno, grupo.planModalidad, medioSesion(original.medio)).some(ventana => ventana.dia === dia
     && ventana.inicio <= inicio && ventana.fin >= fin))
     return { permitido: false, motivo: `El bloque de ${duracion} hora(s) queda fuera del turno ${grupo.turno.toLowerCase()}.` };
   if (!docente.disponibilidad.some(ventana => ventana.dia === dia
@@ -112,21 +115,27 @@ export function evaluarDestinoTramo(entrada: EntradaHorario, sesiones: SesionHor
 
   const candidatas = sesiones.flatMap((sesion, posicion) => posicion === indice
     ? [...remanentes, propuesto] : [sesion]);
-  const discontinuidad = validarContinuidadMaterias(candidatas, entrada)[0];
+  const discontinuidad = conflictosNuevos(validarContinuidadMaterias(sesiones, entrada),
+    validarContinuidadMaterias(candidatas, entrada))[0];
   if (discontinuidad) return { permitido: false, motivo: discontinuidad.mensaje };
   if (validarTodo) {
-    const bloqueos = validarSesiones(candidatas, entrada).filter(incidencia =>
+    const bloqueosAnteriores = validarSesiones(sesiones, entrada).filter(incidencia =>
       !['HUECO_GRUPO', 'HUECO_DOCENTE', 'JORNADA_CORTA_GRUPO', 'JORNADA_CORTA_DOCENTE', 'VACANTE']
         .includes(incidencia.codigo));
+    const bloqueos = conflictosNuevos(bloqueosAnteriores, validarSesiones(candidatas, entrada).filter(incidencia =>
+      !['HUECO_GRUPO', 'HUECO_DOCENTE', 'JORNADA_CORTA_GRUPO', 'JORNADA_CORTA_DOCENTE', 'VACANTE']
+        .includes(incidencia.codigo)));
     if (bloqueos.length) return { permitido: false, motivo: bloqueos[0].mensaje };
   }
   const dias = new Set<DiaHorario>([original.dia, dia]);
   const penalizacionNueva = penalizacionAfectada(entrada, candidatas, tramo, dias);
-  if (politica === 'estricto' && penalizacionNueva > 0) return {
+  if (politica === 'estricto' && penalizacionNueva > penalizacionAfectada(entrada, sesiones, tramo, dias)) return {
     permitido: false, motivo: 'El movimiento crearía un hueco o una jornada inferior al mínimo diario del modo estricto.',
   };
   if (validarTodo && politica === 'estricto') {
-    const incumplimientos = incumplimientosEstrictos(revisarAjusteManual(entrada, candidatas));
+    const incumplimientos = conflictosNuevos(
+      incumplimientosEstrictos(revisarAjusteManual(entrada, sesiones)),
+      incumplimientosEstrictos(revisarAjusteManual(entrada, candidatas)));
     if (incumplimientos.length) return { permitido: false, motivo: incumplimientos[0].mensaje };
   }
   const empeora = penalizacionNueva > penalizacionAfectada(entrada, sesiones, tramo, dias);
@@ -160,10 +169,11 @@ export function marcasGrupoHorario(entrada: EntradaHorario, sesiones: SesionHora
   }
   for (const dia of DIAS_HORARIO) {
     const horas = horasDia(propias, grupoId, dia, 'grupoId');
-    if (hueco(horas, dia, entrada.grupos.find(grupo => grupo.id === grupoId)?.turno)
+    const grupo = entrada.grupos.find(item => item.id === grupoId);
+    if (hueco(horas, dia, grupo?.turno, grupo?.planModalidad)
       > entrada.configuracion.maxHuecoGrupo) {
       for (const hora of horasLibresEntreClases(horas, dia,
-        entrada.grupos.find(grupo => grupo.id === grupoId)?.turno)) marcar(dia, hora, 'hueco');
+        grupo?.turno, grupo?.planModalidad)) marcar(dia, hora, 'hueco');
     }
     if (horas.length > 0 && horas.length < (entrada.configuracion.minHorasGrupo ?? 2)) {
       for (const hora of horas) marcar(dia, hora, 'jornada');

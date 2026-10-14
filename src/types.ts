@@ -505,6 +505,7 @@ export interface PlanEstudio {
   id_autorizacion_reconocimiento?: number; // Nuevo
   autorizacion_reconocimiento?: string; // Nuevo
   modelo?: string;
+  modalidad?: 'ESCOLARIZADA' | 'MIXTA' | 'NO_ESCOLARIZADA' | 'COMBINADA';
   created_at: string;
 }
 

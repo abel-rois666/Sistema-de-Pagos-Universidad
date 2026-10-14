@@ -1,13 +1,21 @@
-import { DIAS_HORARIO, horaTexto, NOMBRES_DIAS, VENTANAS_TURNO,
-  type CargaHorario, type DiaHorario, type EntradaHorario, type GrupoHorario, type SesionHorario } from './types';
+import { DIAS_HORARIO, horaTexto, NOMBRES_DIAS,
+  type CargaHorario, type DiaHorario, type EntradaHorario, type GrupoHorario, type SesionHorario,
+  type TurnoHorario } from './types';
 import { claveLicenciaturaVacante, esVacante, etiquetaVacante } from './vacantes';
 import { ordenarGruposHorario } from './ordenGruposHorario';
+import { compararNombresDocentes } from './ordenDocentesHorario';
+import { medioSesion, ventanasPorMedio } from './medios';
 
 export type VistaHorario = { tipo: 'grupos' | 'docentes'; ids?: string[] };
+export type OpcionesPresentacionHorario = { mostrarAsincronas: boolean; mostrarHorasGrupo: boolean };
+export const OPCIONES_PRESENTACION_PREDETERMINADAS: OpcionesPresentacionHorario = {
+  mostrarAsincronas: true, mostrarHorasGrupo: true,
+};
 
 export interface SeccionCuadriculaHorario {
   id: string;
   titulo: string;
+  turno?: TurnoHorario;
   encabezado: string[];
   dias: DiaHorario[];
   horas: number[];
@@ -31,7 +39,8 @@ export function opcionesVistaHorario(
     .map(grupo => ({ id: grupo.id, nombre: grupo.codigo, clase: 'grupo' }));
   const docentes: OpcionVistaHorario[] = entrada.docentes
     .filter(docente => entrada.cargas.some(carga => carga.docenteId === docente.id))
-    .map(docente => ({ id: docente.id, nombre: docente.nombre, clase: 'docente' }));
+    .map(docente => ({ id: docente.id, nombre: docente.nombre, clase: 'docente' as const }))
+    .sort((a, b) => compararNombresDocentes(a.nombre, b.nombre) || a.id.localeCompare(b.id));
   const grupos = new Map(entrada.grupos.map(grupo => [grupo.id, grupo]));
   const vacantes = new Map<string, { nombre: string; cargas: CargaHorario[] }>();
   for (const carga of entrada.cargas) {
@@ -48,7 +57,7 @@ export function opcionesVistaHorario(
     vacantes.get(id)!.cargas.push(carga);
   }
   const seccionesVacantes: OpcionVistaHorario[] = [...vacantes].sort((a, b) =>
-    a[1].nombre.localeCompare(b[1].nombre, 'es', { numeric: true })).map(([id, { nombre, cargas }]) => ({
+    compararNombresDocentes(a[1].nombre, b[1].nombre) || a[0].localeCompare(b[0])).map(([id, { nombre, cargas }]) => ({
       id, nombre, clase: 'vacantes', cargaIds: cargas.map(carga => carga.id),
     }));
   return [...docentes, ...seccionesVacantes];
@@ -78,7 +87,8 @@ export function seccionesCuadriculaHorario(
     const sesionesEntidad = sesiones.filter(sesion => esGrupo
       ? sesion.grupoId === entidad.id : esSeccionVacantes
         ? idsCargas.has(sesion.cargaId) : sesion.docenteId === entidad.id);
-    const ventanas = esGrupo && grupo ? VENTANAS_TURNO[grupo.turno] : [];
+    const ventanas = esGrupo && grupo ? [...ventanasPorMedio(grupo.turno, grupo.planModalidad, 'PRESENCIAL'),
+      ...ventanasPorMedio(grupo.turno, grupo.planModalidad, 'EN_LINEA')] : [];
     const dias = esGrupo ? [...new Set(ventanas.map(ventana => ventana.dia))].sort((a, b) => a - b)
       : [...DIAS_HORARIO];
     const horas = esGrupo
@@ -102,8 +112,9 @@ export function seccionesCuadriculaHorario(
           return sesionesCelda.map(sesion => {
             const carga = cargas.get(sesion.cargaId);
             const materia = carga?.asignatura || 'Asignatura';
-            return esGrupo ? `${materia}${esVacante(carga?.docenteId) ? '\nVACANTE' : ''}`
-              : `${materia}\n${carga?.asignaturaClave || 'Sin clave'} · ${grupos.get(sesion.grupoId)?.codigo || 'Grupo'}`;
+            const medio = medioSesion(sesion.medio) === 'EN_LINEA' ? '\nEN LÍNEA' : '';
+            return esGrupo ? `${materia}${medio}${esVacante(carga?.docenteId) ? '\nVACANTE' : ''}`
+              : `${materia}${medio}\n${carga?.asignaturaClave || 'Sin clave'} · ${grupos.get(sesion.grupoId)?.codigo || 'Grupo'}`;
           }).join('\n\n');
         }
         if (!esGrupo) return '';
@@ -123,7 +134,8 @@ export function seccionesCuadriculaHorario(
       grupo?.carreraNombre || 'Horario de grupo',
       ...(grupo?.rvoe ? [`R.V.O.E. ${grupo.rvoe}`] : []),
       ...(grupo?.planNombre || grupo?.planClave ? [`Plan de estudios: ${grupo.planNombre || grupo.planClave}`] : []),
-      `Grupo: ${entidad.nombre} · ${grupo?.turno || ''}${grupo?.grado ? ` · grado ${grupo.grado}` : ''}`,
+      `Grupo: ${entidad.nombre} · ${grupo?.turno || ''}${grupo?.grado && grupo.planModelo?.toUpperCase() !== 'FLEXIBLE' ? ` · grado ${grupo.grado}` : ''}`,
+      ...(grupo?.planModalidad ? [`Modalidad: ${grupo.planModalidad}`] : []),
       `Ciclo escolar ${cicloNombre}`,
       ...(cargasEntidad.some(carga => esVacante(carga.docenteId)) ? ['BORRADOR · VACANTE PENDIENTE DE DOCENTE'] : []),
     ] : esSeccionVacantes ? [
@@ -137,8 +149,19 @@ export function seccionesCuadriculaHorario(
       `Ciclo escolar ${cicloNombre}`,
     ];
     return { id: entidad.id, titulo: esGrupo ? `Grupo ${entidad.nombre}` : esSeccionVacantes ? entidad.nombre : `Docente ${entidad.nombre}`,
-      encabezado, dias, horas, filas, noDisponibles, totalesDiarios, materias, asincronas };
+      turno: grupo?.turno, encabezado, dias, horas, filas, noDisponibles, totalesDiarios, materias, asincronas };
   });
 }
 
 export const encabezadosDias = (dias: DiaHorario[]) => ['HORARIO', ...dias.map(dia => NOMBRES_DIAS[dia].toUpperCase())];
+
+export function tablaMateriasHorario(
+  seccion: SeccionCuadriculaHorario, tipo: VistaHorario['tipo'],
+  opciones: OpcionesPresentacionHorario = OPCIONES_PRESENTACION_PREDETERMINADAS,
+): { encabezado: string[]; filas: string[][] } {
+  const mostrarHoras = tipo === 'docentes' || opciones.mostrarHorasGrupo;
+  const encabezado = mostrarHoras ? ['CLAVE', 'HORAS', 'MATERIA', tipo === 'grupos' ? 'DOCENTE' : 'GRUPO']
+    : ['CLAVE', 'MATERIA', 'DOCENTE'];
+  return { encabezado, filas: mostrarHoras ? seccion.materias : seccion.materias.map(([clave, , materia, responsable]) =>
+    [clave, materia, responsable]) };
+}
