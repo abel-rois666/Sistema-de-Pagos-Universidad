@@ -47,7 +47,7 @@ export const pagosService = {
         p_saldo_delta: saldoDelta || 0
       };
 
-      const { data, error } = await supabase.rpc('registrar_pago_transaccional', payload);
+      const { data, error } = await supabase.rpc('registrar_pago_transaccional_v2', payload);
 
       if (error) throw error;
       
