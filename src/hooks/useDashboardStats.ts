@@ -3,11 +3,12 @@ import { useAppStore } from '../store/useAppStore';
 import { PaymentPlan } from '../types';
 import { isPaid, getRestanteFromEstatus } from '../utils';
 
-export function useDashboardStats() {
-  const { plans, ciclos, alumnos, activeCicloId } = useAppStore();
+export function useDashboardStats(cicloConsultaId?: string) {
+  const { plans, ciclos, alumnos, activeCicloId: cicloGlobalId } = useAppStore();
+  const activeCicloId = cicloConsultaId ?? cicloGlobalId;
 
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-  const filteredPlans = plans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
+  const filteredPlans = plans.filter(p => p.ciclo_id === activeCicloId);
 
   const totalActivos = alumnos.filter(a => a.estatus === 'ACTIVO').length;
   // Solo cuenta alumnos con AL MENOS UN pago vencido a la fecha de hoy (no pagos futuros)

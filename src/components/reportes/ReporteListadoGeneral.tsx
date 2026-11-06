@@ -1,41 +1,23 @@
-import React, { useState, useMemo } from 'react';
+import { useMemo,useState,type ReactNode } from 'react';
+import toast from 'react-hot-toast';
+import { ArrowLeft,ArrowUpDown,Download,FileText,Printer,SlidersHorizontal } from 'lucide-react';
 import { MultiSelectFilter } from '../MultiSelectFilter';
+import AyudaContextual, { CampoConAyuda } from '../ui/AyudaContextual';
+import '../ui/temaModulosEscolares.css';
 import { useAppStore } from '../../store/useAppStore';
-import { Alumno } from '../../types';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { 
-  FileText, 
-  Printer, 
-  Download, 
-  Filter, 
-  Eye, 
-  EyeOff,
-  User,
-  GraduationCap,
-  Clock,
-  CheckCircle,
-  ArrowLeft
-} from 'lucide-react';
+import { useCicloModulo } from '../../hooks/useCicloModulo';
+import { COLUMNAS_LISTADO,columnasListado,csvListado,etiquetaColumnaListado,fechaActualListado,fechaCivilValida,gradoListado,ordenarListado,type ColumnaListadoId } from '../../reportes/listadoGeneral';
+import { pdfListadoGeneral } from '../../reportes/exportarListadoGeneral';
 
-interface Props {
-  onBack: () => void;
-}
-
-export const ReporteListadoGeneral: React.FC<Props> = ({ onBack }) => {
-  const { alumnos, ciclos, catalogos, plans } = useAppStore();
-
-  // Estados de Filtros
-  const [selectedCiclo, setSelectedCiclo] = useState<string>('TODOS');
-  const [selectedLicenciaturas, setSelectedLicenciaturas] = useState<string[]>([]);
-  const [selectedTurno, setSelectedTurno] = useState<string>('TODOS');
-  const [selectedEstatus, setSelectedEstatus] = useState<string>('TODOS');
-  const [selectedTipoPlan, setSelectedTipoPlan] = useState<string>('TODOS');
-  
-  // Estado para mostrar correo
-  const [showEmail, setShowEmail] = useState<boolean>(true);
-
-  // Alumnos filtrados
+interface Props {onBack:()=>void}
+const control='w-full h-[42px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1c2228] px-3 text-sm text-gray-900 dark:text-gray-100';
+export function ReporteListadoGeneral({onBack}:Props){
+ const {alumnos,ciclos,catalogos,plans,activeCicloId,currentUser}=useAppStore();
+ const [selectedCiclo,setSelectedCiclo]=useCicloModulo('listado-general',ciclos,activeCicloId,currentUser?.id,{todos:true});
+ const [selectedLicenciaturas,setSelectedLicenciaturas]=useState<string[]>([]),[selectedTurno,setSelectedTurno]=useState('TODOS'),[selectedEstatus,setSelectedEstatus]=useState('TODOS'),[selectedTipoPlan,setSelectedTipoPlan]=useState('TODOS');
+ const [seleccion,setSeleccion]=useState<ColumnaListadoId[]>(['email']),[fecha,setFecha]=useState(fechaActualListado),[orden,setOrden]=useState<ColumnaListadoId>('nombre'),[descendente,setDescendente]=useState(false),[pagina,setPagina]=useState(0);
+ const [selectedGrados,setSelectedGrados]=useState<string[]>([]);
+ const gradoVisible=seleccion.includes('grado');
   const filteredAlumnos = useMemo(() => {
     return alumnos.filter(a => {
       // Filtrar por ciclo usando el plan de pagos o el campo directo
@@ -65,268 +47,51 @@ export const ReporteListadoGeneral: React.FC<Props> = ({ onBack }) => {
       }
       
       return true;
-    }).sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
+    });
   }, [alumnos, selectedCiclo, selectedLicenciaturas, selectedTurno, selectedEstatus, selectedTipoPlan, plans]);
 
-  const nombreCicloSeleccionado = ciclos.find(c => c.id === selectedCiclo)?.nombre || 'Todos los Ciclos';
-  
-  // Lista única de estatus y tipo de plan para los selectores
-  const estatusList = useMemo(() => Array.from(new Set(alumnos.map(a => a.estatus).filter(Boolean))).sort(), [alumnos]);
-  const tipoPlanList = useMemo(() => Array.from(new Set(plans.map(p => p.tipo_plan).filter(Boolean))).sort(), [plans]);
 
-  // Exportar a CSV
-  const handleExportCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Cabeceras
-    const headers = ["Nombre Completo", "Licenciatura", "Turno", "Estatus", "Teléfonos"];
-    if (showEmail) headers.push("Correo Electrónico");
-    csvContent += headers.join(",") + "\n";
-
-    // Filas
-    filteredAlumnos.forEach(a => {
-      const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const row = [
-        `"${a.nombre_completo}"`,
-        `"${a.licenciatura}"`,
-        `"${a.turno}"`,
-        `"${a.estatus || ''}"`,
-        `"${telefonos}"`
-      ];
-      if (showEmail) row.push(`"${a.email || ''}"`);
-      csvContent += row.join(",") + "\n";
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `reporte_alumnos_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Exportar a PDF
-  const handleExportPDF = (action: 'download' | 'print') => {
-    const doc = new jsPDF();
-    
-    // Título
-    doc.setFontSize(16);
-    doc.text('Reporte de Alumnos - Control Escolar', 14, 15);
-    
-    doc.setFontSize(11);
-    doc.text(`Ciclo: ${nombreCicloSeleccionado}`, 14, 23);
-    doc.text(`Licenciatura: ${selectedLicenciaturas.length === 0 ? 'Todas' : selectedLicenciaturas.join(', ')}`, 14, 29);
-    doc.text(`Turno: ${selectedTurno === 'TODOS' ? 'Todos' : selectedTurno}`, 14, 35);
-    
-    // Columnas
-    const head = [['Nombre Completo', 'Licenciatura', 'Turno', 'Estatus', 'Teléfonos']];
-    if (showEmail) head[0].push('Correo Electrónico');
-    
-    // Datos
-    const data = filteredAlumnos.map(a => {
-      const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-      const row = [a.nombre_completo, a.licenciatura, a.turno, a.estatus || '', telefonos];
-      if (showEmail) row.push(a.email || '');
-      return row;
-    });
-
-    // Generar tabla
-    autoTable(doc, {
-      startY: 40,
-      head: head,
-      body: data,
-      theme: 'grid',
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [20, 86, 240] },
-    });
-
-    if (action === 'download') {
-      doc.save(`reporte_alumnos_${new Date().toISOString().split('T')[0]}.pdf`);
-    } else {
-      window.open(doc.output('bloburl'), '_blank');
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full bg-white dark:bg-[#1c2228] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-      <div className="flex items-center gap-3 mb-6">
-        <button 
-          onClick={onBack}
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-        >
-          <ArrowLeft className="text-gray-500 dark:text-gray-400" size={24} />
-        </button>
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
-          <FileText className="text-blue-600 dark:text-blue-400" size={28} />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 font-display">Listado General de Alumnos</h2>
-          <p className="text-gray-500 dark:text-gray-400">Generador de listados y reportes generales</p>
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row gap-4 mb-6 bg-gray-50 dark:bg-[#252d36] p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-        <div className="flex-1">
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
-            <Clock size={16}/> Ciclo Escolar
-          </label>
-          <select 
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
-            value={selectedCiclo}
-            onChange={(e) => setSelectedCiclo(e.target.value)}
-          >
-            <option value="TODOS">Todos los Ciclos</option>
-            {[...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre)).map(c => (
-              <option key={c.id} value={c.id}>{c.nombre} {c.tipo_periodo ? `(${c.tipo_periodo})` : ''}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex-1 min-w-[200px] z-20">
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
-            <GraduationCap size={16}/> Licenciatura
-          </label>
-          <div className="w-full h-[42px]">
-            <MultiSelectFilter 
-              label={selectedLicenciaturas.length === 0 ? "Todas las Licenciaturas" : "Varias Licenciaturas"}
-              options={catalogos.licenciaturas}
-              selected={selectedLicenciaturas}
-              onChange={setSelectedLicenciaturas}
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 min-w-[150px]">
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
-            <FileText size={16}/> Tipo de Plan
-          </label>
-          <select 
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
-            value={selectedTipoPlan}
-            onChange={(e) => setSelectedTipoPlan(e.target.value)}
-          >
-            <option value="TODOS">Todos los Planes</option>
-            {tipoPlanList.map(t => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex-1">
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
-            <User size={16}/> Turno
-          </label>
-          <select 
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
-            value={selectedTurno}
-            onChange={(e) => setSelectedTurno(e.target.value)}
-          >
-            <option value="TODOS">Todos los Turnos</option>
-            {catalogos.turnos.map(turno => (
-              <option key={turno} value={turno}>{turno}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex-1">
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
-            <CheckCircle size={16}/> Estatus
-          </label>
-          <select 
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 h-[42px]"
-            value={selectedEstatus}
-            onChange={(e) => setSelectedEstatus(e.target.value)}
-          >
-            <option value="TODOS">Todos los Estatus</option>
-            {estatusList.map(est => (
-              <option key={est} value={est}>{est}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
-            {filteredAlumnos.length} Alumnos Encontrados
-          </span>
-          <button 
-            onClick={() => setShowEmail(!showEmail)}
-            className={`flex items-center gap-2 text-sm px-3 py-1 rounded-full transition-colors ${showEmail ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}
-          >
-            {showEmail ? <EyeOff size={16}/> : <Eye size={16}/>}
-            {showEmail ? 'Ocultar Correo' : 'Mostrar Correo'}
-          </button>
-        </div>
-        
-        <div className="flex gap-2">
-          <button 
-            onClick={() => handleExportPDF('print')}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg transition-colors font-medium text-sm"
-          >
-            <Printer size={18} /> Imprimir
-          </button>
-          <button 
-            onClick={() => handleExportPDF('download')}
-            className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-800/50 text-red-600 dark:text-red-400 rounded-lg transition-colors font-medium text-sm border border-red-200 dark:border-red-800/50"
-          >
-            <Download size={18} /> PDF
-          </button>
-          <button 
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2 bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors font-medium text-sm border border-green-200 dark:border-green-800/50"
-          >
-            <Download size={18} /> CSV
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto border border-gray-200 dark:border-gray-700 rounded-xl">
-        <table className="w-full text-left border-collapse">
-          <thead className="bg-gray-50 dark:bg-[#2a3441] sticky top-0 z-10 shadow-sm">
-            <tr>
-              <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Nombre Completo</th>
-              <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Licenciatura</th>
-              <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Turno</th>
-              <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Estatus</th>
-              <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Teléfonos</th>
-              {showEmail && <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">Correo Electrónico</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-transparent">
-            {filteredAlumnos.length > 0 ? (
-              filteredAlumnos.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                  <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">{a.nombre_completo}</td>
-                  <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{a.licenciatura}</td>
-                  <td className="p-3 text-sm text-gray-600 dark:text-gray-400">{a.turno}</td>
-                  <td className="p-3 text-sm">
-                    <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                      a.estatus === 'ACTIVO' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 
-                      a.estatus === 'INACTIVO' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 
-                      'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
-                    }`}>
-                      {a.estatus || 'S/E'}
-                    </span>
-                  </td>
-                  <td className="p-3 text-sm text-gray-600 dark:text-gray-400">
-                    {[a.telefono, a.celular].filter(Boolean).join(" / ") || '-'}
-                  </td>
-                  {showEmail && <td className="p-3 text-sm text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{a.email || '-'}</td>}
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={showEmail ? 6 : 5} className="p-8 text-center text-gray-500 dark:text-gray-400">
-                  <Filter size={32} className="mx-auto mb-2 opacity-50" />
-                  No se encontraron alumnos con los filtros seleccionados
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
+ const columnas=useMemo(()=>columnasListado(seleccion),[seleccion]);
+ const alumnosPorGrado=useMemo(()=>gradoVisible&&selectedGrados.length
+  ?filteredAlumnos.filter(a=>selectedGrados.includes(gradoListado(a.grado_actual)))
+  :filteredAlumnos,[filteredAlumnos,gradoVisible,selectedGrados]);
+ const ordenados=useMemo(()=>ordenarListado(alumnosPorGrado,orden,descendente,fecha),[alumnosPorGrado,orden,descendente,fecha]);
+ const gradoList=useMemo(()=>[...new Set(alumnos.map(a=>gradoListado(a.grado_actual)))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true})),[alumnos]);
+ const paginaActual=Math.min(pagina,Math.max(0,Math.ceil(ordenados.length/25)-1)),visibles=ordenados.slice(paginaActual*25,paginaActual*25+25);
+ const ciclo=ciclos.find(c=>c.id===selectedCiclo),nombreCiclo=ciclo?`${ciclo.nombre} · ${ciclo.tipo_periodo||''}`:'Todos los ciclos';
+ const edadVisible=seleccion.includes('edad'),fechaValida=fechaCivilValida(fecha)&&fecha<=fechaActualListado();
+ const estatusList=[...new Set(alumnos.map(a=>a.estatus).filter(Boolean))].sort((a,b)=>a!.localeCompare(b!,'es'));
+ const tipoPlanList=[...new Set(plans.map(p=>p.tipo_plan).filter(Boolean))].sort((a,b)=>a!.localeCompare(b!,'es'));
+ function cambiarColumna(id:ColumnaListadoId){setSeleccion(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);if(id==='grado')setSelectedGrados([]);if(orden===id){setOrden('nombre');setDescendente(false);}setPagina(0);}
+ function exportarPDF(imprimir=false){
+  if(edadVisible&&!fechaValida)return;
+  try{const doc=pdfListadoGeneral(ordenados,columnas,fecha,[`Ciclo de referencia: ${nombreCiclo}`,`Licenciatura: ${selectedLicenciaturas.length?selectedLicenciaturas.join(', '):'Todas'}`,`Turno: ${selectedTurno==='TODOS'?'Todos':selectedTurno} · Estatus: ${selectedEstatus==='TODOS'?'Todos':selectedEstatus}`,`Tipo de plan: ${selectedTipoPlan==='TODOS'?'Todos':selectedTipoPlan}`,...(gradoVisible?[`Grado de avance actual: ${selectedGrados.length?selectedGrados.join(', '):'Todos'}`]:[])]);
+   if(imprimir)window.open(doc.output('bloburl'),'_blank','noopener');else doc.save(`reporte_alumnos_${fechaActualListado()}.pdf`);
+  }catch{toast.error('No se pudo generar el PDF del listado.');}
+ }
+ function exportarCSV(){
+  if(edadVisible&&!fechaValida)return;
+  const url=URL.createObjectURL(new Blob([csvListado(ordenados,columnas,fecha)],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=url;a.download=`reporte_alumnos_${fechaActualListado()}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }
+ return <div className="w-full min-w-0 flex flex-col gap-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c2228] p-4 sm:p-6 text-gray-900 dark:text-gray-100">
+  <header className="flex items-start gap-3"><button aria-label="Volver a reportes" onClick={onBack} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"><ArrowLeft size={22}/></button><FileText size={28} className="shrink-0 text-blue-600 dark:text-blue-400 mt-1"/><div><h2 className="text-xl sm:text-2xl font-semibold font-display">Listado General de Alumnos</h2><p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Elige los filtros y las columnas que necesitas consultar o exportar.</p></div></header>
+  <section aria-label="Filtros del listado" className="flex flex-wrap gap-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#252d36] p-4">
+   <label className="w-full sm:w-56 min-w-0"><span className="block text-sm font-semibold mb-1">Ciclo escolar</span><select className={control} value={selectedCiclo} onChange={e=>{setSelectedCiclo(e.target.value);setPagina(0);}}><option value="TODOS">Todos los ciclos</option>{[...ciclos].sort((a,b)=>b.nombre.localeCompare(a.nombre,'es',{numeric:true})||(a.tipo_periodo||'').localeCompare(b.tipo_periodo||'','es')).map(c=><option key={c.id} value={c.id}>{c.nombre} · {c.tipo_periodo}</option>)}</select></label>
+   <div className="w-full sm:w-64 min-w-0 [&>div>button]:min-h-[42px]"><span className="block text-sm font-semibold mb-1">Licenciatura</span><MultiSelectFilter fullWidth label="Licenciaturas" options={[...catalogos.licenciaturas].sort((a,b)=>a.localeCompare(b,'es'))} selected={selectedLicenciaturas} onChange={v=>{setSelectedLicenciaturas(v);setPagina(0);}}/></div>
+   <label className="w-full sm:w-52"><span className="block text-sm font-semibold mb-1">Tipo de plan</span><select className={control} value={selectedTipoPlan} onChange={e=>{setSelectedTipoPlan(e.target.value);setPagina(0);}}><option value="TODOS">Todos los planes</option>{tipoPlanList.map(t=><option key={t} value={t}>{t}</option>)}</select></label>
+   <label className="w-full sm:w-44"><span className="block text-sm font-semibold mb-1">Turno</span><select className={control} value={selectedTurno} onChange={e=>{setSelectedTurno(e.target.value);setPagina(0);}}><option value="TODOS">Todos los turnos</option>{[...catalogos.turnos].sort((a,b)=>a.localeCompare(b,'es')).map(t=><option key={t} value={t}>{t}</option>)}</select></label>
+   <label className="w-full sm:w-48"><span className="block text-sm font-semibold mb-1">Estatus</span><select className={control} value={selectedEstatus} onChange={e=>{setSelectedEstatus(e.target.value);setPagina(0);}}><option value="TODOS">Todos los estatus</option>{estatusList.map(t=><option key={t} value={t}>{t}</option>)}</select></label>
+   {gradoVisible&&<div className="w-full sm:w-64 min-w-0 [&>div>button]:min-h-[42px]">
+    <span className="block text-sm font-semibold mb-1">Grado de avance actual</span>
+    <MultiSelectFilter fullWidth label="Grados" options={gradoList} selected={selectedGrados} onChange={v=>{setSelectedGrados(v);setPagina(0);}}/>
+   </div>}
+  </section>
+  <details className="rounded-xl border border-gray-200 dark:border-gray-700 p-4"><summary className="cursor-pointer font-semibold text-sm"><SlidersHorizontal size={16} className="inline mr-2"/>Columnas del listado ({columnas.length})</summary><p className="mt-3 text-sm text-gray-600 dark:text-gray-400">Las columnas elegidas se usan también en CSV, PDF e impresión. Las cinco columnas básicas permanecen visibles.</p><fieldset className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mt-4"><legend className="sr-only">Columnas opcionales</legend>{COLUMNAS_LISTADO.filter(c=>c.opcional).map(c=><div key={c.id} className="flex items-center justify-between gap-2"><label className="flex items-center gap-2 text-sm min-h-10"><input type="checkbox" checked={seleccion.includes(c.id)} onChange={()=>cambiarColumna(c.id)} className="accent-blue-600 w-4 h-4 shrink-0"/><span>{c.nombre}</span></label>{c.ayuda&&<AyudaContextual etiqueta={c.nombre} texto={c.ayuda}/>}</div>)}</fieldset></details>
+  {edadVisible&&<div className="max-w-sm"><CampoConAyuda etiqueta="Calcular edad al" ayuda="Fecha de referencia para contar años cumplidos. No cambia la fecha de nacimiento ni el ciclo del alumno. Se incluye en el encabezado de la columna exportada."><input className={control} type="date" value={fecha} max={fechaActualListado()} onChange={e=>{setFecha(e.target.value);setPagina(0);}} aria-invalid={!fechaValida}/></CampoConAyuda>{!fechaValida&&<p role="alert" className="text-sm text-red-700 dark:text-red-300 mt-2">Indica una fecha válida, no posterior a hoy, para calcular la edad y exportar.</p>}</div>}
+  <p className="text-xs text-gray-600 dark:text-gray-400">Los datos generales y el grado son actuales: elegir un ciclo anterior no reconstruye su situación histórica. El filtro de ciclo conserva su consulta por plan de pagos o última asignación de grado y no equivale a matrícula confirmada.</p>
+  <div className="flex flex-wrap justify-between items-center gap-3"><p className="text-sm font-semibold">{ordenados.length} alumnos encontrados</p><div className="flex flex-wrap gap-2">{[['Imprimir',()=>exportarPDF(true),<Printer size={16}/>],['PDF',()=>exportarPDF(),<Download size={16}/>],['CSV',exportarCSV,<Download size={16}/>]].map(([nombre,accion,icono])=><button key={String(nombre)} disabled={!ordenados.length||(edadVisible&&!fechaValida)} onClick={accion as ()=>void} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed">{icono as ReactNode}{String(nombre)}</button>)}</div></div>
+  <p className="text-xs text-gray-600 dark:text-gray-400">Pulsa una cabecera para ordenar. Las exportaciones incluyen todos los resultados filtrados, no solo la página visible.</p>
+  <div className="w-full min-w-0 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700"><table className="w-full text-left border-collapse"><thead className="bg-gray-50 dark:bg-[#2a3441]"><tr>{columnas.map(c=><th key={c.id} aria-sort={orden===c.id?(descendente?'descending':'ascending'):'none'} className="p-3 text-xs font-semibold align-top border-b border-gray-200 dark:border-gray-700" style={{minWidth:c.id==='nombre'?210:130}}><button className="flex gap-2 items-start text-left" onClick={()=>{setOrden(c.id);setDescendente(orden===c.id?!descendente:false);setPagina(0);}}>{etiquetaColumnaListado(c,fecha)}<ArrowUpDown size={13} aria-hidden="true" className="shrink-0 mt-0.5"/></button></th>)}</tr></thead><tbody className="divide-y divide-gray-200 dark:divide-gray-700">{visibles.map(a=><tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">{columnas.map(c=><td key={c.id} className="p-3 text-sm align-top whitespace-normal break-words max-w-xs">{c.valor(a,fecha)}</td>)}</tr>)}{!visibles.length&&<tr><td colSpan={columnas.length} className="p-8 text-center text-gray-600 dark:text-gray-400">No se encontraron alumnos con los filtros seleccionados.</td></tr>}</tbody></table></div>
+  <nav aria-label="Páginas del listado" className="flex flex-wrap items-center justify-between gap-3 text-sm"><button disabled={!paginaActual} className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 disabled:text-gray-500" onClick={()=>setPagina(paginaActual-1)}>Anterior</button><span>Página {paginaActual+1} de {Math.max(1,Math.ceil(ordenados.length/25))} · 25 por página</span><button disabled={(paginaActual+1)*25>=ordenados.length} className="rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 disabled:text-gray-500" onClick={()=>setPagina(paginaActual+1)}>Siguiente</button></nav>
+ </div>;
+}

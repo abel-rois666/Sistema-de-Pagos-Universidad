@@ -1,3 +1,4 @@
+import { errorOperacionAcademica } from './operacionesAcademicasService';
 import { supabase, fetchAllSupabase } from '../lib/supabase';
 import { CicloEscolar, Carrera, PlanEstudio, AlumnoPrograma } from '../types';
 import { Result, createSuccess, createError } from './types';
@@ -259,110 +260,9 @@ export const academicosService = {
 
   async activarPlanVigente(alumnoId: string, planId: string): Promise<Result<any>> {
     try {
-      const nowIso = new Date().toISOString();
-
-      // 1. Obtener estado actual del plan que se activará
-      const { data: planActual } = await supabase
-        .from('alumno_programas')
-        .select('estatus, motivo_estatus, estatus_previo')
-        .eq('alumno_id', alumnoId)
-        .eq('plan_id', planId)
-        .maybeSingle();
-
-      const targetEstatus = planActual?.estatus || 'CURSANDO';
-      const isConcluido = ['EGRESADO', 'TITULADO'].includes(targetEstatus);
-      const isBaja = ['BAJA', 'BAJA_POR_CAMBIO'].includes(targetEstatus);
-
-      let nuevoEstatus = targetEstatus;
-      let nuevoMotivo = planActual?.motivo_estatus || 'REGULAR';
-      let nuevoEstatusPrevio = planActual?.estatus_previo || null;
-
-      if (isConcluido) {
-        // Los logros oficiales de egreso se respetan y nunca se reinician a Cursando
-        nuevoMotivo = 'PLAN_CONCLUIDO';
-      } else if (isBaja) {
-        // Vía 1: De BAJA pasa automáticamente a CURSANDO con motivo REINGRESO y respaldo de estatus_previo
-        nuevoEstatus = 'CURSANDO';
-        nuevoMotivo = 'REINGRESO';
-        nuevoEstatusPrevio = targetEstatus;
-      } else if (planActual?.motivo_estatus === 'CARRERA_SIMULTANEA') {
-        nuevoMotivo = 'CARRERA_SIMULTANEA';
-      } else if (planActual?.motivo_estatus === 'SEGUNDA_CARRERA') {
-        nuevoMotivo = 'SEGUNDA_CARRERA';
-      }
-
-      // 2. Apagar la vigencia de TODOS los demás planes del alumno
-      await supabase
-        .from('alumno_programas')
-        .update({ 
-          es_vigente: false, 
-          fecha_ultimo_cambio: nowIso
-        })
-        .eq('alumno_id', alumnoId)
-        .neq('plan_id', planId);
-
-      // 3. Proteger planes concluidos con motivo 'PLAN_CONCLUIDO'
-      await supabase
-        .from('alumno_programas')
-        .update({ 
-          motivo_estatus: 'PLAN_CONCLUIDO'
-        })
-        .eq('alumno_id', alumnoId)
-        .neq('plan_id', planId)
-        .in('estatus', ['EGRESADO', 'TITULADO']);
-
-      // 4. Los planes activos que NO son CARRERA_SIMULTANEA se marcan como 'CAMBIO_DE_CARRERA'
-      // (Si hay una carrera simultánea en curso, se preserva intacta en CURSANDO sin cambiar motivo)
-      await supabase
-        .from('alumno_programas')
-        .update({ 
-          motivo_estatus: 'CAMBIO_DE_CARRERA'
-        })
-        .eq('alumno_id', alumnoId)
-        .neq('plan_id', planId)
-        .not('estatus', 'in', '("EGRESADO","TITULADO")')
-        .neq('motivo_estatus', 'CARRERA_SIMULTANEA');
-
-      // 5. Activar como vigente este plan con su nuevo estatus y motivo
-      const { data, error } = await supabase
-        .from('alumno_programas')
-        .update({ 
-          es_vigente: true, 
-          estatus: nuevoEstatus,
-          motivo_estatus: nuevoMotivo,
-          estatus_previo: nuevoEstatusPrevio,
-          fecha_ultimo_cambio: nowIso
-        })
-        .eq('alumno_id', alumnoId)
-        .eq('plan_id', planId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // 6. Sincronizar alumnos.licenciatura y estatus institucional derivado de su programa rector
-      const { data: planData } = await supabase
-        .from('planes_estudio')
-        .select('carreras:carrera_id(nombre)')
-        .eq('id', planId)
-        .single();
-      const carreraNombre = (planData as any)?.carreras?.nombre;
-
-      const updates: any = {};
-      if (carreraNombre) updates.licenciatura = carreraNombre;
-
-      // El programa rector vigente determina de forma directa y prioritaria el estatus institucional
-      if (nuevoEstatus === 'CURSANDO') {
-        updates.estatus = 'ACTIVO';
-      } else if (['BAJA', 'BAJA_POR_CAMBIO'].includes(nuevoEstatus)) {
-        updates.estatus = 'BAJA';
-      } else {
-        updates.estatus = nuevoEstatus; // 'TITULADO' o 'EGRESADO'
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('alumnos').update(updates).eq('id', alumnoId);
-      }
+      const { data, error } = await supabase.rpc('activar_programa_principal_v1', { p_alumno_id: alumnoId, p_plan_id: planId });
+      if (error) throw errorOperacionAcademica(error);
+      if (!data) throw new Error('El servidor no confirmó el programa principal.');
 
       return createSuccess(data);
     } catch (error) {

@@ -1,3 +1,4 @@
+import { participaEnPromedio } from '../../utils/promedioAcademico';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, Download, AlertCircle, BookOpen, GraduationCap, CheckCircle2, TrendingUp, CalendarDays, Filter } from 'lucide-react';
 import { MultiSelectFilter } from '../MultiSelectFilter';
@@ -153,7 +154,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     try {
       const { data } = await supabase
         .from('alumno_programas')
-        .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo, carrera_id)')
+        .select('id, plan_id, es_vigente, estatus, planes_estudio(nombre, clave_legado, tipo_periodo, carrera_id)')
         .eq('alumno_id', alumno.id)
         .order('fecha_inscripcion', { ascending: false });
       
@@ -162,7 +163,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
         
         // Buscar el plan que coincida con la licenciatura configurada en datos generales
         const licAlumno = alumno.licenciatura?.trim().toUpperCase() || '';
-        const planPrincipal = data.find((p: any) => {
+        const planPrincipal = data.find((p: any) => p.es_vigente) || data.find((p: any) => {
           const plan = p.planes_estudio as any;
           if (!plan || !licAlumno) return false;
           // Match por nombre del plan o clave_legado
@@ -177,39 +178,16 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
             const licNorm = licAlumno.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             if (nombreNorm && nombreNorm === licNorm) return true;
           }
-        }) || data.find((p: any) => p.es_vigente) || ((alumno.estatus?.includes('EGRESADO') || alumno.estatus === 'TITULADO') ? data.find((p: any) => ['EGRESADO', 'TITULADO'].includes(p.estatus)) : null) || data.find((p: any) => p.estatus === 'CURSANDO') || data[0];
+        }) || ((alumno.estatus?.includes('EGRESADO') || alumno.estatus === 'TITULADO') ? data.find((p: any) => ['EGRESADO', 'TITULADO'].includes(p.estatus)) : null) || data.find((p: any) => p.estatus === 'CURSANDO') || data[0];
 
         setPlanActivoId(prev => {
           if (prev && data.some(d => d.plan_id === prev)) return prev;
           return planPrincipal.plan_id;
         });
       } else {
-        // AUTO-HEALING
-        const { data: kardexDeducido } = await supabase
-          .from('inscripciones_academicas')
-          .select('asignaturas(plan_id)')
-          .eq('alumno_id', alumno.id)
-          .limit(1);
-
-        const planDeducido = (kardexDeducido as any)?.[0]?.asignaturas?.plan_id || (kardexDeducido?.[0]?.asignaturas as any)?.[0]?.plan_id;
-        if (planDeducido) {
-          await supabase.from('alumno_programas').insert({
-            alumno_id: alumno.id,
-            plan_id: planDeducido,
-            estatus: alumno.estatus || 'CURSANDO',
-            fecha_inscripcion: new Date().toISOString().split('T')[0]
-          });
-          const { data: dataActualizada } = await supabase
-            .from('alumno_programas')
-            .select('plan_id, estatus, planes_estudio(nombre, clave_legado, tipo_periodo, carrera_id)')
-            .eq('alumno_id', alumno.id)
-            .order('fecha_inscripcion', { ascending: false });
-            
-          if(dataActualizada) {
-             setProgramas(dataActualizada);
-             setPlanActivoId(dataActualizada[0].plan_id);
-          }
-        }
+        setProgramas([]);
+        setPlanActivoId('');
+        toast.error('No hay un programa asociado. Revisa Programas en Datos Generales; consultar el historial no crea inscripciones.');
       }
     } catch (error) {
       console.error("Error fetching programas:", error);
@@ -390,7 +368,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
 
       // REGLA: Calcular promedio con Obligatorias (263) y Optativas (264), INCLUYENDO reprobadas
       const clave = item.asignatura?.clasificacion_clave;
-      if ((clave === '263' || clave === '264') && item.mejor_calificacion !== null) {
+      if (participaEnPromedio(item.asignatura) && item.mejor_calificacion !== null) {
         const califNum = item.mejor_calificacion === -555 ? 0 : item.mejor_calificacion;
         sumPromedio += califNum;
         materiasParaPromedio++;
@@ -727,7 +705,7 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
                     onClick={() => setShowModalReinscripcion(true)}
                     className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors shadow-sm flex items-center gap-2"
                   >
-                    🔄 Reinscribir a Nuevo Ciclo
+                    Preparar avance, pagos y carga
                   </button>
                 )}
               </div>

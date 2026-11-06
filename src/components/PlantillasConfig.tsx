@@ -4,15 +4,19 @@ import { savePlantilla, deletePlantilla } from '../lib/supabase';
 import { PlantillaPlan } from '../types';
 import { toInputDate } from '../utils';
 import { useAppStore } from '../store/useAppStore';
+import { useCicloModulo } from '../hooks/useCicloModulo';
 import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
+import { cicloVisiblePlanPago, validarCicloPlanPago } from '../utils/cicloPlanPago';
 
 interface PlantillasConfigProps {
   onBack: () => void;
 }
 
 export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
-  const { plantillas, ciclos, catalogos, setPlantillas: onSave } = useAppStore();
+  const { plantillas, ciclos, catalogos, setPlantillas: onSave, currentUser, activeCicloId } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [cicloFiltroId, setCicloFiltroId] = useCicloModulo('plantillas-pago', ciclos, activeCicloId,
+    currentUser?.id, { todos: true });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<PlantillaPlan>>({});
   const [saving, setSaving] = useState(false);
@@ -26,18 +30,24 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
   };
 
   const filteredPlantillas = plantillas.filter(p =>
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
+    (cicloFiltroId === 'TODOS' || p.ciclo_id === cicloFiltroId)
+    && (p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase())))
   );
 
-  const getCicloName = (id: string | null) => ciclos.find(c => c.id === id)?.nombre || 'Sin ciclo';
+  const getCicloName = (id: string | null) => {
+    const ciclo = ciclos.find(c => c.id === id);
+    return ciclo ? `${ciclo.nombre} · ${ciclo.tipo_periodo || 'Sin periodicidad'}` : 'Sin ciclo';
+  };
 
   const handleAddNew = () => {
+    const cicloSeleccionado = ciclos.find(ciclo => ciclo.id === cicloFiltroId);
+    const tipoInicial = cicloSeleccionado?.tipo_periodo === 'Semestral' ? 'Semestral' : 'Cuatrimestral';
     setEditingId('new');
     setEditForm({
       nombre: '',
-      ciclo_id: ciclos.find(c => c.activo)?.id || ciclos[0]?.id || null,
-      tipo_plan: 'Cuatrimestral',
+      ciclo_id: cicloSeleccionado?.id || cicloVisiblePlanPago(ciclos, tipoInicial, null, null)?.id || null,
+      tipo_plan: tipoInicial,
       activo: true,
       descripcion: ''
     });
@@ -49,6 +59,9 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
   };
 
   const handleDuplicate = async (plantilla: PlantillaPlan) => {
+    const errorCiclo = plantilla.ciclo_id
+      ? validarCicloPlanPago(ciclos.find(ciclo => ciclo.id === plantilla.ciclo_id), plantilla.tipo_plan) : null;
+    if (errorCiclo) { showNotification('error', errorCiclo); return; }
     setSaving(true);
     const newPlantilla: PlantillaPlan = {
       ...plantilla,
@@ -92,6 +105,10 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
     if (!editForm.nombre) {
       showNotification('error', 'El nombre es obligatorio');
       return;
+    }
+    if (editForm.ciclo_id) {
+      const errorCiclo = validarCicloPlanPago(ciclos.find(ciclo => ciclo.id === editForm.ciclo_id), editForm.tipo_plan);
+      if (errorCiclo) { showNotification('error', errorCiclo); return; }
     }
 
     setSaving(true);
@@ -231,7 +248,7 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
           <select className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-2 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-[#3b82f6] outline-none"
             value={editForm.ciclo_id || ''} onChange={e => setEditForm({ ...editForm, ciclo_id: e.target.value || null })}>
             <option value="">(Ninguno)</option>
-            {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            {ciclos.map(c => <option key={c.id} value={c.id}>{c.nombre} · {c.tipo_periodo || 'Sin periodicidad'}</option>)}
           </select>
         </div>
         <div>
@@ -305,6 +322,17 @@ export default function PlantillasConfig({ onBack }: PlantillasConfigProps) {
             <Plus size={18} /> Nueva Plantilla
           </button>
         </div>
+
+        <label className="mb-5 block max-w-xs text-xs font-bold text-slate-600 dark:text-slate-300">
+          Ciclo de las plantillas
+          <select value={cicloFiltroId} onChange={event => setCicloFiltroId(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-[#1c2228] dark:text-white">
+            <option value="TODOS">Todos los ciclos</option>
+            {[...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es-MX', { numeric: true })
+              || (a.tipo_periodo || '').localeCompare(b.tipo_periodo || '', 'es-MX')).map(ciclo =>
+              <option key={ciclo.id} value={ciclo.id}>{ciclo.nombre} · {ciclo.tipo_periodo || 'Sin periodicidad'}</option>)}
+          </select>
+        </label>
 
         {notification && (
           <div className={`mb-6 flex items-center gap-2 px-4 py-3 rounded-[13px] border font-medium text-sm shadow-[var(--shadow-subtle)]

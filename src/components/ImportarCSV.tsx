@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { X, Upload, Download, CheckCircle, AlertTriangle, FileText, ChevronRight, ChevronLeft, Loader2, AlertCircle, Eye } from 'lucide-react';
@@ -8,6 +9,7 @@ import { CSV_HEADERS, generateCSV, downloadCSV, getCyclePrefix } from '../utils'
 import { PaymentPlan, Alumno, CicloEscolar } from '../types';
 import { alumnosService } from '../services/alumnosService';
 import { pagosService } from '../services/pagosService';
+import { resolverCicloPlanPagoImportado } from '../utils/cicloPlanPago';
 
 // ─── Tipos internos ──────────────────────────────────────────────────────────
 interface ParsedRow {
@@ -247,10 +249,11 @@ function buildAlumnoAndPlan(
     existingAlumnos: Alumno[],
     existingPlans: PaymentPlan[]
 ): { alumno: Alumno | null; plan: PaymentPlan | null; warning?: string; alumnoUpdated?: boolean } {
-    // Resolver el ciclo_id correcto: buscar por nombre en la lista completa de ciclos
-    const cicloResuelto = ciclos.find(
-        c => c.nombre.trim().toUpperCase() === (row.ciclo_escolar || '').trim().toUpperCase()
-    );
+    const cicloResuelto = resolverCicloPlanPagoImportado(ciclos, row.ciclo_escolar, row.tipo_plan);
+    if (row.hasPlanData && !cicloResuelto) return {
+        alumno: null, plan: null,
+        warning: `El ciclo ${row.ciclo_escolar} · ${row.tipo_plan} no tiene una coincidencia única. Revisa la fila antes de importarla.`,
+    };
     const resolvedCicloId = cicloResuelto?.id || activeCicloId;
     // Alumno: reutilizar si ya existe por nombre
     let alumno: Alumno | null = existingAlumnos.find(
@@ -307,8 +310,7 @@ function buildAlumnoAndPlan(
     }
 
     const planDuplicate = existingPlans.find(
-        p => (p.nombre_alumno === row.nombre_alumno) &&
-            (p.ciclo_escolar === row.ciclo_escolar || p.ciclo_id === resolvedCicloId)
+        p => p.alumno_id === alumno.id && p.ciclo_id === resolvedCicloId
     );
 
     const grado_turno = `${row.grado} ${row.turno}`.trim();
@@ -373,7 +375,12 @@ export default function ImportarCSV({
         const reader = new FileReader();
         reader.onload = (e) => {
             const text = e.target?.result as string;
-            const rows = parseRows(text, activeCicloId, activeCicloNombre);
+            const rows = parseRows(text, activeCicloId, activeCicloNombre).map(row => {
+                if (row.hasPlanData && !resolverCicloPlanPagoImportado(ciclos, row.ciclo_escolar, row.tipo_plan))
+                    return { ...row, errors: [...row.errors,
+                        `No existe un ciclo único ${row.ciclo_escolar} · ${row.tipo_plan}.`] };
+                return row;
+            });
             setParsedRows(rows);
             
             // Re-evaluar duplicados por defecto a la última fila
@@ -393,7 +400,7 @@ export default function ImportarCSV({
             setStep(2);
         };
         reader.readAsText(file, 'UTF-8');
-    }, [activeCicloId, activeCicloNombre]);
+    }, [activeCicloId, activeCicloNombre, ciclos]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -451,7 +458,7 @@ export default function ImportarCSV({
                 setProgress({ step: 'Guardando alumnos en BD...', count: saved, total: newAlumnos.length });
             });
             if (!res.success) {
-                alert('Error al guardar alumnos en la BD: ' + res.error?.message);
+                toast.error('Error al guardar alumnos en la BD: ' + res.error?.message);
                 setImporting(false);
                 setProgress(null);
                 return;
@@ -498,7 +505,7 @@ export default function ImportarCSV({
                 setProgress({ step: 'Guardando planes en BD...', count: saved, total: newPlans.length });
             });
             if (!res.success) {
-                alert('Error al guardar planes de pago en la BD: ' + res.error?.message);
+                toast.error('Error al guardar planes de pago en la BD: ' + res.error?.message);
                 setImporting(false);
                 setProgress(null);
                 return;

@@ -4,7 +4,9 @@ import { ArrowLeft, Search, User, Wallet, Edit2, Loader2, Briefcase, FileText, G
 import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '../types';
 import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { calculateStudentTotals, toTitleCase } from '../utils';
+import FichaSecciones from './ficha/FichaSecciones';
 import TabPagos from './tabs/TabPagos';
+import TabInscripcionesAlumno from './tabs/TabInscripcionesAlumno';
 import TabServicioSocial from './tabs/TabServicioSocial';
 import TabCertificacion from './tabs/TabCertificacion';
 import TabTitulacion from './tabs/TabTitulacion';
@@ -14,13 +16,16 @@ import { formatGrado } from '../utils/formatUtils';
 import TabDatosGenerales from './tabs/TabDatosGenerales';
 import TabHistorialAcademico from './tabs/TabHistorialAcademico';
 import { useFichaAlumnoLogic, type TabId, type TabDef } from '../hooks/useFichaAlumnoLogic';
+import ModalConfirmacion from './ui/ModalConfirmacion';
+import SelectorCicloModulo from './ui/SelectorCicloModulo';
 
 // ── Tabs disponibles ────────────────────────────────────────────────────────
 
 const TABS: TabDef[] = [
-  { id: 'pagos',            label: 'Pagos',            icon: <FileText size={15} /> },
   { id: 'datos_generales',  label: 'Datos Generales',  icon: <ClipboardList size={15} /> },
-  { id: 'academico',        label: 'Historial Acad.',  icon: <BookOpen size={15} /> },
+  { id: 'inscripciones', label: 'Trayectoria e inscripciones', icon: <ClipboardList size={15} /> },
+  { id: 'academico',        label: 'Historial académico',  icon: <BookOpen size={15} /> },
+  { id: 'pagos', label: 'Pagos', icon: <FileText size={15} /> },
   { id: 'servicio_social',  label: 'Servicio Social',  icon: <Briefcase size={15} />, adminOnly: true },
   { id: 'certificacion',    label: 'Certificación',    icon: <ScrollText size={15} />, adminOnly: true },
   { id: 'titulacion',       label: 'Titulación',       icon: <GraduationCap size={15} />, adminOnly: true },
@@ -65,6 +70,7 @@ export default function FichaAlumno({
     visibleTabs,
     esEspecialidad,
     planesDelAlumno,
+    ciclos, cicloFichaId, cambiarCicloFicha,
     catalogos,
     onRefreshAlumnos,
     appConfig,
@@ -78,6 +84,12 @@ export default function FichaAlumno({
     handleUpdateMonederoClick,
     executeUpdateMonedero,
   } = useFichaAlumnoLogic(initialAlumnoId, TABS);
+
+  const [programaTrayectoriaId,setProgramaTrayectoriaId]=useState<string|undefined>();
+  useEffect(()=>setProgramaTrayectoriaId(undefined),[selectedAlumnoId]);
+  const [capturaIngresoAbierta,setCapturaIngresoAbierta]=useState(false);
+  const [salidaIngreso,setSalidaIngreso]=useState<(()=>void)|null>(null);
+  const salirSiNecesario=(accion:()=>void)=>capturaIngresoAbierta?setSalidaIngreso(()=>accion):accion();
 
   // ── Barra de búsqueda (inline para no perder foco) ────────────────────────
   const searchBarJSX = (
@@ -95,7 +107,7 @@ export default function FichaAlumno({
           placeholder="Buscar alumno por nombre..."
         />
         {searchTerm && (
-          <button onMouseDown={e => { e.preventDefault(); handleClear(); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none">✕</button>
+          <button onMouseDown={e => { e.preventDefault(); salirSiNecesario(handleClear); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none">✕</button>
         )}
       </div>
       {showSuggestions && searchTerm && (
@@ -104,7 +116,7 @@ export default function FichaAlumno({
             <div key={a.id}
               className="p-3 text-sm hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[rgba(255,255,255,0.06)] hover:text-[#1456f0] dark:hover:text-[#60a5fa] cursor-pointer border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] last:border-0"
               style={{ fontFamily: 'var(--font-ui)' }}
-              onMouseDown={e => { e.preventDefault(); handleSuggestionClick(a); }}
+              onMouseDown={e => { e.preventDefault(); salirSiNecesario(()=>handleSuggestionClick(a)); }}
             >
               <span className="font-medium text-[#222222] dark:text-gray-200 block">{toTitleCase(a.nombre_completo)}</span>
               <span className="text-[#8e8e93] text-xs">{toTitleCase(a.licenciatura)} · {formatGrado(a.grado_actual)} · {a.turno}</span>
@@ -123,7 +135,7 @@ export default function FichaAlumno({
       <div className="w-full font-sans">
         <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-8">
           <div className="flex flex-wrap items-center gap-4 mb-10">
-            <button onClick={onBack} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors">
+            <button onClick={()=>salirSiNecesario(onBack)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white font-bold transition-colors">
               <ArrowLeft size={20} /> Volver al Inicio
             </button>
             {onBackToAlumnos && (
@@ -148,6 +160,7 @@ export default function FichaAlumno({
             <p className="text-[#45515e] dark:text-[#8e8e93] mb-8 text-center max-w-sm leading-[1.50]">
               Busca un alumno para ver su ficha con el desglose de pagos y más información.
             </p>
+            <div className="mb-5"><SelectorCicloModulo ciclos={ciclos} cicloId={cicloFichaId || ''} onChange={cambiarCicloFicha} label="Ciclo de pagos de la ficha" /></div>
             {searchBarJSX}
             {alumnos.length === 0 && (
               <p className="text-sm text-gray-400 mt-6">No hay alumnos con plan de pagos en el ciclo seleccionado.</p>
@@ -162,15 +175,15 @@ export default function FichaAlumno({
   const totals = activePlan ? calculateStudentTotals(activePlan, selectedAlumno.estatus) : null;
 
   return (
-    <div className="w-full font-sans">
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-6 pb-8">
+    <div className="w-full min-w-0 font-sans">
+      <div className="ficha-alumno-marco mx-auto px-4 sm:px-8 pt-6 pb-8">
 
         {/* Navegación superior */}
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div className="ficha-alumno-barra mb-6">
           <div className="flex flex-wrap items-center gap-4">
             <button 
               type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBack(); }} 
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); salirSiNecesario(onBack); }}
               className="flex items-center gap-2 text-[#45515e] dark:text-gray-300 hover:text-[#222222] dark:hover:text-white font-medium transition-colors" 
               style={{ fontFamily: 'var(--font-ui)' }}
             >
@@ -179,7 +192,7 @@ export default function FichaAlumno({
             {onBackToAlumnos && (
               <button
                 type="button"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBackToAlumnos(); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); salirSiNecesario(onBackToAlumnos); }}
                 className="text-xs font-bold px-3 py-1.5 bg-[#f0f4ff] dark:bg-[#1456f0]/20 text-[#1456f0] dark:text-[#60a5fa] rounded-[8px] hover:bg-[#e0e7ff] dark:hover:bg-[#1456f0]/30 transition-colors shadow-sm"
               >
                 Volver a Alumnos
@@ -188,7 +201,7 @@ export default function FichaAlumno({
             {onBackToReporteEgresados && (
               <button
                 type="button"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onBackToReporteEgresados(); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); salirSiNecesario(onBackToReporteEgresados); }}
                 className="text-xs font-bold px-3 py-1.5 bg-[#f0f4ff] dark:bg-[#1456f0]/20 text-[#1456f0] dark:text-[#60a5fa] rounded-[8px] hover:bg-[#e0e7ff] dark:hover:bg-[#1456f0]/30 transition-colors shadow-sm"
               >
                 Volver al Reporte
@@ -198,8 +211,9 @@ export default function FichaAlumno({
           {searchBarJSX}
         </div>
 
+        <ModalConfirmacion isOpen={Boolean(salidaIngreso)} title="Cerrar captura de la ficha" message="Hay una captura abierta en la ficha. Si continúas se descartarán los cambios sin guardar." onCancel={()=>setSalidaIngreso(null)} onConfirm={()=>{const accion=salidaIngreso;setSalidaIngreso(null);setCapturaIngresoAbierta(false);accion?.();}}/>
         {/* Card principal */}
-        <div className="bg-white dark:bg-[#181e25] rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] overflow-hidden">
+        <div className="bg-white dark:bg-[#181e25] rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] overflow-clip">
 
           {/* ── Header oscuro del alumno ─────────────────────────────────── */}
           <div className="relative bg-[#181e25] p-6 sm:p-8 text-white overflow-hidden">
@@ -297,39 +311,21 @@ export default function FichaAlumno({
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                   </div>
                   <div>
-                    <p className="font-bold text-base leading-tight">Sin Plan Activo</p>
-                    <p className="text-xs text-blue-200 mt-0.5">No inscrito en el ciclo.</p>
+                    <p className="font-bold text-base leading-tight">Sin plan de pagos</p>
+                    <p className="text-xs text-blue-200 mt-0.5">Sin plan de pagos en el ciclo consultado.</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* ── Barra de tabs ────────────────────────────────────────────── */}
-          {visibleTabs.length > 1 && (
-            <div className="flex border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] bg-[#f8f9ff] dark:bg-[#1c2228] px-6 overflow-x-auto">
-              {visibleTabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? tab.id === 'servicio_social'
-                        ? 'border-purple-500 text-purple-700 dark:text-purple-400'
-                        : tab.id === 'titulacion'
-                          ? 'border-indigo-500 text-indigo-700 dark:text-indigo-400'
-                          : 'border-[#1456f0] text-[#1456f0] dark:text-[#60a5fa]'
-                      : 'border-transparent text-[#8e8e93] hover:text-[#45515e] dark:hover:text-gray-300'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              ))}
+          <FichaSecciones secciones={visibleTabs} activa={activeTab} onCambiar={id=>{if(id!==activeTab)salirSiNecesario(()=>setActiveTab(id));}}>
+          {/* ── Contenido del tab activo ──────────────────────────────────── */}
+          {activeTab === 'pagos' && (
+            <div className="ficha-pagos-contexto">
+              <SelectorCicloModulo ciclos={ciclos} cicloId={cicloFichaId || ''} onChange={cambiarCicloFicha} label="Ciclo de pagos de la ficha" />
             </div>
           )}
-
-          {/* ── Contenido del tab activo ──────────────────────────────────── */}
           {activeTab === 'pagos' && (
             <TabPagos
               alumno={selectedAlumno}
@@ -340,12 +336,15 @@ export default function FichaAlumno({
             />
           )}
           {activeTab === 'datos_generales' && (
-            <TabDatosGenerales
+            <TabDatosGenerales key={selectedAlumno.id}
               alumno={selectedAlumno}
               isAdmin={isAdmin}
               onAlumnoUpdated={() => onRefreshAlumnos?.()}
+              onCapturaChange={setCapturaIngresoAbierta}
+              onVerTrayectoria={visibleTabs.some(t=>t.id==='inscripciones')?id=>salirSiNecesario(()=>{setProgramaTrayectoriaId(id);setActiveTab('inscripciones');}):undefined}
             />
           )}
+          {activeTab === 'inscripciones' && <TabInscripcionesAlumno key={selectedAlumno.id} alumnoId={selectedAlumno.id} programaInicialId={programaTrayectoriaId} onCapturaChange={setCapturaIngresoAbierta} />}
           {activeTab === 'academico' && (
             <TabHistorialAcademico alumno={selectedAlumno} />
           )}
@@ -382,6 +381,7 @@ export default function FichaAlumno({
             />
           )}
 
+          </FichaSecciones>
         </div>{/* fin card */}
       </div>
 

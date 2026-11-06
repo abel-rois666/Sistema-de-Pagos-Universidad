@@ -4,6 +4,7 @@ export const isPaid = (estatus: string | undefined | null) => {
   if (!estatus || estatus.trim() === '') return false;
   const lower = estatus.toLowerCase();
   if (lower.includes('baja') || lower.includes('pendiente')) return false;
+  if (/\bno\s+pagado\b|\bcancelado\b/.test(lower)) return false;
   // Si tiene "Resta $X" significa que hay un abono parcial aún pendiente → no se considera pagado
   if (lower.includes('resta $') || lower.includes('resta$')) return false;
   return true;
@@ -22,9 +23,10 @@ export const getRestanteFromEstatus = (
 ): number => {
   if (!estatus) return cantidadOriginal;
   const lower = estatus.toLowerCase();
-  if (lower.includes('pagado')) return 0;
-  const m = estatus.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
+  if (/\bno\s+pagado\b|\bcancelado\b|\bpendiente\b|\bbaja\b/.test(lower)) return cantidadOriginal;
+  const m = estatus.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/i);
   if (m) return parseFloat(m[1].replace(',', ''));
+  if (lower.includes('pagado')) return 0;
   return cantidadOriginal; // sin abono previo → debe el total
 };
 

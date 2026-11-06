@@ -3,6 +3,7 @@ import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Download, Plus, 
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
+import { useCicloModulo } from '../../hooks/useCicloModulo';
 import { calcularDiasEfectivos, type ModalidadCalendario, type TurnoCalendario } from '../../calendario/calculos';
 import { actividadesCalendario } from '../../calendario/actividades';
 import type { VariantePdfCalendario } from '../../calendario/exportarPdf';
@@ -26,7 +27,7 @@ export default function CalendarioAcademico() {
   const cicloGlobal = useAppStore(s => s.activeCicloId);
   const usuario = useAppStore(s => s.currentUser);
   const puedeEditar = usuario?.rol === 'ADMINISTRADOR' || usuario?.rol === 'COORDINADOR CONTROL ESCOLAR';
-  const [cicloId, setCicloId] = useState(cicloGlobal || '');
+  const [cicloId, setCicloId] = useCicloModulo('calendario', ciclos, cicloGlobal, usuario?.id);
   const [planes, setPlanes] = useState<PlanOpcion[]>([]);
   const [calendarios, setCalendarios] = useState<CalendarioAcademico[]>([]);
   const [calendarioId, setCalendarioId] = useState('');
@@ -49,7 +50,6 @@ export default function CalendarioAcademico() {
     b.nombre.localeCompare(a.nombre, 'es', { numeric: true })
     || (a.tipo_periodo || '').localeCompare(b.tipo_periodo || '', 'es')
     || a.id.localeCompare(b.id)), [ciclos]);
-  useEffect(() => { if (!cicloId && cicloGlobal) setCicloId(cicloGlobal); }, [cicloId, cicloGlobal]);
   const cambiosPendientes = Boolean(form && JSON.stringify(form) !== formOriginal);
   const planesCompatibles = useMemo(() => planes.filter(plan =>
     plan.tipo_periodo?.toUpperCase() === form?.tipo_periodo &&

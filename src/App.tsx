@@ -1,41 +1,50 @@
-import { useState, useEffect, ReactNode } from 'react';
+import InicioArea from './app/InicioArea';
+import AccesoRuta from './app/AccesoRuta';
+import PaginaNoEncontrada from './app/PaginaNoEncontrada';
+import notificar from 'react-hot-toast';
+import LimiteError from './app/LimiteError';
+import { useState, useEffect, ReactNode, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle, AlertCircle, LayoutDashboard, Briefcase } from 'lucide-react';
-import { supabase, savePlan, saveAlumno, deleteAlumno, saveCiclo, deleteCiclo, saveCatalogoItem, deleteCatalogoItem, savePlantilla, deletePlantilla, getAppConfig, updateUserPreferences, fetchAllSupabase } from './lib/supabase';
-import { PaymentPlan, CicloEscolar, Alumno, CatalogoItem, Catalogos, PlantillaPlan, AppConfig } from './types';
+import { motion } from 'motion/react';
+
+import { supabase, savePlan } from './lib/supabase';
+import { PaymentPlan, CatalogoItem, Catalogos } from './types';
 
 import { useAppStore } from './store/useAppStore';
-import PlanPagos from './components/PlanPagos';
-import FichaAlumno from './components/FichaAlumno';
-import Estadisticas from './components/Estadisticas';
-import Deudores from './components/Deudores';
-import CiclosConfig from './components/CiclosConfig';
-import AlumnosConfig from './components/AlumnosConfig';
-import CatalogosConfig from './components/CatalogosConfig';
-import ImportarCSV from './components/ImportarCSV';
-import PlantillasConfig from './components/PlantillasConfig';
+const PlanPagos = lazy(() => import('./components/PlanPagos'));
+const FichaAlumno = lazy(() => import('./components/FichaAlumno'));
+const Estadisticas = lazy(() => import('./components/Estadisticas'));
+const Deudores = lazy(() => import('./components/Deudores'));
+const CiclosConfig = lazy(() => import('./components/CiclosConfig'));
+const AlumnosConfig = lazy(() => import('./components/AlumnosConfig'));
+const CatalogosConfig = lazy(() => import('./components/CatalogosConfig'));
+const ImportarCSV = lazy(() => import('./components/ImportarCSV'));
+const PlantillasConfig = lazy(() => import('./components/PlantillasConfig'));
 import Login from './components/Login';
-import UsuariosConfig from './components/UsuariosConfig';
-import ControlIngresos from './components/ControlIngresos';
-import { AppConfigSettings } from './components/AppConfigSettings';
-import DarkModeToggle from './components/DarkModeToggle';
+const UsuariosConfig = lazy(() => import('./components/UsuariosConfig'));
+const ControlIngresos = lazy(() => import('./components/ControlIngresos'));
+const AppConfigSettings = lazy(() => import('./components/AppConfigSettings').then(modulo => ({ default: modulo.AppConfigSettings })));
+
 import LoadingSkeleton from './components/LoadingSkeleton';
 import AppLayout from './components/AppLayout';
-import ControlAcademico from './components/ControlAcademico';
-import GruposConfig from './components/GruposConfig';
-import DocentesConfig from './components/DocentesConfig';
-import HorariosAcademicos from './components/horarios/HorariosAcademicos';
-import CalendarioAcademico from './components/calendario/CalendarioAcademico';
-import Dashboard from './components/Dashboard';
-import CalificacionesModule from './components/CalificacionesModule';
-import RecursosHumanosConfig from './components/RecursosHumanosConfig';
-import EvaluacionNom035 from './components/EvaluacionNom035';
-import WizardLayoutDGAIR from './components/certificacion/WizardLayoutDGAIR';
-import WizardLayoutTitulacion from './components/titulacion/WizardLayoutTitulacion';
-import { ReportesControlEscolar } from './components/reportes/ReportesControlEscolar';
-import AprobacionProspectos from './components/AprobacionProspectos';
-import CoberturaPlanesPago from './components/reportes/CoberturaPlanesPago';
+const ControlAcademico = lazy(() => import('./components/ControlAcademico'));
+const GruposConfig = lazy(() => import('./components/GruposConfig'));
+const DocentesConfig = lazy(() => import('./components/DocentesConfig'));
+const HorariosAcademicos = lazy(() => import('./components/horarios/HorariosAcademicos'));
+const CalendarioAcademico = lazy(() => import('./components/calendario/CalendarioAcademico'));
+const ComunicadosEscolares = lazy(() => import('./components/comunicados/ComunicadosEscolares'));
+const Estadistica911 = lazy(() => import('./components/estadistica911/Estadistica911'));
+const InscripcionesCiclo = lazy(() => import('./components/inscripciones/InscripcionesCiclo'));
+import { ROLES911 } from './estadistica911/types';
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const CalificacionesModule = lazy(() => import('./components/CalificacionesModule'));
+const RecursosHumanosConfig = lazy(() => import('./components/RecursosHumanosConfig'));
+const EvaluacionNom035 = lazy(() => import('./components/EvaluacionNom035'));
+const WizardLayoutDGAIR = lazy(() => import('./components/certificacion/WizardLayoutDGAIR'));
+const WizardLayoutTitulacion = lazy(() => import('./components/titulacion/WizardLayoutTitulacion'));
+const ReportesControlEscolar = lazy(() => import('./components/reportes/ReportesControlEscolar').then(modulo => ({ default: modulo.ReportesControlEscolar })));
+const AprobacionProspectos = lazy(() => import('./components/AprobacionProspectos'));
+const CoberturaPlanesPago = lazy(() => import('./components/reportes/CoberturaPlanesPago'));
 import type { Usuario } from './types';
 
 // ── Default catalogs (fallback) ──────────────────────────────────────────────
@@ -89,7 +98,7 @@ const pageVariants = {
 
 const PageWrapper = ({ children, keyStr, className }: { children: ReactNode, keyStr: string, className?: string }) => (
   <motion.div key={keyStr} initial="initial" animate="animate" exit="exit" variants={pageVariants} transition={pageVariants.transition as any} className={className || "bg-gray-50 dark:bg-gray-950"}>
-    {children}
+    <LimiteError key={keyStr}>{children}</LimiteError>
   </motion.div>
 );
 
@@ -98,7 +107,7 @@ export default function App() {
     currentUser, authChecked, loading,
     plans, ciclos, alumnos, plantillas, catalogoItems, appConfig, activeCicloId,
     setCurrentUser, setAuthChecked, setActiveCicloId, setLoading,
-    fetchAllData, refreshAfterPayment, fetchCarreras,
+    fetchAllData, refreshPlans, refreshAfterPayment, fetchCarreras,
     setPlans, setAlumnos, setCiclos, setPlantillas, setCatalogoItems, setAppConfig
   } = useAppStore();
 
@@ -108,12 +117,8 @@ export default function App() {
   const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(navState.alumnoId || null);
 
   // ── Toast global ─────────────────────────────────────────────────────────
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [authConnectionError, setAuthConnectionError] = useState('');
-  const showToast = (type: 'success' | 'error', msg: string) => {
-    setToast({ type, msg });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const showToast = (type: 'success' | 'error', msg: string) => notificar[type](msg, { id: type === 'error' ? 'aviso-aplicacion' : undefined });
 
   // ── Persistencia del último ciclo seleccionado ───────────────────────────────────────
   useEffect(() => {
@@ -135,7 +140,7 @@ export default function App() {
         // Hay sesión — cargar el perfil del usuario
         const { data: perfil, error: perfilError } = await supabase
           .from('usuarios')
-          .select('id, username, rol, preferencia_tema, ultimo_ciclo_id')
+          .select('id, username, rol, preferencia_tema, ultimo_ciclo_id, docente_id, activo')
           .eq('auth_id', session.user.id)
           .maybeSingle();
 
@@ -146,6 +151,11 @@ export default function App() {
         }
 
         if (perfil) {
+          if (perfil.activo !== true) {
+            setAuthConnectionError('Tu cuenta está inactiva. Consulta a Administración.');
+            await supabase.auth.signOut({ scope: 'local' });
+            return;
+          }
           const u = perfil as Usuario;
           setCurrentUser(u);
           // Aplicar tema guardado
@@ -180,14 +190,28 @@ export default function App() {
     });
 
     // Global fetch error interceptor (RLS exceptions 401/403)
-    const handleGlobalAuthError = (event: Event) => {
+    let comprobandoSesion = false;
+    const handleGlobalAuthError = async (event: Event) => {
       const e = event as CustomEvent;
-      if (e.detail?.status === 401 || e.detail?.status === 403) {
-        showToast('error', `Error de permisos (${e.detail.status}). Por seguridad se cerrará su sesión.`);
-        supabase.auth.signOut().then(() => {
-          setCurrentUser(null);
-        });
+      if (comprobandoSesion) return;
+      if (e.detail?.status === 403) {
+        showToast('error', 'No tienes permiso para realizar esa operación. Tu sesión permanece abierta.');
+        return;
       }
+      if (e.detail?.status !== 401) return;
+      comprobandoSesion = true;
+      try {
+        // Un 401 de una RPC o integración no prueba que la sesión Auth sea inválida.
+        const { error } = await supabase.auth.getUser();
+        if (error && ['bad_jwt', 'session_not_found', 'refresh_token_not_found', 'refresh_token_already_used', 'user_not_found'].includes(error.code || '')) {
+          showToast('error', 'Tu sesión venció. Inicia sesión nuevamente.');
+          await supabase.auth.signOut({ scope: 'local' });
+          setCurrentUser(null);
+        } else {
+          showToast('error', 'No se pudo autorizar la operación. Tu captura se conserva; revisa tus permisos o la conexión.');
+        }
+      } catch { showToast('error', 'No se pudo comprobar la sesión. Revisa la conexión; tu captura se conserva.'); }
+      finally { comprobandoSesion = false; }
     };
     window.addEventListener('supabase-auth-error', handleGlobalAuthError);
 
@@ -200,14 +224,14 @@ export default function App() {
   const catalogos = buildCatalogos(catalogoItems);
 
   // ── Handlers con persistencia ────────────────────────────────────────────
-  const handleSavePlan = async (updatedPlan: PaymentPlan) => {
-    const exists = plans.some(p => p.id === updatedPlan.id);
-    setPlans(prev => exists
-      ? prev.map(p => p.id === updatedPlan.id ? updatedPlan : p)
-      : [...prev, updatedPlan]
-    );
+  const handleSavePlan = async (updatedPlan: PaymentPlan): Promise<boolean> => {
     const error = await savePlan(updatedPlan);
-    if (error) showToast('error', `Error al guardar plan: ${error}`);
+    if (error) { showToast('error', `Error al guardar plan: ${error}`); return false; }
+    setPlans(prev => prev.some(p => p.id === updatedPlan.id)
+      ? prev.map(p => p.id === updatedPlan.id ? updatedPlan : p)
+      : [...prev, updatedPlan]);
+    await refreshPlans();
+    return true;
   };
   // Guard para rol DOCENTE (Debe ir antes de los early returns por las reglas de Hooks)
   useEffect(() => {
@@ -248,28 +272,17 @@ export default function App() {
 
   return (
     <>
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className={`fixed bottom-5 right-5 z-[9999] flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold transition-all
-              ${toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}
-          >
-            {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-            {toast.msg}
-          </motion.div>
-        )}
-      </AnimatePresence>
       <AppLayout>
-        <Routes>
+        <AccesoRuta><Suspense fallback={<LoadingSkeleton type="table" text="Abriendo sección…" />}><Routes>
           <Route path="/plan-pagos" element={
             <PageWrapper keyStr="plan_pagos">
               <PlanPagos initialAlumnoId={navState.alumnoId || selectedAlumnoId} initialPlanId={navState.initialPlanId}
+                origenComunicados={Boolean(navState.fromComunicados)}
                 onSavePlan={handleSavePlan}
                 onDeletePlan={(planId) => setPlans(prev => prev.filter(p => p.id !== planId))}
-                onBack={() => { setSelectedAlumnoId(null); navigate(navState.fromCoverageReport ? '/cobertura-planes-pago' : '/', navState.fromCoverageReport ? { state: { coverageFilters: navState.coverageFilters } } : undefined); }}
+                onBack={() => { setSelectedAlumnoId(null); navigate(navState.fromComunicados ? '/comunicados'
+                  : navState.fromCoverageReport ? '/cobertura-planes-pago' : '/', navState.fromCoverageReport
+                    ? { state: { coverageFilters: navState.coverageFilters } } : undefined); }}
                 onGoToPagos={(aId, cIdx, pId) => navigate('/control-ingresos', { state: { alumnoId: aId, conceptoIdx: cIdx, initialPlanId: pId, view: 'registrar', fromPlan: true, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
                 onViewReceipt={(folio, aId) => navigate('/control-ingresos', { state: { view: 'consultar', searchTerm: folio, fromPlan: true, alumnoId: aId, fromFicha: navState.fromFicha, fromAlumnos: navState.fromAlumnos } })}
                 onBackToFicha={navState.fromFicha ? (id) => { setSelectedAlumnoId(id); navigate('/ficha-alumno', { state: { alumnoId: id, fromAlumnos: navState.fromAlumnos } }); } : undefined}
@@ -303,27 +316,25 @@ export default function App() {
               />
             </PageWrapper>
           } />
-          <Route path="/control-escolar" element={
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="text-center bg-white dark:bg-[#1c2228] p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-                <LayoutDashboard size={48} className="mx-auto text-[#1456f0] dark:text-blue-500 mb-4 opacity-50" />
-                <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 font-display">Dashboard: Control Escolar</h2>
-                <p className="text-[#45515e] dark:text-gray-400 mt-2">Próximamente...</p>
-              </div>
-            </div>
+          <Route path="/comunicados" element={
+            currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR CONTROL ESCOLAR'
+              ? <PageWrapper keyStr="comunicados"><ComunicadosEscolares /></PageWrapper>
+              : <Navigate to="/" replace />
           } />
-          <Route path="/control-academico" element={
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="text-center bg-white dark:bg-[#1c2228] p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-                <LayoutDashboard size={48} className="mx-auto text-[#1456f0] dark:text-blue-500 mb-4 opacity-50" />
-                <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 font-display">Dashboard: Control Académico</h2>
-                <p className="text-[#45515e] dark:text-gray-400 mt-2">Próximamente...</p>
-              </div>
-            </div>
-          } />
+          <Route path="/estadistica-911" element={ROLES911.includes(currentUser.rol)
+            ? <PageWrapper keyStr="estadistica-911"><Estadistica911 /></PageWrapper>
+            : <Navigate to="/" replace />} />
+          <Route path="/inscripciones" element={['ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR'].includes(currentUser.rol)
+            ? <PageWrapper keyStr="inscripciones"><InscripcionesCiclo /></PageWrapper>
+            : <Navigate to="/" replace />} />
+          <Route path="/control-escolar" element={<InicioArea area="escolar" />} />
+
+          <Route path="/control-academico" element={<InicioArea area="academico" />} />
+
           <Route path="/certificacion" element={<PageWrapper keyStr="certificacion"><WizardLayoutDGAIR /></PageWrapper>} />
           <Route path="/titulacion" element={<PageWrapper keyStr="titulacion"><WizardLayoutTitulacion /></PageWrapper>} />
           <Route path="/reportes-escolares" element={<PageWrapper keyStr="reportes-escolares"><ReportesControlEscolar /></PageWrapper>} />
+          <Route path="/reporte-egresados" element={<Navigate to="/reportes-escolares?vista=egresados" state={location.state} replace />} />
           <Route path="/aprobacion-prospectos" element={<PageWrapper keyStr="aprobacion_prospectos"><AprobacionProspectos /></PageWrapper>} />
           <Route path="/catalogos" element={<PageWrapper keyStr="catalogos"><CatalogosConfig onBack={() => navigate('/')} /></PageWrapper>} />
           <Route path="/plantillas" element={<PageWrapper keyStr="plantillas"><PlantillasConfig onBack={() => navigate('/')} /></PageWrapper>} />
@@ -333,7 +344,7 @@ export default function App() {
               <AppConfigSettings onBack={() => navigate('/')} />
             </PageWrapper>
           } />
-          <Route path="/control-ingresos" element={
+          <Route path="/control-ingresos/*" element={
             <PageWrapper keyStr={`control_ingresos_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}>
               <ControlIngresos key={`ci_${navState.alumnoId || ''}_${navState.conceptoIdx || ''}_${navState.searchTerm || ''}`}
                 onBack={() => navigate('/')}
@@ -343,7 +354,7 @@ export default function App() {
                 initialAlumnoId={navState.alumnoId}
                 initialConceptIndex={navState.conceptoIdx}
                 initialPlanId={navState.initialPlanId}
-                initialView={navState.view}
+                initialView={location.pathname.endsWith('/consultar') ? 'consultar' : location.pathname.endsWith('/registrar') ? 'registrar' : navState.view}
                 initialSearchTerm={navState.searchTerm}
                 onNavigateToPlan={(alumnoId, folio) => {
                   setSelectedAlumnoId(alumnoId);
@@ -352,17 +363,11 @@ export default function App() {
               />
             </PageWrapper>
           } />
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={['ADMINISTRADOR','COORDINADOR FINANCIERO','CAJERO'].includes(currentUser.rol)
+            ? <PageWrapper keyStr="inicio-financiero"><Dashboard /></PageWrapper> : <InicioArea />} />
           {/* Rutas Placeholders para el Sidebar */}
-          <Route path="/dashboard" element={
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="text-center bg-white dark:bg-[#1c2228] p-10 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-                <LayoutDashboard size={48} className="mx-auto text-[#1456f0] dark:text-blue-500 mb-4 opacity-50" />
-                <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 font-display">Dashboard General</h2>
-                <p className="text-[#45515e] dark:text-gray-400 mt-2">Próximamente...</p>
-              </div>
-            </div>
-          } />
+          <Route path="/dashboard" element={<InicioArea />} />
+
           <Route path="/planes-estudio" element={
             <PageWrapper keyStr="academico">
               <ControlAcademico />
@@ -406,8 +411,8 @@ export default function App() {
               <EvaluacionNom035 onBack={() => navigate('/rh')} />
             </PageWrapper>
           } />
-          <Route path="*" element={<Dashboard />} />
-        </Routes>
+          <Route path="*" element={<PaginaNoEncontrada />} />
+        </Routes></Suspense></AccesoRuta>
       </AppLayout>
     </>
   );

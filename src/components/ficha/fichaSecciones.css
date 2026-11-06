@@ -1,0 +1,46 @@
+.ficha-alumno-marco{width:100%;max-width:64rem;min-width:0}
+/* Reserva el espacio de la barra al alternar secciones cortas y extensas. */
+main:has(.ficha-alumno-marco){scrollbar-gutter:stable}
+.ficha-alumno-barra{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;gap:16px;min-width:0}
+.ficha-alumno-barra>div{min-width:0}
+.ficha-secciones-root{width:100%;min-width:0;scroll-margin-top:16px}
+.ficha-secciones-layout{display:grid;grid-template-columns:minmax(0,1fr)}
+.ficha-secciones-lateral{display:none}
+.ficha-secciones-compactas{position:sticky;top:8px;z-index:20;margin:16px;border:1px solid var(--border-gray,#d1d5db);border-radius:10px;background:var(--bg-primary,#fff);color:var(--text-primary,#222)}
+.dark .ficha-secciones-compactas{background:#1c2228;border-color:#374151;color:#f3f4f6}
+.ficha-secciones-compactas summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;min-height:54px}
+.ficha-secciones-compactas summary::-webkit-details-marker{display:none}
+.ficha-secciones-compactas summary small{display:block;font-size:12px;color:#45515e;margin-bottom:3px}
+.dark .ficha-secciones-compactas summary small{color:#9ca3af}
+.ficha-secciones-compactas summary strong{display:block;font-size:14px;font-weight:600}
+.ficha-secciones-compactas[open] summary{border-bottom:1px solid #e5e7eb}
+.dark .ficha-secciones-compactas[open] summary{border-color:#374151}
+.ficha-secciones-compactas[open] summary>svg{transform:rotate(180deg)}
+.ficha-secciones-layout nav ul{list-style:none;margin:0;padding:8px}
+.ficha-secciones-layout nav button{display:flex;gap:10px;align-items:center;text-align:left;width:100%;min-height:46px;padding:10px 12px;border-radius:8px;color:#45515e;font-size:14px;font-weight:600;line-height:1.4}
+.ficha-secciones-layout nav button>span:nth-child(2){min-width:0;overflow-wrap:anywhere}
+.ficha-secciones-layout nav button>span:first-child{flex-shrink:0}
+.ficha-secciones-layout nav button:hover{background:#f3f4f6;color:#111827}
+.ficha-secciones-layout nav button[aria-current]{background:#eff6ff;color:#1456f0}
+.dark .ficha-secciones-layout nav button{color:#d1d5db}
+.dark .ficha-secciones-layout nav button:hover{background:#283240;color:#fff}
+.dark .ficha-secciones-layout nav button[aria-current]{background:#172b46;color:#93c5fd}
+.ficha-secciones-layout button:focus-visible,.ficha-secciones-compactas summary:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
+.ficha-seccion-marca{font-size:11px;margin-left:auto;font-weight:400}
+.ficha-seccion-contenido{width:100%;min-width:0;min-height:24rem;padding:16px;outline:none;box-sizing:border-box}
+/* El panel gobierna el margen común; solo se reinicia la raíz de cada módulo,
+   sin intervenir en tarjetas, tablas o diálogos que contiene. */
+.ficha-secciones-root .ficha-seccion-contenido>div{width:100%;min-width:0;max-width:100%;padding:0}
+.ficha-pagos-contexto{margin-bottom:24px}
+.ficha-pagos-contexto>label{width:100%;max-width:20rem}
+.ficha-seccion-contenido>.ic-trayectoria>h2:first-child{font-size:18px;font-weight:600;margin:0}
+.ficha-secciones-root[data-foco-teclado="true"] .ficha-seccion-contenido:focus-visible{outline:2px solid #3b82f6;outline-offset:-2px}
+@media(min-width:640px){.ficha-seccion-contenido{padding:24px;min-height:32rem}}
+@media(min-width:768px){.ficha-alumno-barra{grid-template-columns:minmax(0,1fr) minmax(0,28rem)}}
+.ficha-secciones-root[data-ancha="true"] .ficha-secciones-layout{grid-template-columns:210px minmax(0,1fr)}
+.ficha-secciones-root[data-ancha="true"] .ficha-secciones-compactas{display:none}
+.ficha-secciones-root[data-ancha="true"] .ficha-secciones-lateral{display:block;align-self:start;position:sticky;top:12px;padding:16px 8px}
+.ficha-secciones-lateral>p{font-size:11px;font-weight:700;color:#45515e;padding:0 12px 8px}
+.dark .ficha-secciones-lateral>p{color:#9ca3af}
+.ficha-secciones-root[data-ancha="true"] .ficha-seccion-contenido{border-left:1px solid #e5e7eb}
+.dark .ficha-secciones-root[data-ancha="true"] .ficha-seccion-contenido{border-color:#374151}

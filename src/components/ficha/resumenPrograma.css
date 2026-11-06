@@ -1,0 +1,10 @@
+.ic.resumen-programa{color:var(--escolar-texto);font-size:14px;line-height:1.5;padding:18px;margin:20px 0;border:1px solid var(--escolar-borde);border-radius:12px;background:var(--escolar-superficie);max-width:100%}
+.ic.resumen-programa h3{margin:0 0 14px;font-size:15px}
+.resumen-programa-selector{display:block;width:100%;max-width:28rem;font-size:13px;font-weight:600}
+.resumen-programa-selector select{display:block;margin-top:6px;min-height:42px;width:100%;border:1px solid var(--escolar-borde);border-radius:8px;background:var(--escolar-superficie);color:var(--escolar-texto);padding:8px}
+.resumen-programa dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:20px 0}
+.resumen-programa dt{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.resumen-programa dd{margin:7px 0 0;font-size:14px;overflow-wrap:anywhere}
+.ic.resumen-programa>p{font-size:12px;color:var(--escolar-secundario)}
+.resumen-programa button.resumen-programa-enlace{color:var(--escolar-acento-texto);font-size:13px;font-weight:600;padding:10px 0;text-align:left}
+@media(max-width:600px){.resumen-programa dl{grid-template-columns:minmax(0,1fr)}.ic.resumen-programa{padding:14px}}

@@ -11,7 +11,11 @@ import ModalSincronizacionGES from './modals/ModalSincronizacionGES';
 import ModalSincronizacionKardex from './modals/ModalSincronizacionKardex';
 import { supabase, toDBPlan } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
+import { useCicloModulo } from '../hooks/useCicloModulo';
+import SelectorCicloModulo from './ui/SelectorCicloModulo';
 import { getMaxFolioCounter } from '../utils';
+import { validarPeriodicidadAcademicaPlanPago, tipoPeriodoPlanPago } from '../utils/cicloPlanPago';
+import { cargarPeriodicidadAcademicaAlumno } from '../services/asociacionPlanPagoService';
 import { getStateAbbr, ESTADOS_LIST, lookupCP, mapToLegacyCode } from '../utils/geoUtils';
 import { calcularCURPCompleta } from '../utils/curpUtils';
 import { cargarProgramasVigentesPromocion, guardarPromocionAlumno } from '../services/promocionAlumnosService';
@@ -41,10 +45,11 @@ interface AlumnosConfigProps {
 
 export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProps) {
   const {
-    currentUser, alumnos, ciclos, activeCicloId, plans, catalogos, plantillas,
+    currentUser, alumnos, ciclos, activeCicloId: cicloGlobalId, plans, catalogos, plantillas,
     setAlumnos, setPlans
   } = useAppStore();
 
+  const [activeCicloId, setCicloModuloId] = useCicloModulo('alumnos', ciclos, cicloGlobalId, currentUser?.id);
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const activeCyclePlans = React.useMemo(() => plans.filter(p => p.ciclo_id === activeCicloId), [plans, activeCicloId]);
   const alumnosConPlanCiclo = React.useMemo(() => new Set(activeCyclePlans.map(p => p.alumno_id).filter((id): id is string => !!id)), [activeCyclePlans]);
@@ -76,13 +81,22 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     }
   };
 
-  const handleCreatePlan = async (plan: PaymentPlan) => {
+  const handleCreatePlan = async (plan: PaymentPlan): Promise<boolean> => {
+    try {
+      const programa = await cargarPeriodicidadAcademicaAlumno(plan.alumno_id || '');
+      const errorAsociacion = validarPeriodicidadAcademicaPlanPago(
+        ciclos.find(ciclo => ciclo.id === plan.ciclo_id), plan.tipo_plan, programa.tipoPeriodo);
+      if (errorAsociacion) { toast.error(errorAsociacion); return false; }
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo validar el plan académico.'); return false; }
     const { data, error } = await supabase.from('planes_pago').insert([toDBPlan(plan)]).select();
     if (!error && data) {
       // Re-fetch all or just add to store. We assume setPlans can take a function.
       setPlans(prev => [...prev, plan]);
+      return true;
     } else {
       console.error("Error creating plan:", error);
+      toast.error('No se pudo crear el plan de pagos.');
+      return false;
     }
   };
 
@@ -201,7 +215,18 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
   const handleSave = async () => {
     if (!editForm.apellido_paterno || !editForm.nombres || !editForm.licenciatura || !editForm.grado_actual) return;
+    if (editingId === 'new' && (editForm.assignPlanType === 'blank' || editForm.assignPlanType === 'template')) {
+      const planAcademico = planesEstudioDisponibles.find(plan => plan.id === editForm.plan_id);
+      const plantilla = plantillas.find(plan => plan.id === editForm.templateId);
+      const tipoAcademico = tipoPeriodoPlanPago(planAcademico?.tipo_periodo);
+      const tipoPlan = editForm.assignPlanType === 'template' ? plantilla?.tipo_plan
+        : tipoAcademico === 'semestral' ? 'Semestral' : tipoAcademico === 'cuatrimestral' ? 'Cuatrimestral' : null;
+      if (!planAcademico || !tipoPlan) { toast.error('Selecciona un plan de estudios y una plantilla válidos.'); return; }
+      const errorAsociacion = validarPeriodicidadAcademicaPlanPago(activeCiclo, tipoPlan, planAcademico.tipo_periodo);
+      if (errorAsociacion) { toast.error(errorAsociacion); return; }
+    }
     setSaving(true);
+    let errorPlanDePago = false;
 
     let updatedAlumnos: Alumno[];
     let alumnoToSave: Alumno;
@@ -266,15 +291,25 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       });
       if (alumnoErr) {
         console.warn('[AlumnosConfig] insert alumno:', alumnoErr.message);
+        toast.error(`No se pudo crear el alumno: ${alumnoErr.message}`);
+        setSaving(false);
+        return;
       } else if (editForm.plan_id) {
         // Auto-matricular al plan en alumno_programas
-        await supabase.from('alumno_programas').insert({
+        const { error: programaErr } = await supabase.from('alumno_programas').insert({
           alumno_id: alumnoToSave.id,
           plan_id: editForm.plan_id,
           estatus: 'CURSANDO',
           motivo_estatus: 'REGULAR',
           fecha_inscripcion: new Date().toISOString().split('T')[0]
         });
+        if (programaErr) {
+          setAlumnos(updatedAlumnos);
+          setEditingId(null);
+          setSaving(false);
+          toast.error('Alumno creado, pero no se pudo asociar su plan de estudios; no se creó un plan de pagos.');
+          return;
+        }
       }
 
       // Auto-generar plan de pagos para el ciclo activo
@@ -295,7 +330,9 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
             beca_porcentaje: alumnoToSave.beca_porcentaje || '0%',
             beca_tipo: alumnoToSave.beca_tipo || 'NINGUNA',
             ciclo_escolar: activeCiclo.nombre,
-            tipo_plan: template ? template.tipo_plan : 'Cuatrimestral',
+            tipo_plan: template ? template.tipo_plan
+              : tipoPeriodoPlanPago(planesEstudioDisponibles.find(plan => plan.id === editForm.plan_id)?.tipo_periodo) === 'semestral'
+                ? 'Semestral' : 'Cuatrimestral',
             licenciatura: alumnoToSave.licenciatura,
             grado_turno: `${alumnoToSave.grado_actual} / ${alumnoToSave.turno}`,
             grado: alumnoToSave.grado_actual,
@@ -317,14 +354,19 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
             }
           }
 
-          setPlans((prev) => [...prev, newPlan]);
-          
           const planToDb = toDBPlan(newPlan);
           const { error: planErr } = await supabase.from('planes_pago').insert(planToDb);
-          if (planErr) console.warn('[AlumnosConfig] insert plan:', planErr.message);
+          if (planErr) {
+            console.warn('[AlumnosConfig] insert plan:', planErr.message);
+            errorPlanDePago = true;
+          } else {
+            setPlans((prev) => [...prev, newPlan]);
+          }
         }
       }
-      showNotification('success', `Alumno "${toTitleCase(alumnoToSave.nombre_completo)}" creado.`);
+      showNotification(errorPlanDePago ? 'error' : 'success', errorPlanDePago
+        ? 'Alumno creado, pero no se pudo guardar el plan de pagos. Revisa su plan académico y ciclo.'
+        : `Alumno "${toTitleCase(alumnoToSave.nombre_completo)}" creado.`);
     } else {
       const originalAlumno = alumnos.find(a => a.id === editingId);
       const isGradeChanged = originalAlumno && originalAlumno.grado_actual !== editForm.grado_actual;
@@ -955,6 +997,10 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
               <p className="text-[#8e8e93] dark:text-[#8e8e93] text-sm mt-1">Administra el padrón de alumnos y promúévelos de grado.</p>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId || ''}
+                label="Ciclo para planes y promoción" disabled={showBulkModal}
+                onChange={id => { setCicloModuloId(id); setBulkSelected(new Set()); setMainTableSelected(new Set()); }}
+                className="w-full sm:w-60" />
               <div className="relative w-full sm:w-72">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search size={18} className="text-[#8e8e93]" />
@@ -1126,7 +1172,19 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                                 if (activeCiclo) {
                                   showConfirm("Confirmar Inscripción",
                                     `¿Inscribir a ${toTitleCase(alumno.nombre_completo)} en el ciclo ${activeCiclo.nombre}?`,
-                                    () => {
+                                    async () => {
+                                      let periodoAcademico: string;
+                                      try {
+                                        periodoAcademico = (await cargarPeriodicidadAcademicaAlumno(alumno.id)).tipoPeriodo;
+                                      } catch (error) {
+                                        toast.error(error instanceof Error ? error.message : 'No se pudo validar el plan académico.');
+                                        return;
+                                      }
+                                      const tipo = tipoPeriodoPlanPago(periodoAcademico);
+                                      if (!tipo) { toast.error('El plan académico no tiene periodicidad ordinaria válida.'); return; }
+                                      const tipoPlan = tipo === 'semestral' ? 'Semestral' : 'Cuatrimestral';
+                                      const errorAsociacion = validarPeriodicidadAcademicaPlanPago(activeCiclo, tipoPlan, periodoAcademico);
+                                      if (errorAsociacion) { toast.error(errorAsociacion); return; }
                                       localCounter.current++;
                                       const newPlan: PaymentPlan = {
                                         id: crypto.randomUUID(),
@@ -1136,12 +1194,12 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                                         fecha_plan: new Date().toLocaleDateString('es-MX'),
                                         beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
                                         ciclo_escolar: activeCiclo.nombre,
-                                        tipo_plan: 'Cuatrimestral',
+                                        tipo_plan: tipoPlan,
                                         licenciatura: alumno.licenciatura,
                                         grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
                                       };
-                                      handleCreatePlan(newPlan);
-                                      showNotification('success', `Alumno inscrito en ciclo ${activeCiclo.nombre}.`);
+                                      if (await handleCreatePlan(newPlan))
+                                        showNotification('success', `Plan creado en ${activeCiclo.nombre} · ${activeCiclo.tipo_periodo}.`);
                                     }
                                   );
                                 }
@@ -1428,7 +1486,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                           .filter(p => p.carrera_id === selectedCarreraId)
                           .map(p => (
                             <option key={p.id} value={p.id}>
-                              {p.nombre} ({p.clave_legado}) · {p.total_periodos || 10} periodos
+                              {p.nombre} ({p.clave_legado}) · {p.tipo_periodo || 'Sin periodicidad'} · {p.total_periodos || 10} periodos
                             </option>
                           ))}
                       </select>
@@ -1929,7 +1987,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                   <input type="checkbox" id="copyConcepts" className="w-5 h-5 text-blue-600 rounded border-gray-300"
                     checked={bulkCopyConcepts} onChange={e => setBulkCopyConcepts(e.target.checked)} disabled={bulkProcessing || confirmarBulk} />
                   <label htmlFor="copyConcepts" className="text-sm font-medium cursor-pointer">
-                    Para avances sin plan en este ciclo, copiar conceptos y montos del último plan de pagos (sin fechas).
+                    Para avances sin plan en este ciclo, copiar conceptos y montos de un plan anterior de la misma periodicidad (sin fechas). Si no existe uno con conceptos, la operación se detiene sin crear un plan vacío.
                   </label>
                 </div>
                 <label className="flex items-start gap-3 rounded-[13px] border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-900 dark:text-amber-200 cursor-pointer">

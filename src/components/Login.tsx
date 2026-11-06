@@ -74,7 +74,7 @@ export default function Login({ onLogin, connectionError }: LoginProps) {
       // Usamos authData.user.id directamente (evita una segunda llamada a getUser() que puede fallar).
       const { data: perfil, error: perfilError } = await supabase
         .from('usuarios')
-        .select('id, username, rol, preferencia_tema, ultimo_ciclo_id, docente_id')
+        .select('id, username, rol, preferencia_tema, ultimo_ciclo_id, docente_id, activo')
         .eq('auth_id', authData.user.id)
         .maybeSingle();
 
@@ -92,6 +92,11 @@ export default function Login({ onLogin, connectionError }: LoginProps) {
         return;
       }
 
+      if (perfil.activo !== true) {
+        setError('Tu cuenta está inactiva. Consulta a Administración.');
+        await supabase.auth.signOut({ scope: 'local' });
+        return;
+      }
       onLogin(perfil as Usuario);
     } catch (err) {
       console.error(err);

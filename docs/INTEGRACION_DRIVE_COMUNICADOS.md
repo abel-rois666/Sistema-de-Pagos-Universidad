@@ -1,0 +1,47 @@
+# Comunicados escolares con Google Drive
+
+## Cuenta y acceso
+
+La cuenta propietaria es una **cuenta operativa de Google Workspace for Education distinta del superadministrador**. El sistema usa OAuth de servidor con alcance `drive.file`; crea su propia carpeta «Comunicados escolares» en «Mi unidad». No necesita leer el resto del Drive ni una cuenta de servicio con delegación de dominio.
+
+Como no todos los alumnos tienen cuenta Google, cada emisión permanece privada hasta que Control Escolar pulse **Habilitar enlace** y confirme que revisó los PDF y al destinatario. La función asigna `anyone/reader` exclusivamente a la carpeta de esa emisión; el enlace puede ser reenviado y Google no permite caducidad automática para permisos `anyone`. **Revocar** elimina ese permiso. Si la política de Workspace prohíbe compartir fuera de la organización o por enlace, la operación fallará sin crear un mensaje listo para enviar; un administrador de Workspace debe evaluar esa política antes del despliegue.
+
+## Instalación, sin ejecutar datos del proyecto desde este repositorio
+
+1. Ejecutar el preflight de solo lectura `supabase/checks/preflight_comunicados_drive.sql`. Debe mostrar las cuatro tablas nuevas como `LIBRE`, las tablas base y `get_my_rol()` como `OK`, y `planes_estudio.modalidad` como `OK` (migración previa de calendarios y modalidad). Después, revisar y aplicar `supabase/migrations/20261016120000_comunicados_drive.sql` en el proyecto correcto. Ejecutar `supabase/checks/verificar_comunicados_drive.sql`: las cuatro tablas deben mostrar RLS activa y permisos directos falsos para `anon` y `authenticated`. Solo la función usa `service_role`. Antes de desplegar la versión que distingue ciclos, ejecutar `supabase/checks/preflight_comunicados_ciclos_documentos.sql`, aplicar `supabase/migrations/20261017120000_comunicados_ciclos_documentos.sql` y comprobar dos resultados `OK` con `supabase/checks/verificar_comunicados_ciclos_documentos.sql`. Después, ejecutar `supabase/checks/preflight_comunicados_plantilla_eliminacion.sql`, aplicar `supabase/migrations/20261017143000_comunicados_plantilla_eliminacion.sql` y comprobar dos resultados `OK` con `supabase/checks/verificar_comunicados_plantilla_eliminacion.sql`. Esta última migración añade una tabla de plantilla protegida y permite marcar emisiones anteriores como eliminadas. Ninguna de estas migraciones borra carpetas ni emisiones existentes.
+2. En Google Cloud de la institución, habilitar **Google Drive API**, configurar la pantalla OAuth para usuarios internos y registrar un cliente OAuth tipo **Web application**. Declarar únicamente el alcance `https://www.googleapis.com/auth/drive.file`. La URI de redirección debe ser exactamente `https://<PROJECT_REF>.supabase.co/functions/v1/comunicados-drive`.
+3. Configurar los secretos de Supabase Edge Functions: `DRIVE_OAUTH_CLIENT_ID`, `DRIVE_OAUTH_CLIENT_SECRET`, `DRIVE_REDIRECT_URI`, `DRIVE_ACCOUNT_EMAIL` (correo de la cuenta operativa), `DRIVE_APP_ORIGIN` (origen desde el que se abre la aplicación, sin ruta ni barra final; por ejemplo `http://localhost:3000` en desarrollo o un origen HTTPS en producción) y `DRIVE_TOKEN_KEY` (32 bytes aleatorios codificados en base64). `DRIVE_ACCOUNT_EMAIL` es un correo, pero `DRIVE_APP_ORIGIN` debe ser una URL: la función lo usa para CORS y para volver a `/#/comunicados` tras autorizar Google. Solo se admite un origen configurado a la vez; cambiar entre desarrollo y producción requiere actualizar este secreto. La función ya recibe `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` de Supabase. Conservar `DRIVE_TOKEN_KEY` de forma segura: cambiarla exige volver a autorizar la cuenta. No poner secretos ni refresh tokens en `VITE_*`, archivos del repositorio o mensajes de chat.
+4. Desplegar `supabase/functions/comunicados-drive/index.ts` como `comunicados-drive` con **JWT gateway desactivado** (`supabase functions deploy comunicados-drive --no-verify-jwt`): el retorno OAuth de Google es un GET sin JWT. El código valida por sí mismo sesión y rol en cada POST, y usa un `state` de un solo uso y PKCE para el retorno.
+5. Acceder a Control Escolar → Comunicados como **ADMINISTRADOR**, pulsar **Conectar cuenta operativa** y autorizar únicamente el correo configurado. El servidor rechaza cualquier otro correo, cifra el refresh token con AES-GCM y guarda el identificador de la carpeta raíz. Coordinación de Control Escolar puede emitir, pero no conectar otra cuenta.
+6. Seleccionar el ciclo en curso y el ciclo anterior de la boleta, de la misma periodicidad; el sistema propone el anterior inmediato y permite elegir otro anterior. El alumnado, calendario, horario, plan de pagos y carpeta de emisión pertenecen al ciclo en curso; solo la boleta usa inscripciones, grupo y grado del ciclo anterior. Seleccionar firmante con firma registrada, revisar cada alumno y preparar sus PDF. Se guardan en carpetas privadas por ciclo en curso, alumno y número de emisión. La carpeta nueva del alumno lleva matrícula, una parte del nombre y un sufijo de ID; la función busca la carpeta antigua del mismo alumno y la renombra sin alterar los identificadores de las emisiones. La carpeta nueva de emisión lleva su número y ciclo entre paréntesis. Cada PDF registra su ciclo de procedencia. Ante un fallo parcial, **Reintentar carga** vuelve a usar la misma emisión y actualiza los archivos del mismo tipo; no borra versiones enviadas. Los borradores anteriores sin ciclo registrado conservan sus archivos, pero exigen regenerarlos antes de habilitar enlace. Si el nuevo paquete omite un PDF guardado (por ejemplo, pagos), se crea otra emisión privada y se conserva íntegro el borrador anterior.
+7. Editar y guardar las plantillas compartidas del mensaje si hace falta. El mensaje con boleta admite `{nombre}`, `{matricula}`, `{ciclo}`, `{ciclo_boleta}` y `{enlace}`; el de nuevo ingreso no admite `{ciclo_boleta}`. El aviso opcional de Inglés admite `{materias_ingles}`. El enlace se exige exactamente una vez en cada mensaje base. Abrir la carpeta, verificar los documentos y habilitar el enlace individual. **Personalizar y copiar** permite un ajuste puntual del texto y del aviso de Inglés sin modificar las plantillas; después se pega manualmente en Telegram. **Marcar enviado** registra la acción manual; no significa entrega ni lectura en Telegram. Una corrección posterior usa **Nueva emisión**; las anteriores siguen visibles y se pueden revocar o enviar a la papelera. La eliminación solo se permite sobre una emisión anterior, retira su enlace y oculta su fila operativa; el registro se conserva para auditoría. Si una carpeta contiene archivos ajenos al sistema, la función rechaza su eliminación.
+
+## Documentos y límites
+
+- Boleta individual del ciclo anterior y plan exactos, con una copia, firma y sello; una calificación pendiente bloquea la preparación. Para nuevo ingreso verificado en primer grado no se prepara boleta.
+- Calendario del plan, modalidad y turno; una coincidencia ambigua bloquea el envío.
+- Horario de los grupos del alumno que tengan sesiones en la versión publicada del ciclo.
+- Calendario de pagos solo si existe un único plan completo del ciclo. Su ausencia o incompletitud no bloquea los otros PDF. El calendario no acredita pagos ni es un estado de cuenta.
+- No se envían mensajes a Telegram automáticamente. La aplicación prepara el texto y registra el envío manual.
+
+## Seguridad y operación
+
+La función vuelve a validar identidad y rol (`ADMINISTRADOR` o `COORDINADOR CONTROL ESCOLAR`) antes de usar `service_role`. El navegador nunca recibe el refresh token ni el secreto OAuth. La función limita PDF a 12 MB, valida su encabezado y comprueba que los archivos registrados sigan siendo los únicos de la carpeta antes de habilitar el enlace. Los archivos anteriores quedan conservados; no se eliminan automáticamente. La pantalla no permite compartir si faltan boleta, calendario u horario.
+
+Antes de operar con alumnos reales, comprobar en un entorno de prueba: conexión con cuenta correcta y equivocada, bloqueo por rol, documento faltante, reintento de carga, enlace desde una sesión sin Google, revocación, recuperación tras fallo de red y nueva emisión. Revisar en móvil, tableta, escritorio y ambos temas.
+
+Referencias de Google: [alcance `drive.file`](https://developers.google.com/workspace/drive/api/guides/api-specific-auth), [OAuth de servidor](https://developers.google.com/identity/protocols/oauth2/web-server), [permisos y revocación](https://developers.google.com/workspace/drive/api/guides/manage-sharing).
+## Nuevo ingreso e Inglés
+
+Para admitir paquetes sin boleta y el aviso opcional de Inglés, ejecutar en orden
+`supabase/checks/preflight_comunicados_nuevo_ingreso_ingles.sql`,
+`supabase/migrations/20261017160000_comunicados_nuevo_ingreso_ingles.sql` y
+`supabase/checks/verificar_comunicados_nuevo_ingreso_ingles.sql`. Después, volver a
+desplegar la función `comunicados-drive` y actualizar el frontend. La migración es
+aditiva: no borra carpetas, PDF, emisiones ni la plantilla existente. Las emisiones
+anteriores siguen requiriendo boleta. Los alumnos de primer grado sin historial
+en ciclos anteriores comparables del mismo plan se muestran como «Boleta: No aplica»; el servidor vuelve a comprobar
+la condición antes de crear la emisión y antes de habilitar su enlace. El aviso de
+Inglés se configura en «Plantillas del mensaje de Telegram» y puede ajustarse
+para cada alumno al copiar el mensaje.
+

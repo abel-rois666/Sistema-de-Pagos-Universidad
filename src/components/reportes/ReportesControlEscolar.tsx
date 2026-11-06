@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import React, { useState } from 'react';
 import { 
   FileText, 
@@ -10,7 +11,10 @@ import { WizardBoletas } from './WizardBoletas';
 type ReportView = 'dashboard' | 'general' | 'egresados' | 'boletas';
 
 export const ReportesControlEscolar: React.FC = () => {
-  const [currentView, setCurrentView] = useState<ReportView>('dashboard');
+  const [parametros, setParametros] = useSearchParams();
+  const vista = parametros.get('vista');
+  const currentView: ReportView = ['general', 'egresados', 'boletas'].includes(vista || '') ? vista as ReportView : 'dashboard';
+  const setCurrentView = (vista: ReportView) => setParametros(vista === 'dashboard' ? {} : { vista });
 
   if (currentView === 'general') {
     return <ReporteListadoGeneral onBack={() => setCurrentView('dashboard')} />;

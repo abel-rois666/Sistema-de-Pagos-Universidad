@@ -1,3 +1,4 @@
+import { tituloRuta } from '../app/titulosRutas';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -11,11 +12,10 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Pin,
   Calendar,
+  ChevronDown,
   CalendarClock,
-  CheckCircle,
   Users,
   FileText,
   BookUser,
@@ -23,6 +23,8 @@ import {
   UserCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useProteccionCaptura } from '../app/ProteccionCaptura';
+import { puedeAccederRuta } from '../app/capacidades';
 import { useAppStore } from '../store/useAppStore';
 import { supabase, updateUserPreferences } from '../lib/supabase';
 import DarkModeToggle from './DarkModeToggle';
@@ -33,7 +35,8 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const { currentUser, setCurrentUser, appConfig, ciclos, activeCicloId, setActiveCicloId } = useAppStore();
+  const solicitarSalida = useProteccionCaptura();
+  const { currentUser, appConfig, setCurrentUser } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -42,8 +45,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [ignorarHoverHastaSalir, setIgnorarHoverHastaSalir] = useState(false);
   const isSidebarOpen = sidebarFijada || (cursorSobreSidebar && !ignorarHoverHastaSalir);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
-  const [showCicloMenu, setShowCicloMenu] = useState(false);
-  const cicloMenuRef = useRef<HTMLDivElement>(null);
 
   // ── Notificaciones en tiempo real (prospectos pendientes) ──────────────
   const [pendingCount, setPendingCount] = useState(0);
@@ -94,21 +95,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
     };
   }, [canSeeNotifications, fetchPendingCount]);
 
-  // Cerrar menú de ciclos al hacer clic fuera
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (cicloMenuRef.current && !cicloMenuRef.current.contains(event.target as Node)) {
-        setShowCicloMenu(false);
-      }
-    }
-    if (showCicloMenu) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showCicloMenu]);
-
   // Si no hay usuario, solo renderizar el contenido (el login)
   if (!currentUser) return <>{children}</>;
 
-  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const isDocente = currentUser.rol === 'DOCENTE';
 
   let menuItems: any[] = [];
@@ -119,19 +108,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
     ];
   } else {
     menuItems = [
-      { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
+      { name: 'Inicio', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
       { 
         name: 'Control Escolar', 
         icon: <GraduationCap size={20} />, 
         path: '/control-escolar',
         children: [
           { name: 'Gestión de Alumnos', path: '/alumnos', icon: <Users size={16}/> },
+          ...(['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'].includes(currentUser.rol)
+            ? [{ name: 'Inscripciones por ciclo', path: '/inscripciones', icon: <UserCheck size={16}/> }] : []),
           { name: 'Grupos', path: '/grupos', icon: <Users size={16}/> },
           { name: 'Calendarios académicos', path: '/calendarios', icon: <Calendar size={16}/> },
+          ...(['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'].includes(currentUser.rol)
+            ? [{ name: 'Comunicados', path: '/comunicados', icon: <FileText size={16}/> }] : []),
+          ...(['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'].includes(currentUser.rol)
+            ? [{ name: 'Estadística 911', path: '/estadistica-911', icon: <FileText size={16}/> }] : []),
           { name: 'Planes de Estudio', path: '/planes-estudio', icon: <BookOpen size={16}/> },
           { name: 'Calificaciones', path: '/calificaciones', icon: <BookOpen size={16}/> },
-          { name: 'Certificación', path: '/certificacion', icon: <FileText size={16}/> },
-          { name: 'Titulación', path: '/titulacion', icon: <FileText size={16}/> },
+          { name: 'Exportar certificados', path: '/certificacion', icon: <FileText size={16}/> },
+          { name: 'Exportar títulos', path: '/titulacion', icon: <FileText size={16}/> },
           { name: 'Reportes', path: '/reportes-escolares', icon: <FileText size={16}/> },
           { name: 'Aprobación Prospectos', path: '/aprobacion-prospectos', icon: <UserCheck size={16}/> }
         ]
@@ -153,11 +148,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
     if (currentUser.rol === 'COORDINADOR FINANCIERO' || currentUser.rol === 'CAJERO') {
       menuItems = menuItems.filter(item => item.name === 'Control Financiero');
     } else if (currentUser.rol === 'COORDINADOR CONTROL ESCOLAR') {
-      menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Control Escolar');
+      menuItems = menuItems.filter(item => item.name === 'Inicio' || item.name === 'Control Escolar');
     } else if (currentUser.rol === 'COORDINADOR RECURSOS HUMANOS') {
-      menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Recursos Humanos');
+      menuItems = menuItems.filter(item => item.name === 'Inicio' || item.name === 'Recursos Humanos');
     } else if (currentUser.rol === 'COORDINADOR ACADEMICO') {
-      menuItems = menuItems.filter(item => item.name === 'Dashboard' || item.name === 'Control Académico');
+      menuItems = menuItems.filter(item => item.name === 'Inicio' || item.name === 'Control Académico');
     } else if (currentUser.rol === 'ADMINISTRADOR') {
       // Admin sees everything + Config
       menuItems.push({
@@ -175,6 +170,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
   }
 
+  if (['COORDINADOR ACADEMICO', 'COORDINADOR RECURSOS HUMANOS', 'COORDINADOR FINANCIERO'].includes(currentUser.rol)) {
+    menuItems.push({ name: 'Estadística 911', path: '/estadistica-911', icon: <FileText size={20}/> });
+  }
+  menuItems = menuItems.map(item => ({ ...item,
+    ...(item.children ? { children: item.children.filter((hijo: { path: string }) => puedeAccederRuta(currentUser.rol, hijo.path)) } : {}),
+  })).filter(item => item.children ? item.children.length > 0 : puedeAccederRuta(currentUser.rol, item.path));
+
   const isActive = (path: string) => {
     if (path === '/') {
       return location.pathname === '/' || location.pathname.startsWith('/control-ingresos') || location.pathname.startsWith('/plan-pagos') || location.pathname.startsWith('/ficha-alumno') || location.pathname.startsWith('/estadisticas') || location.pathname.startsWith('/deudores');
@@ -183,7 +185,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) toast.error('No se pudo cerrar la sesión. Revisa la conexión e inténtalo de nuevo.');
   };
 
   return (
@@ -331,7 +334,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {/* Logout Area */}
         <div className="p-4 border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] shrink-0">
           <button
-            onClick={handleLogout}
+            aria-label="Cerrar sesión"
+            onClick={() => solicitarSalida(() => { void handleLogout(); })}
             className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition-colors group relative ${
               isSidebarOpen 
                 ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20'
@@ -358,114 +362,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {/* Breadcrumb o Título Contextual */}
           <div className="flex items-center gap-3">
              <h2 className="text-lg font-semibold text-[#222222] dark:text-gray-100 hidden sm:block" style={{ fontFamily: 'var(--font-display)' }}>
-                {location.pathname === '/' ? 'Control Financiero' : 
-                 location.pathname === '/dashboard' ? 'Dashboard General' :
-                 location.pathname === '/control-escolar' ? 'Control Escolar' :
-                 location.pathname === '/alumnos' ? 'Gestión de Alumnos' :
-                 location.pathname === '/planes-estudio' ? 'Planes de Estudio' :
-                 location.pathname === '/control-academico' ? 'Control Académico' :
-                 location.pathname === '/grupos' ? 'Gestión de Grupos' :
-                 location.pathname === '/docentes' ? 'Gestión de Docentes' :
-                 location.pathname === '/horarios' ? 'Generador de Horarios' :
-                 location.pathname === '/rh' ? 'Recursos Humanos' :
-                 location.pathname === '/catalogos' ? 'Catálogos' :
-                 location.pathname === '/plantillas' ? 'Plantillas y Documentos' :
-                 location.pathname === '/configuracion-app' ? 'Configuración General' :
-                 location.pathname === '/usuarios' ? 'Módulo de Usuarios' :
-                 location.pathname === '/aprobacion-prospectos' ? 'Aprobación de Prospectos' :
-                 'Gestión Universitaria'}
+                {tituloRuta(location.pathname, currentUser.rol)}
              </h2>
           </div>
 
-          {/* Acciones de la Topbar (Ciclo, Tema, Perfil) */}
+          {/* Acciones de la barra superior */}
           <div className="flex items-center gap-4">
             
-            {/* Dropdown Ciclo */}
-            <div className="relative shrink-0" ref={cicloMenuRef}>
-              <button
-                onClick={() => setShowCicloMenu(prev => !prev)}
-                className="relative flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-100 text-[#1456f0] dark:bg-[rgba(59,130,246,0.1)] dark:border-[rgba(59,130,246,0.2)] dark:text-blue-400 rounded-full font-medium text-[13px] hover:bg-blue-100 dark:hover:bg-[rgba(59,130,246,0.15)] transition-colors"
-              >
-                <Calendar size={14} className="opacity-70" />
-                <span className="truncate max-w-[120px]">{activeCiclo?.nombre || 'Seleccionar Ciclo'}</span>
-                <ChevronDown size={14} className={`transition-transform duration-200 ${showCicloMenu ? 'rotate-180' : ''} opacity-70`} />
-              </button>
-
-              <AnimatePresence>
-                {showCicloMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full right-0 mt-2 bg-white dark:bg-[#1c2228] rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 z-50 min-w-[220px] flex flex-col"
-                  >
-                    {/* Barra de búsqueda */}
-                    <div className="p-2 border-b border-gray-100 dark:border-gray-800 shrink-0">
-                      <input
-                        type="text"
-                        id="ciclo-search-input"
-                        placeholder="Buscar ciclo..."
-                        autoFocus
-                        className="w-full text-[12px] px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 dark:text-gray-300 placeholder-gray-400"
-                        onChange={(e) => {
-                          const q = e.target.value.toLowerCase();
-                          const items = document.querySelectorAll('[data-ciclo-item]');
-                          items.forEach((el) => {
-                            const name = el.getAttribute('data-ciclo-item') || '';
-                            (el as HTMLElement).style.display = name.includes(q) ? '' : 'none';
-                          });
-                        }}
-                      />
-                    </div>
-
-                    <div className="overflow-y-auto max-h-64 py-1">
-                      {Array.from(new Set(ciclos.map(c => c.nombre)))
-                        .map(nombre => ciclos.find(c => c.nombre === nombre)!) // Get first cycle with this name
-                        .sort((a, b) => {
-                          // Ordenar por año desc, luego por nombre desc
-                          const anioA = a.anio || 0;
-                          const anioB = b.anio || 0;
-                          if (anioB !== anioA) return anioB - anioA;
-                          return b.nombre.localeCompare(a.nombre);
-                        })
-                        .map(c => {
-                          const isActivePeriod = c.nombre === activeCiclo?.nombre;
-                          return (
-                          <button
-                            key={c.nombre}
-                            data-ciclo-item={c.nombre.toLowerCase()}
-                            onClick={() => {
-                              const newId = c.id;
-                              setActiveCicloId(newId);
-                              if (currentUser) {
-                                setCurrentUser({ ...currentUser, ultimo_ciclo_id: newId });
-                                updateUserPreferences(currentUser.id, { ultimo_ciclo_id: newId });
-                              }
-                              setShowCicloMenu(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 text-[13px] font-medium flex items-center justify-between transition-colors
-                              ${isActivePeriod 
-                                ? 'bg-blue-50 dark:bg-blue-900/20 text-[#1456f0] dark:text-blue-400' 
-                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                              }`}
-                          >
-                            <span>{c.nombre}</span>
-                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                              {ciclos.some(x => x.nombre === c.nombre && x.activo) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Contiene ciclos activos" />}
-                              {isActivePeriod && <CheckCircle size={14} />}
-                            </div>
-                          </button>
-                        )})
-                      }
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 hidden sm:block shrink-0"></div>
-
             {/* Campana de Notificaciones — solo Admin y Coord. Control Escolar */}
             {canSeeNotifications && (
               <button

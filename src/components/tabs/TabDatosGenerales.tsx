@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import ResumenProgramaAlumno from '../ficha/ResumenProgramaAlumno';
+import { fechaCapturaPrograma } from '../../utils/fechasProgramaAlumno';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import {
@@ -79,9 +81,12 @@ const ABBR_TO_NAME: Record<string, string> = Object.entries(STATE_MAPPING)
 type ProgramaAlumno = AlumnoPrograma;
 
 interface Props {
+  key?:string;
   alumno: Alumno;
   isAdmin: boolean;
   onAlumnoUpdated: () => void;
+  onVerTrayectoria?: (programaId:string) => void;
+  onCapturaChange?: (abierta:boolean) => void;
 }
 
 // ── Sub-componentes ──────────────────────────────────────────────────────────
@@ -342,7 +347,7 @@ function StateSelector({ label, value, editing, onChange, colSpan }: StateSelect
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
-export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: Props) {
+export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated, onVerTrayectoria, onCapturaChange }: Props) {
   const buildForm = useCallback((a: Alumno): FormData => ({
     matricula: a.matricula ?? '',
     domicilio: a.domicilio ?? '',
@@ -433,6 +438,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   const [resultadosGes, setResultadosGes] = useState<any[]>([]);
   const [buscandoGes, setBuscandoGes] = useState(false);
 
+  const consultaProgramas=useRef(0);
   const [programas, setProgramas] = useState<ProgramaAlumno[]>([]);
 
   // Resolución matemática de UN ÚNICO Plan Rector Vigente
@@ -474,6 +480,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   }, [programas, alumno.estatus]);
   const [loadingProgramas, setLoadingProgramas] = useState(true);
   const [showModalInscripcion, setShowModalInscripcion] = useState(false);
+  useEffect(()=>{onCapturaChange?.(editing||showModalInscripcion);return()=>onCapturaChange?.(false);},[editing,showModalInscripcion,onCapturaChange]);
   const [modoModalProg, setModoModalProg] = useState<'existente' | 'nuevo'>('existente');
   const [submittingPrograma, setSubmittingPrograma] = useState(false);
   const [desbloquearTitulado, setDesbloquearTitulado] = useState(false);
@@ -495,9 +502,11 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
   });
 
   const fetchProgramas = useCallback(async () => {
+    const solicitud=++consultaProgramas.current;
     setLoadingProgramas(true);
     try {
       const res = await academicosService.getProgramasAlumno(alumno.id);
+      if(solicitud!==consultaProgramas.current)return;
       if (!res.success) throw res.error;
       setProgramas(res.data || []);
 
@@ -505,11 +514,11 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
         .from('planes_estudio')
         .select('id, nombre, clave_legado, carrera_id, total_periodos')
         .order('nombre');
-      if (planes) setPlanesDisponibles(planes);
+      if (planes&&solicitud===consultaProgramas.current) setPlanesDisponibles(planes);
     } catch (error) {
       console.error('Error fetching programas:', error);
     } finally {
-      setLoadingProgramas(false);
+      if(solicitud===consultaProgramas.current)setLoadingProgramas(false);
     }
   }, [alumno.id]);
 
@@ -757,6 +766,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
     setProgramas([]);
     setLoadingProgramas(true);
     fetchProgramas();
+    return()=>{consultaProgramas.current++;};
   }, [fetchProgramas]);
 
   const handleBuscarGES = async () => {
@@ -1224,7 +1234,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
       {/* ── Barra de acciones ─────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-base font-bold text-[#222222] dark:text-gray-100" style={{ fontFamily: 'var(--font-display)' }}>
+          <h2 className="text-lg font-semibold text-[#222222] dark:text-gray-100" style={{ fontFamily: 'var(--font-display)' }}>
             Datos Generales del Alumno
           </h2>
           <p className="text-xs text-[#8e8e93] dark:text-[#6b7280] mt-0.5" style={{ fontFamily: 'var(--font-ui)' }}>
@@ -1270,6 +1280,8 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
           </div>
         )}
       </div>
+
+      <ResumenProgramaAlumno alumnoId={alumno.id} programas={programas} onVerTrayectoria={onVerTrayectoria}/>
 
       {/* ── Sincronización Legada ─────────────────────────────────────── */}
       {isAdmin && editing && (
@@ -2050,7 +2062,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
               Historial de Programas Académicos
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Planes de estudio y carreras en las que el alumno ha estado inscrito.
+              Asociaciones a planes de estudio. El programa principal no acredita por sí solo la matrícula en un ciclo.
             </p>
           </div>
           {canManageProgramas && (
@@ -2070,7 +2082,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
               <tr className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <th className="px-4 py-3">Clave</th>
                 <th className="px-4 py-3">Plan / Carrera</th>
-                <th className="px-4 py-3 text-center">F. Inscripción</th>
+                <th className="px-4 py-3 text-center">Registro en el sistema</th>
                 <th className="px-4 py-3 text-center">Estatus Curricular</th>
                 <th className="px-4 py-3 text-right">Acción</th>
               </tr>
@@ -2104,7 +2116,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{formatFecha(p.fecha_inscripcion)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{fechaCapturaPrograma(p.created_at)}<small className="block mt-1 text-xs text-gray-500 dark:text-gray-400">Referencia anterior: {formatFecha(p.fecha_inscripcion)}</small></td>
                       <td className="px-4 py-3 text-center">
                         <div className="inline-flex flex-col items-center gap-1">
                           <span className={`inline-flex px-2.5 py-1 rounded-[6px] text-[11px] font-bold tracking-wider ${
@@ -2243,7 +2255,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
                     <div className="text-xs space-y-0.5 min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-blue-900 dark:text-blue-200 uppercase tracking-wider text-[10px]">
-                          Programa Rector Vigente
+                          {programaActivo.es_vigente?'Programa principal del expediente':'Programa de referencia del expediente'}
                         </span>
                         <span className={`inline-flex items-center px-2 py-0.2 rounded-full text-[10px] font-bold ${
                           programaActivo.estatus === 'CURSANDO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' :
@@ -2261,7 +2273,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
                       <p className="text-gray-500 dark:text-gray-400 text-[11px] flex items-center gap-2">
                         <span>Clave: <strong className="font-mono text-gray-700 dark:text-gray-300">{programaActivo.planes_estudio?.clave_legado || 'S/C'}</strong></span>
                         <span>•</span>
-                        <span>Inscrito: <strong className="text-gray-700 dark:text-gray-300">{formatFecha(programaActivo.fecha_inscripcion)}</strong></span>
+                        <span>Referencia anterior de asociación: <strong className="text-gray-700 dark:text-gray-300">{formatFecha(programaActivo.fecha_inscripcion)}</strong></span>
                         {programaActivo.motivo_estatus && programaActivo.motivo_estatus !== 'REGULAR' && (
                           <>
                             <span>•</span>
@@ -2404,7 +2416,7 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
                                 )}
                               </div>
                               <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                                <span>Registrado: {formatFecha(prog.fecha_inscripcion)}</span>
+                                <span>Captura: {fechaCapturaPrograma(prog.created_at)}</span>
                                 {prog.motivo_estatus && prog.motivo_estatus !== 'REGULAR' && (
                                   <>
                                     <span>•</span>
@@ -2584,14 +2596,15 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                           <div>
                             <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                              Fecha de Inscripción
+                              Fecha anterior de asociación
                             </label>
                             <input
                               type="date"
+                              title="Referencia de la asociación anterior. El ingreso acreditado se revisa en Trayectoria; este campo no modifica inscripciones por ciclo."
                               value={nuevoPrograma.fecha_inscripcion}
                               onChange={e => setNuevoPrograma(p => ({ ...p, fecha_inscripcion: e.target.value }))}
                               className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100"
-                            />
+                            /><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Referencia de la asociación anterior. El ingreso acreditado se revisa en Trayectoria; editar aquí no modifica inscripciones por ciclo.</p>
                           </div>
 
                           {nuevoPrograma.estatus_previo && (
@@ -2787,14 +2800,15 @@ export default function TabDatosGenerales({ alumno, isAdmin, onAlumnoUpdated }: 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div>
                         <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                          Fecha de Inscripción
+                          Fecha anterior de asociación
                         </label>
                         <input
                           type="date"
-                          value={nuevoPrograma.fecha_inscripcion}
+                          title="Referencia de la asociación anterior. El ingreso acreditado se revisa en Trayectoria; este campo no modifica inscripciones por ciclo."
+                              value={nuevoPrograma.fecha_inscripcion}
                           onChange={e => setNuevoPrograma(p => ({ ...p, fecha_inscripcion: e.target.value }))}
                           className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#181e25] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-gray-100"
-                        />
+                        /><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Referencia de la asociación anterior. El ingreso acreditado se revisa en Trayectoria; editar aquí no modifica inscripciones por ciclo.</p>
                       </div>
 
                       <div>

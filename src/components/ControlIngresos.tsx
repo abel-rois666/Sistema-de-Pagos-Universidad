@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useProteccionCaptura } from '../app/ProteccionCaptura';
+import { useEffect } from 'react';
+import { puedeCobrar } from '../app/capacidades';
 import { ArrowLeft, Wallet, ReceiptText, List } from 'lucide-react';
 import type { Alumno, CicloEscolar, PaymentPlan, Catalogos, CatalogoItem, Usuario, AppConfig } from '../types';
 import { useAppStore } from '../store/useAppStore';
@@ -19,20 +22,30 @@ interface Props {
 }
 
 export default function ControlIngresos({ onBack, onBackToPlan, initialAlumnoId, initialConceptIndex, initialPlanId, initialView, initialSearchTerm, onNavigateToPlan }: Props) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const solicitarSalida = useProteccionCaptura();
+  const rol = useAppStore(s => s.currentUser?.rol);
+  const puedeRegistrar = puedeCobrar(rol);
   const resolvedInitialView = initialView || 'registrar';
-  const [activeTab, setActiveTab] = useState<'registrar' | 'consultar'>(resolvedInitialView);
+  const activeTab = !puedeRegistrar || location.pathname.endsWith('/consultar') ? 'consultar' : location.pathname.endsWith('/registrar') ? 'registrar' : resolvedInitialView;
+  useEffect(() => {
+    if (!puedeRegistrar && location.pathname.endsWith('/registrar')) {
+      navigate('/control-ingresos/consultar', { replace: true, state: { ...location.state, view: 'consultar' } });
+    }
+  }, [puedeRegistrar, location.pathname, navigate]);
 
   return (
     <div className="w-full font-sans">
       <div className="max-w-7xl mx-auto">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto">
-            <button onClick={onBack} className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500 dark:text-gray-400 transition-colors shrink-0">
+            <button onClick={() => solicitarSalida(onBack)} className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500 dark:text-gray-400 transition-colors shrink-0">
               <ArrowLeft size={24} />
             </button>
             {onBackToPlan && (
               <button
-                onClick={onBackToPlan}
+                onClick={() => solicitarSalida(onBackToPlan)}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 transition-colors shrink-0"
               >
                 <ArrowLeft size={13} /> Volver al Plan
@@ -44,20 +57,21 @@ export default function ControlIngresos({ onBack, onBackToPlan, initialAlumnoId,
             <h1 className="text-[22px] md:text-2xl font-extrabold text-gray-800 dark:text-gray-100 leading-tight">Control de Ingresos</h1>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-            <button
-              onClick={() => setActiveTab('registrar')}
+            {puedeRegistrar && <button
+              onClick={() => { if (activeTab !== 'registrar') solicitarSalida(() => { navigate('/control-ingresos/registrar', { state: { ...location.state, view: 'registrar' } }); }); }}
               className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all text-sm w-full md:w-auto ${activeTab === 'registrar' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 dark:shadow-emerald-900/40' : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
             >
               <ReceiptText size={18} /> Registrar Pago
-            </button>
+            </button>}
             <button
-              onClick={() => setActiveTab('consultar')}
+              onClick={() => { if (activeTab !== 'consultar') solicitarSalida(() => { navigate('/control-ingresos/consultar', { state: { ...location.state, view: 'consultar' } }); }); }}
               className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all text-sm w-full md:w-auto ${activeTab === 'consultar' ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-blue-900/40' : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
             >
               <List size={18} /> Consultar Registros
             </button>
           </div>
         </header>
+        {!puedeRegistrar && <p className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">Tu perfil permite consultar recibos. La emisión corresponde a Caja, Finanzas o Administración.</p>}
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden min-h-[600px]">
           {activeTab === 'registrar' ? (

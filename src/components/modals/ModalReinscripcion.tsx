@@ -84,8 +84,8 @@ export default function ModalReinscripcion({
               <RefreshCcw size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Reinscribir Alumno</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Paso 1: Finanzas y Grado</p>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Preparar avance de ciclo</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Paso 1: avance de grado y preparación financiera</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors bg-gray-100 dark:bg-gray-800 rounded-lg">
@@ -93,7 +93,7 @@ export default function ModalReinscripcion({
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5"><p className="text-sm text-gray-600 dark:text-gray-300">Esta operación actualiza el grado y permite preparar pagos y materias. Para registrar solo matrícula usa «Trayectoria e inscripciones» en la ficha. El registro integrado de inscripción depende de la configuración de Control Escolar.</p>
           {alumnoEstatus === 'BAJA' || alumnoEstatus.includes('EGRESADO') || alumnoEstatus.includes('TITULADO') ? (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
               No se puede reinscribir a un alumno con estatus <strong>{alumnoEstatus}</strong>. Cambia su estatus a ACTIVO antes de continuar.
@@ -108,7 +108,7 @@ export default function ModalReinscripcion({
                   onChange={e => setCicloDestino(e.target.value)}
                 >
                   <option value="">-- Seleccionar Periodo --</option>
-                  {ciclos.map(ciclo => (
+                  {ciclos.filter(c=>c.tipo_periodo?.trim().toUpperCase()===planActivoTipoPeriodo.trim().toUpperCase()).sort((a,b)=>b.nombre.localeCompare(a.nombre,'es',{numeric:true})).map(ciclo => (
                     <option key={ciclo.id} value={ciclo.id}>{formatCicloEscolar(ciclo)}</option>
                   ))}
                 </select>

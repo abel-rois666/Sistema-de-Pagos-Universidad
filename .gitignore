@@ -21,3 +21,4 @@ ver_usuarios.js
 
 # Supabase CLI temp files
 /supabase/.temp/
+/scripts/__pycache__/

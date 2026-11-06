@@ -1,14 +1,14 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import { HashRouter } from 'react-router-dom';
+import { createHashRouter, RouterProvider } from 'react-router-dom';
+import { ProteccionCapturaProvider } from './app/ProteccionCaptura';
 import { Toaster } from 'react-hot-toast';
 import App from './App.tsx';
+import LimiteError from './app/LimiteError';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <HashRouter>
-      <App />
+const router = createHashRouter([{ path: '*', element: <ProteccionCapturaProvider>
+      <LimiteError><App /></LimiteError>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -23,6 +23,6 @@ createRoot(document.getElementById('root')!).render(
           error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
         }}
       />
-    </HashRouter>
-  </StrictMode>,
-);
+</ProteccionCapturaProvider> }]);
+
+createRoot(document.getElementById('root')!).render(<StrictMode><RouterProvider router={router} /></StrictMode>);

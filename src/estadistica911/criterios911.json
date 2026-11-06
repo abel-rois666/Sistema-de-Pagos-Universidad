@@ -1,0 +1,1286 @@
+{
+  "version": "guia-911-2026-2027-v1",
+  "criterios": {
+    "escuela:V873": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V874": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V875": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V876": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V877": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V878": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V879": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V880": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V881": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V882": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V883": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V884": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V885": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V886": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V887": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V888": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V889": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V890": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V891": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V892": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V893": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V894": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V895": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V896": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V897": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V898": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V899": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V900": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V901": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V902": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V903": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V904": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V905": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V906": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V907": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V908": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V909": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V910": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V911": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V912": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V913": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V914": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V915": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V916": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V917": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V918": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V919": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V920": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": null
+    },
+    "escuela:V921": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V922": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V923": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": null
+    },
+    "escuela:V924": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V925": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V926": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": null
+    },
+    "escuela:V213": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V214": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V217": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V218": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V219": {
+      "niveles": [
+        "ESPECIALIDAD"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V220": {
+      "niveles": [
+        "ESPECIALIDAD"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V221": {
+      "niveles": [
+        "MAESTRIA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V222": {
+      "niveles": [
+        "MAESTRIA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V223": {
+      "niveles": [
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V224": {
+      "niveles": [
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V927": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V928": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V929": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V741": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V742": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V743": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V744": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V745": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V462": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V930": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V931": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V932": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V746": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V747": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V748": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V749": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V750": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V463": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V933": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V934": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V935": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V751": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V752": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V753": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V754": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V755": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V464": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V936": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V937": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V938": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V756": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V757": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V758": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V759": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V760": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V465": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V939": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V940": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V941": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V761": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V762": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V763": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V764": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V765": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V466": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V942": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V943": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V944": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V766": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V767": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V768": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V769": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V770": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V771": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "escuela:V467": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V468": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V471": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V472": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V473": {
+      "niveles": [
+        "ESPECIALIDAD"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V474": {
+      "niveles": [
+        "ESPECIALIDAD"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V475": {
+      "niveles": [
+        "MAESTRIA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V476": {
+      "niveles": [
+        "MAESTRIA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V477": {
+      "niveles": [
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V478": {
+      "niveles": [
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V945": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V946": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V947": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V772": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V773": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V774": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V775": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V776": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V716": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V948": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V949": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V950": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V777": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V778": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V779": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V780": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V781": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V717": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V951": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V952": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V953": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V782": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V783": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V784": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V785": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V786": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V718": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V954": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V955": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V956": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V787": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V788": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V789": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V790": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V791": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V719": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V957": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V958": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V959": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V792": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V793": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V794": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V795": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V796": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V720": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V960": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V961": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V962": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V797": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V798": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V799": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V800": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V801": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "escuela:V802": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "institucion:V1": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "institucion:V2": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "institucion:V5": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "institucion:V6": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "institucion:V7": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "institucion:V8": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "ESCOLAR"
+    },
+    "institucion:V10": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "institucion:V11": {
+      "niveles": [
+        "TSU"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "institucion:V14": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "institucion:V15": {
+      "niveles": [
+        "LICENCIATURA"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "institucion:V16": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    },
+    "institucion:V17": {
+      "niveles": [
+        "ESPECIALIDAD",
+        "MAESTRIA",
+        "DOCTORADO"
+      ],
+      "modalidad": "NO_ESCOLAR"
+    }
+  },
+  "sha256": "5b79545e3c26e7d8739b5119548c199159e47d9f46d8e997b03c9635de71d8e1"
+}

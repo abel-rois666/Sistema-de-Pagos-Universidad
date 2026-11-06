@@ -1,0 +1,17 @@
+export const AYUDAS_INSCRIPCIONES={
+ ciclo:'Ciclo en el que vas a consultar o registrar inscripciones. Elige también la periodicidad: 2027-1 Semestral y 2027-1 Cuatrimestral son registros distintos. Este selector no cambia el ciclo de otros módulos.',
+ consulta:'Permite ver quién estaba inscrito en una fecha. Cambia la situación mostrada y sus conteos; no modifica fechas guardadas ni inscribe alumnos. Si filtras por situación, se aplica a este día.',
+ historicos:'Incluye programas anteriores del alumno y programas que ya no están vigentes o cursables, por ejemplo concluidos o de baja. Sirve para revisar historia; no reactiva alumnos ni cambia su situación institucional.',
+ destino:'Es el ciclo elegido arriba de la lista. También se usa para los alumnos nuevos de ese ciclo. Para cambiarlo, cierra el formulario y cambia la selección de la pantalla.',
+ origen:'Ciclo anterior del mismo programa que sirve de antecedente. No es el ciclo donde estás inscribiendo ahora. Identifica un periodo, no una fecha. No modifica «Inscrito desde». En primer ingreso queda vacío; para avanzar el grado necesita una inscripción confirmada.',
+ ingreso:'Primer ingreso: inicia este programa. Reingreso: ya lo cursaba antes. Pendiente: falta información para clasificarlo. Estar en primer grado no demuestra por sí solo que sea nuevo ingreso.',
+ desde:'Fecha efectiva de inscripción en el ciclo de destino, acreditada con evidencia. Se distingue del primer ingreso al programa y de la fecha de captura. Las calificaciones de ciclos anteriores no confirman la matrícula actual.',
+ hasta:'Último día en que estuvo inscrito, incluido ese día. Para registrar una baja es obligatorio. Vacío indica que no se informó término; en lote conserva el valor individual existente.',
+ grado:'Grado personal que corresponde al alumno en este ciclo. Puede mantenerse si repite. Revisa la sugerencia si estás registrando historia: su grado actual puede ser distinto. Confirmar solo la inscripción no avanza el grado general.',
+ primero:'Fecha en que comenzó este programa por primera vez. Se conserva cuando reingresa y no se reemplaza por la fecha de reinscripción. Una propuesta por calificaciones es aproximada y debe revisarse.',
+ estado:'Confirmada registra la inscripción del ciclo. Baja conserva su vigencia hasta el último día inscrito. Anular se usa para una inscripción capturada por error y conserva su bitácora.',
+ evidencia:'Referencia verificable que demuestra la inscripción: ficha, acta o documento institucional. Indica de qué alumno o lote y periodo se trata.',
+ motivo:'Explica por qué confirmas o corriges estos datos. Se conserva en la bitácora junto con los valores anteriores y nuevos.',
+ preparacion:'Guarda una propuesta para continuar después. Mientras esté pendiente no acredita matrícula ni cambia el grado actual. Puedes revisarla, confirmarla o cancelarla conservando su bitácora.',
+ avance:'Opción adicional a confirmar matrícula. Exige inscripción anterior confirmada, grado actual igual al origen, destino exactamente siguiente y fecha efectiva que ya llegó. Conserva planes de pago. Si el alumno ya fue promovido, confirma solo su inscripción.',
+} as const;

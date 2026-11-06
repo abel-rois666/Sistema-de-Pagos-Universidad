@@ -2,10 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, TrendingUp, AlertCircle, Inbox, BarChart2, Banknote, CreditCard, ListChecks } from 'lucide-react';
 import type { PaymentPlan, Alumno, CicloEscolar } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchAllSupabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
+import { useCicloModulo } from '../hooks/useCicloModulo';
 import { extractMonth, isPaid, getRestanteFromEstatus , toTitleCase} from '../utils';
 import LoadingSkeleton from './LoadingSkeleton';
+import SelectorCicloModulo from './ui/SelectorCicloModulo';
+import EstadoError from './ui/EstadoError';
 
 interface EstadisticasProps {
   onBack: () => void;
@@ -24,7 +27,8 @@ interface LibreRow {
 }
 
 export default function Estadisticas({ onBack }: EstadisticasProps) {
-  const { plans, alumnos, ciclos, activeCicloId } = useAppStore();
+  const { plans, alumnos, ciclos, activeCicloId: cicloGlobalId, currentUser } = useAppStore();
+  const [activeCicloId, setCicloModuloId] = useCicloModulo('estadisticas', ciclos, cicloGlobalId, currentUser?.id);
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const [activeTab, setActiveTab] = useState<'planes' | 'libres'>('planes');
   
@@ -33,21 +37,27 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
 
   const [libres, setLibres] = useState<LibreRow[]>([]);
   const [loadingLibres, setLoadingLibres] = useState(false);
+  const [errorLibres, setErrorLibres] = useState('');
+  const [reintentoLibres, setReintentoLibres] = useState(0);
 
   // ── Fetch pagos libres from DB ──────────────────────────────────────────────
   useEffect(() => {
-    if (!activeCiclo?.nombre) return;
+    let vigente = true;
+    const consulta = new AbortController();
+    setErrorLibres('');
+    if (!activeCiclo?.id) { setLibres([]); setLoadingLibres(false); return; }
     setLoadingLibres(true);
+    setLibres([]);
 
-    const matchingCicloIds = ciclos.filter(c => c.nombre === activeCiclo.nombre).map(c => c.id);
-
-    supabase
+    fetchAllSupabase(() => supabase
       .from('recibos_detalles')
       .select('concepto, cantidad, costo_unitario, subtotal, recibos!inner(id, fecha_recibo, ciclo_id, total, alumno_id, estatus, uso_saldo_a_favor)')
       .is('indice_concepto_plan', null)
-      .in('recibos.ciclo_id', matchingCicloIds)
-      .neq('recibos.estatus', 'CANCELADO')
-      .then(({ data }) => {
+      .eq('recibos.ciclo_id', activeCiclo.id)
+      .neq('recibos.estatus', 'CANCELADO').order('id').abortSignal(consulta.signal))
+      .then(({ data, error }) => {
+        if (!vigente) return;
+        if (error) throw error;
         if (data) {
           setLibres(data.map((d: any) => ({
             concepto: d.concepto,
@@ -62,8 +72,11 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
           })));
         }
         setLoadingLibres(false);
+      }).catch(() => {
+        if (vigente) { setErrorLibres('Los pagos libres no están disponibles. No interpretes esta consulta como ausencia de pagos.'); setLoadingLibres(false); }
       });
-  }, [activeCiclo?.nombre, ciclos]);
+    return () => { vigente = false; consulta.abort(); };
+  }, [activeCiclo?.id, reintentoLibres]);
 
   // ── Plan stats (existing logic) ────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -135,7 +148,8 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
       
       // Filtro para planes Ordinarios (no titulación)
       if (!isTit) {
-        if (activeCiclo && plan.ciclo_id !== activeCiclo.id && plan.ciclo_escolar !== activeCiclo.nombre) {
+        if (activeCiclo && plan.ciclo_id !== activeCiclo.id
+          && (plan.ciclo_id || plan.ciclo_escolar !== activeCiclo.nombre)) {
            return;
         }
       }
@@ -230,9 +244,12 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
 
         <div className="mb-6">
           <h1 className="text-[28px] font-semibold text-[#222222] dark:text-gray-100 mb-1" style={{ fontFamily: 'var(--font-display)' }}>Estadísticas Generales</h1>
-          <p className="text-[#45515e] dark:text-[#8e8e93] leading-[1.50]">Resumen financiero · {activeCiclo?.nombre || 'Ciclo activo'}</p>
+          <p className="text-[#45515e] dark:text-[#8e8e93] leading-[1.50]">Resumen financiero · {activeCiclo?.nombre || 'Ciclo sin seleccionar'} · {activeCiclo?.tipo_periodo || ''}</p>
+          <SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId || ''}
+            label="Ciclo de estadísticas" onChange={setCicloModuloId} className="mt-3 w-full max-w-xs" />
         </div>
 
+        {errorLibres && <div className="mb-4"><EstadoError mensaje={errorLibres} onReintentar={() => setReintentoLibres(n => n + 1)} /></div>}
         {/* ── KPI CARDS ─────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {/* Ingresos Lic/Esp */}
@@ -318,7 +335,7 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
               <CreditCard size={18} />
             </div>
             <p className="text-[11px] font-semibold text-[#8e8e93] dark:text-gray-500 uppercase tracking-wider">Pagos Libres</p>
-            <p className="text-xl font-semibold text-sky-700 dark:text-sky-400 leading-tight mt-0.5" style={{ fontFamily: 'var(--font-data)' }}>${libresStats.totalLibres.toLocaleString()}</p>
+            <p className="text-xl font-semibold text-sky-700 dark:text-sky-400 leading-tight mt-0.5" style={{ fontFamily: 'var(--font-data)' }}>{loadingLibres ? 'Consultando…' : errorLibres ? 'No disponible' : `$${libresStats.totalLibres.toLocaleString()}`}</p>
             <p className="text-[10px] text-[#8e8e93] dark:text-gray-500 mt-1">cobros sin plan</p>
           </motion.div>
 
@@ -333,8 +350,8 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
               <TrendingUp size={18} />
             </div>
             <p className="text-[11px] font-semibold text-blue-100 uppercase tracking-wider">Total Caja General</p>
-            <p className="text-xl font-semibold text-white leading-tight mt-0.5" style={{ fontFamily: 'var(--font-data)' }}>${totalGeneral.toLocaleString()}</p>
-            <p className="text-[10px] text-blue-200 mt-1">ingresos consolidados</p>
+            <p className="text-xl font-semibold text-white leading-tight mt-0.5" style={{ fontFamily: 'var(--font-data)' }}>{loadingLibres ? 'Consultando…' : errorLibres ? 'Incompleto' : `$${totalGeneral.toLocaleString()}`}</p>
+            <p className="text-[10px] text-blue-200 mt-1">{errorLibres ? 'falta consultar pagos libres' : 'ingresos consolidados'}</p>
           </motion.div>
         </div>
 
@@ -481,7 +498,7 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
                      className="bg-[#f2f3f5] dark:bg-[rgba(255,255,255,0.06)] border-none text-teal-800 dark:text-teal-200 text-sm font-semibold py-1.5 px-3 rounded-[8px] outline-none cursor-pointer focus:ring-2 focus:ring-teal-500/50"
                 >
                      <option value="todo">Todos los años</option>
-                     {Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - 8 + i).map(y => (
+                     {Array.from({ length: 15 }, (_, i) => new Date().getFullYear() + 6 - i).map(y => (
                          <option key={y} value={y.toString()}>Año {y}</option>
                      ))}
                 </select>
@@ -536,7 +553,7 @@ export default function Estadisticas({ onBack }: EstadisticasProps) {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="space-y-6">
             {loadingLibres ? (
               <LoadingSkeleton type="table" text="Cargando pagos libres..." />
-            ) : libres.length === 0 ? (
+            ) : errorLibres ? null : libres.length === 0 ? (
               <div className="text-center py-16 flex flex-col items-center bg-white dark:bg-[#181e25] rounded-[20px] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)]">
                 <div className="bg-[#bfdbfe] dark:bg-[#1d4ed8]/30 text-[#1456f0] dark:text-[#60a5fa] w-20 h-20 rounded-[20px] flex items-center justify-center mb-4"><CreditCard size={36} /></div>
                 <h3 className="text-xl font-semibold text-[#222222] dark:text-gray-100 mb-2" style={{ fontFamily: 'var(--font-display)' }}>Sin pagos libres</h3>

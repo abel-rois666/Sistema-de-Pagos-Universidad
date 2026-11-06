@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase, getAppConfig } from '../../lib/supabase';
 import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft, UserPlus, X, Settings, Users, Save, ChevronDown, ChevronUp, ShieldCheck, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,6 +10,7 @@ export default function WizardLayoutTitulacion() {
   const [loading, setLoading] = useState(false);
   
   // Búsqueda
+  const consultaActual = useRef(0);
   const [busqueda, setBusqueda] = useState('');
   const [alumnosList, setAlumnosList] = useState<any[]>([]);
 
@@ -43,17 +44,19 @@ export default function WizardLayoutTitulacion() {
   }, []);
 
   useEffect(() => {
+    const numeroConsulta = ++consultaActual.current;
+    if (busqueda.trim().length < 3) { setAlumnosList([]); setLoading(false); }
     const delayDebounceFn = setTimeout(() => {
       if (busqueda.trim().length >= 3) {
-        buscarAlumnoDinamico(busqueda.trim());
+        void buscarAlumnoDinamico(busqueda.trim(), numeroConsulta);
       } else if (busqueda.trim().length === 0) {
         setAlumnosList([]);
       }
     }, 400);
-    return () => clearTimeout(delayDebounceFn);
+    return () => { clearTimeout(delayDebounceFn); consultaActual.current++; };
   }, [busqueda]);
 
-  const buscarAlumnoDinamico = async (q: string) => {
+  const buscarAlumnoDinamico = async (q: string, numeroConsulta: number) => {
     setLoading(true);
     try {
       // Reemplazar vocales con comodín '_' para simular búsqueda sin acentos en SQL
@@ -71,12 +74,14 @@ export default function WizardLayoutTitulacion() {
         .or(`matricula.ilike.%${searchPattern}%,nombre_completo.ilike.%${searchPattern}%`)
         .limit(150);
       
+      if (numeroConsulta !== consultaActual.current) return;
       if (error) throw error;
       setAlumnosList(data || []);
     } catch (err: any) {
+      if (numeroConsulta !== consultaActual.current) return;
       toast.error('Error al buscar alumno: ' + err.message);
     } finally {
-      setLoading(false);
+      if (numeroConsulta === consultaActual.current) setLoading(false);
     }
   };
 

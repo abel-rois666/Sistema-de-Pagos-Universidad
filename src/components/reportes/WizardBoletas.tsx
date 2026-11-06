@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import type { AppConfig, Empleado, CicloEscolar } from '../../types';
 import { renderBoletasHTML } from '../../utils/boletasExportUtils';
+import { useAppStore } from '../../store/useAppStore';
+import { useCicloModulo } from '../../hooks/useCicloModulo';
 
 const getCicloWeight = (cicloStr?: string | null): number => {
   if (!cicloStr || cicloStr === '-') return 999999;
@@ -18,6 +20,7 @@ const getCicloWeight = (cicloStr?: string | null): number => {
   return 999999;
 };
 export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const { activeCicloId, currentUser } = useAppStore();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [zipProgress, setZipProgress] = useState({ current: 0, total: 0, status: '' });
@@ -34,7 +37,7 @@ export const WizardBoletas: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   // Step 2: Configuracion
   const [ciclos, setCiclos] = useState<CicloEscolar[]>([]);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
-  const [selectedCicloId, setSelectedCicloId] = useState('');
+  const [selectedCicloId, setSelectedCicloId] = useCicloModulo('boletas', ciclos, activeCicloId, currentUser?.id);
   const [showCicloMenu, setShowCicloMenu] = useState(false);
   const cicloMenuRef = useRef<HTMLDivElement>(null);
 

@@ -61,7 +61,16 @@ Deno.serve(async (req) => {
     }
 
     // ── 3. Obtener el auth_id del caller (para evitar que se auto-desactive) ──
-    const { data: { user: callerUser } } = await supabaseClient.auth.getUser();
+    const { data: { user: callerUser }, error: callerError } = await supabaseClient.auth.getUser();
+    if (callerError || !callerUser) {
+      return json({ error: 'No se pudo validar la sesión del administrador.' }, 401);
+    }
+    const { data: callerProfile, error: profileError } = await supabaseClient.from('usuarios')
+      .select('activo').eq('auth_id', callerUser.id).maybeSingle();
+    if (profileError) return json({ error: 'No se pudo comprobar el estado del administrador.' }, 500);
+    if (callerProfile?.activo !== true) {
+      return json({ error: 'La cuenta administradora está inactiva.' }, 403);
+    }
     const callerAuthId = callerUser?.id;
 
     // ── 4. Cliente admin con service_role (nunca sale al cliente) ─────────

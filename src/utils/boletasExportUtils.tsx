@@ -1,4 +1,6 @@
+import { promedioCicloTruncado as calcularPromedioTruncado } from './promedioAcademico';
 import type { AppConfig, CicloEscolar, Empleado } from '../types';
+import { esAsignaturaIngles } from './asignaturaIngles';
 
 export interface BoletaOpciones {
   copias: number;
@@ -57,27 +59,6 @@ function formatCalif(calif: string | number | undefined | null): string {
     if (calif === undefined || calif === null || calif === '') return '-';
     if (parseFloat(String(calif)) === -555) return 'NP';
     return String(calif);
-}
-function calcularPromedioTruncado(materias: any[]) {
-    // Excluir materias de inglés solo si comienzan con "Inglés" (Ej. "Inglés I", "Inglés II")
-    // Esto evita falsos positivos como "Redacción de Textos en Inglés"
-    const materiasValidas = materias.filter(m => {
-        const nombre = (m.asignaturas?.nombre || '').trim();
-        const esIngles = /^ingl[eé]s\b/i.test(nombre);
-        const califNum = parseFloat(m.calificacion_final);
-        return !esIngles && !isNaN(califNum);
-    });
-
-    if (materiasValidas.length === 0) return '0.00';
-
-    const suma = materiasValidas.reduce((acc, m) => {
-        const cal = parseFloat(m.calificacion_final);
-        return acc + (cal === -555 ? 0 : cal);
-    }, 0);
-    const rawPromedio = suma / materiasValidas.length;
-    // Truncate to 2 decimals without rounding
-    const truncPromedio = Math.floor(rawPromedio * 100) / 100;
-    return truncPromedio.toFixed(2);
 }
 
 function toTitleCase(str: string | undefined | null) {
@@ -421,8 +402,8 @@ export const renderBoletasHTML = ({
       const asigB = Array.isArray(b.asignaturas) ? b.asignaturas[0] : b.asignaturas;
       const nombreA = (asigA?.nombre || '').toLowerCase();
       const nombreB = (asigB?.nombre || '').toLowerCase();
-      const isInglesA = nombreA.includes('inglés') || nombreA.includes('ingles');
-      const isInglesB = nombreB.includes('inglés') || nombreB.includes('ingles');
+      const isInglesA = esAsignaturaIngles(nombreA);
+      const isInglesB = esAsignaturaIngles(nombreB);
       
       if (isInglesA && !isInglesB) return 1;
       if (!isInglesA && isInglesB) return -1;
@@ -539,7 +520,9 @@ export const renderBoletasHTML = ({
                 </tbody>
             </table>
             
-            <div class="english-note">* INGLÉS (ASIGNATURA EXTRAOFICIAL NO PROMEDIA CON EL RESTO DE LAS MATERIAS)</div>
+            ${materias.some((materia: any) => esAsignaturaIngles(
+              (Array.isArray(materia.asignaturas) ? materia.asignaturas[0] : materia.asignaturas)?.nombre))
+              ? '<div class="english-note">* INGLÉS (ASIGNATURA EXTRAOFICIAL NO PROMEDIA CON EL RESTO DE LAS MATERIAS)</div>' : ''}
 
             <div class="footer-area">
                 <div class="footer-left">
@@ -666,8 +649,8 @@ export const generateBoletasZip = async ({
       const asigB = Array.isArray(b.asignaturas) ? b.asignaturas[0] : b.asignaturas;
       const nombreA = (asigA?.nombre || '').toLowerCase();
       const nombreB = (asigB?.nombre || '').toLowerCase();
-      const isInglesA = nombreA.includes('inglés') || nombreA.includes('ingles');
-      const isInglesB = nombreB.includes('inglés') || nombreB.includes('ingles');
+      const isInglesA = esAsignaturaIngles(nombreA);
+      const isInglesB = esAsignaturaIngles(nombreB);
       if (isInglesA && !isInglesB) return 1;
       if (!isInglesA && isInglesB) return -1;
       const claveA = asigA?.clave_legado || '';
@@ -761,7 +744,7 @@ export const generateBoletasZip = async ({
 /**
  * Generate a single PDF for one student (no ZIP wrapper).
  */
-export const generateSingleBoletaPDF = async ({
+export const crearBoletaPDF = async ({
   alumnos,
   inscripciones,
   ciclo,
@@ -779,7 +762,6 @@ export const generateSingleBoletaPDF = async ({
   onProgress: (current: number, total: number, status: string) => void;
 }) => {
   const { pdf } = await import('@react-pdf/renderer');
-  const { saveAs } = (await import('file-saver'));
   const React = (await import('react')).default;
   const { BoletaPDFDocument } = await import('../components/pdf/BoletaPDFDocument');
 
@@ -803,8 +785,8 @@ export const generateSingleBoletaPDF = async ({
     const asigB = Array.isArray(b.asignaturas) ? b.asignaturas[0] : b.asignaturas;
     const nombreA = (asigA?.nombre || '').toLowerCase();
     const nombreB = (asigB?.nombre || '').toLowerCase();
-    const isInglesA = nombreA.includes('inglés') || nombreA.includes('ingles');
-    const isInglesB = nombreB.includes('inglés') || nombreB.includes('ingles');
+    const isInglesA = esAsignaturaIngles(nombreA);
+    const isInglesB = esAsignaturaIngles(nombreB);
     if (isInglesA && !isInglesB) return 1;
     if (!isInglesA && isInglesB) return -1;
     const claveA = asigA?.clave_legado || '';
@@ -875,5 +857,14 @@ export const generateSingleBoletaPDF = async ({
   const blob = await pdf(doc).toBlob();
 
   const safeName = `Boleta_${alumno.matricula || 'SinMatricula'}_${alumno.nombres.replace(/\s+/g, '')}_${alumno.apellido_paterno.replace(/\s+/g, '')}.pdf`;
-  saveAs(blob, safeName);
+  return { blob, nombre: safeName };
+};
+
+/** Conserva la descarga individual; comunicados usa el mismo PDF sin descargarlo. */
+export const generateSingleBoletaPDF = async (
+  datos: Parameters<typeof crearBoletaPDF>[0],
+): Promise<void> => {
+  const { blob, nombre } = await crearBoletaPDF(datos);
+  const { saveAs } = await import('file-saver');
+  saveAs(blob, nombre);
 };

@@ -1,3 +1,5 @@
+import { useProteccionCaptura } from '../app/ProteccionCaptura';
+import toast from 'react-hot-toast';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, AlertCircle, Info, Printer, X, FileDown, Loader2 } from 'lucide-react';
 import type { PaymentPlan, CatalogoItem, Recibo, ReciboDetalle, Alumno } from '../types';
@@ -9,6 +11,9 @@ import { printElement, downloadElementAsPDF } from '../lib/printUtils';
 import { toTitleCase } from '../utils';
 
 import { useRegistrarPagoLogic, type ConceptoRow } from '../hooks/useRegistrarPagoLogic';
+import { useCicloModulo } from '../hooks/useCicloModulo';
+import ContextoCicloRecibo from './recibos/ContextoCicloRecibo';
+import ModalConfirmacion from './ui/ModalConfirmacion';
 
 interface Props {
   initialAlumnoId?: string;
@@ -21,8 +26,10 @@ const BANCOS = ['BBVA 1', 'BBVA 2', 'MIFEL', 'BANORTE', 'NO APLICA'];
 const FORMAS_PAGO = ['Depósito Bancario', 'Transferencia bancaria', 'Tarjeta de Débito', 'Tarjeta de Crédito', 'Efectivo'];
 
 export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, initialPlanId }: Props) {
-  const { alumnos, ciclos, activeCicloId, plans, catalogos, catalogoItems, appConfig, currentUser, refreshAfterPayment, setCatalogoItems, carreras } = useAppStore();
-  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const { alumnos, ciclos, activeCicloId: cicloGlobalId, catalogos, catalogoItems, appConfig, currentUser, refreshAfterPayment, setCatalogoItems, carreras } = useAppStore();
+  const [activeCicloId, setCicloModuloId] = useCicloModulo('registrar-pago', ciclos, cicloGlobalId, currentUser?.id);
+  const [cicloPendienteId, setCicloPendienteId] = useState<string | null>(null);
+  const [cicloConfirmadoId, setCicloConfirmadoId] = useState('');
   const [searchAlumnoTerm, setSearchAlumnoTerm] = useState('');
   const [showAlumnoSuggestions, setShowAlumnoSuggestions] = useState(false);
   const [generandoPDF, setGenerandoPDF] = useState(false);
@@ -44,6 +51,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
     mensaje,
     reciboGuardado,
     alumnoData,
+    contextoCiclo,
     pupilPlans,
     opcionesConceptos,
     totales,
@@ -54,7 +62,24 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
     updateFila,
     guardar,
     handleCerrarModal
-  } = useRegistrarPagoLogic(initialAlumnoId, initialConceptIndex, initialPlanId);
+  } = useRegistrarPagoLogic(initialAlumnoId, initialConceptIndex, initialPlanId, activeCicloId,
+    cicloConfirmadoId === activeCicloId);
+  useProteccionCaptura(!reciboGuardado && filas.some(fila => Boolean(fila.concepto.trim()) || Number(fila.costo_unitario) > 0), guardando);
+  const activeCiclo = contextoCiclo.ciclo || ciclos.find(ciclo => ciclo.id === activeCicloId);
+  const desdePlan = Boolean(initialPlanId || (contextoCiclo.plan && !contextoCiclo.error));
+
+  useEffect(() => {
+    setCicloConfirmadoId('');
+  }, [activeCicloId, alumnoSeleccionado, contextoCiclo.plan?.id, reciboGuardado]);
+
+  const cambiarCiclo = (id: string) => {
+    if (desdePlan || guardando || reciboGuardado) return;
+    if (filas.some(fila => fila.concepto.trim() || Number(fila.costo_unitario) > 0)) {
+      setCicloPendienteId(id);
+      return;
+    }
+    setCicloModuloId(id);
+  };
 
   useEffect(() => {
     const alumno = alumnos.find(a => a.id === alumnoSeleccionado);
@@ -93,6 +118,11 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
 
   return (
     <div className="p-8">
+      <ContextoCicloRecibo ciclos={ciclos} cicloId={desdePlan ? activeCiclo?.id || '' : activeCicloId}
+        desdePlan={desdePlan} referenciaPlan={contextoCiclo.plan?.no_plan_pagos || contextoCiclo.plan?.tipo_plan || undefined}
+        error={contextoCiclo.error} confirmado={cicloConfirmadoId === activeCicloId}
+        onConfirmar={confirmado => setCicloConfirmadoId(confirmado ? activeCicloId : '')}
+        disabled={guardando || Boolean(reciboGuardado)} onChange={cambiarCiclo} />
       {mensaje && mensaje.tipo === 'error' && (
         <div className="mb-6 p-4 rounded-[13px] flex items-center gap-3 font-semibold bg-red-100 text-red-800">
           <AlertCircle />
@@ -105,7 +135,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-[13px] flex items-start gap-3 text-blue-800 text-sm">
           <Info size={18} className="shrink-0 mt-0.5 text-blue-500" />
           <span>
-            <strong>Sin plan en el ciclo activo.</strong> Este alumno no tiene plan de pagos registrado para <em>{activeCiclo?.nombre || 'este ciclo'}</em>. El recibo se guardará suelto (no afectará ningún plan).
+            <strong>Sin plan en el ciclo elegido.</strong> Este alumno no tiene plan de pagos registrado para <em>{activeCiclo?.nombre || 'este ciclo'} · {activeCiclo?.tipo_periodo || ''}</em>. El recibo se guardará suelto (no afectará ningún plan).
           </span>
         </div>
       )}
@@ -121,7 +151,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
       )}
 
       {/* Recibo Header */}
-      <div className="border border-gray-900 rounded-[8px] overflow-hidden bg-white shadow-[var(--shadow-subtle)] font-sans mb-8">
+      <div className="recibo-captura border border-gray-900 rounded-[8px] overflow-hidden bg-white text-gray-900 shadow-[var(--shadow-subtle)] font-sans mb-8">
         
         {/* Fila 1: Centro Universitario y Folio/Fecha */}
         <div className="flex flex-col md:flex-row border-b border-gray-900">
@@ -151,6 +181,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
               className="w-full bg-transparent outline-none font-semibold text-[#222222] p-1"
               placeholder="🔍 Buscar alumno por nombre..."
               value={searchAlumnoTerm}
+              disabled={Boolean(initialPlanId)}
               onChange={(e) => {
                 setSearchAlumnoTerm(e.target.value);
                 setShowAlumnoSuggestions(true);
@@ -265,7 +296,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
                   onChange={(e) => {
                     const val = e.target.value;
                     setFilas(prev => prev.map(f => f.localId === fila.localId
-                      ? { ...f, searchConceptoTerm: val, showConceptoSuggestions: true, concepto: val ? f.concepto : '', indice_concepto_plan: val ? f.indice_concepto_plan : null }
+                      ? { ...f, searchConceptoTerm: val, showConceptoSuggestions: true, concepto: val ? f.concepto : '', indice_concepto_plan: val ? f.indice_concepto_plan : null, plan_id: val ? f.plan_id : undefined }
                       : f));
                   }}
                   onFocus={() => setFilas(prev => prev.map(f => f.localId === fila.localId ? { ...f, showConceptoSuggestions: true } : f))}
@@ -548,7 +579,7 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
                     setShowAddConceptoModal(false);
                     selectConcepto(addConceptoRowId, `CAT_${newConceptoName.toUpperCase().trim()}`);
                   } else {
-                    alert('Error al guardar concepto: ' + res.error?.message);
+                    toast.error('Error al guardar concepto: ' + res.error?.message);
                   }
                   setSavingConcepto(false);
                   setShowAddConceptoModal(false);
@@ -576,6 +607,18 @@ export default function RegistrarPago({ initialAlumnoId, initialConceptIndex, in
         </button>
       </div>
 
+      <ModalConfirmacion isOpen={cicloPendienteId !== null} title="Cambiar ciclo del recibo"
+        message="Se descartarán los conceptos capturados para este recibo antes de cambiar de ciclo."
+        confirmText="Cambiar ciclo" cancelText="Conservar captura"
+        onCancel={() => setCicloPendienteId(null)}
+        onConfirm={() => {
+          if (cicloPendienteId !== null) {
+            setFilas([{ localId: Date.now().toString(), cantidad: 1, concepto: '', costo_unitario: '',
+              indice_concepto_plan: null, searchConceptoTerm: '', showConceptoSuggestions: false }]);
+            setCicloModuloId(cicloPendienteId);
+          }
+          setCicloPendienteId(null);
+        }} />
     </div>
   );
 }

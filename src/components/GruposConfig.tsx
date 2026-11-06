@@ -1,3 +1,7 @@
+import EstadoError from './ui/EstadoError';
+import { eliminarGruposAtomico } from '../services/operacionesAcademicasService';
+import SeleccionVisible from './ui/SeleccionVisible';
+import { cambiarSeleccionVisible } from '../utils/seleccionVisible';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Grupo } from '../types';
@@ -7,11 +11,14 @@ import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacio
 import { Plus, X, Trash2, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '../store/useAppStore';
+import { useCicloModulo } from '../hooks/useCicloModulo';
 import { formatCicloEscolar } from '../utils/formatUtils';
+import ResumenInscripcionesCiclo from './inscripciones/ResumenInscripcionesCiclo';
 
 export default function GruposConfig() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorConsulta, setErrorConsulta] = useState('');
   const [selectedGrupo, setSelectedGrupo] = useState<Grupo | null>(null);
   const [isModalDetallesOpen, setIsModalDetallesOpen] = useState(false);
   const [isModalCrearOpen, setIsModalCrearOpen] = useState(false);
@@ -21,11 +28,9 @@ export default function GruposConfig() {
   const [licenciaturaFilter, setLicenciaturaFilter] = useState('');
   const [turnoFilter, setTurnoFilter] = useState('');
   const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
-  const { activeCicloId, ciclos } = useAppStore();
-  const [cicloFiltroId, setCicloFiltroId] = useState(activeCicloId);
+  const { activeCicloId, ciclos, currentUser } = useAppStore();
+  const [cicloFiltroId, setCicloFiltroId] = useCicloModulo('grupos', ciclos, activeCicloId, currentUser?.id);
   const consultaGrupos = useRef(0);
-
-  useEffect(() => { setCicloFiltroId(activeCicloId); }, [activeCicloId]);
 
   useEffect(() => {
     setSelectedIds([]);
@@ -33,6 +38,7 @@ export default function GruposConfig() {
   }, [cicloFiltroId]);
 
   const fetchGrupos = async () => {
+    setErrorConsulta('');
     const numeroConsulta = ++consultaGrupos.current;
     try {
       setLoading(true);
@@ -68,7 +74,7 @@ export default function GruposConfig() {
       }
       if (numeroConsulta === consultaGrupos.current) setGrupos(filas.map(grupo => ({ ...grupo, total_alumnos: alumnosPorGrupo.get(grupo.id)?.size || 0 })));
     } catch (error: any) {
-      if (numeroConsulta === consultaGrupos.current) toast.error('Error al cargar los grupos: ' + error.message);
+      if (numeroConsulta === consultaGrupos.current) { setErrorConsulta('No se pudieron consultar los grupos de este ciclo.'); setGrupos([]); toast.error('Error al cargar los grupos: ' + error.message); }
       console.error(error);
     } finally {
       if (numeroConsulta === consultaGrupos.current) setLoading(false);
@@ -84,12 +90,8 @@ export default function GruposConfig() {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
-          // Delete child rows first just in case there's no ON DELETE CASCADE
-          await supabase.from('docentes_grupos_asignaturas').delete().eq('grupo_id', id);
-          await supabase.from('alumnos_grupos').delete().eq('grupo_id', id);
-          
-          const { error } = await supabase.from('grupos').delete().eq('id', id);
-          if (error) throw error;
+          await eliminarGruposAtomico([id]);
+          setSelectedIds(prev => prev.filter(seleccionado => seleccionado !== id));
           toast.success('Grupo eliminado exitosamente');
           fetchGrupos();
         } catch (error: any) {
@@ -101,11 +103,7 @@ export default function GruposConfig() {
   };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedIds(grupos.map(g => g.id));
-    } else {
-      setSelectedIds([]);
-    }
+    setSelectedIds(prev => cambiarSeleccionVisible(prev, sortedGrupos.map(fila => fila.id), e.target.checked));
   };
 
   const handleSelectOne = (id: string) => {
@@ -142,11 +140,7 @@ export default function GruposConfig() {
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
           setLoading(true);
-          await supabase.from('docentes_grupos_asignaturas').delete().in('grupo_id', selectedIds);
-          await supabase.from('alumnos_grupos').delete().in('grupo_id', selectedIds);
-          
-          const { error } = await supabase.from('grupos').delete().in('id', selectedIds);
-          if (error) throw error;
+          await eliminarGruposAtomico(selectedIds);
           toast.success(`${selectedIds.length} grupos eliminados correctamente`);
           setSelectedIds([]);
           fetchGrupos();
@@ -249,6 +243,7 @@ export default function GruposConfig() {
   return (
     <div className="flex-1 overflow-auto bg-gray-50/50 dark:bg-[#181e25] flex flex-col p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl w-full mx-auto space-y-6">
+        <ResumenInscripcionesCiclo cicloId={cicloFiltroId}/>
         
         {/* Header & Controls */}
         <div className="flex flex-col gap-4">
@@ -298,23 +293,25 @@ export default function GruposConfig() {
             
             <div className="flex flex-col gap-3 sm:flex-row lg:shrink-0">
               <select
+                aria-label="Licenciatura"
                 value={licenciaturaFilter}
                 onChange={(e) => setLicenciaturaFilter(e.target.value)}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#1456f0] dark:border-gray-700 dark:bg-[#1c2228] dark:text-gray-200 sm:w-48"
               >
                 <option value="">Todas las licenciaturas</option>
-                {Array.from(new Set(grupos.map((g: any) => g.plan?.carrera?.nombre || g.plan?.nombre || '').filter(Boolean))).map((lic: any) => (
+                {Array.from(new Set(grupos.map((g: any) => g.plan?.carrera?.nombre || g.plan?.nombre || '').filter(Boolean))).sort((a: string, b: string) => a.localeCompare(b, 'es')).map((lic: any) => (
                   <option key={lic} value={lic}>{lic}</option>
                 ))}
               </select>
 
               <select
+                aria-label="Turno"
                 value={turnoFilter}
                 onChange={(e) => setTurnoFilter(e.target.value)}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#1456f0] dark:border-gray-700 dark:bg-[#1c2228] dark:text-gray-200 sm:w-40"
               >
                 <option value="">Todos los turnos</option>
-                {Array.from(new Set(grupos.map((g: any) => g.turno).filter(t => !!t && t !== 'undefined' && t !== 'null'))).map((t: any) => (
+                {Array.from(new Set(grupos.map((g: any) => g.turno).filter(t => !!t && t !== 'undefined' && t !== 'null'))).sort((a: string, b: string) => { const orden = ['MATUTINO', 'VESPERTINO', 'MIXTO']; const peso = (valor: string) => orden.indexOf(valor.toUpperCase()) < 0 ? 99 : orden.indexOf(valor.toUpperCase()); return peso(a) - peso(b) || a.localeCompare(b, 'es'); }).map((t: any) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
@@ -329,9 +326,9 @@ export default function GruposConfig() {
               <thead className="bg-gray-50/80 dark:bg-[#222830] text-[#45515e] dark:text-gray-300 font-semibold border-b border-gray-200 dark:border-[rgba(255,255,255,0.08)]">
                 <tr>
                   <th className="px-4 py-4 w-10">
-                    <input 
-                      type="checkbox"
-                      checked={grupos.length > 0 && selectedIds.length === grupos.length}
+                    <SeleccionVisible
+                      seleccion={selectedIds}
+                      visibles={sortedGrupos.map(fila => fila.id)}
                       onChange={handleSelectAll}
                       className="w-4 h-4 text-[#1456f0] border-gray-300 rounded focus:ring-[#1456f0] focus:ring-2 bg-gray-50 dark:bg-[#181e25] dark:border-gray-600 cursor-pointer"
                     />
@@ -352,7 +349,7 @@ export default function GruposConfig() {
                       Cargando grupos...
                     </td>
                   </tr>
-                ) : grupos.length === 0 ? (
+                ) : errorConsulta ? <tr><td colSpan={8} className="p-4"><EstadoError mensaje={errorConsulta} onReintentar={() => void fetchGrupos()} /></td></tr> : grupos.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       No hay grupos registrados.
@@ -452,18 +449,19 @@ export default function GruposConfig() {
       
       <ModalConfirmacion {...confirmModal} />
 
-      {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#181C25] border border-[rgba(255,255,255,0.08)] p-2 pr-4 rounded-[30px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 animate-in slide-in-from-bottom-10 fade-in duration-300 flex items-center gap-4 text-white font-sans">
+      {selectedIds.length > 0 && !loading && !errorConsulta && (
+        <div className="fixed bottom-4 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:max-w-[calc(100vw-2rem)] bg-[#181C25] border border-[rgba(255,255,255,0.08)] p-2 pr-4 rounded-[30px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 animate-in slide-in-from-bottom-10 fade-in duration-300 flex flex-wrap items-center gap-3 text-white font-sans">
           
           <div className="flex items-center gap-3 pl-2">
             <div className="w-6 h-6 rounded-full bg-[#1456f0] flex items-center justify-center text-xs font-bold text-white shadow-[0_0_10px_rgba(20,86,240,0.5)]">
               {selectedIds.length}
             </div>
             <span className="text-sm font-semibold">
-              seleccionados
+              seleccionados · {selectedIds.filter(id => !sortedGrupos.some(fila => fila.id === id)).length} fuera de esta vista
             </span>
           </div>
 
+          <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg px-2 py-1 text-xs underline focus-visible:outline-2 focus-visible:outline-white">Limpiar selección</button>
           <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] mx-1"></div>
 
           <div className="flex items-center gap-2">

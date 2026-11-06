@@ -1,6 +1,7 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer';
 import { Buffer } from 'buffer';
+import { esAsignaturaIngles } from '../../utils/asignaturaIngles';
 
 // Vite does not polyfill Buffer, which is required by @react-pdf/renderer
 if (typeof window !== 'undefined') {
@@ -314,9 +315,9 @@ const BoletaContent = ({ props }: { props: BoletaPDFProps }) => (
     </View>
     
     {/* NOTA DE INGLÉS */}
-    <Text style={styles.englishNote}>
+    {props.materias.some(materia => esAsignaturaIngles(materia.nombre)) && <Text style={styles.englishNote}>
       * INGLÉS (ASIGNATURA EXTRAOFICIAL NO PROMEDIA CON EL RESTO DE LAS MATERIAS)
-    </Text>
+    </Text>}
   </View>
   
   {/* ÁREA DE FIRMAS Y FOOTER */}

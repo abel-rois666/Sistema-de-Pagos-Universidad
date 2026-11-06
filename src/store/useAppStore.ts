@@ -26,6 +26,8 @@ type AppState = AuthSlice &
     refreshAfterPayment: () => Promise<void>;
   };
 
+let ultimaConsultaPlanes = 0;
+
 export const useAppStore = create<AppState>()((...a) => ({
   ...createAuthSlice(...a),
   ...createUISlice(...a),
@@ -105,8 +107,9 @@ export const useAppStore = create<AppState>()((...a) => ({
   },
 
   refreshPlans: async () => {
+    const consulta = ++ultimaConsultaPlanes;
     const res = await pagosService.getPlanesPago();
-    if (res.success) a[0]({ plans: res.data });
+    if (res.success && consulta === ultimaConsultaPlanes) a[0]({ plans: res.data });
   },
 
   refreshAlumnos: async () => {

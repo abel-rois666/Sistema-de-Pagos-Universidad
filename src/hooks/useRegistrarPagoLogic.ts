@@ -1,7 +1,10 @@
+import { isPaid, getRestanteFromEstatus } from '../utils';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { pagosService } from '../services/pagosService';
 import type { PaymentPlan, Recibo, ReciboDetalle, Alumno } from '../types';
+import { resolverContextoCicloRecibo, validarConfirmacionCicloRecibo } from '../utils/cicloRecibo';
+import { fechaLocalISO } from '../utils/fechaLocal';
 
 export interface ConceptoRow {
   localId: string;
@@ -17,12 +20,16 @@ export interface ConceptoRow {
 export function useRegistrarPagoLogic(
   initialAlumnoId?: string,
   initialConceptIndex?: number,
-  initialPlanId?: string
+  initialPlanId?: string,
+  cicloConsultaId?: string,
+  cicloConfirmado = false,
 ) {
-  const { alumnos, ciclos, activeCicloId, plans, catalogos, refreshAfterPayment } = useAppStore();
-  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const { alumnos, ciclos, plans, catalogos, refreshAfterPayment } = useAppStore();
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<string>(initialAlumnoId || '');
-  const [fechaPago, setFechaPago] = useState<string>(new Date().toISOString().split('T')[0]);
+  const planInicial = initialPlanId ? plans.find(plan => plan.id === initialPlanId && plan.alumno_id === alumnoSeleccionado) : undefined;
+  const activeCicloId = planInicial?.ciclo_id || cicloConsultaId || '';
+  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const [fechaPago, setFechaPago] = useState<string>(() => fechaLocalISO());
   const [formaPago, setFormaPago] = useState<string>('Efectivo');
   const [banco, setBanco] = useState<string>('NO APLICA');
   const [usarMonedero, setUsarMonedero] = useState(false);
@@ -37,6 +44,8 @@ export function useRegistrarPagoLogic(
     searchConceptoTerm: '',
     showConceptoSuggestions: false,
   }]);
+  const contextoCiclo = resolverContextoCicloRecibo(ciclos, plans, alumnoSeleccionado,
+    activeCicloId, filas, initialPlanId);
 
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null);
@@ -51,7 +60,7 @@ export function useRegistrarPagoLogic(
     const d = new Date();
     return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
   }, []);
-  const fechaReciboIso = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const fechaReciboIso = useMemo(() => fechaLocalISO(), []);
 
   useEffect(() => {
     if (formaPago === 'Efectivo') {
@@ -63,11 +72,12 @@ export function useRegistrarPagoLogic(
 
   const pupilPlans = useMemo(() => {
     if (initialPlanId) {
-      const explicitPlan = plans.find(p => p.id === initialPlanId && p.alumno_id === alumnoSeleccionado);
+      const explicitPlan = plans.find(p => p.id === initialPlanId && p.alumno_id === alumnoSeleccionado
+        && p.ciclo_id === activeCicloId);
       if (explicitPlan) return [explicitPlan];
     }
-    return plans.filter(p => p.alumno_id === alumnoSeleccionado && (p.ciclo_id === activeCiclo?.id || p.ciclo_escolar === activeCiclo?.nombre));
-  }, [plans, alumnoSeleccionado, activeCiclo, initialPlanId]);
+    return plans.filter(p => p.alumno_id === alumnoSeleccionado && p.ciclo_id === activeCiclo?.id);
+  }, [plans, alumnoSeleccionado, activeCiclo, initialPlanId, activeCicloId]);
 
   const opcionesConceptos = useMemo(() => {
     const opciones: { value: string, label: string, index?: number, sugerido?: number, planId?: string }[] = [];
@@ -75,7 +85,7 @@ export function useRegistrarPagoLogic(
     pupilPlans.forEach(planActual => {
       if (planActual.detalles && planActual.detalles.length > 0) {
         planActual.detalles.forEach(d => {
-          if (d.concepto && d.cantidad > 0 && !(d.estatus || '').toUpperCase().includes('PAGADO')) {
+          if (d.concepto && d.cantidad > 0 && !isPaid(d.estatus)) {
             let montoSugerido = d.cantidad;
             let etiquetaResta = `$${d.cantidad.toFixed(2)}`;
 
@@ -104,7 +114,7 @@ export function useRegistrarPagoLogic(
         const cantidad = planActual[`cantidad_${i}` as keyof PaymentPlan] as number;
         const estatus = planActual[`estatus_${i}` as keyof PaymentPlan] as string;
         
-        if (conceptoName && cantidad > 0 && !(estatus || '').toUpperCase().includes('PAGADO')) {
+        if (conceptoName && cantidad > 0 && !isPaid(estatus)) {
           let montoSugerido = cantidad;
           let etiquetaResta = `$${cantidad.toFixed(2)}`;
 
@@ -232,12 +242,18 @@ export function useRegistrarPagoLogic(
   }, [filas]);
 
   const guardar = async () => {
+    if (guardando) return;
     if (!alumnoSeleccionado) {
       setMensaje({ tipo: 'error', texto: 'Debes seleccionar un alumno.' });
       return;
     }
-    if (!activeCiclo?.id) {
-      setMensaje({ tipo: 'error', texto: 'No hay ciclo activo.' });
+    if (contextoCiclo.error || !contextoCiclo.ciclo) {
+      setMensaje({ tipo: 'error', texto: contextoCiclo.error || 'Selecciona el ciclo del recibo.' });
+      return;
+    }
+    const errorConfirmacion = validarConfirmacionCicloRecibo(contextoCiclo, cicloConfirmado);
+    if (errorConfirmacion) {
+      setMensaje({ tipo: 'error', texto: errorConfirmacion });
       return;
     }
     if (totales <= 0) {
@@ -263,6 +279,10 @@ export function useRegistrarPagoLogic(
 
     const unicoPlanIdInvolucrado = planIdsInvolved.length === 1 ? planIdsInvolved[0] : null;
     const planActual = unicoPlanIdInvolucrado ? pupilPlans.find(p => p.id === unicoPlanIdInvolucrado) : undefined;
+    if (validas.some(f => f.indice_concepto_plan !== null) && !planActual) {
+      setMensaje({ tipo: 'error', texto: 'El concepto seleccionado ya no pertenece a un plan de este ciclo. Vuelve a elegir el concepto antes de guardar.' });
+      return;
+    }
 
     setGuardando(true);
     setMensaje(null);
@@ -271,7 +291,7 @@ export function useRegistrarPagoLogic(
       fecha_recibo: fechaReciboIso,
       fecha_pago: fechaPago,
       alumno_id: alumnoSeleccionado,
-      ciclo_id: planActual ? (planActual.ciclo_id ?? activeCiclo.id) : activeCiclo.id,
+      ciclo_id: contextoCiclo.ciclo.id,
       total: totales,
       uso_saldo_a_favor: montoMonederoAplicado,
       forma_pago: totalACobrar === 0 ? 'NO APLICA' : formaPago,
@@ -280,14 +300,6 @@ export function useRegistrarPagoLogic(
     };
 
     let excedenteGeneradoGlobal = 0;
-
-    const getRestanteDe = (estatusPrevio: string, cantidadOriginal: number): number => {
-      if (!estatusPrevio) return cantidadOriginal;
-      const m = estatusPrevio.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
-      if (m) return parseFloat(m[1].replace(',', ''));
-      if (estatusPrevio.toUpperCase().includes('PAGADO')) return 0;
-      return cantidadOriginal;
-    };
 
     const observacionesPorIndice: Record<number, string> = {};
     if (planActual) {
@@ -312,7 +324,7 @@ export function useRegistrarPagoLogic(
           }
         }
 
-        const restanteAnterior = getRestanteDe(estatusPrevio, cantidadOriginal);
+        const restanteAnterior = getRestanteFromEstatus(estatusPrevio, cantidadOriginal);
         const resta = restanteAnterior - abonoActual;
         const totalAcumulado = (cantidadOriginal - restanteAnterior) + abonoActual;
 
@@ -368,7 +380,7 @@ export function useRegistrarPagoLogic(
           const folios = (estatusPrevio.match(/R-\d+/g) || []);
           const folioTextoPrevio = folios.length > 0 ? folios.join('; ') + '; ' : '';
 
-          const restanteAnterior = getRestanteDe(estatusPrevio, cantidadOriginal);
+          const restanteAnterior = getRestanteFromEstatus(estatusPrevio, cantidadOriginal);
           const resta = restanteAnterior - abonoActual;
           const totalAcumulado = (cantidadOriginal - restanteAnterior) + abonoActual;
 
@@ -434,7 +446,7 @@ export function useRegistrarPagoLogic(
     setReciboGuardado(null);
     setMensaje(null);
     setFilas([{ localId: Date.now().toString(), cantidad: 1, concepto: '', costo_unitario: '', indice_concepto_plan: null, searchConceptoTerm: '', showConceptoSuggestions: false }]);
-    setAlumnoSeleccionado('');
+    setAlumnoSeleccionado(initialPlanId ? planInicial?.alumno_id || initialAlumnoId || '' : '');
     setFormaPago('Efectivo');
     setBanco('NO APLICA');
     setUsarMonedero(false);
@@ -454,6 +466,7 @@ export function useRegistrarPagoLogic(
     mensaje,
     reciboGuardado, setReciboGuardado,
     // Computed
+    contextoCiclo,
     alumnoData,
     pupilPlans,
     opcionesConceptos,

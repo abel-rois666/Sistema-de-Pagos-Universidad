@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, Check, FileText, ArrowLeft } from 'lucide-react';
+import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, FileText, ArrowLeft } from 'lucide-react';
 import { downloadElementAsPDF, generatePDFBlob } from '../lib/printUtils';
 import JSZip from 'jszip';
 import ReciboPlantillaPDF from './ReciboPlantillaPDF';
 import LoadingSkeleton from './LoadingSkeleton';
-import type { Alumno, CicloEscolar, Recibo, ReciboDetalle, Catalogos, PaymentPlan, AppConfig, Usuario } from '../types';
-import { supabase, cancelarRecibo, vincularReciboDetalleAMultiplesPlan, fetchAllSupabase, updateReciboFactura } from '../lib/supabase';
-import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV , toTitleCase} from '../utils';
+import type { Recibo, ReciboDetalle, PaymentPlan } from '../types';
+import { supabase, cancelarRecibo, fetchAllSupabase, updateReciboFactura } from '../lib/supabase';
+import { conciliarReciboDetallePlan, vincularReciboDetallePlanes } from '../services/asociacionPlanPagoService';
+import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV, toTitleCase } from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
 import { useAppStore } from '../store/useAppStore';
+import { useCicloModulo } from '../hooks/useCicloModulo';
 import { pagosService } from '../services/pagosService';
 import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 
@@ -20,7 +22,9 @@ interface Props {
 
 export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan }: Props) {
   const { alumnos, ciclos, activeCicloId, catalogos, appConfig, currentUser, refreshAfterPayment: onDataRefresh } = useAppStore();
-  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
+  const [cicloConsultaId, setCicloConsultaId] = useCicloModulo('consultar-recibos', ciclos, activeCicloId,
+    currentUser?.id, { todos: true, valorTodos: '' });
+  const activeCiclo = ciclos.find(c => c.id === cicloConsultaId);
   const [recibos, setRecibos] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
@@ -29,7 +33,6 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
   const exportRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [importarVisible, setImportarVisible] = useState(false);
-  const [repairProgress, setRepairProgress] = useState('');
   
   // -- Filtros Avanzados y Selección Masiva --
   const [showFilters, setShowFilters] = useState(false);
@@ -184,6 +187,11 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
   const [planesAlumno, setPlanesAlumno] = useState<PaymentPlan[]>([]);
   const [linking, setLinking] = useState(false);
   const [vincularSeleccion, setVincularSeleccion] = useState<{ planId: string; idx: number }[]>([]);
+  const [importeHistorico, setImporteHistorico] = useState('');
+
+  useEffect(() => {
+    setImporteHistorico(vincularDetalle ? String(vincularDetalle.subtotal) : '');
+  }, [vincularDetalle?.id]);
 
   // -- Edición de Observaciones --
   const [editandoObsId, setEditandoObsId] = useState<string | null>(null);
@@ -403,40 +411,25 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
     });
   };
 
-  const handleUnlinkDetail = (detalleId: string, idx: number) => {
+  const handleUnlinkDetail = (detalleId: string) => {
       if (!reciboSeleccionado) return;
       
       setSystemConfirmModal({
         isOpen: true,
         title: 'Desvincular Cobro',
-        message: `¿Estás seguro de desvincular este cobro del Plan #${idx}? Su estatus en el plan regresará a PENDIENTE.`,
+        message: 'Se quitará la referencia entre este detalle y el plan. El recibo, la factura y el estado de pago histórico no cambiarán; revísalos antes de volver a conciliar.',
         type: 'warning',
         onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
         onConfirm: async () => {
           setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
-          const { error } = await supabase.from('recibos_detalles').update({ indice_concepto_plan: null, observaciones: null }).eq('id', detalleId);
+          const { error } = await supabase.rpc('desvincular_detalle_recibo_plan', { p_detalle_id: detalleId });
           if (error) { toast.error('Error: ' + error.message); return; }
-
-          const { data: planes } = await supabase.from('planes_pago').select('*')
-              .eq('alumno_id', reciboSeleccionado.alumno_id)
-              .eq('ciclo_id', reciboSeleccionado.ciclo_id);
-              
-          if (planes && planes.length > 0) {
-              const currentEstatus = planes[0][`estatus_${idx}` as keyof PaymentPlan] as string || '';
-              let newEstatus = 'PENDIENTE';
-              const rx = new RegExp(`(.*?)((?:F-${reciboSeleccionado.folio_fiscal}|R-${reciboSeleccionado.folio}))\\b.*?(\\(.*?\\))?(;|$)`, 'i');
-              if (rx.test(currentEstatus)) {
-                   const modified = currentEstatus.replace(rx, '').trim();
-                   newEstatus = modified.length > 0 && modified !== ';' ? modified : 'PENDIENTE';
-              }
-              await supabase.from('planes_pago').update({ [`estatus_${idx}`]: newEstatus }).eq('id', planes[0].id);
-          }
 
           setReciboSeleccionado(prev => {
               if (!prev) return prev;
               return {
                   ...prev,
-                  recibos_detalles: prev.recibos_detalles.map(dd => dd.id === detalleId ? { ...dd, indice_concepto_plan: null as any, observaciones: null as any } : dd)
+                  recibos_detalles: prev.recibos_detalles.map(dd => dd.id === detalleId ? { ...dd, indice_concepto_plan: null as any } : dd)
               };
           });
           if (onDataRefresh) onDataRefresh();
@@ -446,36 +439,73 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
 
   useEffect(() => {
     if (vincularDetalle && reciboSeleccionado) {
-       supabase.from('planes_pago').select('*')
+       const nombre = ciclos.find(ciclo => ciclo.id === reciboSeleccionado.ciclo_id)?.nombre;
+       const cicloIds = ciclos.filter(ciclo => ciclo.nombre === nombre).map(ciclo => ciclo.id);
+       supabase.from('planes_pago').select('*, detalles:planes_pago_detalles(*)')
          .eq('alumno_id', reciboSeleccionado.alumno_id)
-         .eq('ciclo_id', reciboSeleccionado.ciclo_id)
+         .in('ciclo_id', cicloIds.length ? cicloIds : [reciboSeleccionado.ciclo_id])
          .then(({ data }) => setPlanesAlumno((data || []) as PaymentPlan[]));
     } else {
        setPlanesAlumno([]);
        setVincularSeleccion([]);
     }
-  }, [vincularDetalle, reciboSeleccionado]);
+  }, [vincularDetalle, reciboSeleccionado, ciclos]);
 
   const toggleSeleccion = (planId: string, idx: number) => {
     setVincularSeleccion(prev => {
       const key = `${planId}-${idx}`;
       const exists = prev.some(s => `${s.planId}-${s.idx}` === key);
-      return exists ? prev.filter(s => `${s.planId}-${s.idx}` !== key) : [...prev, { planId, idx }];
+      if (exists) return prev.filter(s => `${s.planId}-${s.idx}` !== key);
+      const esOtroId = planesAlumno.find(plan => plan.id === planId)?.ciclo_id !== reciboSeleccionado?.ciclo_id;
+      if (esOtroId) return [{ planId, idx }];
+      return [...prev.filter(s => planesAlumno.find(plan => plan.id === s.planId)?.ciclo_id
+        === reciboSeleccionado?.ciclo_id), { planId, idx }];
     });
   };
 
   const handleConfirmarVinculacion = async () => {
     if (!vincularDetalle || !reciboSeleccionado || vincularSeleccion.length === 0) return;
+    const esOtroId = vincularSeleccion.some(seleccion =>
+      planesAlumno.find(plan => plan.id === seleccion.planId)?.ciclo_id !== reciboSeleccionado.ciclo_id);
+    if (esOtroId) {
+      if (vincularSeleccion.length !== 1) {
+        toast.error('Para recibos históricos de otro ID, concilia un concepto por vez.');
+        return;
+      }
+      const seleccion = vincularSeleccion[0];
+      const importe = Number(importeHistorico);
+      if (!Number.isFinite(importe) || importe <= 0 || importe > vincularDetalle.subtotal) {
+        toast.error('Indica un abono positivo que no supere el importe del detalle del recibo.');
+        return;
+      }
+      setLinking(true);
+      try {
+        const revision = await conciliarReciboDetallePlan(vincularDetalle.id, seleccion.planId,
+          seleccion.idx, importe);
+        if (!revision.aplicable) throw new Error(revision.motivo || 'El vínculo requiere revisión individual.');
+        const resultado = await conciliarReciboDetallePlan(vincularDetalle.id, seleccion.planId,
+          seleccion.idx, importe, true);
+        if (!resultado.aplicado) throw new Error('El servidor no confirmó la conciliación.');
+        toast.success(resultado.remanente_historico_sin_movimiento
+          ? `Vínculo registrado. Verifica si $${Number(resultado.remanente_historico_sin_movimiento).toFixed(2)} ya fueron al monedero; esta conciliación no modificó el saldo.`
+          : 'Vínculo del recibo con el plan registrado; el estado fiscal se conservó.');
+        setVincularDetalle(null);
+        setVincularSeleccion([]);
+        cargarRecibos();
+        onDataRefresh?.();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'No se pudo conciliar el recibo.');
+      } finally {
+        setLinking(false);
+      }
+      return;
+    }
     setLinking(true);
-    const err = await vincularReciboDetalleAMultiplesPlan(
-      vincularDetalle.id,
-      reciboSeleccionado.folio,
-      vincularSeleccion
-    );
-    setLinking(false);
-    if (err) {
-      toast.error('Error vinculando: ' + err);
-    } else {
+    try {
+      const resultado = await vincularReciboDetallePlanes(vincularDetalle.id, vincularSeleccion);
+      toast.success(resultado.excedente > 0
+        ? `Abono aplicado. Excedente de $${resultado.excedente.toFixed(2)} acreditado al monedero.`
+        : 'Abono aplicado al plan.');
       setVincularDetalle(null);
       setVincularSeleccion([]);
       cargarRecibos();
@@ -486,6 +516,10 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
         d.id === vincularDetalle.id ? { ...d, indice_concepto_plan: firstIdx, observaciones: 'Abono vinculado manualmente al plan' } : d
       );
       setReciboSeleccionado({ ...reciboSeleccionado, recibos_detalles: updatedDetails });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo vincular el recibo.');
+    } finally {
+      setLinking(false);
     }
   };
 
@@ -687,168 +721,6 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
     await executeToggle();
   };
 
-  const handleRepararHistoricos = () => {
-    setSystemConfirmModal({
-      isOpen: true,
-      title: 'Reparación Masiva',
-      message: '¿Estás seguro de ejecutar la reparación masiva? Esto reasignará los recibos mal vinculados a sus ciclos históricos empleando cercanía de fechas.',
-      type: 'warning',
-      onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
-      onConfirm: async () => {
-        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
-        
-        setLoading(true);
-        setRepairProgress('Obteniendo planes de pago...');
-        try {
-          // Fetch planes_pago
-          const { data: planes, error: planesErr } = await fetchAllSupabase(() => supabase.from('planes_pago').select('*'));
-          if (planesErr) throw planesErr;
-          const planesMutables = JSON.parse(JSON.stringify(planes || []));
-
-          // Fetch recibos safely with pagination NO JOINS to avoid timeout
-          setRepairProgress('Descargando recibos (fase 1/2)...');
-          let allRecibos: any[] = [];
-          let fetchMoreR = true;
-          let rOffset = 0;
-          const R_LIMIT = 5000;
-          while (fetchMoreR) {
-              const { data, error } = await supabase.from('recibos').select('id, alumno_id, fecha_pago, estatus, ciclo_id').range(rOffset, rOffset + R_LIMIT - 1);
-              if (error) throw error;
-              if (data && data.length > 0) {
-                  allRecibos = [...allRecibos, ...data];
-                  rOffset += R_LIMIT;
-              } else {
-                  fetchMoreR = false;
-              }
-          }
-
-          setRepairProgress('Descargando detalles (fase 2/2)...');
-          let allDetalles: any[] = [];
-          let fetchMoreD = true;
-          let dOffset = 0;
-          const D_LIMIT = 5000;
-          while (fetchMoreD) {
-              const { data, error } = await supabase.from('recibos_detalles').select('id, recibo_id, concepto, indice_concepto_plan').not('indice_concepto_plan', 'is', null).range(dOffset, dOffset + D_LIMIT - 1);
-              if (error) throw error;
-              if (data && data.length > 0) {
-                  allDetalles = [...allDetalles, ...data];
-                  dOffset += D_LIMIT;
-              } else {
-                  fetchMoreD = false;
-              }
-          }
-
-          setRepairProgress('Cruzando datos en memoria...');
-          const joinedRecibos = allRecibos.map(r => {
-             const det = allDetalles.filter(d => d.recibo_id === r.id);
-             return { ...r, recibos_detalles: det };
-          }).filter(r => r.recibos_detalles.length > 0);
-
-          setRepairProgress('Analizando mejores coincidencias temporales...');
-
-          const parseDateToMs = (dStr: string) => {
-            if (!dStr) return 0;
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return new Date(dStr).getTime() || 0;
-            if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
-                const [d, m, y] = dStr.split('/');
-                return new Date(Number(y), Number(m)-1, Number(d)).getTime() || 0;
-            }
-            return new Date(dStr).getTime() || 0;
-          };
-
-          const planesToUpdate: Record<string, any> = {};
-          const recibosToUpdate: any[] = [];
-          const detallesToUpdate: any[] = [];
-
-          for (const r of joinedRecibos) {
-             if (r.estatus !== 'ACTIVO') continue;
-
-             const studentPlanes = planesMutables.filter((p: any) => p.alumno_id === r.alumno_id);
-             if (studentPlanes.length === 0) continue;
-
-             let changedCiclo = false;
-             let newCicloId = r.ciclo_id;
-
-             r.recibos_detalles.forEach((d: any) => {
-                 let bestMatch: any = null;
-                 const fechaReciboMs = new Date(r.fecha_pago).getTime();
-
-                 studentPlanes.forEach((plan: any) => {
-                     for(let j=1; j<=9; j++) {
-                         const conc = plan[`concepto_${j}`];
-                         if (conc && conc.toUpperCase() === d.concepto.toUpperCase()) {
-                             const fpMs = parseDateToMs(plan[`fecha_${j}`]);
-                             const diff = fpMs === 0 ? 9999999999999 : Math.abs(fechaReciboMs - fpMs);
-                             if (!bestMatch || diff < bestMatch.diff) {
-                                 bestMatch = { planId: plan.id, index: j, diff };
-                             }
-                         }
-                     }
-                 });
-
-                 if (bestMatch) {
-                     const oldPlanId = planesMutables.find((p:any) => p.ciclo_id === r.ciclo_id)?.id;
-                     const oldIndex = d.indice_concepto_plan;
-
-                     if (oldPlanId !== bestMatch.planId || oldIndex !== bestMatch.index) {
-                         if (oldPlanId && oldIndex) {
-                             if (!planesToUpdate[oldPlanId]) planesToUpdate[oldPlanId] = {};
-                             planesToUpdate[oldPlanId][`estatus_${oldIndex}`] = 'PENDIENTE';
-                             const oldP = planesMutables.find((p:any) => p.id === oldPlanId);
-                             if (oldP) oldP[`estatus_${oldIndex}`] = 'PENDIENTE';
-                         }
-
-                         if (!planesToUpdate[bestMatch.planId]) planesToUpdate[bestMatch.planId] = {};
-                         planesToUpdate[bestMatch.planId][`estatus_${bestMatch.index}`] = 'PAGADO';
-                         const newP = planesMutables.find((p:any) => p.id === bestMatch.planId);
-                         if (newP) newP[`estatus_${bestMatch.index}`] = 'PAGADO';
-
-                         detallesToUpdate.push({ id: d.id, indice_concepto_plan: bestMatch.index });
-                         if (newP && newCicloId !== newP.ciclo_id) {
-                             newCicloId = newP.ciclo_id;
-                             changedCiclo = true;
-                         }
-                     }
-                 }
-             });
-
-             if (changedCiclo) recibosToUpdate.push({ id: r.id, ciclo_id: newCicloId });
-          }
-
-          setRepairProgress(`Procesando actualizaciones...`);
-          
-          const UPDATE_CHUNK = 20; // 20 concurrent updates max to prevent connection pool exhaustion
-          const planIds = Object.keys(planesToUpdate);
-          
-          for (let k = 0; k < planIds.length; k += UPDATE_CHUNK) {
-             setRepairProgress(`Actualizando planes... ${k}/${planIds.length}`);
-             await Promise.all(planIds.slice(k, k + UPDATE_CHUNK).map(id => supabase.from('planes_pago').update(planesToUpdate[id]).eq('id', id)));
-          }
-          
-          for (let k = 0; k < detallesToUpdate.length; k += UPDATE_CHUNK) {
-             setRepairProgress(`Actualizando detalles... ${k}/${detallesToUpdate.length}`);
-             await Promise.all(detallesToUpdate.slice(k, k + UPDATE_CHUNK).map(d => supabase.from('recibos_detalles').update({ indice_concepto_plan: d.indice_concepto_plan }).eq('id', d.id)));
-          }
-          
-          for (let k = 0; k < recibosToUpdate.length; k += UPDATE_CHUNK) {
-             setRepairProgress(`Actualizando recibos... ${k}/${recibosToUpdate.length}`);
-             await Promise.all(recibosToUpdate.slice(k, k + UPDATE_CHUNK).map(r => supabase.from('recibos').update({ ciclo_id: r.ciclo_id }).eq('id', r.id)));
-          }
-
-          setRepairProgress('');
-          toast.success('¡Reparación completada con éxito!');
-          cargarRecibos();
-        } catch (e: any) {
-          console.error(e);
-          toast.error('Error en reparación: ' + e.message);
-          setRepairProgress('');
-        } finally {
-          setLoading(false);
-        }
-      }
-    });
-  };
-
   const parseDateToMs = (dStr: string) => {
     if (!dStr) return 0;
     if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return new Date(dStr + "T00:00:00").getTime() || 0;
@@ -860,6 +732,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
   };
 
   const recibosFiltrados = recibos.filter(r => {
+    if (cicloConsultaId && r.ciclo_id !== cicloConsultaId) return false;
     if (filterFactura && (!r.requiere_factura || r.estatus_factura === 'FACTURADO')) {
        return false;
     }
@@ -898,7 +771,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, itemsPerPage]);
+  }, [searchTerm, itemsPerPage, cicloConsultaId]);
 
   const totalPages = Math.ceil(recibosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -959,11 +832,22 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
               </button>
             </div>
           </div>
-          {repairProgress && (
-             <div className="text-xs font-bold text-red-600 bg-red-50 p-2 rounded border border-red-200 animate-pulse text-center">
-               ⚙️ {repairProgress}
-             </div>
-          )}
+
+          <label htmlFor="ciclo-consulta-recibos" className="text-xs font-bold text-slate-600 dark:text-slate-300">
+            Ciclo de los recibos
+          </label>
+          <select id="ciclo-consulta-recibos" value={cicloConsultaId}
+            onChange={event => {
+              setCicloConsultaId(event.target.value);
+              setSelectedReceiptIds(new Set());
+              setReciboSeleccionado(null);
+            }}
+            className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+            <option value="">Todos los ciclos</option>
+            {[...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es-MX')
+              || (a.tipo_periodo || '').localeCompare(b.tipo_periodo || '', 'es-MX')).map(ciclo =>
+              <option key={ciclo.id} value={ciclo.id}>{ciclo.nombre} · {ciclo.tipo_periodo}</option>)}
+          </select>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8e8e93] dark:text-[#8e8e93]" size={15} />
             <input
@@ -1386,12 +1270,18 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                             Plan #{d.indice_concepto_plan}
                           </span>
                           <button 
-                             onClick={() => handleUnlinkDetail(d.id, d.indice_concepto_plan as number)} 
+                             onClick={() => handleUnlinkDetail(d.id)}
                              className="text-red-500 hover:bg-red-50 rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors"
                              title="Desvincular del Plan"
                           >
                              ✕
                           </button>
+                          {reciboSeleccionado.estatus === 'ACTIVO'
+                            && ['ADMINISTRADOR', 'COORDINADOR FINANCIERO'].includes(currentUser?.rol || '')
+                            && <button type="button" onClick={() => setVincularDetalle(d)}
+                              className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100">
+                              Conciliar con plan
+                            </button>}
                         </div>
                       ) : reciboSeleccionado.estatus === 'ACTIVO' ? (
                         <button onClick={() => setVincularDetalle(d)} className="mt-0.5 text-[10px] text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 px-2 py-0.5 border border-amber-200 dark:border-amber-800 rounded-full font-bold transition-colors shadow-[var(--shadow-subtle)]">
@@ -1598,8 +1488,15 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                 Monto: <strong className="text-emerald-700">${vincularDetalle.subtotal.toFixed(2)}</strong>
               </p>
               <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-[8px] p-2 mt-3">
-                Selecciona uno o más conceptos del plan a liquidar con este recibo.
+                Los conceptos del mismo ID se aplican al saldo del plan y el excedente va al monedero. Para otro ID del mismo periodo, elige un concepto y confirma el importe; el vínculo histórico conserva el recibo, el estatus del plan y el monedero.
               </p>
+              {vincularSeleccion.some(seleccion => planesAlumno.find(plan => plan.id === seleccion.planId)?.ciclo_id
+                !== reciboSeleccionado?.ciclo_id) &&
+                <label className="mt-3 block text-xs font-semibold text-slate-700">Importe a vincular (admite abono parcial)
+                  <input type="number" min="0.01" step="0.01" value={importeHistorico}
+                    onChange={event => setImporteHistorico(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+                </label>}
             </div>
 
             <div className="px-6 pb-4 overflow-y-auto max-h-72">
@@ -1609,18 +1506,23 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {planesAlumno.map(plan => {
+                  {planesAlumno.filter(plan => !vincularDetalle.indice_concepto_plan
+                    || plan.ciclo_id !== reciboSeleccionado?.ciclo_id).map(plan => {
                     const pendientes = [];
-                    for (let i = 1; i <= 9; i++) {
-                      const c = (plan as any)[`concepto_${i}`];
-                      const e = (plan as any)[`estatus_${i}`];
-                      if (c && !(e || '').toUpperCase().includes('PAGADO')) {
+                    for (let i = 1; i <= 18; i++) {
+                      const detalle = plan.detalles?.find(d => d.indice_concepto === i);
+                      const c = detalle?.concepto || (plan as any)[`concepto_${i}`];
+                      const e = detalle?.estatus || (plan as any)[`estatus_${i}`];
+                      if (c && (!vincularDetalle.indice_concepto_plan
+                        || i === vincularDetalle.indice_concepto_plan)
+                        && (plan.ciclo_id !== reciboSeleccionado?.ciclo_id
+                        || !(e || '').toUpperCase().includes('PAGADO'))) {
                         pendientes.push({ idx: i, concepto: c });
                       }
                     }
                     return (
                       <div key={plan.id}>
-                        <div className="text-xs font-bold text-[#8e8e93] mb-2 uppercase tracking-wide">Plan: {plan.no_plan_pagos}</div>
+                        <div className="text-xs font-bold text-[#8e8e93] mb-2 uppercase tracking-wide">Plan: {plan.no_plan_pagos} · {ciclos.find(ciclo => ciclo.id === plan.ciclo_id)?.tipo_periodo || 'sin periodicidad'}{plan.ciclo_id !== reciboSeleccionado?.ciclo_id ? ' · ciclo homónimo distinto' : ''}</div>
                         {pendientes.length === 0 ? (
                           <div className="text-sm text-[#8e8e93] italic">No hay conceptos PENDIENTES.</div>
                         ) : (

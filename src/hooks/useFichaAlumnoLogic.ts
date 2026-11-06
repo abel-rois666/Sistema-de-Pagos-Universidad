@@ -3,9 +3,10 @@ import toast from 'react-hot-toast';
 import { alumnosService } from '../services/alumnosService';
 import { academicosService } from '../services/academicosService';
 import { useAppStore } from '../store/useAppStore';
+import { useCicloModulo } from './useCicloModulo';
 import type { Alumno, ServicioSocial } from '../types';
 
-export type TabId = 'pagos' | 'datos_generales' | 'academico' | 'servicio_social' | 'certificacion' | 'titulacion';
+export type TabId = 'inscripciones' | 'pagos' | 'datos_generales' | 'academico' | 'servicio_social' | 'certificacion' | 'titulacion';
 
 export interface TabDef {
   id: TabId;
@@ -22,14 +23,15 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
     catalogos,
     catalogoItems,
     appConfig,
-    activeCicloId,
+    activeCicloId: cicloGlobalId,
     refreshAfterPayment,
     carreras,
     ciclos,
   } = useAppStore();
 
-  const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
+  const [cicloFichaId, setCicloFichaId] = useCicloModulo('ficha-alumno', ciclos, cicloGlobalId, currentUser?.id);
+  const activeCicloId = cicloFichaId;
+  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
   const onRefreshAlumnos = refreshAfterPayment;
 
   // Búsqueda
@@ -42,6 +44,11 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
 
   // Plan activo (cuando hay múltiples)
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+
+  const cambiarCicloFicha = (id: string) => {
+    setCicloFichaId(id);
+    setActivePlanId(null);
+  };
 
   // Monedero (admin)
   const [editingMonedero, setEditingMonedero] = useState(false);
@@ -117,10 +124,14 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
 
   // Tabs visibles según el rol del usuario
   const visibleTabs = allTabs.filter(t => {
+    if (t.id === 'inscripciones' && !['ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR'].includes(currentUser?.rol || '')) return false;
     if (t.adminOnly && !isAdmin) return false;
     if (currentUser?.rol === 'COORDINADOR FINANCIERO' && t.id === 'academico') return false;
     return true;
   });
+  useEffect(()=>{
+    if(allTabs.length&&!visibleTabs.some(t=>t.id===activeTab))setActiveTab(visibleTabs.find(t=>t.id==='pagos')?.id||visibleTabs[0]?.id||'pagos');
+  },[activeTab,currentUser?.rol,allTabs]);
 
   // Detectar si el alumno es de Especialidad (para TabTitulacion)
   const esEspecialidad = selectedAlumno
@@ -208,6 +219,9 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
     visibleTabs,
     esEspecialidad,
     planesDelAlumno,
+    ciclos,
+    cicloFichaId: activeCicloId,
+    cambiarCicloFicha,
     catalogos,
     onRefreshAlumnos,
     appConfig,

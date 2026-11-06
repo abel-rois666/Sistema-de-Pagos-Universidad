@@ -5,7 +5,9 @@ import { PaymentPlan } from '../types';
 import { isPaid, getRestanteFromEstatus , toTitleCase} from '../utils';
 import { printElement } from '../lib/printUtils';
 import { useAppStore } from '../store/useAppStore';
+import { useCicloModulo } from '../hooks/useCicloModulo';
 import { MultiSelectFilter } from './MultiSelectFilter';
+import SelectorCicloModulo from './ui/SelectorCicloModulo';
 
 interface DeudoresProps {
   onBack: () => void;
@@ -45,9 +47,10 @@ const parsePaymentDate = (dStr: string): Date | null => {
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) {
-  const { plans: allPlans, alumnos, activeCicloId, ciclos } = useAppStore();
+  const { plans: allPlans, alumnos, activeCicloId: cicloGlobalId, ciclos, currentUser } = useAppStore();
+  const [activeCicloId, setCicloModuloId] = useCicloModulo('deudores', ciclos, cicloGlobalId, currentUser?.id);
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId || p.ciclo_escolar === activeCiclo?.nombre);
+  const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLicenciaturas, setFilterLicenciaturas] = useState<string[]>([]);
   const [filterGrados, setFilterGrados] = useState<string[]>([]);
@@ -266,6 +269,9 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId || ''}
+              label="Ciclo de deudores" onChange={id => { setCicloModuloId(id); setCurrentPage(1); }}
+              className="w-full sm:w-56" />
             <div className="relative w-full sm:w-72">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-[#8e8e93] dark:text-[#8e8e93]" />

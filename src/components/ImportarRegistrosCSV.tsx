@@ -4,6 +4,9 @@ import { X, Upload, Download, CheckCircle, AlertTriangle, FileText, ChevronRight
 import { Alumno, CicloEscolar } from '../types';
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV } from '../utils';
 import { supabase, saveReciboCompleto } from '../lib/supabase';
+import SelectorCicloModulo from './ui/SelectorCicloModulo';
+import { formatCicloEscolar } from '../utils/formatUtils';
+import toast from 'react-hot-toast';
 
 interface ParsedRowRecibo {
     rowIndex: number;
@@ -175,7 +178,8 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const activeCiclo = activeCicloProp || ciclos.find(c => c.activo) || ciclos[0];
+    const [cicloDestinoId, setCicloDestinoId] = useState(activeCicloProp?.id || '');
+    const activeCiclo = ciclos.find(ciclo => ciclo.id === cicloDestinoId);
 
     const handleDownloadTemplate = () => {
         const rows = SAMPLE_ROWS_RECIBOS.map(r => {
@@ -221,6 +225,11 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
     };
 
     const handleConfirm = async () => {
+        if (importing) return;
+        if (!activeCiclo) {
+            toast.error('Selecciona el ciclo exacto de los recibos antes de importar.');
+            return;
+        }
         setImporting(true);
         await new Promise(r => setTimeout(r, 600)); 
 
@@ -261,132 +270,8 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                 subtotal: d.costo_total
             }));
 
-            let planUpdates: any = undefined;
-            let excedenteGlobalRecibo = 0;
-
-            // Vinculación Automática Inteligente (todas las fechas/ciclos históricos)
-            if (reciboPayload.estatus === 'ACTIVO') {
-                const { data: planes } = await supabase
-                    .from('planes_pago')
-                    .select('*')
-                    .eq('alumno_id', asocAlumno.id);
-
-                if (planes && planes.length > 0) {
-                    const planesMutables: any[] = JSON.parse(JSON.stringify(planes));
-                    const updatesPorPlan: Record<string, any> = {};
-                    let bestCicloId: string | null = null;
-                    
-                    const parseDateToMs = (dStr: string) => {
-                        if (!dStr) return 0;
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return new Date(dStr).getTime() || 0;
-                        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
-                            const [d, m, y] = dStr.split('/');
-                            return new Date(Number(y), Number(m)-1, Number(d)).getTime() || 0;
-                        }
-                        return new Date(dStr).getTime() || 0;
-                    };
-
-                    detallesPayload.forEach(d => {
-                        let bestMatch: { planId: string; index: number; diff: number } | null = null;
-                        const fechaReciboMs = new Date(reciboPayload.fecha_pago).getTime();
-
-                        planesMutables.forEach(plan => {
-                            for(let i=1; i<=9; i++) {
-                                const conc = plan[`concepto_${i}`];
-                                const estatus = plan[`estatus_${i}`];
-                                const fechaPlan = plan[`fecha_${i}`];
-                                
-                                // FIX: Permitir vincular a conceptos con abonos, verificando que no estén 'PAGADO'
-                                if (conc && !(estatus || '').toUpperCase().includes('PAGADO') && conc.toUpperCase() === d.concepto.toUpperCase()) {
-                                    const fpMs = parseDateToMs(fechaPlan);
-                                    const diff = fpMs === 0 ? 9999999999999 : Math.abs(fechaReciboMs - fpMs);
-                                    
-                                    if (!bestMatch || diff < bestMatch.diff) {
-                                        bestMatch = { planId: plan.id, index: i, diff };
-                                    }
-                                }
-                            }
-                        });
-
-                        if (bestMatch) {
-                            d.indice_concepto_plan = bestMatch.index;
-                            
-                            if (!updatesPorPlan[bestMatch.planId]) updatesPorPlan[bestMatch.planId] = {};
-                            
-                            const planOriginal = planesMutables.find(p => p.id === bestMatch!.planId);
-                            const estatusPrevio = (planOriginal[`estatus_${bestMatch.index}`] || 'PENDIENTE') as string;
-                            const montoPlaneado = (planOriginal[`cantidad_${bestMatch.index}`] || 0) as number;
-                            const abonoActual = d.subtotal;
-
-                            // -- Mismo algoritmo de Abonos que RegistrarPago.tsx --
-                            const getRestanteDe = (estatusText: string, totalOriginal: number): number => {
-                                if (!estatusText || estatusText === 'PENDIENTE') return totalOriginal;
-                                const m = estatusText.match(/Resta\s*\$([0-9,]+(?:\.\d{2})?)/);
-                                if (m) return parseFloat(m[1].replace(',', ''));
-                                if (estatusText.toUpperCase().includes('PAGADO')) return 0;
-                                return totalOriginal;
-                            };
-
-                            const restanteAnterior = getRestanteDe(estatusPrevio, montoPlaneado);
-                            const resta = restanteAnterior - abonoActual;
-                            
-                            // Total acumulado = pagado previamente + este abono
-                            const totalPagadoNuevo = (montoPlaneado - restanteAnterior) + abonoActual;
-
-                            // Extraer folios previos
-                            const folios = (estatusPrevio.match(/R-\d+/g) || []);
-                            const folioTextoPrevio = folios.length > 0 ? folios.join('; ') + '; ' : '';
-
-                            let nuevoEstatus = '';
-                            if (resta <= 0.005) {
-                                // Mostrar el total pagado históricamente para este concepto, topado al monto planeado
-                                const topePagado = Math.min(totalPagadoNuevo, montoPlaneado);
-                                nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Pagado $${topePagado.toFixed(2)})`;
-                            } else {
-                                nuevoEstatus = `${folioTextoPrevio}R-{{FOLIO}} (Abono $${totalPagadoNuevo.toFixed(2)}, Resta $${resta.toFixed(2)})`;
-                            }
-
-                            // --- NUEVO: ASIGNAR OBSERVACIONES AL RECIBO (ABONOS Y EXCEDENTES) ---
-                            if (resta < -0.005) {
-                                const excedenteAqui = Math.abs(resta);
-                                excedenteGlobalRecibo += excedenteAqui;
-                                d.observaciones = `Concepto liquidado ✓ (Excedente de $${excedenteAqui.toFixed(2)} depositado en Monedero)`;
-                            } else if (resta > 0.005) {
-                                d.observaciones = `Abono $${abonoActual.toFixed(2)} — Restante: $${resta.toFixed(2)}`;
-                            } else if (totalPagadoNuevo < montoPlaneado - 0.005 || estatusPrevio.includes('Abono')) {
-                                d.observaciones = `Abono final — Concepto liquidado ✓ (Total pagado: $${totalPagadoNuevo.toFixed(2)})`;
-                            }
-
-                            updatesPorPlan[bestMatch.planId][`estatus_${bestMatch.index}`] = nuevoEstatus;
-                            
-                            if (planOriginal) {
-                                // Evitar que el mismo concepto sea "pescado" por otro detalle en el mismo recibo o importación repetida
-                                planOriginal[`estatus_${bestMatch.index}`] = nuevoEstatus.replace('{{FOLIO}}', row.no_recibo); 
-                                if (!bestCicloId) bestCicloId = planOriginal.ciclo_id;
-                            }
-                        }
-                    });
-
-                    const planIdsToUpdate = Object.keys(updatesPorPlan);
-                    if (planIdsToUpdate.length > 0) {
-                        // Backend solo soporta actulizar 1 plan por transacción en saveReciboCompleto
-                        const primaryPlanId = planIdsToUpdate[0];
-                        planUpdates = { planId: primaryPlanId, updates: updatesPorPlan[primaryPlanId] };
-                        
-                        // Reasignar el recibo al ciclo correcto en lugar del activo
-                        if (bestCicloId) {
-                            reciboPayload.ciclo_id = bestCicloId;
-                        }
-                    }
-                } else {
-                    // El alumno existe pero no tiene plan de pagos en ningún ciclo
-                    warnings.push(`${row.nombre_alumno} — sin plan de pagos (el recibo se guardó suelto)`);
-                }
-            }
-
-            const saldoAfavorUpdate = excedenteGlobalRecibo > 0 ? { alumnoId: asocAlumno.id, delta: excedenteGlobalRecibo } : undefined;
-
-            const result = await saveReciboCompleto(reciboPayload, detallesPayload as any, planUpdates, saldoAfavorUpdate);
+            // Los comprobantes históricos conservan el ciclo elegido; su aplicación al plan se revisa después.
+            const result = await saveReciboCompleto(reciboPayload, detallesPayload as any);
             if (result.error) {
                 // Detect duplicate folio: treat as a skip/warning, not a hard error
                 const isDuplicateFolio = result.error.includes('recibos_folio_key') || result.error.includes('duplicate key');
@@ -427,7 +312,7 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Importar Registros de Pago</h2>
-                            <p className="text-sm text-[#8e8e93] dark:text-[#8e8e93]">Ciclo activo: <span className="font-semibold text-blue-600 dark:text-blue-400">{activeCiclo?.nombre || 'Ninguno'}</span></p>
+                            <p className="text-sm text-[#8e8e93] dark:text-[#8e8e93]">Ciclo de los recibos: <span className="font-semibold text-blue-600 dark:text-blue-400">{activeCiclo ? formatCicloEscolar(activeCiclo) : 'Selecciona un ciclo'}</span></p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-[#1c2228] rounded-[8px] transition-colors">
@@ -455,6 +340,9 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                 <div className="flex-1 overflow-y-auto w-full">
                     {step === 1 && (
                         <div className="p-6 space-y-6">
+                            <SelectorCicloModulo ciclos={ciclos} cicloId={cicloDestinoId}
+                                onChange={setCicloDestinoId} label="Ciclo de los recibos importados" />
+                            <p className="text-sm text-slate-600 dark:text-slate-300">Todos los recibos del archivo se registrarán en el ciclo elegido. Después puedes vincular sus conceptos a los planes desde Consultar Registros. La importación conserva el saldo del monedero.</p>
                             <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-[13px] p-4 flex items-start gap-4">
                                 <FileText size={20} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
@@ -489,6 +377,8 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
 
                     {step === 2 && (
                         <div className="p-6 space-y-4">
+                            {!activeCiclo && <p role="alert" className="text-sm font-semibold text-amber-700 dark:text-amber-300">Vuelve al paso anterior y elige el ciclo exacto de los recibos.</p>}
+                            <p className="text-sm text-slate-600 dark:text-slate-300">Se conservarán los folios del archivo y se registrarán los recibos sin aplicar pagos a los planes. Revisa el ciclo antes de confirmar la importación.</p>
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="bg-blue-50 border border-blue-200 rounded-[13px] p-4 text-center">
                                     <p className="text-3xl font-semibold text-blue-700">{parsedRows.length}</p>
@@ -573,7 +463,7 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                                 <div className="text-left max-w-lg mx-auto">
                                     <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-t-lg px-4 py-2">
                                         <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
-                                        <span className="text-amber-800 text-xs font-bold uppercase tracking-wide">Recibos sin vincular — alumno sin plan</span>
+                                        <span className="text-amber-800 text-xs font-bold uppercase tracking-wide">Avisos de importación</span>
                                     </div>
                                     <div className="bg-amber-50 border-x border-b border-amber-200 rounded-b-lg p-3 overflow-y-auto max-h-36 text-sm text-amber-800 space-y-1">
                                         {importResult.warnings.map((w, i) => <div key={i} className="flex items-start gap-2"><span className="mt-0.5 text-amber-500">⚠</span>{w}</div>)}
@@ -598,7 +488,7 @@ export default function ImportarRegistrosCSV({ alumnos, activeCiclo: activeCiclo
                     {step === 2 && (
                         <button
                             onClick={handleConfirm}
-                            disabled={validCount === 0 || importing}
+                            disabled={validCount === 0 || importing || !activeCiclo}
                             className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-[8px] font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
                         >
                             {importing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}

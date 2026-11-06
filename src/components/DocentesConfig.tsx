@@ -1,3 +1,6 @@
+import EstadoError from './ui/EstadoError';
+import SeleccionVisible from './ui/SeleccionVisible';
+import { cambiarSeleccionVisible } from '../utils/seleccionVisible';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Docente } from '../types';
@@ -11,6 +14,7 @@ import { toTitleCase } from '../utils';
 export default function DocentesConfig() {
   const [docentes, setDocentes] = useState<Docente[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorConsulta, setErrorConsulta] = useState('');
   const [selectedDocente, setSelectedDocente] = useState<Docente | null>(null);
   const [isModalDocenteOpen, setIsModalDocenteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,6 +54,7 @@ export default function DocentesConfig() {
   }, [omitirInactivos]);
 
   const fetchDocentes = async () => {
+    setErrorConsulta('');
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -63,6 +68,8 @@ export default function DocentesConfig() {
 
       setDocentes(data as unknown as Docente[]);
     } catch (error: any) {
+      setErrorConsulta('No se pudo consultar el directorio docente.');
+      setDocentes([]);
       toast.error('Error al cargar los docentes: ' + error.message);
       console.error(error);
     } finally {
@@ -239,11 +246,7 @@ export default function DocentesConfig() {
   const totalPages = Math.ceil(filteredAndSortedDocentes.length / itemsPerPage);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedIds(filteredAndSortedDocentes.map(d => d.id));
-    } else {
-      setSelectedIds([]);
-    }
+    setSelectedIds(prev => cambiarSeleccionVisible(prev, paginatedDocentes.map(fila => fila.id), e.target.checked));
   };
 
   const handleSelectOne = (id: string) => {
@@ -276,6 +279,7 @@ export default function DocentesConfig() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
+                aria-label="Buscar docente"
                 placeholder="Buscar docente..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -313,9 +317,9 @@ export default function DocentesConfig() {
               <thead className="bg-gray-50/80 dark:bg-[#222830] text-[#45515e] dark:text-gray-300 font-semibold border-b border-gray-200 dark:border-[rgba(255,255,255,0.08)] select-none">
                 <tr>
                   <th className="px-4 py-4 w-10">
-                    <input 
-                      type="checkbox"
-                      checked={filteredAndSortedDocentes.length > 0 && selectedIds.length === filteredAndSortedDocentes.length}
+                    <SeleccionVisible
+                      seleccion={selectedIds}
+                      visibles={paginatedDocentes.map(fila => fila.id)}
                       onChange={handleSelectAll}
                       className="w-4 h-4 text-[#1456f0] border-gray-300 rounded focus:ring-[#1456f0] focus:ring-2 bg-gray-50 dark:bg-[#181e25] dark:border-gray-600 cursor-pointer"
                     />
@@ -339,13 +343,13 @@ export default function DocentesConfig() {
               <tbody className="divide-y divide-gray-100 dark:divide-[rgba(255,255,255,0.04)]">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       Cargando docentes...
                     </td>
                   </tr>
-                ) : filteredAndSortedDocentes.length === 0 ? (
+                ) : errorConsulta ? <tr><td colSpan={7} className="p-4"><EstadoError mensaje={errorConsulta} onReintentar={() => void fetchDocentes()} /></td></tr> : filteredAndSortedDocentes.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       No hay docentes registrados o no se encontraron coincidencias.
                     </td>
                   </tr>
@@ -404,9 +408,10 @@ export default function DocentesConfig() {
                             onClick={() => {
                               setAccessDocente(docente);
                               setAccessPassword('');
+                              setAccessEmail(docente.email || '');
                               setIsAccessModalOpen(true);
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#1456f0] bg-[#1456f0]/10 hover:bg-[#1456f0]/20 rounded-md transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#1456f0] dark:text-blue-300 bg-[#1456f0]/10 hover:bg-[#1456f0]/20 rounded-md transition-colors"
                           >
                             <Plus size={14} />
                             Crear Acceso
@@ -414,19 +419,7 @@ export default function DocentesConfig() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {(!docente.usuarios || docente.usuarios.length === 0) && (
-                          <button 
-                            onClick={() => {
-                              setAccessDocente(docente);
-                              setAccessEmail(docente.email || '');
-                              setIsAccessModalOpen(true);
-                            }}
-                            className="p-2 text-gray-400 hover:text-amber-500 transition-colors"
-                            title="Crear Acceso"
-                          >
-                            <Key size={18} />
-                          </button>
-                        )}
+
                         <button 
                           onClick={() => {
                             setSelectedDocente(docente);
@@ -532,8 +525,8 @@ export default function DocentesConfig() {
       />
       <ModalConfirmacion {...confirmModal} />
 
-      {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#181C25] border border-[rgba(255,255,255,0.08)] p-2 pr-4 rounded-[30px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 animate-in slide-in-from-bottom-10 fade-in duration-300 flex items-center gap-4 text-white font-sans">
+      {selectedIds.length > 0 && !loading && !errorConsulta && (
+        <div className="fixed bottom-4 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:max-w-[calc(100vw-2rem)] bg-[#181C25] border border-[rgba(255,255,255,0.08)] p-2 pr-4 rounded-[30px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 animate-in slide-in-from-bottom-10 fade-in duration-300 flex flex-wrap items-center gap-3 text-white font-sans">
           
           {/* Badge & Text */}
           <div className="flex items-center gap-3 pl-2">
@@ -541,12 +534,13 @@ export default function DocentesConfig() {
               {selectedIds.length}
             </div>
             <span className="text-sm font-semibold">
-              seleccionados
+              seleccionados · {selectedIds.filter(id => !paginatedDocentes.some(fila => fila.id === id)).length} fuera de esta vista
             </span>
           </div>
 
           <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] mx-1"></div>
 
+          <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg px-2 py-1 text-xs underline focus-visible:outline-2 focus-visible:outline-white">Limpiar selección</button>
           {/* Actions */}
           <div className="flex items-center gap-2">
             <select

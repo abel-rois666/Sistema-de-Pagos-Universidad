@@ -1,0 +1,31 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ensayo local 911 · datos ficticios</title></head><body><div style="padding:12px;background:#ffe1a0;font:13px sans-serif">ENSAYO LOCAL · DATOS FICTICIOS · RED EXTERNA BLOQUEADA <button onclick="document.documentElement.classList.toggle('dark');document.body.style.background=document.documentElement.classList.contains('dark')?'#030712':'#f9fafb'">Cambiar tema</button></div><div id="root" style="padding:20px"></div><script type="module">
+const ancho=new URL(location.href).searchParams.get('ancho');
+if(ancho){const frame=document.createElement('iframe');frame.src=location.pathname;frame.style.cssText=`width:${Number(ancho)}px;height:1100px;border:1px solid #ccc;display:block;margin:0 auto`;document.getElementById('root').replaceChildren(frame);}
+else {
+const originalFetch=window.fetch.bind(window);let expedientes=[];let respaldos=[];
+let candidatos=Array.from({length:32},(_,n)=>({alumno_programa_id:'aaaaaaaa-aaaa-4aaa-8aaa-'+String(n+1).padStart(12,'0'),alumno_id:'alumno-ficticio-'+n,matricula:'PRUEBA-'+String(n+1).padStart(3,'0'),nombre:'Persona ficticia '+String(n+1).padStart(2,'0'),programa:'Plan ficticio',plan_id:'22222222-2222-4222-8222-222222222222',grado:'2',fuente_id:n===0?'fuente-ficticia-1':null,actualizado_en:n===0?'2026-10-01T00:00:00Z':null,desde:n===0?'2026-09-01':'',hasta:null,evidencia:n===0?'Acta ficticia':'',tipo_ingreso:'DESCONOCIDO',fecha_primer_ingreso:'',ingreso_procedencia:{}}));
+window.fetch=async(input,init)=>{
+ const url=new URL(typeof input==='string'?input:input.url||String(input),location.href);
+ if(url.origin===location.origin)return originalFetch(input,init);
+ // Ninguna petición de esta página se transmite a Supabase ni a otro servidor externo.
+ let data=[];const body=init?.body?JSON.parse(String(init.body)):{};
+ if(url.pathname.endsWith('/rpc/s911_guardar')){const row={id:'11111111-1111-4111-8111-111111111111',nombre:body.p_payload.nombre,estado:'BORRADOR',version:1,revision:(body.p_revision||0)+1,payload:body.p_payload};expedientes=[row];respaldos=body.p_respaldos||[];data=row;}
+ else if(url.pathname.includes('/rpc/s911_candidatos_guiados'))data=candidatos;
+ else if(url.pathname.includes('/rpc/s911_inferir_ingreso'))data=(body.p_programas||[]).map(id=>({alumno_programa_id:id,estado:'PROPUESTA',ciclo_id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',ciclo:'2025-1',fecha:'2024-09-30',registros:12}));
+ else if(url.pathname.includes('/rpc/s911_guardar_lote_inscripciones')){data=body.p_filas.length;for(const f of body.p_filas)candidatos=candidatos.map(c=>c.alumno_programa_id===f.alumno_programa_id?{...c,...f,fuente_id:c.fuente_id||'fuente-'+c.matricula,actualizado_en:'2026-10-27T00:00:00Z'}:c);}
+ else if(url.pathname.endsWith('/s911_catalogos')){const qs=['carrera','posgrado','escuela','institucion','infraestructura','tecnologia'];const f=await Promise.all(qs.map(async q=>[q,await originalFetch('/911/2026-2027/'+q+'.json').then(r=>r.json())]));data={fuentes:Object.fromEntries(f),reglas:await originalFetch('/911/2026-2027/reglas.json').then(r=>r.json())};}
+ else if(url.pathname.endsWith('/s911_expedientes'))data=expedientes;
+ else if(url.pathname.endsWith('/s911_respaldos'))data=[{contenido:respaldos,version:1}];
+ else if(url.pathname.endsWith('/planes_estudio'))data=[{id:'22222222-2222-4222-8222-222222222222',clave_legado:'PRUEBA_911',nombre:'Plan académico ficticio',tipo_periodo:'CUATRIMESTRAL',modalidad:'ESCOLARIZADA',carrera:{nombre:'Oferta ficticia',nivel_educativo:'LICENCIATURA'}}];
+ else if(url.pathname.includes('/rpc/s911_personal_agregado'))data={respuestas:{},incidencias:['Ensayo sin fuentes personales']};
+ else if(url.pathname.includes('/rpc/s911_registrar_exportacion'))data='exportacion-ficticia';
+ return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json','content-range':'0-0/1'}});
+};
+const React=await import('react'),{createRoot}=await import('react-dom/client'),{default:Toaster}=await import('react-hot-toast').then(m=>({default:m.Toaster}));
+await import('/src/index.css');const {useAppStore}=await import('/src/store/useAppStore.ts');
+useAppStore.setState({currentUser:{id:'usuario-ficticio',username:'ENSAYO',rol:'ADMINISTRADOR'},ciclos:[{id:'33333333-3333-4333-8333-333333333333',nombre:'2027-1',tipo_periodo:'Cuatrimestral',anio:2026,meses_abarca:'',activo:true,fecha_inicio:'2026-08-01',fecha_termino:'2026-12-31'}]});
+const rolEnsayo=document.createElement('button');rolEnsayo.textContent='Cambiar rol de ensayo';rolEnsayo.onclick=()=>{const u=useAppStore.getState().currentUser;useAppStore.setState({currentUser:{...u,rol:u.rol==='ADMINISTRADOR'?'COORDINADOR FINANCIERO':'ADMINISTRADOR'}});};document.body.firstElementChild.append(rolEnsayo);
+const {default:Modulo}=await import('/src/components/estadistica911/Estadistica911.tsx');
+createRoot(document.getElementById('root')).render(React.createElement(React.Fragment,null,React.createElement(Modulo),React.createElement(Toaster)));
+}
+</script></body></html>

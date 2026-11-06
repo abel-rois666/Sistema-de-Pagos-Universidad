@@ -78,8 +78,8 @@ test('plan flexible omite grado, Mixto estrecha horario y opciones ocultan detal
   const zip = await JSZip.loadAsync(await docx.arrayBuffer());
   const xml = await zip.file('word/document.xml')?.async('string');
   assert.ok(xml?.includes('w:gridCol w:w="1400"'));
-  assert.ok(xml?.includes('w:gridCol w:w="13600"'));
-  assert.ok(xml?.includes('w:pgSz w:w="16838" w:h="11906" w:orient="landscape"'));
+  assert.ok(xml?.includes('w:gridCol w:w="9000"'));
+  assert.ok(xml?.includes('w:pgSz w:w="11906" w:h="16838" w:orient="portrait"'));
   const tituloWord = [...(xml || '').matchAll(/<w:p>.*?<\/w:p>/gs)]
     .map(coincidencia => coincidencia[0]).find(parrafo => parrafo.includes('Materias y docentes'));
   assert.ok(tituloWord?.includes('<w:jc w:val="center"/>'));
@@ -88,6 +88,28 @@ test('plan flexible omite grado, Mixto estrecha horario y opciones ocultan detal
   assert.ok(!xml?.includes('grado 4'));
   assert.ok(crearPdfHorario(datos, [], '2027-1', { tipo: 'grupos', ids: ['g1'] }, opciones)
     .output('arraybuffer').byteLength > 1000);
+});
+
+test('Word vertical de grupo da más ancho al día con materias largas', async () => {
+  const datos = entrada();
+  datos.cargas[0].asignatura = 'Taller de práctica jurídica y argumentación constitucional';
+  datos.cargas[1].grupoId = 'g1';
+  datos.cargas[1].asignatura = 'Ética';
+  const horas: SesionHorario[] = [
+    { cargaId: 'c1', grupoId: 'g1', asignaturaId: 'a1', docenteId: 'd1', dia: 1, inicio: 7, fin: 8 },
+    { cargaId: 'c2', grupoId: 'g1', asignaturaId: 'a2', docenteId: 'd1', dia: 2, inicio: 7, fin: 8 },
+  ];
+  const archivo = await crearDocxHorario(datos, horas, '2027-1', { tipo: 'grupos', ids: ['g1'] });
+  const zip = await JSZip.loadAsync(await archivo.arrayBuffer());
+  const xml = await zip.file('word/document.xml')?.async('string');
+  assert.ok(xml?.includes('w:orient="portrait"'));
+  const cuadricula = xml?.match(/<w:tblGrid>(.*?)<\/w:tblGrid>/s)?.[1];
+  const anchos = [...(cuadricula || '').matchAll(/<w:gridCol w:w="(\d+)"\/>/g)]
+    .map(coincidencia => Number(coincidencia[1]));
+  assert.equal(anchos.length, 6);
+  assert.equal(anchos.reduce((suma, ancho) => suma + ancho, 0), 10400);
+  assert.ok(anchos[1] > anchos[2]);
+  assert.ok(anchos[2] >= 1050);
 });
 
 test('ZIP contiene un PDF individual por cada grupo o docente seleccionado', async () => {
@@ -213,6 +235,9 @@ test('la exportación docente marca las horas sin disponibilidad y conserva clav
   assert.ok(xml?.includes('DER101 · 1A'));
   assert.ok(xml?.includes('HORAS POR DÍA'));
   assert.ok(xml?.includes('w:shd w:fill="BEC2C7"'));
+  assert.ok(xml?.includes('<w:tblHeader/>'));
+  assert.ok(xml?.includes('w:shd w:fill="E8EBEE"'));
+  assert.ok(xml?.includes('<w:vAlign w:val="center"/>'));
   assert.ok(xml?.includes('w:pgSz w:w="11906" w:h="16838" w:orient="portrait"'));
   const tituloWord = [...(xml || '').matchAll(/<w:p>.*?<\/w:p>/gs)]
     .map(coincidencia => coincidencia[0]).find(parrafo => parrafo.includes('Materias y grupos'));

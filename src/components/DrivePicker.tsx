@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { cargarScriptExterno } from '../lib/cargarScriptExterno';
 import { Cloud, ExternalLink, FolderOpen, Loader2, AlertCircle } from 'lucide-react';
 
 interface DrivePickerProps {
@@ -15,42 +16,52 @@ const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
 
 export default function DrivePicker({ label, value, onSelect, disabled, isEditing }: DrivePickerProps) {
   const [loading, setLoading] = useState(false);
+  const [errorDrive, setErrorDrive] = useState('');
+  const vigente = useRef(true);
+  const pickerActivo = useRef<{ setVisible: (visible: boolean) => void } | null>(null);
+  useEffect(() => { vigente.current = true; return () => { vigente.current = false; pickerActivo.current?.setVisible(false); }; }, []);
+  const fallar = () => { if (vigente.current) { setLoading(false); setErrorDrive('No se pudo abrir Google Drive. Revisa la conexión, permite la ventana de autorización y vuelve a intentar.'); } };
 
-  const handleOpenPicker = () => {
-    if (disabled || !isEditing) return;
+  const handleOpenPicker = async () => {
+    if (disabled || !isEditing || loading) return;
+    if (!CLIENT_ID || !API_KEY) { setErrorDrive('Falta configurar la integración de Google Drive. Consulta a Administración.'); return; }
     setLoading(true);
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.onload = () => {
+    setErrorDrive('');
+    try {
+      await cargarScriptExterno('https://accounts.google.com/gsi/client');
+      if (!vigente.current) return;
       const tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
+        error_callback: fallar,
         callback: async (response: any) => {
           if (response.error !== undefined) {
-            setLoading(false);
+            fallar();
             return;
           }
-          createPicker(response.access_token);
+          void createPicker(response.access_token);
         },
       });
       tokenClient.requestAccessToken();
-    };
-    document.body.appendChild(script);
+    } catch { fallar(); }
   };
 
-  const createPicker = (accessToken: string) => {
-    const gscript = document.createElement("script");
-    gscript.src = "https://apis.google.com/js/api.js";
-    gscript.onload = () => {
+  const createPicker = async (accessToken: string) => {
+    try {
+      await cargarScriptExterno('https://apis.google.com/js/api.js');
+      if (!vigente.current) return;
       window.gapi.load('picker', {
+        onerror: fallar, timeout: 15000, ontimeout: fallar,
         callback: () => {
+          if (!vigente.current) return;
+          try {
           const view = new window.google.picker.DocsView().setIncludeFolders(true).setSelectFolderEnabled(true);
           const picker = new window.google.picker.PickerBuilder()
             .addView(view)
             .setOAuthToken(accessToken)
             .setDeveloperKey(API_KEY)
             .setCallback((data: any) => {
+              if (!vigente.current) return;
               if (data.action === window.google.picker.Action.PICKED) {
                 const doc = data.docs[0];
                 onSelect(doc.url);
@@ -60,11 +71,12 @@ export default function DrivePicker({ label, value, onSelect, disabled, isEditin
               }
             })
             .build();
+          pickerActivo.current = picker;
           picker.setVisible(true);
+          } catch { fallar(); }
         }
       });
-    };
-    document.body.appendChild(gscript);
+    } catch { fallar(); }
   };
 
   return (
@@ -82,6 +94,7 @@ export default function DrivePicker({ label, value, onSelect, disabled, isEditin
       </div>
 
       <div className="p-5 flex flex-col gap-4">
+        {errorDrive && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{errorDrive}</p>}
         {value ? (
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-[10px] bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 gap-3">
             <div className="flex items-center gap-3 overflow-hidden w-full">

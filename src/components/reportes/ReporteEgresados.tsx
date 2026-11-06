@@ -1,3 +1,5 @@
+import EstadoError from '../ui/EstadoError';
+import { resumirPagoTitulacion } from '../../reportes/estadoPagoTitulacion';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MultiSelectFilter } from '../MultiSelectFilter';
@@ -57,6 +59,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const { alumnos, ciclos, catalogos, plans, refreshAlumnos } = useAppStore();
   
   const [loading, setLoading] = useState(true);
+  const [errorConsulta, setErrorConsulta] = useState('');
   const [fetchProgress, setFetchProgress] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [ciclosEgresoMap, setCiclosEgresoMap] = useState<Record<string, string>>({});
@@ -108,8 +111,11 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   // 2. Fetch de inscripciones_academicas y fichas de certificacion SOLO para egresados, en lotes
   useEffect(() => {
+    let vigente = true;
     const fetchDatosExternos = async () => {
       setLoading(true);
+      setErrorConsulta('');
+      setFetchProgress(0);
       try {
         const egresadosIds = egresadosBase.map(a => a.id);
         
@@ -136,7 +142,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
         const updateProgress = () => {
           completed++;
-          setFetchProgress(Math.round((completed / totalBatches) * 100));
+          if (vigente) setFetchProgress(Math.round((completed / totalBatches) * 100));
         };
 
         // Helper: procesar filas de inscripciones
@@ -184,7 +190,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                 .range(offset, offset + PAGE - 1);
 
               if (error || !data || data.length === 0) {
-                if (error) console.error('Error fetching inscripciones:', error);
+                if (error) throw error;
                 hasMore = false;
                 break;
               }
@@ -207,6 +213,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         await Promise.all(insPromises);
 
         certResults.forEach(res => {
+          if (res.error) throw res.error;
           if (!res.error && res.data) {
             res.data.forEach((c: any) => {
               certMap[c.alumno_id] = c.tramite_completado ? 'Completado' : 'En curso';
@@ -225,17 +232,20 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           tkMap[id] = tieneKardexSet.has(id);
         });
 
+        if (!vigente) return;
         setCiclosEgresoMap(finalCiclosMap);
         setTieneKardexMap(tkMap);
         setCertificacionMap(certMap);
       } catch (err) {
+        if (vigente) setErrorConsulta('Faltan datos académicos o de certificación. Los resultados y las exportaciones se habilitarán cuando termine la consulta completa.');
         console.error("Error al obtener datos externos:", err);
       } finally {
-        setLoading(false);
+        if (vigente) setLoading(false);
       }
     };
 
-    fetchDatosExternos();
+    void fetchDatosExternos();
+    return () => { vigente = false; };
   }, [egresadosBase, ciclos, refreshTrigger]);
 
 
@@ -247,45 +257,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     
     egresadosBase.forEach(a => {
       const planTitulacion = plans.find(p => p.alumno_id === a.id && p.tipo_plan === 'Titulación');
-      if (!planTitulacion) {
-        map[a.id] = 'Sin plan';
-      } else {
-        let isPagado = true;
-        let hasConcepts = false;
-        
-        if (planTitulacion.detalles && planTitulacion.detalles.length > 0) {
-          hasConcepts = true;
-          for (const d of planTitulacion.detalles) {
-             const est = d.estatus || '';
-             const upper = est.toUpperCase();
-             const pagado = upper.includes('PAGADO') || (est.trim().length > 0 && !upper.includes('RESTA'));
-             if (!pagado) {
-               isPagado = false;
-               break;
-             }
-          }
-        } else {
-          for (let i = 1; i <= 18; i++) {
-            const concepto = (planTitulacion as any)[`concepto_${i}`];
-            const est = (planTitulacion as any)[`estatus_${i}`] || '';
-            if (concepto && concepto.trim().length > 0) {
-              hasConcepts = true;
-              const upper = est.toUpperCase();
-              const pagado = upper.includes('PAGADO') || (est.trim().length > 0 && !upper.includes('RESTA'));
-              if (!pagado) {
-                isPagado = false;
-                break;
-              }
-            }
-          }
-        }
-        
-        if (!hasConcepts) {
-          map[a.id] = 'Sin plan';
-        } else {
-          map[a.id] = isPagado ? 'Pago completo' : 'Pago en curso';
-        }
-      }
+      map[a.id] = resumirPagoTitulacion(planTitulacion);
     });
     return map;
   }, [egresadosBase, plans]);
@@ -387,6 +359,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   // Exportar a CSV
   const handleExportCSV = () => {
+    if (loading || errorConsulta) return;
     let csvContent = "data:text/csv;charset=utf-8,";
     
     const headers = [];
@@ -429,6 +402,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   // Exportar a PDF
   const handleExportPDF = (action: 'download' | 'print') => {
+    if (loading || errorConsulta) return;
     const doc = new jsPDF();
     
     doc.setFontSize(16);
@@ -530,7 +504,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         </div>
       </div>
 
-      {loading ? (
+      {errorConsulta ? <EstadoError mensaje={errorConsulta} onReintentar={() => setRefreshTrigger(n => n + 1)} /> : loading ? (
         <div className="flex-1 flex flex-col items-center justify-center">
           <Loader2 className="animate-spin text-purple-600 mb-4" size={48} />
           <p className="text-gray-500 font-medium">Analizando expedientes académicos...</p>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase, getAppConfig } from '../../lib/supabase';
 import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft, UserPlus, X, Settings, Users, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -23,6 +23,7 @@ export default function WizardLayoutDGAIR() {
   const [error, setError] = useState('');
 
   // Paso 1: Búsqueda
+  const consultaActual = useRef(0);
   const [busqueda, setBusqueda] = useState('');
   const [alumnosList, setAlumnosList] = useState<any[]>([]);
 
@@ -56,18 +57,20 @@ export default function WizardLayoutDGAIR() {
 
   // Búsqueda Dinámica con Debounce
   useEffect(() => {
+    const numeroConsulta = ++consultaActual.current;
+    if (busqueda.trim().length < 3) { setAlumnosList([]); setLoading(false); }
     const delayDebounceFn = setTimeout(() => {
       if (busqueda.trim().length >= 3) {
-        buscarAlumnoDinamico(busqueda.trim());
+        void buscarAlumnoDinamico(busqueda.trim(), numeroConsulta);
       } else if (busqueda.trim().length === 0) {
         setAlumnosList([]);
       }
     }, 400);
 
-    return () => clearTimeout(delayDebounceFn);
+    return () => { clearTimeout(delayDebounceFn); consultaActual.current++; };
   }, [busqueda]);
 
-  const buscarAlumnoDinamico = async (q: string) => {
+  const buscarAlumnoDinamico = async (q: string, numeroConsulta: number) => {
     setLoading(true);
     setError('');
     try {
@@ -88,12 +91,14 @@ export default function WizardLayoutDGAIR() {
         .or(`matricula.ilike.%${searchPattern}%,nombre_completo.ilike.%${searchPattern}%`)
         .limit(150);
       
+      if (numeroConsulta !== consultaActual.current) return;
       if (error) throw error;
       setAlumnosList(data || []);
     } catch (err: any) {
+      if (numeroConsulta !== consultaActual.current) return;
       setError('Error al buscar alumno: ' + err.message);
     } finally {
-      setLoading(false);
+      if (numeroConsulta === consultaActual.current) setLoading(false);
     }
   };
 

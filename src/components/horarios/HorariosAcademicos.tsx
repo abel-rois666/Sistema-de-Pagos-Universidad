@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, CheckCircle2, Download, FileSpreadsheet, FileText, Loader2, RefreshCw, Save, WandSparkles, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '../../store/useAppStore';
+import { useCicloModulo } from '../../hooks/useCicloModulo';
 import { formatCicloEscolar } from '../../utils/formatUtils';
 import ModalConfirmacion from '../ui/ModalConfirmacion';
 import PanelCargasHorario from './PanelCargasHorario';
@@ -63,9 +64,10 @@ interface EstadoEdicionHorario {
 
 export default function HorariosAcademicos() {
   const cicloGlobalId = useAppStore(state => state.activeCicloId);
+  const usuarioId = useAppStore(state => state.currentUser?.id);
   const ciclos = useAppStore(state => state.ciclos);
-  const [cicloId, setCicloId] = useState(cicloGlobalId);
-  const cicloInicializado = useRef(Boolean(cicloGlobalId));
+  const [cicloId, setCicloId] = useCicloModulo('horarios', ciclos, cicloGlobalId, usuarioId);
+  const cicloInicializado = useRef(Boolean(cicloId));
   const solicitudCarga = useRef(0);
   const [cicloPendiente, setCicloPendiente] = useState<string | null>(null);
   const [confirmarActualizacion, setConfirmarActualizacion] = useState(false);
@@ -142,12 +144,6 @@ export default function HorariosAcademicos() {
     b.nombre.localeCompare(a.nombre, 'es', { numeric: true })
     || formatCicloEscolar(a).localeCompare(formatCicloEscolar(b), 'es')), [ciclos]);
 
-  useEffect(() => {
-    if (!cicloInicializado.current && cicloGlobalId) {
-      cicloInicializado.current = true;
-      setCicloId(cicloGlobalId);
-    }
-  }, [cicloGlobalId]);
 
   const cargar = async () => {
     if (!cicloId) return;
@@ -936,7 +932,7 @@ export default function HorariosAcademicos() {
           <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl" style={{ fontFamily: 'var(--font-display)' }}>Generador de horarios</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">Configura la carga presencial, revisa la disponibilidad y genera horarios por grupo y docente para el ciclo seleccionado.</p>
           {datos && <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"><CalendarDays size={14}/>{datos.ciclo.nombre} · {datos.ciclo.tipo_periodo || 'Periodo sin tipo'}</p>}</div>
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-64"><div><label htmlFor="horarios-ciclo" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Ciclo para generar horarios</label><select id="horarios-ciclo" value={cicloId || ''} onChange={event => cambiarCiclo(event.target.value)} disabled={cargando || guardando || guardandoUbicacion || exportando || generandoAutomatico || ocupadoBorradores} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-[#1456f0] focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-white"><option value="">Selecciona un ciclo...</option>{ciclosOrdenados.map(ciclo => <option key={ciclo.id} value={ciclo.id}>{formatCicloEscolar(ciclo)}</option>)}</select><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Esta elección no cambia el ciclo de la barra superior.</p></div><button onClick={actualizar} disabled={!cicloId || cargando || guardando || guardandoUbicacion || exportando || generandoAutomatico || ocupadoBorradores} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={16}/> Actualizar datos</button></div></div>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-64"><div><label htmlFor="horarios-ciclo" className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Ciclo para generar horarios</label><select id="horarios-ciclo" value={cicloId || ''} onChange={event => cambiarCiclo(event.target.value)} disabled={cargando || guardando || guardandoUbicacion || exportando || generandoAutomatico || ocupadoBorradores} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-[#1456f0] focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-white"><option value="">Selecciona un ciclo...</option>{ciclosOrdenados.map(ciclo => <option key={ciclo.id} value={ciclo.id}>{formatCicloEscolar(ciclo)}</option>)}</select></div><button onClick={actualizar} disabled={!cicloId || cargando || guardando || guardandoUbicacion || exportando || generandoAutomatico || ocupadoBorradores} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"><RefreshCw size={16}/> Actualizar datos</button></div></div>
       </header>
       {!cicloId && <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">Selecciona un ciclo escolar aquí para consultar sus grupos y generar horarios.</div>}
       {cargando && <div className="flex items-center gap-2 rounded-xl bg-white p-5 text-sm dark:bg-[#1c2228]"><Loader2 className="animate-spin" size={18}/> Cargando datos académicos…</div>}

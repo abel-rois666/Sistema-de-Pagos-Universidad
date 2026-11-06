@@ -5,7 +5,9 @@ import { FileText, User, BarChart3, Users, GraduationCap, Calendar, AlertCircle,
 
 import { useAppStore } from '../store/useAppStore';
 import { useDashboardStats } from '../hooks/useDashboardStats';
+import { useCicloModulo } from '../hooks/useCicloModulo';
 import ImportarCSV from './ImportarCSV';
+import SelectorCicloModulo from './ui/SelectorCicloModulo';
 import { getMaxFolioCounter } from '../utils';
 import { Alumno, PaymentPlan } from '../types';
 
@@ -18,8 +20,9 @@ const pageVariants = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { currentUser, ciclos, alumnos, plans, setAlumnos, setPlans, activeCicloId, appConfig } = useAppStore();
-  const { activeCiclo, filteredPlans, totalActivos, totalDeudores, totalAdeudoCiclo } = useDashboardStats();
+  const { currentUser, ciclos, alumnos, plans, setAlumnos, setPlans, activeCicloId: cicloGlobalId, appConfig } = useAppStore();
+  const [activeCicloId, setCicloModuloId] = useCicloModulo('dashboard', ciclos, cicloGlobalId, currentUser?.id);
+  const { activeCiclo, filteredPlans, totalActivos, totalDeudores, totalAdeudoCiclo } = useDashboardStats(activeCicloId);
 
   const [showImport, setShowImport] = useState(false);
   const [sectionOperaciones, setSectionOperaciones] = useState(true);
@@ -135,15 +138,19 @@ export default function Dashboard() {
                     {dateStr} · Ciclo: <span className="font-medium text-[#222222] dark:text-gray-200">{activeCiclo?.nombre || '—'}</span>
                   </p>
                 </div>
-                {currentUser.rol === 'ADMINISTRADOR' && (
-                  <button
-                    onClick={() => setShowImport(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-                  >
-                    <FileText size={16} />
-                    Importar CSV
-                  </button>
-                )}
+                <div className="flex flex-col gap-2 sm:items-end">
+                  <SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId || ''}
+                    label="Ciclo del tablero" onChange={setCicloModuloId} className="w-full sm:w-56" />
+                  {currentUser.rol === 'ADMINISTRADOR' && (
+                    <button
+                      onClick={() => setShowImport(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
+                    >
+                      <FileText size={16} />
+                      Importar CSV
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

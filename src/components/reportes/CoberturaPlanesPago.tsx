@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowUpDown, ArrowUpRight, Download, FileCheck2, FileWarning, Search, SlidersHorizontal, Users } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { useCicloModulo } from '../../hooks/useCicloModulo';
 import { MultiSelectFilter } from '../MultiSelectFilter';
 import { buildPlanCoverage, countPlanObservations, filterPlanCoverage, PLAN_COVERAGE_COLUMNS, summarizeCoverage, type PlanCoverageColumn, type PlanCoverageEntry, type PlanCoverageFilters, type PlanCoverageIntegralFilter, type PlanCoverageStatus } from '../../utils/planCoverageUtils';
 import { createPlanCoveragePdf } from '../../utils/planCoveragePdf';
@@ -34,8 +35,9 @@ export default function CoberturaPlanesPago() {
   const navigate = useNavigate();
   const location = useLocation();
   const restoredFilters = (location.state as { coverageFilters?: Partial<PlanCoverageFilters> } | null)?.coverageFilters;
-  const { ciclos, alumnos, plans, activeCicloId, setActiveCicloId } = useAppStore();
-  const [cicloId, setCicloId] = useState(restoredFilters?.cicloId || activeCicloId || 'TODOS');
+  const { ciclos, alumnos, plans, activeCicloId, currentUser } = useAppStore();
+  const [cicloId, setCicloId] = useCicloModulo('cobertura-planes-pago', ciclos, activeCicloId,
+    currentUser?.id, { todos: true, inicialId: restoredFilters?.cicloId });
   const [selectedLicenciaturas, setSelectedLicenciaturas] = useState<string[]>(restoredFilters?.licenciaturas || []);
   const [selectedTipos, setSelectedTipos] = useState<string[]>(restoredFilters?.tipos || []);
   const [selectedObservaciones, setSelectedObservaciones] = useState<string[]>(restoredFilters?.observaciones || []);
@@ -104,7 +106,6 @@ export default function CoberturaPlanesPago() {
             fromCoverageReport: true,
             coverageFilters: { cicloId, licenciaturas: selectedLicenciaturas, tipos: selectedTipos, observaciones: selectedObservaciones, integral, busqueda, estado },
           }}
-          onClick={() => { if (entry.planId && activeCicloId !== entry.cicloId) setActiveCicloId(entry.cicloId); }}
           title={entry.planId ? `Abrir plan ${entry.folio} de ${entry.alumnoNombre}` : `Abrir ficha de ${entry.alumnoNombre}; sin plan en este ciclo`}
           className="inline-flex items-center gap-1 text-[#1456f0] dark:text-blue-400 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1456f0]"
         >

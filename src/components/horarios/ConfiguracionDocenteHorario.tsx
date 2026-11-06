@@ -223,7 +223,7 @@ export default function ConfiguracionDocenteHorario({ docenteId, docenteNombre, 
               <option value="">Selecciona un ciclo...</option>
               {ciclosOrdenados.map(ciclo => <option key={ciclo.id} value={ciclo.id}>{formatCicloEscolar(ciclo)}</option>)}
             </select>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Esta selección solo cambia la ficha del docente; el ciclo global permanece igual.</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Esta selección se aplica a la configuración de este docente.</p>
           </div>
           <button type="button" onClick={cerrar} disabled={guardando} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"><X size={20}/></button>
         </div>

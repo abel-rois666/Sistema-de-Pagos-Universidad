@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { ProgramaPromocion } from '../utils/promocionAlumnos';
+import { faltaFuncionInscripciones } from './inscripcionesCicloService';
 
 /** Consulta siempre el programa vigente antes de previsualizar o guardar una promoción. */
 export async function cargarProgramasVigentesPromocion(alumnoIds: string[]): Promise<Map<string, ProgramaPromocion>> {
@@ -26,6 +27,7 @@ export interface ResultadoPromocionGuardada {
   tipo: 'AVANCE' | 'EGRESO';
   grado: string;
   plan_pago_id: string | null;
+  inscripcion_registrada?: boolean;
 }
 
 /** Con crearPlan=false, planPagoId puede identificar el plan ya existente del ciclo. */
@@ -38,7 +40,7 @@ export async function guardarPromocionAlumno(
   copiarConceptos: boolean,
   crearPlan = true,
 ): Promise<ResultadoPromocionGuardada> {
-  const { data, error } = await supabase.rpc('promover_alumno_ciclo', {
+  const parametros = {
     p_alumno_id: alumnoId,
     p_ciclo_id: cicloId,
     p_programa_id: programaId,
@@ -46,7 +48,13 @@ export async function guardarPromocionAlumno(
     p_plan_pago_id: planPagoId,
     p_copiar_conceptos: copiarConceptos,
     p_crear_plan: crearPlan,
-  });
+  };
+  // Compatibilidad de despliegue: solo una función ausente permite usar el contrato previo.
+  // Cualquier error de validación de la operación integrada se conserva y nunca se reintenta sin inscripción.
+  let {data,error}=await supabase.rpc('ic_promover_alumno',parametros);
+  if(error&&faltaFuncionInscripciones(error)&&error.code==='PGRST202') {
+    ({data,error}=await supabase.rpc('promover_alumno_ciclo',parametros));
+  }
   if (error) {
     if (error.code === 'PGRST202' || error.message.includes('promover_alumno_ciclo')) {
       throw new Error('La función de promoción aún no está instalada en la base de datos.');

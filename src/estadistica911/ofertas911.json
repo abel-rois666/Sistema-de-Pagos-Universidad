@@ -1,0 +1,38 @@
+{
+  "5031100007": {
+    "nombre": "LICENCIATURA EN PSICOLOGÍA",
+    "nivel": "LICENCIATURA"
+  },
+  "5042000002": {
+    "nombre": "LICENCIATURA EN ADMINISTRACIÓN",
+    "nivel": "LICENCIATURA"
+  },
+  "5041200028": {
+    "nombre": "LICENCIATURA EN MERCADOTECNIA",
+    "nivel": "LICENCIATURA"
+  },
+  "5041400032": {
+    "nombre": "LICENCIATURA EN CONTADURÍA PÚBLICA",
+    "nivel": "LICENCIATURA"
+  },
+  "5033100011": {
+    "nombre": "LICENCIATURA EN DERECHO",
+    "nivel": "LICENCIATURA"
+  },
+  "5011100015": {
+    "nombre": "LICENCIATURA EN PEDAGOGÍA",
+    "nivel": "LICENCIATURA"
+  },
+  "6012500004": {
+    "nombre": "ESPECIALIDAD EN DOCENCIA UNIVERSITARIA",
+    "nivel": "ESPECIALIDAD"
+  },
+  "6042100014": {
+    "nombre": "ESPECIALIDAD EN ADMINISTRACIÓN DE NEGOCIOS",
+    "nivel": "ESPECIALIDAD"
+  },
+  "6033100031": {
+    "nombre": "ESPECIALIDAD EN DERECHO PENAL",
+    "nivel": "ESPECIALIDAD"
+  }
+}

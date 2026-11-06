@@ -1,0 +1,14 @@
+export const PASOS911 = [
+  {id:'expediente',nombre:'Datos generales',ayuda:'Define el corte, los ciclos de matrícula y el periodo anterior de resultados. Completa responsable y datos comunes del plantel.',resultado:'Al terminar: fechas, ciclos y datos institucionales listos para revisar la población.'},
+  {id:'oferta',nombre:'Oferta educativa',ayuda:'Relaciona cada carrera o posgrado oficial con sus planes internos. Revisa nivel, modalidad y actividad actual e histórica.',resultado:'Al terminar: confirma qué ofertas participan; se habilitará la captura de sus preguntas.'},
+  {id:'fuentes',nombre:'Alumnos y resultados',ayuda:'Confirma las inscripciones que puedes demostrar y registra los egresos o titulaciones con su fecha. Tener grupo o materias solo ayuda a encontrar candidatos.',resultado:'Al terminar: registros de alumnos con fechas, grado, tipo de ingreso y documento de respaldo; las cifras se actualizan al recalcular.'},
+  {id:'personal',nombre:'Personal',ayuda:'Reúne los registros de Docentes y Recursos Humanos que pertenecen a una misma persona. Confirma una función principal y sus fechas.',resultado:'Al terminar: personas identificadas sin duplicados y separadas entre plantel y administración central.'},
+  {id:'cuestionarios',nombre:'Cuestionarios',ayuda:'Abre el formulario que corresponda, acredita la revisión de sus poblaciones y revisa las preguntas por página. Puedes confirmar el cálculo o documentar una respuesta distinta.',resultado:'Si falta una cifra: revisa sus fuentes y la cobertura, ve a «Calcular y revisar», recalcula y aplica el resultado. Después vuelve aquí para comprobarlo.'},
+  {id:'validacion',nombre:'Calcular y revisar',ayuda:'Recalcula para obtener cifras de los registros confirmados. Revisa las diferencias y aplícalas al borrador; después completa las revisiones de cada área.',resultado:'Antes de cerrar: guarda los cambios, resuelve las comprobaciones pendientes y envía el expediente a revisión.'},
+  {id:'exportar',nombre:'Descargar documentos',ayuda:'Selecciona los formularios y el tipo de archivo. Los documentos y sus listados usan los mismos datos guardados.',resultado:'Si no puedes descargar: revisa la oferta, aplica el cálculo del corte y guarda el expediente. Un borrador puede dejar respuestas pendientes.'}
+];
+export default function Pasos911({pasos,actual,onPaso}:{pasos:typeof PASOS911;actual:string;onPaso:(s:string)=>void}) {
+  const paso=pasos.find(p=>p.id===actual);
+  return <><nav className="s911-pasos" aria-label="Pasos del expediente">{pasos.map((p,n)=><button key={p.id} aria-current={p.id===actual?'step':undefined} onClick={()=>onPaso(p.id)}><span>{n+1}</span><strong>{p.nombre}</strong></button>)}</nav>
+    <div className="s911-instruccion"><strong>{paso?.nombre}</strong><p>{paso?.ayuda}</p><small>{paso?.resultado}</small></div></>;
+}
