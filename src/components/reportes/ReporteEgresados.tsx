@@ -4,7 +4,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MultiSelectFilter } from '../MultiSelectFilter';
 import { useAppStore } from '../../store/useAppStore';
-import { supabase } from '../../lib/supabase';
+import useDatosReporteEgresados from '../../hooks/useDatosReporteEgresados';
+import { pesoCicloEgresado as getCicloWeight } from '../../reportes/consultaEgresados';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -26,19 +27,6 @@ interface Props {
   onBack: () => void;
 }
 
-// Función auxiliar para determinar el peso del ciclo (mayor es más reciente)
-const getCicloWeight = (cicloNombre?: string): number => {
-  if (!cicloNombre) return -1;
-  const parts = cicloNombre.match(/(\d+)[-/](\d+)/);
-  if (parts) {
-    let year = parseInt(parts[1], 10);
-    if (year < 100) year += 2000;
-    const period = parseInt(parts[2], 10);
-    return year * 10 + period;
-  }
-  return -1;
-};
-
 // Función auxiliar para Altas y Bajas (Title Case)
 const toTitleCase = (str: string) => {
   if (!str) return '';
@@ -58,14 +46,10 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const navigate = useNavigate();
   const { alumnos, ciclos, catalogos, plans, refreshAlumnos } = useAppStore();
   
-  const [loading, setLoading] = useState(true);
-  const [errorConsulta, setErrorConsulta] = useState('');
-  const [fetchProgress, setFetchProgress] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [ciclosEgresoMap, setCiclosEgresoMap] = useState<Record<string, string>>({});
-  const [tieneKardexMap, setTieneKardexMap] = useState<Record<string, boolean>>({});
-  const [certificacionMap, setCertificacionMap] = useState<Record<string, string>>({});
-  
+  const [recargandoAlumnos, setRecargandoAlumnos] = useState(false);
+  const [errorRecarga, setErrorRecarga] = useState('');
+
   const [viewingAlumnoId, setViewingAlumnoId] = useState<string | null>(null);
   
   // Paginación
@@ -109,146 +93,18 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     return alumnos.filter(a => a.estatus === 'EGRESADO' || a.estatus === 'TITULADO' || a.estatus === 'EGRESADO TITULADO');
   }, [alumnos]);
 
-  // 2. Fetch de inscripciones_academicas y fichas de certificacion SOLO para egresados, en lotes
-  useEffect(() => {
-    let vigente = true;
-    const fetchDatosExternos = async () => {
-      setLoading(true);
-      setErrorConsulta('');
-      setFetchProgress(0);
-      try {
-        const egresadosIds = egresadosBase.map(a => a.id);
-        
-        if (egresadosIds.length === 0) {
-          setCiclosEgresoMap({});
-          setTieneKardexMap({});
-          setCertificacionMap({});
-          setLoading(false);
-          return;
-        }
-
-        const ciclosMap = ciclos.reduce((acc, c) => {
-          acc[c.id] = c.nombre;
-          return acc;
-        }, {} as Record<string, string>);
-
-        const ultimosCiclos: Record<string, { nombre: string, maxPeriodo: number, weight: number }> = {};
-        const tieneKardexSet = new Set<string>();
-        const certMap: Record<string, string> = {};
-        const BATCH_CERT = 500;
-        const BATCH_INS = 50;
-        const totalBatches = Math.ceil(egresadosIds.length / BATCH_CERT) + Math.ceil(egresadosIds.length / BATCH_INS);
-        let completed = 0;
-
-        const updateProgress = () => {
-          completed++;
-          if (vigente) setFetchProgress(Math.round((completed / totalBatches) * 100));
-        };
-
-        // Helper: procesar filas de inscripciones
-        const processInsRows = (rows: any[]) => {
-          rows.forEach((ins: any) => {
-            tieneKardexSet.add(ins.alumno_id);
-            let nombreCiclo = ins.ciclo_legado;
-            if (!nombreCiclo && ins.ciclo_id) nombreCiclo = ciclosMap[ins.ciclo_id];
-            if (!nombreCiclo) return;
-
-            const weight = getCicloWeight(nombreCiclo);
-            const prev = ultimosCiclos[ins.alumno_id];
-            if (!prev || weight > prev.weight) {
-              ultimosCiclos[ins.alumno_id] = { nombre: nombreCiclo, maxPeriodo: 0, weight };
-            }
-          });
-        };
-
-        // 1. Fetch de Fichas de Certificación (En paralelo para todos los lotes)
-        const certPromises = [];
-        for (let i = 0; i < egresadosIds.length; i += BATCH_CERT) {
-          certPromises.push(
-            supabase.from('ficha_certificacion')
-              .select('alumno_id, tramite_completado')
-              .in('alumno_id', egresadosIds.slice(i, i + BATCH_CERT))
-              .then(res => { updateProgress(); return res; })
-          );
-        }
-
-        // 2. Fetch de Inscripciones Académicas (con paginación automática si hay truncamiento)
-        const insPromises = [];
-        for (let i = 0; i < egresadosIds.length; i += BATCH_INS) {
-          const batch = egresadosIds.slice(i, i + BATCH_INS);
-          insPromises.push((async () => {
-            let offset = 0;
-            const PAGE = 1000;
-            let hasMore = true;
-            
-            while (hasMore) {
-              const { data, error } = await supabase
-                .from('inscripciones_academicas')
-                .select('alumno_id, ciclo_id, ciclo_legado')
-                .in('alumno_id', batch)
-                .order('id')
-                .range(offset, offset + PAGE - 1);
-
-              if (error || !data || data.length === 0) {
-                if (error) throw error;
-                hasMore = false;
-                break;
-              }
-
-              processInsRows(data);
-
-              if (data.length < PAGE) {
-                hasMore = false; // No hay más datos, lote completo
-              } else {
-                offset += PAGE; // Hay más páginas, seguir
-              }
-            }
-            
-            updateProgress();
-          })());
-        }
-
-        // Ejecutar todas las peticiones concurrentemente
-        const certResults = await Promise.all(certPromises);
-        await Promise.all(insPromises);
-
-        certResults.forEach(res => {
-          if (res.error) throw res.error;
-          if (!res.error && res.data) {
-            res.data.forEach((c: any) => {
-              certMap[c.alumno_id] = c.tramite_completado ? 'Completado' : 'En curso';
-            });
-          }
-        });
-
-        const finalCiclosMap: Record<string, string> = {};
-        Object.keys(ultimosCiclos).forEach(alumnoId => {
-          finalCiclosMap[alumnoId] = ultimosCiclos[alumnoId].nombre;
-        });
-
-        const tkMap: Record<string, boolean> = {};
-        egresadosIds.forEach(id => {
-          if (!certMap[id]) certMap[id] = 'Sin iniciar';
-          tkMap[id] = tieneKardexSet.has(id);
-        });
-
-        if (!vigente) return;
-        setCiclosEgresoMap(finalCiclosMap);
-        setTieneKardexMap(tkMap);
-        setCertificacionMap(certMap);
-      } catch (err) {
-        if (vigente) setErrorConsulta('Faltan datos académicos o de certificación. Los resultados y las exportaciones se habilitarán cuando termine la consulta completa.');
-        console.error("Error al obtener datos externos:", err);
-      } finally {
-        if (vigente) setLoading(false);
-      }
-    };
-
-    void fetchDatosExternos();
-    return () => { vigente = false; };
-  }, [egresadosBase, ciclos, refreshTrigger]);
-
-
+  const egresadosIds = useMemo(() => egresadosBase.map(a => a.id), [egresadosBase]);
+  const consulta = useDatosReporteEgresados(egresadosIds, ciclos, refreshTrigger);
+  const { ciclosEgresoMap, tieneKardexMap, certificacionMap, fetchProgress } = consulta;
+  const loading = consulta.loading || recargandoAlumnos;
+  const errorConsulta = errorRecarga || consulta.errorConsulta;
+  const recargarReporte = async () => {
+    if (recargandoAlumnos) return;
+    setRecargandoAlumnos(true); setErrorRecarga('');
+    try { await refreshAlumnos(); setRefreshTrigger(t => t + 1); }
+    catch { setErrorRecarga('No se pudo actualizar el padrón de alumnos. Reintenta antes de consultar o exportar el reporte.'); }
+    finally { setRecargandoAlumnos(false); }
+  };
 
   // 3. Evaluar Pago de Titulación
   const pagoTitulacionMap = useMemo(() => {
@@ -325,7 +181,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     });
 
     return result;
-  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, pagoTitulacionMap, certificacionMap, sortConfig, groupByCiclo]);
+  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, tieneKardexMap, pagoTitulacionMap, certificacionMap, sortConfig, groupByCiclo]);
 
   // Reset de página al cambiar filtros
   useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, itemsPerPage, sortConfig, groupByCiclo]);
@@ -487,7 +343,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           />
         </div>
       )}
-    <div className="flex flex-col h-full bg-white dark:bg-[#1c2228] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+    <div className="flex flex-col min-w-0 h-full bg-white dark:bg-[#1c2228] p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
       <div className="flex items-center gap-3 mb-6">
         <button 
           onClick={onBack}
@@ -495,28 +351,28 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
         >
           <ArrowLeft className="text-gray-500 dark:text-gray-400" size={24} />
         </button>
-        <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-xl">
+        <div className="hidden sm:block shrink-0 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-xl">
           <GraduationCap className="text-purple-600 dark:text-purple-400" size={28} />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 font-display">Reporte de Egresados</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 font-display">Reporte de Egresados</h2>
           <p className="text-gray-500 dark:text-gray-400">Segmentación de egresados y titulados por ciclo de egreso</p>
         </div>
       </div>
 
-      {errorConsulta ? <EstadoError mensaje={errorConsulta} onReintentar={() => setRefreshTrigger(n => n + 1)} /> : loading ? (
+      {errorConsulta ? <EstadoError mensaje={errorConsulta} onReintentar={() => { if (errorRecarga) void recargarReporte(); else setRefreshTrigger(n => n + 1); }} /> : loading ? (
         <div className="flex-1 flex flex-col items-center justify-center">
           <Loader2 className="animate-spin text-purple-600 mb-4" size={48} />
-          <p className="text-gray-500 font-medium">Analizando expedientes académicos...</p>
+          <p role="status" className="text-gray-600 dark:text-gray-300 font-medium">Consultando historial académico y certificación…</p>
           {fetchProgress > 0 && (
             <div className="w-64 mt-4">
-              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div role="progressbar" aria-label="Carga del reporte" aria-valuemin={0} aria-valuemax={100} aria-valuenow={fetchProgress} className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-purple-600 dark:bg-purple-500 transition-all duration-300" 
                   style={{ width: `${fetchProgress}%` }}
                 />
               </div>
-              <p className="text-xs text-center text-gray-400 mt-2">{fetchProgress}% completado</p>
+              <p className="text-xs text-center text-gray-600 dark:text-gray-300 mt-2">{fetchProgress}% de la consulta completado</p>
             </div>
           )}
         </div>
@@ -542,7 +398,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               </select>
             </div>
 
-            <div className="flex-1 min-w-[200px] z-20">
+            <div className="flex-1 min-w-0 z-20">
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
                 <GraduationCap size={16}/> Licenciatura
               </label>
@@ -556,7 +412,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
 
-            <div className="flex-1 min-w-[180px]">
+            <div className="flex-1 min-w-0">
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
                 <Filter size={16}/> Segmento
               </label>
@@ -572,18 +428,14 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
             </div>
           </div>
 
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-medium text-gray-600 dark:text-gray-300 bg-purple-50 dark:bg-purple-900/30 px-3 py-1 rounded-full border border-purple-100 dark:border-purple-800/30">
                 {filteredEgresados.length} Egresados
               </span>
               
               <button 
-                onClick={async () => {
-                  setLoading(true);
-                  await refreshAlumnos();
-                  setRefreshTrigger(t => t + 1);
-                }}
+                onClick={() => void recargarReporte()}
                 className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800"
                 title="Volver a generar reporte y recargar datos"
               >
@@ -635,7 +487,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button 
                 onClick={() => handleExportPDF('print')}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg transition-colors font-medium text-sm"
@@ -841,7 +693,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               <div className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium bg-white dark:bg-[#1c2228] px-3 py-1.5 rounded-[8px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] shadow-[var(--shadow-subtle)]">
                 Mostrando <span className="text-gray-900 dark:text-gray-100 font-bold">{startIndex + 1}</span> a <span className="text-gray-900 dark:text-gray-100 font-bold">{endIndex}</span> de <span className="text-gray-900 dark:text-gray-100 font-bold">{filteredEgresados.length}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap justify-center items-center gap-2">
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => p - 1)}

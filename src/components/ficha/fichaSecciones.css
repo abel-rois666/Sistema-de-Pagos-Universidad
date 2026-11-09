@@ -1,4 +1,4 @@
-.ficha-alumno-marco{width:100%;max-width:64rem;min-width:0}
+.ficha-alumno-marco{width:100%;max-width:1440px;min-width:0}
 /* Reserva el espacio de la barra al alternar secciones cortas y extensas. */
 main:has(.ficha-alumno-marco){scrollbar-gutter:stable}
 .ficha-alumno-barra{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;gap:16px;min-width:0}
@@ -6,9 +6,9 @@ main:has(.ficha-alumno-marco){scrollbar-gutter:stable}
 .ficha-secciones-root{width:100%;min-width:0;scroll-margin-top:16px}
 .ficha-secciones-layout{display:grid;grid-template-columns:minmax(0,1fr)}
 .ficha-secciones-lateral{display:none}
-.ficha-secciones-compactas{position:sticky;top:8px;z-index:20;margin:16px;border:1px solid var(--border-gray,#d1d5db);border-radius:10px;background:var(--bg-primary,#fff);color:var(--text-primary,#222)}
+.ficha-secciones-compactas{position:sticky;top:8px;z-index:20;margin:12px 16px;border:1px solid var(--border-gray,#d1d5db);border-radius:10px;background:var(--bg-primary,#fff);color:var(--text-primary,#222)}
 .dark .ficha-secciones-compactas{background:#1c2228;border-color:#374151;color:#f3f4f6}
-.ficha-secciones-compactas summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;min-height:54px}
+.ficha-secciones-compactas summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 12px;cursor:pointer;min-height:44px}
 .ficha-secciones-compactas summary::-webkit-details-marker{display:none}
 .ficha-secciones-compactas summary small{display:block;font-size:12px;color:#45515e;margin-bottom:3px}
 .dark .ficha-secciones-compactas summary small{color:#9ca3af}
@@ -44,3 +44,24 @@ main:has(.ficha-alumno-marco){scrollbar-gutter:stable}
 .dark .ficha-secciones-lateral>p{color:#9ca3af}
 .ficha-secciones-root[data-ancha="true"] .ficha-seccion-contenido{border-left:1px solid #e5e7eb}
 .dark .ficha-secciones-root[data-ancha="true"] .ficha-seccion-contenido{border-color:#374151}
+
+.ficha-cabecera{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px;border-bottom:1px solid #bacbe2;background:#e7eef8;color:#172033}
+.ficha-identidad{display:flex;align-items:center;gap:16px;min-width:0}.ficha-identidad>div:last-child{min-width:0}.ficha-avatar{width:48px;height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid #d6e2f5;border-radius:12px;background:#eaf1fd;color:#1456f0;font-size:18px;font-weight:600}
+.ficha-identidad h2{font-family:var(--font-display);font-size:22px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}.ficha-identidad-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:#52627a;margin-top:6px;line-height:1.5}.ficha-estado{display:inline-flex;align-items:center;gap:5px;color:#047857;font-size:11px;font-weight:600}.ficha-estado[data-estado=BAJA]{color:#b91c1c}.ficha-monedero{display:inline-flex;align-items:center;gap:5px}.ficha-monedero button{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid #cbd5e1;border-radius:6px;color:#52627a}
+.ficha-finanzas{flex-shrink:0;padding:12px 16px;border:1px solid #d8e0eb;border-radius:10px;font-size:12px;max-width:300px}.ficha-finanzas>p{color:#52627a}.ficha-finanzas dl{display:flex;gap:24px;margin-top:8px}.ficha-finanzas dt{font-size:11px;color:#52627a}.ficha-finanzas dd{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.dark .ficha-cabecera{background:#1c2228;color:#f3f4f6;border-color:#374151}.dark .ficha-avatar{background:#22334c;border-color:#364b68;color:#bfdbfe}.dark .ficha-identidad-meta,.dark .ficha-finanzas>p,.dark .ficha-finanzas dt{color:#b7c4d7}.dark .ficha-estado{color:#6ee7b7}.dark .ficha-estado[data-estado=BAJA]{color:#fca5a5}.dark .ficha-finanzas,.dark .ficha-monedero button{border-color:#475569}.dark .ficha-monedero button{color:#cbd5e1}
+.ficha-alumno-marco[data-historial-ampliado=true] .historial-tabla-scroll{max-height:78vh}
+@media(min-width:600px){.ficha-alumno-marco[data-historial-ampliado=true] .ficha-cabecera{padding-block:12px}.ficha-alumno-marco[data-historial-ampliado=true] .ficha-identidad h2{font-size:18px}}
+@media(max-width:767px){.ficha-cabecera{padding:16px;align-items:stretch;flex-direction:column;gap:12px}.ficha-identidad{align-items:flex-start;gap:10px}.ficha-identidad h2{font-size:18px}.ficha-avatar{width:38px;height:38px;font-size:15px}.ficha-identidad-meta{font-size:11px;gap:4px 10px}.ficha-finanzas{max-width:none}}
+
+.ficha-alumno-marco[data-historial-ampliado=true] .ficha-alumno-barra{display:none}
+.ficha-alumno-marco[data-historial-ampliado=true] .ficha-cabecera{padding:12px 16px}
+.ficha-alumno-marco[data-historial-ampliado=true] .ficha-identidad-meta+.ficha-identidad-meta{display:none}
+.ficha-alumno-marco[data-historial-ampliado=true] .ficha-avatar{width:34px;height:34px;font-size:14px}
+@media(max-width:599px){.ficha-alumno-marco[data-historial-ampliado=true] .ficha-identidad h2{font-size:16px}.ficha-alumno-marco[data-historial-ampliado=true] .ficha-secciones-compactas summary small{display:none}}
+
+/* La cabecera se distingue del contenido blanco sin alterar el tema oscuro. */
+.ficha-identidad-meta{color:#334155}.ficha-avatar{background:#d4e3fc;border-color:#acc5ee;color:#114ac9}
+.ficha-finanzas{background:#fff;border-color:#bdcde3}.ficha-finanzas>p,.ficha-finanzas dt{color:#334155}
+.dark .ficha-finanzas{background:#222d3b}.dark .ficha-avatar{background:#22334c;border-color:#364b68;color:#bfdbfe}
+.dark .ficha-identidad-meta,.dark .ficha-finanzas>p,.dark .ficha-finanzas dt{color:#b7c4d7}

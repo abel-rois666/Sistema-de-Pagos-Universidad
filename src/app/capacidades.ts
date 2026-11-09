@@ -1,6 +1,7 @@
 /** Capacidades de interfaz; Supabase vuelve a autorizar cada operación. */
 export const ROLES_ESCOLARES = ['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'] as const;
 export const ROLES_ACADEMICOS = ['ADMINISTRADOR', 'COORDINADOR ACADEMICO'] as const;
+export const ROLES_REPORTE_PAGOS = ['ADMINISTRADOR','COORDINADOR FINANCIERO','COORDINADOR CONTROL ESCOLAR'] as const;
 export const ROLES_COBRO = ['ADMINISTRADOR', 'COORDINADOR FINANCIERO', 'CAJERO'] as const;
 const personal = ['ADMINISTRADOR','CAJERO','COORDINADOR FINANCIERO','COORDINADOR CONTROL ESCOLAR','COORDINADOR ACADEMICO','COORDINADOR RECURSOS HUMANOS'];
 const rutas: Record<string, readonly string[]> = {
@@ -13,6 +14,7 @@ const rutas: Record<string, readonly string[]> = {
   '/docentes': ROLES_ACADEMICOS, '/control-academico': ROLES_ACADEMICOS, '/horarios': ROLES_ACADEMICOS,
   '/calendarios': ROLES_ESCOLARES, '/plan-pagos': personal, '/ficha-alumno': personal, '/control-ingresos': personal,
   '/estadisticas': ROLES_COBRO, '/deudores': ROLES_COBRO,
+  '/pagos-adeudos-alumnos': ROLES_REPORTE_PAGOS,
   '/cobertura-planes-pago': ['ADMINISTRADOR','COORDINADOR FINANCIERO'],
   '/estadistica-911': [...ROLES_ESCOLARES,'COORDINADOR ACADEMICO','COORDINADOR FINANCIERO','COORDINADOR RECURSOS HUMANOS'],
   '/rh': ['ADMINISTRADOR','COORDINADOR RECURSOS HUMANOS'],

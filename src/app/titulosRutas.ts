@@ -7,6 +7,7 @@ const titulos: Record<string, string> = {
   '/planes-estudio': 'Planes de Estudio', '/grupos': 'Gestión de Grupos', '/docentes': 'Gestión de Docentes',
   '/calificaciones': 'Captura de Calificaciones', '/horarios': 'Generador de Horarios', '/calendarios': 'Calendarios académicos',
   '/plan-pagos': 'Planes de Pago', '/ficha-alumno': 'Ficha del Alumno', '/control-ingresos': 'Control de Ingresos',
+  '/pagos-adeudos-alumnos': 'Pagos y adeudos por alumno',
   '/estadisticas': 'Estadísticas Financieras', '/deudores': 'Deudores', '/cobertura-planes-pago': 'Cobertura de Planes de Pago',
   '/reportes-escolares': 'Reportes Escolares', '/reporte-egresados': 'Reporte de Egresados',
   '/certificacion': 'Exportar certificados', '/titulacion': 'Exportar títulos',

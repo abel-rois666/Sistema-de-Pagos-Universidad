@@ -29,6 +29,8 @@ export interface ModalConfirmacionProps {
   isAlert?: boolean;
   type?: 'danger' | 'warning' | 'info';
   busy?: boolean;
+  confirmDisabled?: boolean;
+  wide?: boolean;
 }
 
 export default function ModalConfirmacion({
@@ -41,7 +43,9 @@ export default function ModalConfirmacion({
   cancelText = 'Cancelar',
   isAlert = false,
   type = 'warning',
-  busy = false
+  busy = false,
+  confirmDisabled = false,
+  wide = false
 }: ModalConfirmacionProps) {
   const titleId = useId();
   const messageId = useId();
@@ -64,6 +68,8 @@ export default function ModalConfirmacion({
       // Solo el diálogo superior recibe Escape y Tab cuando hay diálogos anidados.
       const modales = document.querySelectorAll('[data-confirmacion="true"]');
       if (modales[modales.length - 1] !== nodo) return;
+      // La lista de un selector administra su Escape/Tab antes de devolver el foco al campo.
+      if (event.target instanceof Element && event.target.closest('[data-selector-busqueda-panel]')) return;
       if (event.key === 'Escape') {
         event.preventDefault(); event.stopPropagation();
         if (!estado.current.ocupado) estado.current.onCancel();
@@ -84,7 +90,7 @@ export default function ModalConfirmacion({
     };
   }, [isOpen]);
   const confirmar = async () => {
-    if (bloqueo.current || ocupado || !onConfirm) return;
+    if (bloqueo.current || ocupado || confirmDisabled || !onConfirm) return;
     bloqueo.current = true; setConfirmando(true); setErrorOperacion('');
     try { await onConfirm(); }
     catch (error) {
@@ -119,19 +125,19 @@ export default function ModalConfirmacion({
         ref={dialog}
         tabIndex={-1}
         data-confirmacion="true"
-        className="bg-white dark:bg-[#1c2228] w-full max-w-md max-h-[calc(100dvh-2rem)] rounded-2xl shadow-xl overflow-y-auto transform transition-all"
+        className={`bg-white dark:bg-[#1c2228] w-full ${wide ? 'max-w-3xl flex flex-col overflow-hidden' : 'max-w-md overflow-y-auto'} max-h-[calc(100dvh-2rem)] rounded-2xl shadow-xl transform transition-all`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={messageId}
         aria-busy={ocupado}
       >
-        <div className="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+        <div className={`px-4 pt-5 pb-4 sm:p-6 sm:pb-4 ${wide ? 'min-h-0 overflow-y-auto' : ''}`}>
           <div className="sm:flex sm:items-start">
             <div className={`mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full sm:mx-0 sm:h-10 sm:w-10 ${getIconColors()}`}>
               <Icon size={24} aria-hidden="true" />
             </div>
-            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+            <div className="mt-3 min-w-0 flex-1 text-center sm:mt-0 sm:ml-4 sm:text-left">
               <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white" id={titleId}>
                 {title}
               </h3>
@@ -144,11 +150,11 @@ export default function ModalConfirmacion({
             </div>
           </div>
         </div>
-        <div className="bg-gray-50 dark:bg-[#181e25] px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200 dark:border-gray-800">
+        <div className="shrink-0 bg-gray-50 dark:bg-[#181e25] px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200 dark:border-gray-800">
           {!isAlert && onConfirm && (
             <button
               type="button"
-              disabled={ocupado}
+              disabled={ocupado || confirmDisabled}
               className={`min-h-11 w-full inline-flex items-center justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto ${getButtonColors()} disabled:opacity-50 dark:focus:ring-offset-[#181e25]`}
               onClick={() => void confirmar()}
             >

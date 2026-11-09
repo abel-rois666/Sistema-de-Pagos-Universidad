@@ -44,6 +44,7 @@ const WizardLayoutDGAIR = lazy(() => import('./components/certificacion/WizardLa
 const WizardLayoutTitulacion = lazy(() => import('./components/titulacion/WizardLayoutTitulacion'));
 const ReportesControlEscolar = lazy(() => import('./components/reportes/ReportesControlEscolar').then(modulo => ({ default: modulo.ReportesControlEscolar })));
 const AprobacionProspectos = lazy(() => import('./components/AprobacionProspectos'));
+const PagosAdeudosAlumnos = lazy(() => import('./components/reportes/PagosAdeudosAlumnos'));
 const CoberturaPlanesPago = lazy(() => import('./components/reportes/CoberturaPlanesPago'));
 import type { Usuario } from './types';
 
@@ -301,6 +302,7 @@ export default function App() {
             </PageWrapper>
           } />
           <Route path="/estadisticas" element={<PageWrapper keyStr="estadisticas"><Estadisticas onBack={() => navigate('/')} /></PageWrapper>} />
+          <Route path="/pagos-adeudos-alumnos" element={<PageWrapper keyStr="pagos-adeudos-alumnos"><PagosAdeudosAlumnos /></PageWrapper>} />
           <Route path="/cobertura-planes-pago" element={
             currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR FINANCIERO'
               ? <PageWrapper keyStr="cobertura-planes-pago"><CoberturaPlanesPago /></PageWrapper>
@@ -356,9 +358,9 @@ export default function App() {
                 initialPlanId={navState.initialPlanId}
                 initialView={location.pathname.endsWith('/consultar') ? 'consultar' : location.pathname.endsWith('/registrar') ? 'registrar' : navState.view}
                 initialSearchTerm={navState.searchTerm}
-                onNavigateToPlan={(alumnoId, folio) => {
+                onNavigateToPlan={(alumnoId, folio, planId) => {
                   setSelectedAlumnoId(alumnoId);
-                  navigate('/plan-pagos', { state: { alumnoId, returnFolio: folio } });
+                  navigate('/plan-pagos', { state: { alumnoId, returnFolio: folio, initialPlanId: planId } });
                 }}
               />
             </PageWrapper>

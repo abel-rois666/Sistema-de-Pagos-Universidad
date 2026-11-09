@@ -10,7 +10,7 @@ export function estatusVisiblePlanPago(
   vinculos: readonly VinculoReciboPlan[],
 ): string {
   const guardado = estatusGuardado?.trim() || '';
-  if (guardado && guardado.toLocaleUpperCase('es-MX') !== 'PENDIENTE') return guardado;
+  if (guardado && !['PENDIENTE', 'NO PAGADO'].includes(guardado.toLocaleUpperCase('es-MX').replace(/\s+/g, ' '))) return guardado;
   if (!vinculos.length) return guardado || 'PENDIENTE';
 
   const folios = [...new Set(vinculos.map(vinculo => `R-${vinculo.folio}`))].join('; ');

@@ -2,11 +2,18 @@ import React, { useState, useRef } from 'react';
 import { toTitleCase } from '../utils';
 import { formatCicloEscolar, formatGrado } from '../utils/formatUtils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Edit2, Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Filter, Search, Wallet, FileText, AlertCircle, Wand2, MapPin, ShieldCheck, ShieldX, Database } from 'lucide-react';
+import { Save, X, GraduationCap, CheckCircle, XCircle, Loader2, Users, Trash2, ChevronUp, ChevronDown, Search, Wallet, AlertCircle, Wand2, MapPin, ShieldCheck, ShieldX } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Alumno, CicloEscolar, PaymentPlan, Catalogos, PlantillaPlan, Usuario, Carrera, PlanEstudio } from '../types';
 import { MultiSelectFilter } from './MultiSelectFilter';
-import ModalReporteAlumnos from './modals/ModalReporteAlumnos';
+import { useNavigate } from 'react-router-dom';
+import CabeceraGestionAlumnos from './alumnos/CabeceraGestionAlumnos';
+import MenuOperaciones from './alumnos/MenuOperaciones';
+import TarjetasAlumnos from './alumnos/TarjetasAlumnos';
+import OperacionCicloAlumno from './alumnos/OperacionCicloAlumno';
+import SeleccionVisible from './ui/SeleccionVisible';
+import { cambiarSeleccionVisible } from '../utils/seleccionVisible';
+import { filtrarPadron, ordenarPadron, plantillaDisponibleEnCiclo } from '../utils/consultaAlumnos';
 import ModalSincronizacionGES from './modals/ModalSincronizacionGES';
 import ModalSincronizacionKardex from './modals/ModalSincronizacionKardex';
 import { supabase, toDBPlan } from '../lib/supabase';
@@ -44,6 +51,8 @@ interface AlumnosConfigProps {
 }
 
 export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProps) {
+  const navigate = useNavigate();
+  const [operacionAlumno,setOperacionAlumno] = useState<{alumno:Alumno;tipo:'plan'|'promocion'}|null>(null);
   const {
     currentUser, alumnos, ciclos, activeCicloId: cicloGlobalId, plans, catalogos, plantillas,
     setAlumnos, setPlans
@@ -182,7 +191,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
   // ── Estado Bulk Promotion ──
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
+
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [showKardexModal, setShowKardexModal] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
@@ -215,9 +224,11 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
 
   const handleSave = async () => {
     if (!editForm.apellido_paterno || !editForm.nombres || !editForm.licenciatura || !editForm.grado_actual) return;
+    if (!activeCiclo && (editingId === 'new' || alumnos.find(a=>a.id===editingId)?.grado_actual !== editForm.grado_actual)) { toast.error('Selecciona el ciclo al que corresponde el grado.'); return; }
     if (editingId === 'new' && (editForm.assignPlanType === 'blank' || editForm.assignPlanType === 'template')) {
       const planAcademico = planesEstudioDisponibles.find(plan => plan.id === editForm.plan_id);
       const plantilla = plantillas.find(plan => plan.id === editForm.templateId);
+      if (editForm.assignPlanType==='template' && !plantillaDisponibleEnCiclo(plantilla,activeCicloId)) { toast.error('Selecciona una plantilla activa del ciclo elegido o una plantilla común.'); return; }
       const tipoAcademico = tipoPeriodoPlanPago(planAcademico?.tipo_periodo);
       const tipoPlan = editForm.assignPlanType === 'template' ? plantilla?.tipo_plan
         : tipoAcademico === 'semestral' ? 'Semestral' : tipoAcademico === 'cuatrimestral' ? 'Cuatrimestral' : null;
@@ -614,9 +625,13 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   };
 
 
-  const handlePromote = async (alumno: Alumno) => {
-    const planExistenteId = planExistentePorAlumno.get(alumno.id);
-    const motivos = motivosBasePromocion(alumno, activeCicloId, alumnosConPlanCiclo, !!planExistenteId);
+  const handlePromote = async (alumno: Alumno, cicloId: string) => {
+    const ciclo = ciclos.find(c=>c.id===cicloId);
+    if (!ciclo) { toast.error('Selecciona el ciclo de destino.'); return; }
+    const planesCiclo = plans.filter(p=>p.ciclo_id===cicloId);
+    const planExistenteId = planesCiclo.filter(p=>p.alumno_id===alumno.id).at(-1)?.id;
+    const alumnosConPlanDestino = new Set(planesCiclo.map(p=>p.alumno_id).filter((id):id is string=>!!id));
+    const motivos = motivosBasePromocion(alumno, cicloId, alumnosConPlanDestino, !!planExistenteId);
     if (motivos.length) {
       showNotification('error', motivos.map(motivo => motivoNoPromocionTexto[motivo]).join(' · '));
       return;
@@ -629,16 +644,17 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
         showNotification('error', motivoNoPromocionTexto[accion.motivo]);
         return;
       }
+      setOperacionAlumno(null);
       showConfirm(
         accion.tipo === 'EGRESO' ? 'Confirmar egreso' : 'Confirmar promoción',
         accion.tipo === 'EGRESO'
-          ? `¿Marcar como EGRESADO el programa vigente de ${toTitleCase(alumno.nombre_completo)}? Conservará ${formatGrado(alumno.grado_actual)} y ${planExistenteId ? 'su plan de pago de este ciclo sin modificarlo' : 'no se creará un plan de pago ordinario'}.`
-          : `¿Promover a ${toTitleCase(alumno.nombre_completo)} de ${formatGrado(alumno.grado_actual)} a ${formatGrado(accion.gradoDestino)}? ${planExistenteId ? 'Conservará su plan de pago de este ciclo, sin copiarlo ni crear otro.' : `Se creará un plan de pago en ${activeCiclo?.nombre}.`}`,
+          ? `Ciclo de destino: ${formatCicloEscolar(ciclo)}. ¿Marcar como EGRESADO el programa vigente de ${toTitleCase(alumno.nombre_completo)}? Conservará ${formatGrado(alumno.grado_actual)} y ${planExistenteId ? 'su plan de pago de este ciclo sin modificarlo' : 'no se creará un plan de pago ordinario'}.`
+          : `Ciclo de destino: ${formatCicloEscolar(ciclo)}. ¿Promover a ${toTitleCase(alumno.nombre_completo)} de ${formatGrado(alumno.grado_actual)} a ${formatGrado(accion.gradoDestino)}? ${planExistenteId ? 'Conservará su plan de pago de este ciclo, sin copiarlo ni crear otro.' : `Se creará un plan de pago en ${formatCicloEscolar(ciclo)}.`}`,
         async () => {
           setSaving(true);
           try {
-            if (!idsPlanPromocion.current.has(alumno.id)) idsPlanPromocion.current.set(alumno.id, crypto.randomUUID());
-            const resultado = await guardarPromocionAlumno(alumno.id, activeCicloId, accion.programaId, alumno.grado_actual, planExistenteId ?? idsPlanPromocion.current.get(alumno.id)!, false, !planExistenteId);
+            if (!idsPlanPromocion.current.has(`${alumno.id}:${cicloId}`)) idsPlanPromocion.current.set(`${alumno.id}:${cicloId}`,  crypto.randomUUID());
+            const resultado = await guardarPromocionAlumno(alumno.id, cicloId, accion.programaId, alumno.grado_actual, planExistenteId ?? idsPlanPromocion.current.get(`${alumno.id}:${cicloId}`)!, false, !planExistenteId);
             await Promise.all([useAppStore.getState().refreshAlumnos(), useAppStore.getState().refreshPlans()]);
             showNotification('success', resultado.tipo === 'EGRESO' ? 'Programa marcado como EGRESADO.' : `Alumno promovido a ${formatGrado(resultado.grado)}.`);
           } catch (error) {
@@ -653,6 +669,41 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     } finally {
       setSaving(false);
     }
+  };
+
+  const crearPlanVacioAlumno = async (alumno: Alumno, cicloId: string) => {
+    const activeCiclo = ciclos.find(c=>c.id===cicloId);
+    if (!activeCiclo) { toast.error('Selecciona el ciclo del plan.'); return; }
+    if (plans.some(p=>p.alumno_id===alumno.id && p.ciclo_id===cicloId)) { toast.error('El alumno ya tiene un plan en ese ciclo. Consulta el existente.'); return; }
+    setSaving(true);
+    try {
+      let periodoAcademico: string;
+      try {
+        periodoAcademico = (await cargarPeriodicidadAcademicaAlumno(alumno.id)).tipoPeriodo;
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'No se pudo validar el plan académico.');
+        return;
+      }
+      const tipo = tipoPeriodoPlanPago(periodoAcademico);
+      if (!tipo) { toast.error('El plan académico no tiene periodicidad ordinaria válida.'); return; }
+      const tipoPlan = tipo === 'semestral' ? 'Semestral' : 'Cuatrimestral';
+      const errorAsociacion = validarPeriodicidadAcademicaPlanPago(activeCiclo, tipoPlan, periodoAcademico);
+      if (errorAsociacion) { toast.error(errorAsociacion); return; }
+      localCounter.current++;
+      const newPlan: PaymentPlan = {
+        id: crypto.randomUUID(),
+        alumno_id: alumno.id, ciclo_id: activeCiclo.id,
+        nombre_alumno: alumno.nombre_completo,
+        no_plan_pagos: generateFolio(activeCiclo.nombre, localCounter.current),
+        fecha_plan: new Date().toLocaleDateString('es-MX'),
+        beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
+        ciclo_escolar: activeCiclo.nombre,
+        tipo_plan: tipoPlan,
+        licenciatura: alumno.licenciatura,
+        grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
+      };
+      if (await handleCreatePlan(newPlan)) { setOperacionAlumno(null); showNotification('success', `Plan creado en ${activeCiclo.nombre} · ${activeCiclo.tipo_periodo}.`); }
+    } finally { setSaving(false); }
   };
 
   const handleDelete = (alumno: Alumno) => {
@@ -744,30 +795,16 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     }
   }, [searchTerm, sortField, sortDirection, itemsPerPage, filterLicenciaturas, filterGrados, filterTurnos, filterEstatusList]);
 
-  const licenciaturas = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.licenciatura).filter(Boolean))).sort(), [alumnos]);
+  const licenciaturas = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.licenciatura).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base',numeric:true})), [alumnos]);
   const grados = React.useMemo(() => Array.from(new Set(alumnos.map(a => gradoCanonico(a.grado_actual)))).sort(compararGrados), [alumnos]);
   const turnos = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.turno).filter(Boolean))).sort(), [alumnos]);
   const estatusList = React.useMemo(() => Array.from(new Set(alumnos.map(a => a.estatus).filter(Boolean))).sort(), [alumnos]);
 
-  const filteredAlumnos = alumnos
-    .filter(a => {
-      const matchSearch = a.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.licenciatura.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchLic = filterLicenciaturas.length === 0 || filterLicenciaturas.includes(a.licenciatura);
-      const matchGrado = filterGrados.length === 0 || filterGrados.includes(gradoCanonico(a.grado_actual));
-      const matchTurno = filterTurnos.length === 0 || filterTurnos.includes(a.turno);
-      const matchEstatus = filterEstatusList.length === 0 || filterEstatusList.includes(a.estatus);
-      return matchSearch && matchLic && matchGrado && matchTurno && matchEstatus;
-    })
-    .sort((a, b) => {
-      const aVal = (a[sortField] || '').toString().toLowerCase();
-      const bVal = (b[sortField] || '').toString().toLowerCase();
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
+  const filtrosPadron = {busqueda:searchTerm,licenciaturas:filterLicenciaturas,grados:filterGrados,turnos:filterTurnos,estatus:filterEstatusList};
+  const filteredAlumnos = ordenarPadron(filtrarPadron(alumnos,filtrosPadron),sortField,sortDirection);
 
-  const totalPages = Math.ceil(filteredAlumnos.length / itemsPerPage);
+  const totalPages = Math.max(1,Math.ceil(filteredAlumnos.length / itemsPerPage));
+  React.useEffect(()=>{setCurrentPage(p=>Math.max(1,Math.min(p,totalPages)));},[totalPages]);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, filteredAlumnos.length);
   const paginatedAlumnos = filteredAlumnos.slice(startIndex, endIndex);
@@ -779,13 +816,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     setMainTableSelected(next);
   };
 
-  const toggleAllMainTable = () => {
-    if (mainTableSelected.size === filteredAlumnos.length && filteredAlumnos.length > 0) {
-      setMainTableSelected(new Set());
-    } else {
-      setMainTableSelected(new Set(filteredAlumnos.map(a => a.id)));
-    }
-  };
+  const toggleAllMainTable = (marcar: boolean) => setMainTableSelected(prev=>new Set(cambiarSeleccionVisible([...prev],paginatedAlumnos.map(a=>a.id),marcar)));
 
   const handleBulkDelete = () => {
     showConfirm(
@@ -917,9 +948,9 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
           idsFallidos.add(alumno.id);
         } else {
           try {
-            if (!idsPlanPromocion.current.has(alumno.id)) idsPlanPromocion.current.set(alumno.id, crypto.randomUUID());
+            if (!idsPlanPromocion.current.has(`${alumno.id}:${activeCicloId}`)) idsPlanPromocion.current.set(`${alumno.id}:${activeCicloId}`,  crypto.randomUUID());
             const planExistenteId = planExistentePorAlumno.get(alumno.id);
-            await guardarPromocionAlumno(alumno.id, activeCicloId, actual.programaId, alumno.grado_actual, planExistenteId ?? idsPlanPromocion.current.get(alumno.id)!, !planExistenteId && bulkCopyConcepts, !planExistenteId);
+            await guardarPromocionAlumno(alumno.id, activeCicloId, actual.programaId, alumno.grado_actual, planExistenteId ?? idsPlanPromocion.current.get(`${alumno.id}:${activeCicloId}`)!, !planExistenteId && bulkCopyConcepts, !planExistenteId);
             exitos++;
           } catch (error) {
             const mensaje = error instanceof Error ? error.message : 'Error desconocido';
@@ -946,41 +977,33 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
     }
   };
 
+  const accionesAlumno = (alumno: Alumno) => <div className="alumnos-acciones-fila">
+    {onViewFicha&&<button type="button" className="alumnos-ver-ficha" onClick={()=>onViewFicha(alumno.id)}>Ver ficha</button>}
+    <MenuOperaciones textoBoton="Acciones" etiqueta={`Acciones de ${toTitleCase(alumno.nombre_completo)}`} opciones={[
+      {texto:'Crear plan de pagos',ejecutar:()=>setOperacionAlumno({alumno,tipo:'plan'}),disabled:saving},
+      ...(canPromote?[{texto:'Promover / concluir programa',ejecutar:()=>setOperacionAlumno({alumno,tipo:'promocion'}),disabled:saving}]:[]),
+      {texto:'Editar alumno',ejecutar:()=>handleEdit(alumno),disabled:saving},
+      ...(currentUser.rol!=='CAJERO'?[{texto:'Eliminar alumno',ejecutar:()=>handleDelete(alumno),peligro:true,disabled:saving}]:[]),
+    ]}/>
+  </div>;
+
   return (
-    <div className="min-h-screen bg-[#f2f3f5] dark:bg-gray-950 p-8 font-sans transition-colors duration-300">
+    <div className="gestion-alumnos">
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-          <button onClick={onBack} className="flex items-center gap-2 text-[#45515e] dark:text-[#8e8e93] hover:text-black dark:hover:text-white font-bold transition-colors">
-            <ArrowLeft size={20} /> Volver al Inicio
-          </button>
-
-          <div className="flex-1"></div>
-
-          <button onClick={() => setShowSyncModal(true)} disabled={alumnos.length === 0}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
-            <Database size={18} /> Sincronizador GES 4
-          </button>
-
-          <button onClick={() => setShowKardexModal(true)} disabled={alumnos.length === 0}
-            className="flex items-center gap-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
-            <Database size={18} /> Sincronizador Kardex
-          </button>
-
-          {canPromote && <button onClick={() => { setResultadoPromocion(null); setConfirmarBulk(false); setBulkIncluirConPlan(false); setShowBulkModal(true); }} disabled={alumnos.length === 0}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
-            <Users size={18} /> Promoción Masiva
-          </button>}
-
-          <button onClick={() => setShowReportModal(true)} disabled={alumnos.length === 0}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
-            <FileText size={18} /> Reporte Financiero
-          </button>
-
-          <button onClick={handleAddNew} disabled={editingId !== null || saving}
-            className="flex items-center gap-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors disabled:opacity-50">
-            {saving ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} Nuevo Alumno
-          </button>
-        </div>
+        <CabeceraGestionAlumnos onBack={onBack} onNuevo={handleAddNew} ocupado={editingId!==null||saving} busqueda={searchTerm} onBusqueda={setSearchTerm}
+          onFiltros={()=>setShowFilters(v=>!v)} filtrosAbiertos={showFilters} total={filteredAlumnos.length}
+          filtros={[
+            ...filterLicenciaturas.map(v=>({etiqueta:`Programa: ${v}`,quitar:()=>setFilterLicenciaturas(filterLicenciaturas.filter(x=>x!==v))})),
+            ...filterGrados.map(v=>({etiqueta:`Grado: ${formatGrado(v)}`,quitar:()=>setFilterGrados(filterGrados.filter(x=>x!==v))})),
+            ...filterTurnos.map(v=>({etiqueta:`Turno: ${v}`,quitar:()=>setFilterTurnos(filterTurnos.filter(x=>x!==v))})),
+            ...filterEstatusList.map(v=>({etiqueta:`Estatus: ${v}`,quitar:()=>setFilterEstatusList(filterEstatusList.filter(x=>x!==v))})),
+          ]}
+          herramientas={[
+            {texto:'Sincronizar desde GES 4',ejecutar:()=>setShowSyncModal(true),disabled:!alumnos.length},
+            {texto:'Sincronizar Kardex',ejecutar:()=>setShowKardexModal(true),disabled:!alumnos.length},
+            ...(canPromote?[{texto:'Promoción masiva',ejecutar:()=>{setResultadoPromocion(null);setConfirmarBulk(false);setBulkIncluirConPlan(false);setShowBulkModal(true);},disabled:!filteredAlumnos.length}]:[]),
+            {texto:'Pagos y adeudos del padrón filtrado',ejecutar:()=>navigate('/pagos-adeudos-alumnos',{state:{desdeAlumnos:true,filtrosPadron}})},
+          ]}/>
 
         {notification && (
           <div className={`mb-4 flex items-center gap-2 px-4 py-3 rounded-[13px] text-sm font-semibold shadow-[var(--shadow-subtle)]
@@ -991,40 +1014,13 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
         )}
 
         <div className="bg-white dark:bg-gray-900 rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#e5e7eb] dark:border-gray-800 overflow-hidden transition-colors">
-          <div className="p-6 border-b border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-[#222222] dark:text-gray-100">Gestión de Alumnos</h1>
-              <p className="text-[#8e8e93] dark:text-[#8e8e93] text-sm mt-1">Administra el padrón de alumnos y promúévelos de grado.</p>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-              <SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId || ''}
-                label="Ciclo para planes y promoción" disabled={showBulkModal}
-                onChange={id => { setCicloModuloId(id); setBulkSelected(new Set()); setMainTableSelected(new Set()); }}
-                className="w-full sm:w-60" />
-              <div className="relative w-full sm:w-72">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search size={18} className="text-[#8e8e93]" />
-                </div>
-                <input type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] pl-10 pr-4 py-2 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:ring-2 focus:ring-[#3b82f6] focus:outline-none transition-all"
-                  placeholder="Buscar alumno o licenciatura..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-              </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[8px] text-sm font-medium border transition-colors w-full sm:w-auto ${showFilters || hasActiveFilters ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-[#1456f0] dark:text-indigo-300' : 'bg-white dark:bg-[#1c2228] border-gray-300 dark:border-gray-600 text-[#45515e] dark:text-gray-300 hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`}
-              >
-                <Filter size={16} />
-                Filtros {hasActiveFilters && <span className="bg-[#1456f0] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">!</span>}
-              </button>
-            </div>
-          </div>
-
           <AnimatePresence>
             {showFilters && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-visible border-b border-[#f2f3f5] dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 relative z-10"
+                id="filtros-padron" className="overflow-visible border-b border-[#f2f3f5] dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 relative z-10"
               >
                 <div className="p-4 px-6 flex flex-wrap gap-4 items-center">
                   <span className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mr-1">Filtrar por:</span>
@@ -1068,42 +1064,42 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
             )}
           </AnimatePresence>
 
-          <div className="overflow-x-auto">
+          <div className="alumnos-tabla overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead className="bg-[#eef2ff] dark:bg-[rgba(255,255,255,0.04)] border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]">
                 <tr className="text-[#45515e] dark:text-[#8e8e93] text-xs uppercase tracking-wider font-semibold">
                   <th className="py-2.5 px-3 w-8 text-center border-r border-[#e5e7eb]/50 dark:border-white/5">
-                    <input type="checkbox" className="w-3.5 h-3.5 cursor-pointer" checked={filteredAlumnos.length > 0 && mainTableSelected.size === filteredAlumnos.length} onChange={toggleAllMainTable} title="Seleccionar todos los filtrados" />
+                    <SeleccionVisible seleccion={[...mainTableSelected]} visibles={paginatedAlumnos.map(a=>a.id)} onChange={e=>toggleAllMainTable(e.target.checked)} etiqueta="Seleccionar esta página" className="w-4 h-4 cursor-pointer"/>
                   </th>
-                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" onClick={() => handleSort('nombre_completo')}>
-                    <div className="flex items-center justify-between gap-1 w-full">
+                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" scope="col" aria-sort={sortField==='nombre_completo'?(sortDirection==='asc'?'ascending':'descending'):'none'}>
+                    <button type="button" className="flex items-center justify-between gap-1 w-full text-left" onClick={()=>handleSort('nombre_completo')}>
                       <span>Nombre Completo</span>
                       {sortField === 'nombre_completo' ? (sortDirection === 'asc' ? <ChevronUp size={13} className="text-[#1456f0]" /> : <ChevronDown size={13} className="text-[#1456f0]" />) : <ChevronDown size={13} className="text-transparent group-hover:text-blue-300 transition-colors" />}
-                    </div>
+                    </button>
                   </th>
-                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" onClick={() => handleSort('licenciatura')}>
-                    <div className="flex items-center justify-between gap-1 w-full">
+                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" scope="col" aria-sort={sortField==='licenciatura'?(sortDirection==='asc'?'ascending':'descending'):'none'}>
+                    <button type="button" className="flex items-center justify-between gap-1 w-full text-left" onClick={()=>handleSort('licenciatura')}>
                       <span>Licenciatura</span>
                       {sortField === 'licenciatura' ? (sortDirection === 'asc' ? <ChevronUp size={13} className="text-[#1456f0]" /> : <ChevronDown size={13} className="text-[#1456f0]" />) : <ChevronDown size={13} className="text-transparent group-hover:text-blue-300 transition-colors" />}
-                    </div>
+                    </button>
                   </th>
-                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" onClick={() => handleSort('grado_actual')}>
-                    <div className="flex items-center justify-between gap-1 w-full">
+                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" scope="col" aria-sort={sortField==='grado_actual'?(sortDirection==='asc'?'ascending':'descending'):'none'}>
+                    <button type="button" className="flex items-center justify-between gap-1 w-full text-left" onClick={()=>handleSort('grado_actual')}>
                       <span>Grado</span>
                       {sortField === 'grado_actual' ? (sortDirection === 'asc' ? <ChevronUp size={13} className="text-[#1456f0]" /> : <ChevronDown size={13} className="text-[#1456f0]" />) : <ChevronDown size={13} className="text-transparent group-hover:text-blue-300 transition-colors" />}
-                    </div>
+                    </button>
                   </th>
-                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" onClick={() => handleSort('turno')}>
-                    <div className="flex items-center justify-between gap-1 w-full">
+                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" scope="col" aria-sort={sortField==='turno'?(sortDirection==='asc'?'ascending':'descending'):'none'}>
+                    <button type="button" className="flex items-center justify-between gap-1 w-full text-left" onClick={()=>handleSort('turno')}>
                       <span>Turno</span>
                       {sortField === 'turno' ? (sortDirection === 'asc' ? <ChevronUp size={13} className="text-[#1456f0]" /> : <ChevronDown size={13} className="text-[#1456f0]" />) : <ChevronDown size={13} className="text-transparent group-hover:text-blue-300 transition-colors" />}
-                    </div>
+                    </button>
                   </th>
-                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" onClick={() => handleSort('estatus')}>
-                    <div className="flex items-center justify-between gap-1 w-full">
+                  <th className="py-2.5 px-3 cursor-pointer hover:bg-[#e0e7ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors select-none group border-r border-[#e5e7eb]/50 dark:border-white/5" scope="col" aria-sort={sortField==='estatus'?(sortDirection==='asc'?'ascending':'descending'):'none'}>
+                    <button type="button" className="flex items-center justify-between gap-1 w-full text-left" onClick={()=>handleSort('estatus')}>
                       <span>Estatus</span>
                       {sortField === 'estatus' ? (sortDirection === 'asc' ? <ChevronUp size={13} className="text-[#1456f0]" /> : <ChevronDown size={13} className="text-[#1456f0]" />) : <ChevronDown size={13} className="text-transparent group-hover:text-blue-300 transition-colors" />}
-                    </div>
+                    </button>
                   </th>
                   <th className="py-2.5 px-2 text-center text-emerald-700 dark:text-emerald-400 border-r border-[#e5e7eb]/50 dark:border-white/5">
                     <div className="flex items-center justify-center gap-1">
@@ -1117,19 +1113,20 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                 {paginatedAlumnos.map(alumno => (
                   <tr key={alumno.id} className={`odd:bg-white even:bg-[#f8faff] dark:odd:bg-[#181e25] dark:even:bg-[#1c2228] hover:bg-[#eef2ff] dark:hover:bg-[rgba(255,255,255,0.06)] transition-colors border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.04)] ${mainTableSelected.has(alumno.id) ? 'bg-indigo-50/50 dark:bg-indigo-900/30' : ''}`}>
                     <td className="py-2.5 px-3 text-center w-8">
-                      <input type="checkbox" className="w-3.5 h-3.5 cursor-pointer" checked={mainTableSelected.has(alumno.id)} onChange={(e) => toggleMainTableSelect(alumno.id, e)} />
+                      <input type="checkbox" className="w-3.5 h-3.5 cursor-pointer" aria-label={`Seleccionar a ${alumno.nombre_completo}`} checked={mainTableSelected.has(alumno.id)} onChange={(e) => toggleMainTableSelect(alumno.id, e)} />
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="font-semibold text-[#222222] dark:text-gray-100 text-[13px] leading-tight whitespace-normal break-words max-w-[200px]">
                         {toTitleCase(alumno.nombre_completo)}
                       </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1">{alumno.matricula||'Sin matrícula registrada'}</p>
                       <div className="text-[11px] text-[#8e8e93] dark:text-[#8e8e93] font-medium mt-0.5 whitespace-nowrap">
                         {alumno.beca_porcentaje && alumno.beca_porcentaje !== '0%'
                           ? <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded border border-amber-100/50 dark:border-amber-800/50">{'Beca: ' + alumno.beca_porcentaje + ' (' + alumno.beca_tipo + ')'}</span>
                           : 'Sin beca'}
                       </div>
                     </td>
-                    <td className="py-2.5 px-3 text-[#45515e] dark:text-gray-300 text-[12px] leading-tight whitespace-normal break-words max-w-[180px]">{toTitleCase(alumno.licenciatura)}</td>
+                    <td className="py-2.5 px-3 text-[#45515e] dark:text-gray-300 text-[12px] leading-tight whitespace-normal break-words max-w-[180px]">{toTitleCase(alumno.licenciatura)}<span className="alumnos-programa-resumen">{formatGrado(alumno.grado_actual)} · {alumno.turno||'Sin turno'}</span></td>
                     <td className="py-2.5 px-3 font-semibold text-[#1456f0] dark:text-indigo-400 text-xs whitespace-nowrap">{formatGrado(alumno.grado_actual)}</td>
                     <td className="py-2.5 px-3 text-[#45515e] dark:text-gray-300 text-xs whitespace-nowrap">{alumno.turno}</td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
@@ -1147,91 +1144,16 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                      <div className="flex justify-end gap-2 items-center">
-                        {onViewFicha && (
-                          <button onClick={() => onViewFicha(alumno.id)} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-xs font-bold bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded transition-colors border border-blue-100 dark:border-blue-800">
-                            Ver Ficha
-                          </button>
-                        )}
-                        {alumnosConPlanCiclo.has(alumno.id) ? (
-                          <div className="flex items-center gap-1">
-                            <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1.5 rounded border border-emerald-100 dark:border-emerald-800 shadow-[var(--shadow-subtle)]">
-                              <CheckCircle size={14} /> Inscrito
-                            </span>
-                            {canPromote && <button onClick={() => handlePromote(alumno)} disabled={saving}
-                              title="Promover conservando el plan de pago de este ciclo"
-                              className="text-[#1456f0] dark:text-indigo-400 hover:text-[#1456f0] dark:hover:text-indigo-300 flex items-center gap-1 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 hover:bg-[#bfdbfe] dark:hover:bg-indigo-900/50 px-2 py-1.5 rounded transition-colors border border-indigo-100 dark:border-indigo-800 shadow-[var(--shadow-subtle)] disabled:opacity-50">
-                              <GraduationCap size={14} /> Promover
-                            </button>}
-                          </div>
-                        ) : (
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => {
-                                const activeCiclo = ciclos.find(c => c.id === activeCicloId);
-                                if (activeCiclo) {
-                                  showConfirm("Confirmar Inscripción",
-                                    `¿Inscribir a ${toTitleCase(alumno.nombre_completo)} en el ciclo ${activeCiclo.nombre}?`,
-                                    async () => {
-                                      let periodoAcademico: string;
-                                      try {
-                                        periodoAcademico = (await cargarPeriodicidadAcademicaAlumno(alumno.id)).tipoPeriodo;
-                                      } catch (error) {
-                                        toast.error(error instanceof Error ? error.message : 'No se pudo validar el plan académico.');
-                                        return;
-                                      }
-                                      const tipo = tipoPeriodoPlanPago(periodoAcademico);
-                                      if (!tipo) { toast.error('El plan académico no tiene periodicidad ordinaria válida.'); return; }
-                                      const tipoPlan = tipo === 'semestral' ? 'Semestral' : 'Cuatrimestral';
-                                      const errorAsociacion = validarPeriodicidadAcademicaPlanPago(activeCiclo, tipoPlan, periodoAcademico);
-                                      if (errorAsociacion) { toast.error(errorAsociacion); return; }
-                                      localCounter.current++;
-                                      const newPlan: PaymentPlan = {
-                                        id: crypto.randomUUID(),
-                                        alumno_id: alumno.id, ciclo_id: activeCiclo.id,
-                                        nombre_alumno: alumno.nombre_completo,
-                                        no_plan_pagos: generateFolio(activeCiclo.nombre, localCounter.current),
-                                        fecha_plan: new Date().toLocaleDateString('es-MX'),
-                                        beca_porcentaje: '0%', beca_tipo: 'NINGUNA',
-                                        ciclo_escolar: activeCiclo.nombre,
-                                        tipo_plan: tipoPlan,
-                                        licenciatura: alumno.licenciatura,
-                                        grado_turno: `${alumno.grado_actual} / ${alumno.turno}`
-                                      };
-                                      if (await handleCreatePlan(newPlan))
-                                        showNotification('success', `Plan creado en ${activeCiclo.nombre} · ${activeCiclo.tipo_periodo}.`);
-                                    }
-                                  );
-                                }
-                              }}
-                              className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-2 py-1.5 rounded transition-colors border border-emerald-100 dark:border-emerald-800 shadow-[var(--shadow-subtle)]"
-                              title="Inscribir con Plan Vacío"
-                            >
-                              <CheckCircle size={14} />
-                            </button>
-                            {canPromote && (
-                              <button onClick={() => handlePromote(alumno)} disabled={saving}
-                                className="text-[#1456f0] dark:text-indigo-400 hover:text-[#1456f0] dark:hover:text-indigo-300 flex items-center gap-1 text-xs font-bold bg-indigo-50 dark:bg-indigo-900/30 hover:bg-[#bfdbfe] dark:hover:bg-indigo-900/50 px-2 py-1.5 rounded transition-colors border border-indigo-100 dark:border-indigo-800 shadow-[var(--shadow-subtle)]">
-                                <GraduationCap size={14} /> Promover
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        <button onClick={() => handleEdit(alumno)} className="text-[#8e8e93] dark:text-[#8e8e93] hover:text-blue-600 dark:hover:text-blue-400 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-blue-900/30 p-1 rounded-[6px] transition-colors ml-1" title="Editar Alumno">
-                          <Edit2 size={15} />
-                        </button>
-                        {currentUser.rol !== 'CAJERO' && (
-                          <button onClick={() => handleDelete(alumno)} className="text-[#8e8e93] dark:text-[#8e8e93] hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-[6px] transition-colors ml-0.5" title="Eliminar Alumno">
-                            <Trash2 size={15} />
-                          </button>
-                        )}
-                      </div>
+                      {accionesAlumno(alumno)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          <TarjetasAlumnos alumnos={paginatedAlumnos} seleccion={mainTableSelected} onSeleccion={toggleMainTableSelect} onSeleccionPagina={toggleAllMainTable} acciones={accionesAlumno} orden={sortField} sentido={sortDirection} onOrden={handleSort} onSentido={()=>setSortDirection(v=>v==='asc'?'desc':'asc')}/>
+          {!filteredAlumnos.length&&<div className="alumnos-sin-resultados" role="status"><h2>No hay alumnos que coincidan</h2><p>Prueba con otro nombre, matrícula o filtro.</p></div>}
 
           {filteredAlumnos.length > 0 && (
             <div className="p-4 border-t border-[#f2f3f5] dark:border-gray-800 bg-[#f2f3f5] dark:bg-gray-800/50 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -1300,17 +1222,8 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
         </div>
       </div>
 
-      <AnimatePresence>
-        {showReportModal && (
-          <ModalReporteAlumnos
-            alumnos={filteredAlumnos.length > 0 ? filteredAlumnos : alumnos}
-            activeCyclePlans={activeCyclePlans}
-            cicloNombre={ciclos.find(c => c.id === activeCicloId)?.nombre || 'Desconocido'}
-            onClose={() => setShowReportModal(false)}
-          />
-        )}
-      </AnimatePresence>
-
+      {operacionAlumno&&<OperacionCicloAlumno alumno={operacionAlumno.alumno} operacion={operacionAlumno.tipo} ciclos={ciclos} cicloInicial={activeCicloId||''} planes={plans} ocupado={saving}
+        onCerrar={()=>setOperacionAlumno(null)} onContinuar={id=>{setCicloModuloId(id);return operacionAlumno.tipo==='plan'?crearPlanVacioAlumno(operacionAlumno.alumno,id):handlePromote(operacionAlumno.alumno,id);}}/>}
       {/* ── Modal Unificado Crear / Editar Alumno ── */}
       <AnimatePresence>
         {editingId !== null && (
@@ -1342,6 +1255,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
               {/* Body */}
               <div className="p-4 md:p-5 overflow-y-auto">
                 {/* ── Buscador Inteligente GES 4 ── */}
+
                 {editingId === 'new' && (
                   <div className="mb-4 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-[12px] border border-gray-200 dark:border-[rgba(255,255,255,0.08)]">
                     <label className="block text-xs font-bold text-[#1456f0] dark:text-indigo-300 uppercase tracking-wider mb-2">
@@ -1517,12 +1431,15 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                   </div>
                 )}
 
-                {/* Row 3: Grado + Turno */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
+
+                {/* Contexto del grado: ciclo exacto y grado registrado. */}
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,300px)_140px] gap-4 mb-4">
+                <div className="w-full max-w-[300px]"><SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId||''} onChange={id=>{setCicloModuloId(id);if(editForm.assignPlanType==='template'&&!plantillaDisponibleEnCiclo(plantillas.find(p=>p.id===editForm.templateId),id))setEditForm(f=>({...f,templateId:''}));}} disabled={saving}
+                  label="Ciclo al que corresponde el grado" ayuda="Se guarda como ciclo de la asignación del grado. Si creas un plan de pagos, también se usa su ID exacto. No acredita por sí solo el primer ingreso ni una inscripción académica." className="max-w-sm"/></div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] mb-1">Grado</label>
+                    <label className="block min-h-6 text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Grado</label>
                     {catalogos?.grados?.length ? (
-                      <select disabled={editForm.estatus === 'BAJA'} className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })}>
+                      <select disabled={editForm.estatus === 'BAJA'} className="h-[42px] w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })}>
                         <option value="">-- Seleccionar --</option>
                         {catalogos.grados.filter(g => {
                           if (editForm.licenciatura && is8voMaxLic(editForm.licenciatura)) {
@@ -1535,7 +1452,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                         )}
                       </select>
                     ) : (
-                      <input disabled={editForm.estatus === 'BAJA'} type="text" className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })} />
+                      <input disabled={editForm.estatus === 'BAJA'} type="text" className="h-[42px] w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700" value={editForm.grado_actual || ''} onChange={e => setEditForm({ ...editForm, grado_actual: e.target.value })} />
                     )}
                     {editForm.estatus === 'BAJA' && <p className="text-[10px] text-red-500 mt-0.5 leading-tight">Alumno en estatus BAJA (Gestiona sus planes en la Ficha)</p>}
                   </div>
@@ -1905,7 +1822,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                 {/* Asignar plan — solo visible al crear */}
                 {editingId === 'new' && (
                   <>
-                    <p className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-wider mb-2">Plan de Pagos (Ciclo Activo)</p>
+                    <p className="text-xs font-bold text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-wider mb-2">Plan de pagos del ciclo seleccionado</p>
                     <div className="flex flex-col md:flex-row gap-3 bg-[#f2f3f5] dark:bg-gray-800/50 p-3 rounded-[13px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]">
                       <div className="w-full md:w-56 flex-shrink-0">
                         <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Asignar Plan</label>
@@ -1920,7 +1837,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                           <label className="block text-xs font-semibold text-[#45515e] dark:text-[#8e8e93] mb-1">Seleccionar Plantilla</label>
                           <select className="w-full border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-3 py-1.5 text-sm bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#3b82f6] transition-colors" value={editForm.templateId || ''} onChange={e => setEditForm({ ...editForm, templateId: e.target.value })}>
                             <option value="">-- Elegir Plantilla --</option>
-                            {plantillas?.filter(p => p.activo && (!p.ciclo_id || p.ciclo_id === activeCicloId)).map(p => (
+                            {plantillas?.filter(p => plantillaDisponibleEnCiclo(p,activeCicloId)).map(p => (
                               <option key={p.id} value={p.id}>{p.nombre}</option>
                             ))}
                           </select>
@@ -1961,6 +1878,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
               </div>
 
               <div className="p-4 border-b border-[#f2f3f5] dark:border-gray-800 bg-white dark:bg-gray-900 space-y-3">
+                <SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId||''} disabled={bulkProcessing} onChange={id=>{setCicloModuloId(id);setBulkSelected(new Set());setConfirmarBulk(false);setResultadoPromocion(null);setProgramasListos(false);}} label="Ciclo de destino" ayuda="La promoción se evalúa por el ID exacto del ciclo. Cambiarlo descarta la selección de esta promoción y vuelve a revisar los programas." className="max-w-sm"/>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-slate-800 dark:text-slate-200">{filteredAlumnos.length} resultados del filtro</span>
                   <span className="rounded-lg bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 text-blue-700 dark:text-blue-300">{elegiblesBase.length} cumplen reglas iniciales de promoción</span>
@@ -1980,7 +1898,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
                   </details>}
                 </div>}
                 {confirmarBulk && <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-900 dark:text-amber-100">
-                  Confirma {selectedElegibles.length} alumnos: {selectedElegibles.filter(item => item.accion?.tipo === 'AVANCE').length} avanzarán de grado y {selectedElegibles.filter(item => item.accion?.tipo === 'EGRESO').length} concluirán su programa. {selectedElegibles.filter(item => planExistentePorAlumno.has(item.alumno.id)).length} conservarán su plan de pago sin copiarlo ni crear otro. Los egresados conservarán el último grado cursado.
+                  Ciclo de destino: {activeCiclo?formatCicloEscolar(activeCiclo):'sin seleccionar'}. Confirma {selectedElegibles.length} alumnos: {selectedElegibles.filter(item => item.accion?.tipo === 'AVANCE').length} avanzarán de grado y {selectedElegibles.filter(item => item.accion?.tipo === 'EGRESO').length} concluirán su programa. {selectedElegibles.filter(item => planExistentePorAlumno.has(item.alumno.id)).length} conservarán su plan de pago sin copiarlo ni crear otro. Los egresados conservarán el último grado cursado.
                 </div>}
                 {bulkProcessing && <p role="status" className="text-sm text-blue-700 dark:text-blue-300">Procesando {progresoBulk.actual} de {progresoBulk.total}…</p>}
                 <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 p-3 rounded-[13px] border border-blue-100 dark:border-blue-800 mb-0">
@@ -2138,14 +2056,14 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
       <ModalSincronizacionKardex isOpen={showKardexModal} onClose={() => setShowKardexModal(false)} />
 
       {mainTableSelected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#181C25] border border-[rgba(255,255,255,0.08)] p-2 pr-4 rounded-[30px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 animate-in slide-in-from-bottom-10 fade-in duration-300 flex items-center gap-4 text-white font-sans">
+        <div className="alumnos-acciones-seleccion">
           
           <div className="flex items-center gap-3 pl-2">
             <div className="w-6 h-6 rounded-full bg-[#1456f0] flex items-center justify-center text-xs font-bold text-white shadow-[0_0_10px_rgba(20,86,240,0.5)]">
               {mainTableSelected.size}
             </div>
             <span className="text-sm font-semibold">
-              seleccionados
+              seleccionados ({paginatedAlumnos.filter(a=>mainTableSelected.has(a.id)).length} en esta página)
             </span>
           </div>
 
@@ -2175,6 +2093,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
           <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] ml-2"></div>
           <button 
             onClick={() => setMainTableSelected(new Set())}
+            aria-label="Quitar selección de alumnos"
             className="p-1.5 text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.1)] rounded-full transition-colors"
           >
             <X size={16} />

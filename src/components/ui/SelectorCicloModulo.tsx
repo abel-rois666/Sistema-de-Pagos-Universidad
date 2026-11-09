@@ -1,3 +1,5 @@
+import { useId } from 'react';
+import SelectorBusqueda from './SelectorBusqueda';
 import type { CicloEscolar } from '../../types';
 import { formatCicloEscolar } from '../../utils/formatUtils';
 import { CampoConAyuda } from './AyudaContextual';
@@ -15,16 +17,15 @@ interface Props {
 /** Selector de contexto de cada módulo; conserva el ID exacto del ciclo. */
 export default function SelectorCicloModulo({ ciclos, cicloId, onChange,
   label = 'Ciclo de trabajo', disabled = false, className = '', ayuda }: Props) {
-  const selector = <select value={cicloId} disabled={disabled} onChange={event => onChange(event.target.value)}
-      className="h-[42px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:opacity-50 dark:border-slate-600 dark:bg-[#1c2228] dark:text-white">
-      <option value="">Selecciona un ciclo</option>
-      {[...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es-MX', { numeric: true })
-        || formatCicloEscolar(a).localeCompare(formatCicloEscolar(b), 'es-MX')).map(ciclo =>
-        <option key={ciclo.id} value={ciclo.id}>{formatCicloEscolar(ciclo)}</option>)}
-    </select>;
-  if (ayuda) return <CampoConAyuda etiqueta={label} ayuda={ayuda} className={className}>{selector}</CampoConAyuda>;
-  return <label className={`block min-w-48 ${className}`}>
-    <span className="mb-1 block text-sm font-semibold text-slate-600 dark:text-slate-300">{label}</span>
+  const id = useId();
+  const opciones = [...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es-MX', { numeric: true })
+    || formatCicloEscolar(a).localeCompare(formatCicloEscolar(b), 'es-MX'))
+    .map(ciclo => ({ value: ciclo.id, label: formatCicloEscolar(ciclo) }));
+  const selector = <SelectorBusqueda id={id} value={cicloId} disabled={disabled} onChange={onChange}
+    etiqueta={label} placeholder="Selecciona un ciclo" opciones={[{value:'',label:'Selecciona un ciclo'},...opciones]}/>;
+  if (ayuda) return <CampoConAyuda etiqueta={label} ayuda={ayuda} className={`selector-ciclo-modulo w-full max-w-[300px] ${className}`}>{selector}</CampoConAyuda>;
+  return <div className={`selector-ciclo-modulo block w-full max-w-[300px] ${className}`}>
+    <label htmlFor={id} className="mb-1.5 block min-h-6 text-sm font-semibold text-slate-600 dark:text-slate-300">{label}</label>
     {selector}
-  </label>;
+  </div>;
 }

@@ -583,6 +583,7 @@ export interface InscripcionAcademica {
 }
 
 export interface Docente {
+  persona_id?: string | null;
   id: string;
   clave_legado: string;
   nombre_completo: string;
@@ -636,6 +637,7 @@ export interface AlumnoGrupo {
 // ── Modulo de Recursos Humanos (NOM-035) ──────────────────────────
 
 export interface Empleado {
+  persona_id?: string | null;
   id: string;
   nombres: string;
   apellido_paterno: string;

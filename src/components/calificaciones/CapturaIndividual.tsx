@@ -299,7 +299,7 @@ export default function CapturaIndividual({ cicloId: activeCicloId, refreshKey }
       </div>
 
       {/* Grid de Materias */}
-      <div className="flex-1 overflow-auto bg-gray-50 dark:bg-[#181e25] p-6 pb-24">
+      <div className="captura-contenido flex-1 overflow-auto bg-gray-50 dark:bg-[#181e25] p-6 pb-24">
         <div className="max-w-7xl mx-auto">
           {errorConsulta ? null : !selectedAlumno ? (
              <div className="flex flex-col items-center justify-center h-64 text-center">
@@ -426,7 +426,7 @@ export default function CapturaIndividual({ cicloId: activeCicloId, refreshKey }
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             exit={{ y: 100 }}
-            className="fixed bottom-0 left-0 right-0 md:left-64 z-40 bg-white/80 dark:bg-[#1c2228]/80 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]"
+            className="acciones-modulo-fijas fixed bottom-0 left-0 right-0 md:left-64 z-40 bg-white/80 dark:bg-[#1c2228]/80 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]"
           >
             <div className="max-w-7xl mx-auto flex items-center justify-between px-6">
               <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">

@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import SelectorBusqueda from '../ui/SelectorBusqueda';
 import type { CicloEscolar } from '../../types';
 import { resolverCicloPlanPagoImportado, tipoPeriodoPlanPago, validarCicloPlanPago } from '../../utils/cicloPlanPago';
 
@@ -35,15 +36,8 @@ export default function SelectorCicloPlanPago({ ciclos, cicloId, tipoPlan, nombr
           Usar sugerido
         </button>}
     </div>
-    <select id={selectorId} value={cicloId} onChange={event => onChange(event.target.value)}
-      className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
-      <option value="">Selecciona el ciclo y su periodicidad</option>
-      {[...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es-MX', { numeric: true })
-        || (a.tipo_periodo || '').localeCompare(b.tipo_periodo || '', 'es-MX')).map(ciclo =>
-        <option key={ciclo.id} value={ciclo.id}>
-          {ciclo.nombre} · {ciclo.tipo_periodo}{ciclo.id === sugerido?.id ? ' (sugerido)' : ''}
-        </option>)}
-    </select>
+    <div className="mt-3 w-full max-w-[300px]"><SelectorBusqueda id={selectorId} value={cicloId} onChange={onChange} etiqueta="Ciclo escolar del plan"
+      placeholder="Selecciona el ciclo exacto" opciones={[{value:'',label:'Selecciona el ciclo exacto'},...[...ciclos].sort((a,b)=>b.nombre.localeCompare(a.nombre,'es-MX',{numeric:true})||(a.tipo_periodo||'').localeCompare(b.tipo_periodo||'','es-MX')).map(ciclo=>({value:ciclo.id,label:`${ciclo.nombre} · ${ciclo.tipo_periodo}${ciclo.id===sugerido?.id?' (sugerido)':''}`}))]}/></div>
     {error && <p className="mt-2 text-xs font-semibold text-amber-800 dark:text-amber-300">{error} Corrige el tipo o el ciclo antes de guardar.</p>}
     {!error && elegido && tipo && periodicidadAcademica
       && tipo !== periodicidadAcademica.trim().toLocaleLowerCase('es-MX') &&

@@ -17,7 +17,7 @@ interface Props {
   initialPlanId?: string;
   initialView?: 'registrar' | 'consultar';
   initialSearchTerm?: string;
-  onNavigateToPlan?: (alumnoId: string, folioReciboOrigen?: string) => void;
+  onNavigateToPlan?: (alumnoId: string, folioReciboOrigen?: string, planId?: string) => void;
   key?: string;
 }
 

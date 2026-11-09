@@ -1,34 +1,24 @@
 import { tituloRuta } from '../app/titulosRutas';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  LayoutDashboard,
-  GraduationCap,
-  Wallet,
-  BookOpen,
-  Briefcase,
-  Settings,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Pin,
-  Calendar,
   ChevronDown,
-  CalendarClock,
-  Users,
-  FileText,
-  BookUser,
   Bell,
-  UserCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useProteccionCaptura } from '../app/ProteccionCaptura';
-import { puedeAccederRuta } from '../app/capacidades';
 import { useAppStore } from '../store/useAppStore';
 import { supabase, updateUserPreferences } from '../lib/supabase';
 import DarkModeToggle from './DarkModeToggle';
 import { playNotificationSound } from '../utils/notificationSound';
+import { menuAplicacion, menuActivo } from '../app/menuAplicacion';
+import IconoMenu from './navegacion/IconoMenu';
+import NavegacionMovil from './navegacion/NavegacionMovil';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -98,91 +88,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Si no hay usuario, solo renderizar el contenido (el login)
   if (!currentUser) return <>{children}</>;
 
-  const isDocente = currentUser.rol === 'DOCENTE';
-
-  let menuItems: any[] = [];
-
-  if (isDocente) {
-    menuItems = [
-      { name: 'Captura de Calificaciones', icon: <BookOpen size={20} />, path: '/calificaciones' }
-    ];
-  } else {
-    menuItems = [
-      { name: 'Inicio', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-      { 
-        name: 'Control Escolar', 
-        icon: <GraduationCap size={20} />, 
-        path: '/control-escolar',
-        children: [
-          { name: 'Gestión de Alumnos', path: '/alumnos', icon: <Users size={16}/> },
-          ...(['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'].includes(currentUser.rol)
-            ? [{ name: 'Inscripciones por ciclo', path: '/inscripciones', icon: <UserCheck size={16}/> }] : []),
-          { name: 'Grupos', path: '/grupos', icon: <Users size={16}/> },
-          { name: 'Calendarios académicos', path: '/calendarios', icon: <Calendar size={16}/> },
-          ...(['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'].includes(currentUser.rol)
-            ? [{ name: 'Comunicados', path: '/comunicados', icon: <FileText size={16}/> }] : []),
-          ...(['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'].includes(currentUser.rol)
-            ? [{ name: 'Estadística 911', path: '/estadistica-911', icon: <FileText size={16}/> }] : []),
-          { name: 'Planes de Estudio', path: '/planes-estudio', icon: <BookOpen size={16}/> },
-          { name: 'Calificaciones', path: '/calificaciones', icon: <BookOpen size={16}/> },
-          { name: 'Exportar certificados', path: '/certificacion', icon: <FileText size={16}/> },
-          { name: 'Exportar títulos', path: '/titulacion', icon: <FileText size={16}/> },
-          { name: 'Reportes', path: '/reportes-escolares', icon: <FileText size={16}/> },
-          { name: 'Aprobación Prospectos', path: '/aprobacion-prospectos', icon: <UserCheck size={16}/> }
-        ]
-      },
-      { name: 'Control Financiero', icon: <Wallet size={20} />, path: '/' },
-      { 
-        name: 'Control Académico', 
-        icon: <BookOpen size={20} />, 
-        path: '/control-academico',
-        children: [
-          { name: 'Docentes', path: '/docentes', icon: <BookUser size={16}/> },
-          { name: 'Generador de Horarios', path: '/horarios', icon: <CalendarClock size={16}/> }
-        ]
-      },
-      { name: 'Recursos Humanos', icon: <Briefcase size={20} />, path: '/rh' },
-    ];
-
-    // Filter menu based on roles
-    if (currentUser.rol === 'COORDINADOR FINANCIERO' || currentUser.rol === 'CAJERO') {
-      menuItems = menuItems.filter(item => item.name === 'Control Financiero');
-    } else if (currentUser.rol === 'COORDINADOR CONTROL ESCOLAR') {
-      menuItems = menuItems.filter(item => item.name === 'Inicio' || item.name === 'Control Escolar');
-    } else if (currentUser.rol === 'COORDINADOR RECURSOS HUMANOS') {
-      menuItems = menuItems.filter(item => item.name === 'Inicio' || item.name === 'Recursos Humanos');
-    } else if (currentUser.rol === 'COORDINADOR ACADEMICO') {
-      menuItems = menuItems.filter(item => item.name === 'Inicio' || item.name === 'Control Académico');
-    } else if (currentUser.rol === 'ADMINISTRADOR') {
-      // Admin sees everything + Config
-      menuItems.push({
-        name: 'Configuración',
-        icon: <Settings size={20} className="transition-transform duration-300 group-hover:rotate-45" />,
-        path: '#',
-        children: [
-          { name: 'Catálogos', path: '/catalogos', icon: <BookOpen size={16}/> },
-          { name: 'Plantillas', path: '/plantillas', icon: <FileText size={16}/> },
-          { name: 'Ciclos Escolares', path: '/ciclos', icon: <Calendar size={16}/> },
-          { name: 'Usuarios', path: '/usuarios', icon: <Users size={16}/> },
-          { name: 'Generales', path: '/configuracion-app', icon: <Settings size={16}/> }
-        ]
-      });
-    }
-  }
-
-  if (['COORDINADOR ACADEMICO', 'COORDINADOR RECURSOS HUMANOS', 'COORDINADOR FINANCIERO'].includes(currentUser.rol)) {
-    menuItems.push({ name: 'Estadística 911', path: '/estadistica-911', icon: <FileText size={20}/> });
-  }
-  menuItems = menuItems.map(item => ({ ...item,
-    ...(item.children ? { children: item.children.filter((hijo: { path: string }) => puedeAccederRuta(currentUser.rol, hijo.path)) } : {}),
-  })).filter(item => item.children ? item.children.length > 0 : puedeAccederRuta(currentUser.rol, item.path));
-
-  const isActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/' || location.pathname.startsWith('/control-ingresos') || location.pathname.startsWith('/plan-pagos') || location.pathname.startsWith('/ficha-alumno') || location.pathname.startsWith('/estadisticas') || location.pathname.startsWith('/deudores');
-    }
-    return location.pathname.startsWith(path);
-  };
+  const menuItems = menuAplicacion(currentUser.rol);
+  const seccionActiva = menuActivo(menuItems,location.pathname);
+  const isActive = (path:string) => seccionActiva?.path === path;
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -190,7 +98,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-950 font-sans overflow-hidden">
+    <div className="app-shell flex h-dvh bg-gray-50 dark:bg-gray-950 font-sans overflow-hidden">
       
       {/* ── SIDEBAR ── */}
       <motion.aside
@@ -203,7 +111,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           setCursorSobreSidebar(false);
           setIgnorarHoverHastaSalir(false);
         }}
-        className="relative flex flex-col bg-white dark:bg-[#181e25] border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] shadow-[var(--shadow-subtle)] z-50 h-full flex-shrink-0 transition-all duration-300"
+        className="relative hidden sm:flex flex-col bg-white dark:bg-[#181e25] border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] shadow-[var(--shadow-subtle)] z-50 h-full flex-shrink-0 transition-all duration-300"
       >
         {/* Toggle Sidebar Button */}
         <button
@@ -280,7 +188,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       className={`${active && !hasChildren ? 'text-[#1456f0] dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300'} ${hasChildren && isSidebarOpen ? 'cursor-pointer hover:text-[#1456f0] dark:hover:text-blue-400 transition-colors' : ''}`}
                       title={hasChildren && isSidebarOpen ? `Ir a ${item.name}` : undefined}
                     >
-                      {item.icon}
+                      <IconoMenu icono={item.icon}/>
                     </div>
                     {isSidebarOpen && <span className="whitespace-nowrap text-[14.5px]">{item.name}</span>}
                   </div>
@@ -317,7 +225,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                                   : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200'
                               }`}
                             >
-                               <span className="opacity-70">{subItem.icon}</span>
+                               <span className="opacity-70"><IconoMenu icono={subItem.icon} size={16}/></span>
                                <span className="whitespace-nowrap">{subItem.name}</span>
                             </Link>
                           );
@@ -357,11 +265,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         
         {/* TOPBAR GLOBAL */}
-        <header className="h-[72px] bg-white/80 dark:bg-[#181e25]/80 backdrop-blur-md border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between px-6 z-40 shrink-0 shadow-[var(--shadow-subtle)]">
+        <header className="h-16 sm:h-[72px] bg-white/80 dark:bg-[#181e25]/80 backdrop-blur-md border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between gap-3 px-4 sm:px-6 z-40 shrink-0 shadow-[var(--shadow-subtle)]">
           
           {/* Breadcrumb o Título Contextual */}
-          <div className="flex items-center gap-3">
-             <h2 className="text-lg font-semibold text-[#222222] dark:text-gray-100 hidden sm:block" style={{ fontFamily: 'var(--font-display)' }}>
+          <div className="flex min-w-0 items-center gap-3">
+             <div className="sm:hidden shrink-0">{appConfig?.logoUrl?<img src={appConfig.logoUrl} alt="Institución" className="h-7 w-7 object-contain"/>:<span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-sm font-bold text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">U</span>}</div>
+             <h2 className="truncate text-base sm:text-lg font-semibold text-[#222222] dark:text-gray-100" style={{ fontFamily: 'var(--font-display)' }}>
                 {tituloRuta(location.pathname, currentUser.rol)}
              </h2>
           </div>
@@ -373,7 +282,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {canSeeNotifications && (
               <button
                 onClick={() => navigate('/aprobacion-prospectos')}
-                className="relative p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="relative hidden sm:inline-flex p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 title={`${pendingCount} prospecto${pendingCount !== 1 ? 's' : ''} pendiente${pendingCount !== 1 ? 's' : ''}`}
               >
                 <Bell size={18} />
@@ -385,14 +294,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </button>
             )}
 
-            <DarkModeToggle 
+            <div className="hidden sm:block"><DarkModeToggle
               initialTheme={currentUser.preferencia_tema} 
               onChange={(isDark) => {
                 const theme = isDark ? 'dark' : 'light';
                 setCurrentUser({ ...currentUser, preferencia_tema: theme });
                 updateUserPreferences(currentUser.id, { preferencia_tema: theme });
               }} 
-            />
+            /></div>
 
             {/* Perfil */}
             <div className="flex items-center gap-2.5 shrink-0">
@@ -409,10 +318,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </header>
 
         {/* CONTENIDO PRINCIPAL */}
-        <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 p-4 sm:p-6 lg:p-8">
+        <main className="app-contenido flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 p-4 sm:p-6 lg:p-8">
            {children}
         </main>
       </div>
+      <NavegacionMovil items={menuItems} usuario={currentUser.username}
+        onSalir={()=>solicitarSalida(()=>{void handleLogout();})} notificaciones={canSeeNotifications?pendingCount:undefined}
+        apariencia={<DarkModeToggle initialTheme={currentUser.preferencia_tema} onChange={isDark=>{
+          const theme=isDark?'dark':'light';setCurrentUser({...currentUser,preferencia_tema:theme});updateUserPreferences(currentUser.id,{preferencia_tema:theme});
+        }}/>} />
     </div>
   );
 }

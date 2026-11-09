@@ -389,7 +389,7 @@
 }
 .s911-busy {
   position: fixed;
-  bottom: 24px;
+  bottom: calc(24px + var(--altura-navegacion-movil, 0px));
   right: 25px;
   background: var(--s911-paper);
   color: #fff;

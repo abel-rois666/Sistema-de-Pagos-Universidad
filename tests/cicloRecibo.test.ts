@@ -60,6 +60,6 @@ test('cada recibo independiente confirma su ciclo y el cobro del plan hereda su 
   const heredado = renderToStaticMarkup(createElement(ContextoCicloRecibo,
     { ...props, desdePlan: true, referenciaPlan: '271-001' }));
   assert.doesNotMatch(heredado, /type="checkbox"/);
-  assert.match(heredado, /<select[^>]*disabled/);
+  assert.match(heredado, /<button[^>]*aria-label="Ciclo del recibo"[^>]*disabled/);
   assert.match(heredado, /Ciclo heredado del plan 271-001/);
 });

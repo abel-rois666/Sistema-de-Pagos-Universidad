@@ -1,3 +1,8 @@
+import { useRef } from 'react';
+import { useDialogoPersonal } from '../../hooks/useDialogoPersonal';
+import { useProteccionCaptura } from '../../app/ProteccionCaptura';
+import ModalConfirmacion from '../ui/ModalConfirmacion';
+import { DOCUMENTOS_PERSONAL as DOCUMENTOS_REQUERIDOS } from '../../personal/documentos';
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Save, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Empleado } from '../../types';
@@ -9,51 +14,13 @@ import toast from 'react-hot-toast';
 interface ModalEmpleadoProps {
   empleado?: Empleado | null;
   onClose: () => void;
-  onSaved: (emp: Empleado) => void;
+  onSaved: (emp: Empleado) => void | Promise<void>;
 }
 
-const PUESTOS = [
-  { clave: 1, nombre: 'Director' },
-  { clave: 2, nombre: 'Subdirector' },
-  { clave: 3, nombre: 'Rector' },
-  { clave: 4, nombre: 'Coordinador de Control Escolar' },
-  { clave: 5, nombre: 'Responsable de Expedición' },
-  { clave: 6, nombre: 'Coordinador de Relaciones Públicas' },
-  { clave: 7, nombre: 'Coordinador Financiero' },
-  { clave: 8, nombre: 'Coordinador Académico' },
-  { clave: 9, nombre: 'Intendente' },
-  { clave: 10, nombre: 'Auxiliar Administrativo' },
-  { clave: 11, nombre: 'Coordinador de Recursos Humanos y Materiales' },
-  { clave: 12, nombre: 'Tutoría y Bienestar' },
-  { clave: 13, nombre: 'Portero' }
-];
-
-const DEPARTAMENTOS = [
-  'Rectoría',
-  'Dirección',
-  'Coordinación Académica',
-  'Coordinación Control Escolar',
-  'Coordinación Financiera',
-  'Coordinación de Recursos Humanos y Materiales',
-  'Coordinación de Vinculación',
-  'Coordinación de Relaciones Públicas'
-];
-
-const DOCUMENTOS_REQUERIDOS = [
-  { key: 'alta_empleado', label: 'Alta de empleado' },
-  { key: 'acta_nacimiento', label: 'Acta de nacimiento' },
-  { key: 'curp', label: 'CURP' },
-  { key: 'comprobante_domicilio', label: 'Comprobante de domicilio' },
-  { key: 'constancia_situacion_fiscal', label: 'Constancia de Situación Fiscal' },
-  { key: 'cuenta_bancaria', label: 'Cuenta Bancaria' },
-  { key: 'afiliacion_imss', label: 'Afiliación ante el IMSS NSS' },
-  { key: 'pruebas', label: 'Pruebas' },
-  { key: 'cv', label: 'C.V.' },
-  { key: 'comprobantes_estudio', label: 'Comprobante (s) de estudio' }
-];
+import { PUESTOS_PERSONAL as PUESTOS, AREAS_PERSONAL as DEPARTAMENTOS } from '../../personal/institucional';
 
 export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmpleadoProps) {
-  const [activeTab, setActiveTab] = useState<'generales' | 'laborales' | 'documentos'>('generales');
+  const [activeTab, setActiveTab] = useState<'generales' | 'laborales' | 'documentos'>(empleado?.persona_id?'laborales':'generales');
 
   const [form, setForm] = useState<Partial<Empleado>>({
     nombres: '',
@@ -84,6 +51,14 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [confirmarSalida,setConfirmarSalida]=useState(false),[baseCaptura,setBaseCaptura]=useState<string|null>(null);
+  const formActual=useRef(form);formActual.current=form;
+  useEffect(()=>{const frame=requestAnimationFrame(()=>setBaseCaptura(JSON.stringify(formActual.current)));return()=>cancelAnimationFrame(frame);},[empleado]);
+  const cambios=baseCaptura!==null&&baseCaptura!==JSON.stringify(form);
+  const cerrar=()=>{if(loading)return;if(cambios)setConfirmarSalida(true);else onClose();};
+  const {dialogo,teclado}=useDialogoPersonal(true,cerrar);
+  useProteccionCaptura(cambios,loading);
+
 
   useEffect(() => {
     if (empleado) {
@@ -211,7 +186,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
       if (finalForm.nivel_estudios === 'Sin formación') {
         finalForm.nivel_estudios_estado = null;
       }
-      onSaved(finalForm as Empleado);
+      await onSaved(finalForm as Empleado);
     } catch (err: any) {
       setError(err.message || 'Ocurrió un error al guardar el empleado.');
     } finally {
@@ -270,13 +245,14 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#181e25] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+    <><div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div ref={dialogo} onKeyDown={teclado} role="dialog" aria-modal="true" aria-label="Configuración de empleado" className="bg-white dark:bg-[#181e25] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
         
         {/* Header Sobrio */}
         <div className="relative bg-gray-50/80 dark:bg-[#1c2228]/60 px-6 py-5 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] text-gray-900 dark:text-white shrink-0">
           <button
-            onClick={onClose}
+            onClick={cerrar}
+            disabled={loading}
             className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
           >
             <X size={18} />
@@ -288,7 +264,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wider">
-                {empleado ? 'Editar Ficha' : 'Nuevo Registro'}
+                {empleado?.persona_id?'Configuración institucional':empleado?'Editar Ficha':'Nuevo Registro'}
               </p>
               <h2 className="text-xl font-bold truncate text-gray-900 dark:text-white leading-tight">
                 {empleado
@@ -305,7 +281,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
         {/* Tabs con indicadores */}
         <div className="px-6 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] bg-white dark:bg-[#181e25] flex gap-4 overflow-x-auto custom-scrollbar">
-          <button
+          {!empleado?.persona_id&&<button
             type="button"
             onClick={() => setActiveTab('generales')}
             className={`flex items-center gap-2 py-3.5 px-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -316,7 +292,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
           >
             <StatusDot status={tabStatus.generales} />
             Datos Generales
-          </button>
+          </button>}
           <button
             type="button"
             onClick={() => setActiveTab('laborales')}
@@ -327,9 +303,9 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
             }`}
           >
             <StatusDot status={tabStatus.laborales} />
-            Datos Laborales
+            {empleado?.persona_id?'Configuración institucional':'Datos Laborales'}
           </button>
-          <button
+          {!empleado?.persona_id&&<button
             type="button"
             onClick={() => setActiveTab('documentos')}
             className={`flex items-center gap-2 py-3.5 px-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -340,9 +316,10 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
           >
             <StatusDot status={tabStatus.documentos} />
             Expediente y Documentos
-          </button>
+          </button>}
         </div>
 
+        {empleado?.persona_id&&<p className="px-6 py-3 text-sm text-blue-800 dark:text-blue-200">La identidad, los vínculos laborales, la formación y el expediente se administran en la ficha compartida. Este formulario conserva la configuración institucional y de firmantes.</p>}
         {/* Body */}
         <div className="p-6 overflow-y-auto custom-scrollbar" style={{ minHeight: '420px' }}>
           {error && (
@@ -352,7 +329,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
             </div>
           )}
 
-          <form id="empleado-form" onSubmit={handleSubmit} className="space-y-8">
+          <form id="empleado-form" onSubmit={handleSubmit} className="space-y-8"><fieldset disabled={loading} className="min-w-0">
             
             {/* TAB: Datos Generales */}
             <div className={activeTab === 'generales' ? 'block' : 'hidden'}>
@@ -361,7 +338,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Nombre(s) <span className="text-rose-500">*</span>
                   </label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="text"
                     required
                     value={form.nombres || ''}
@@ -373,7 +350,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Apellido Paterno <span className="text-rose-500">*</span>
                   </label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="text"
                     required
                     value={form.apellido_paterno || ''}
@@ -385,7 +362,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Apellido Materno
                   </label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="text"
                     value={form.apellido_materno || ''}
                     onChange={e => setForm({...form, apellido_materno: e.target.value.toUpperCase()})}
@@ -395,7 +372,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Nacimiento</label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="date"
                     value={form.fecha_nacimiento || ''}
                     onChange={e => setForm({...form, fecha_nacimiento: e.target.value})}
@@ -405,7 +382,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sexo</label>
-                  <select
+                  <select disabled={loading||Boolean(empleado?.persona_id)}
                     value={form.sexo || ''}
                     onChange={e => setForm({...form, sexo: e.target.value})}
                     className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -418,7 +395,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado Civil</label>
-                  <select
+                  <select disabled={loading||Boolean(empleado?.persona_id)}
                     value={form.estado_civil || ''}
                     onChange={e => setForm({...form, estado_civil: e.target.value})}
                     className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -434,7 +411,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Dirección Completa</label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="text"
                     value={form.direccion || ''}
                     onChange={e => setForm({...form, direccion: e.target.value.toUpperCase()})}
@@ -444,7 +421,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Teléfono de Contacto</label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="tel"
                     value={form.telefono || ''}
                     onChange={e => setForm({...form, telefono: e.target.value})}
@@ -454,7 +431,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Nivel de Estudios</label>
-                  <select
+                  <select disabled={loading||Boolean(empleado?.persona_id)}
                     value={form.nivel_estudios || ''}
                     onChange={e => setForm({...form, nivel_estudios: e.target.value})}
                     className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -475,7 +452,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 {form.nivel_estudios && form.nivel_estudios !== 'Sin formación' && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado de Estudios</label>
-                    <select
+                    <select disabled={loading||Boolean(empleado?.persona_id)}
                       value={form.nivel_estudios_estado || ''}
                       onChange={e => setForm({...form, nivel_estudios_estado: e.target.value})}
                       className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -491,7 +468,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                  ['Terminado', 'Titulado'].includes(form.nivel_estudios_estado || '') && (
                   <div className="space-y-2 md:col-span-1">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Título Académico</label>
-                    <input
+                    <input disabled={loading||Boolean(empleado?.persona_id)}
                       type="text"
                       value={form.titulo_academico || ''}
                       onChange={e => setForm({...form, titulo_academico: e.target.value})}
@@ -503,7 +480,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">RFC</label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="text"
                     maxLength={13}
                     value={form.rfc || ''}
@@ -514,7 +491,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">CURP</label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="text"
                     maxLength={18}
                     value={form.curp || ''}
@@ -530,7 +507,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Ingreso</label>
-                  <input
+                  <input disabled={loading||Boolean(empleado?.persona_id)}
                     type="date"
                     value={form.fecha_ingreso || ''}
                     onChange={e => setForm({...form, fecha_ingreso: e.target.value})}
@@ -539,8 +516,8 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Departamento</label>
-                  <select
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{empleado?.persona_id?'Área institucional de referencia':'Departamento'}</label>
+                  <select disabled={loading}
                     value={form.departamento || ''}
                     title={form.departamento || 'Seleccione'}
                     onChange={e => setForm({...form, departamento: e.target.value})}
@@ -554,8 +531,8 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Puesto</label>
-                  <select
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{empleado?.persona_id?'Cargo institucional para documentos':'Puesto'}</label>
+                  <select disabled={loading}
                     value={form.puesto || ''}
                     title={form.puesto || 'Seleccione'}
                     onChange={handlePuestoChange}
@@ -569,8 +546,8 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Clave de Puesto</label>
-                  <input
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{empleado?.persona_id?'Clave de cargo institucional':'Clave de Puesto'}</label>
+                  <input disabled={loading}
                     type="number"
                     readOnly
                     value={form.clave_puesto || ''}
@@ -581,7 +558,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tipo de Contratación</label>
-                  <select
+                  <select disabled={loading||Boolean(empleado?.persona_id)}
                     value={form.tipo_contratacion || ''}
                     onChange={e => setForm({...form, tipo_contratacion: e.target.value})}
                     className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -596,7 +573,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tipo de Jornada</label>
-                  <select
+                  <select disabled={loading||Boolean(empleado?.persona_id)}
                     value={form.tipo_jornada || ''}
                     onChange={e => setForm({...form, tipo_jornada: e.target.value})}
                     className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -648,6 +625,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
                     {(form.firmante_titulos || form.firmante_certificados || form.firmante_boletas) && (
                       <div className="mt-4 space-y-2 border-t border-[#1456f0]/20 pt-4">
+                        {empleado?.persona_id&&<label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Abreviatura académica para documentos institucionales<input value={form.titulo_academico||''} disabled={loading} onChange={e=>setForm({...form,titulo_academico:e.target.value})} className="mt-1 w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"/><span className="text-xs font-normal">Se conserva independiente del historial de formación.</span></label>}
                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Firma Digital (Imagen PNG/Fondo Transparente)</label>
                         {form.firma_url && (
                           <div className="mb-2 bg-white border border-gray-200 rounded-lg p-2 inline-block">
@@ -690,7 +668,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {DOCUMENTOS_REQUERIDOS.map(doc => (
                       <label key={doc.key} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-[#1c2228] cursor-pointer transition-colors">
-                        <input
+                        <input disabled={loading||Boolean(empleado?.persona_id)}
                           type="checkbox"
                           checked={!!form.documentos_entregados?.[doc.key]}
                           onChange={() => toggleDocumento(doc.key)}
@@ -709,19 +687,19 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                     label="Carpeta Digital del Empleado (Google Drive)"
                     value={form.enlace_drive || null}
                     onSelect={(url) => setForm({...form, enlace_drive: url})}
-                    disabled={false}
-                    isEditing={true}
+                    disabled={loading||Boolean(empleado?.persona_id)}
+                    isEditing={!empleado?.persona_id}
                   />
                 </div>
               </div>
             </div>
 
-          </form>
+          </fieldset></form>
         </div>
 
         {/* Footer */}
         {(() => {
-          const TAB_ORDER: ('generales' | 'laborales' | 'documentos')[] = ['generales', 'laborales', 'documentos'];
+          const TAB_ORDER: ('generales' | 'laborales' | 'documentos')[] = empleado?.persona_id?['laborales']:['generales', 'laborales', 'documentos'];
           const currentIndex = TAB_ORDER.indexOf(activeTab);
           const hasPrev = currentIndex > 0;
           const hasNext = currentIndex < TAB_ORDER.length - 1;
@@ -732,7 +710,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={cerrar}
                   disabled={loading}
                   className="px-5 py-2.5 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors disabled:opacity-50"
                 >
@@ -777,6 +755,6 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
         })()}
 
       </div>
-    </div>
+    </div><ModalConfirmacion isOpen={confirmarSalida} title="Descartar cambios de personal" message="Se cerrará el formulario sin guardar los cambios capturados." onCancel={()=>setConfirmarSalida(false)} onConfirm={()=>{setConfirmarSalida(false);onClose();}}/></>
   );
 }

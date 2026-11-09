@@ -1,7 +1,10 @@
 import { participaEnPromedio } from '../../utils/promedioAcademico';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, Download, AlertCircle, BookOpen, GraduationCap, CheckCircle2, TrendingUp, CalendarDays, Filter } from 'lucide-react';
-import { MultiSelectFilter } from '../MultiSelectFilter';
+import { Loader2, AlertCircle } from 'lucide-react';
+import CabeceraHistorial from '../ficha/CabeceraHistorial';
+import TablaHistorialAcademico from '../ficha/TablaHistorialAcademico';
+import { COLUMNAS_INICIALES, resolverColumnasHistorial, type ColumnaHistorialId } from '../../utils/columnasHistorial';
+import { situacionHistorial } from '../../utils/presentacionHistorial';
 import ModalGenerarCarga from '../modals/ModalGenerarCarga';
 import ModalReinscripcion from '../modals/ModalReinscripcion';
 import { supabase } from '../../lib/supabase';
@@ -11,31 +14,11 @@ import { syncAlumnoKardex } from '../../utils/syncKardexUtils';
 import toast from 'react-hot-toast';
 
 interface TabHistorialAcademicoProps {
+  key?: string;
   alumno: Alumno;
+  ampliado?: boolean;
+  onAmpliar?: () => void;
 }
-
-const renderCalif = (cal?: number | null): string | number => {
-  if (cal === null || cal === undefined) return '-';
-  if (cal === -555) return 'NP';
-  return cal;
-};
-
-const calificacionALetras = (num?: number | null): string => {
-  if (num === null || num === undefined || isNaN(num)) return '';
-  if (num === -555) return 'NO PRESENTÓ';
-
-  const enteros = ['CERO', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE', 'DIEZ'];
-  const [enteroStr, decimalStr] = num.toString().split('.');
-  
-  const entero = parseInt(enteroStr);
-  if (entero < 0 || entero > 10) return num.toString();
-  
-  let texto = enteros[entero] || '';
-  if (decimalStr && parseInt(decimalStr) > 0) {
-    texto += ` PUNTO ${enteros[parseInt(decimalStr.charAt(0))] || decimalStr.charAt(0)}`;
-  }
-  return texto;
-};
 
 const obtenerNombrePeriodo = (numero: number, tipo: string): string => {
   const ordinales = ['Primer', 'Segundo', 'Tercer', 'Cuarto', 'Quinto', 'Sexto', 'Séptimo', 'Octavo', 'Noveno', 'Décimo', 'Undécimo', 'Duodécimo'];
@@ -58,7 +41,9 @@ const getCicloWeight = (cicloStr?: string | null): number => {
   return 999999;
 };
 
-export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoProps) {
+export default function TabHistorialAcademico({ alumno, ampliado = false, onAmpliar }: TabHistorialAcademicoProps) {
+  const [columnasElegidas,setColumnasElegidas]=useState<ColumnaHistorialId[]>([...COLUMNAS_INICIALES]);
+  const [ocultarColumnasVacias,setOcultarColumnasVacias]=useState(false);
   const [historial, setHistorial] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -107,7 +92,6 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   const carreraDelPlan = carreras.find(c => c.id === (planActivoData?.planes_estudio as any)?.carrera_id);
   const calificacionMinima = carreraDelPlan?.calificacion_minima_aprobatoria || 6;
   const esEspecialidad = carreraDelPlan?.nivel_educativo?.toLowerCase().includes('especialidad') || false;
-  const totalColumnas = esEspecialidad ? 10 : 13;
 
   const fetchHistorialLocal = async () => {
     setLoading(true);
@@ -242,10 +226,6 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     }
   };
 
-  const safeRender = (val: number | null | undefined) => {
-    return renderCalif(val);
-  };
-
   // Agrupa los registros por asignatura
   const historialAgrupado = useMemo(() => {
     const mapa = new Map<string, any>();
@@ -262,12 +242,14 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
           ciclo_legado: reg.ciclo_legado,
           ordinario: null,
           extras: [],
+          registros: [],
           mejor_calificacion: null,
           acreditada: false,
         });
       }
       
       const grupo = mapa.get(idAsig);
+      grupo.registros.push(reg);
       
       const tipo = (reg.tipo_evaluacion || 'ORDINARIO').toUpperCase();
       if (tipo === 'ORDINARIO') {
@@ -313,39 +295,10 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     // 2. Aplicar Filtro de Estatus (Multiselect)
     if (filtroEstatus.length > 0 && filtroEstatus.length < OPCIONES_ESTATUS.length) {
       filtrados = filtrados.filter(item => {
-        const p1 = item.ordinario?.parcial_1;
-        const p2 = item.ordinario?.parcial_2;
-        const p3 = item.ordinario?.parcial_3;
-        
-        const finalCalif = item.mejor_calificacion;
-        const isAcreditada = item.acreditada;
-        
-        // Helper: Un valor se considera "vacío" o "no capturado" si es null, undefined o exactamente 0.
-        const isVacio = (v: any) => v === null || v === undefined || v === 0;
-        
-        // Verificamos si la captura del semestre está en curso (tiene huecos o ceros por defecto)
-        const parcialesIncompletos = isVacio(p1) || isVacio(p2) || isVacio(p3);
-        
-        // --- REGLAS ESTRICTAS DE REPROBACIÓN ---
-        
-        // A) Final explícito: NP (-555), o una calificación real entre 0.1 y el umbral
-        const finalExplicito = finalCalif === -555 || (finalCalif !== null && finalCalif > 0 && finalCalif < calificacionMinima);
-        
-        // B) Final en 0 legítimo: Tiene 0 en el final, PERO sus 3 parciales sí fueron capturados (ninguno está vacío). 
-        // Esto diferencia un abandono real de un "0 de inicialización de sistema".
-        const reprobadaConCero = finalCalif === 0 && !parcialesIncompletos;
-        
-        // C) Reprobada por parciales letales: No tiene final (o es 0), pero sus 3 parciales están capturados y todos son exactamente 5 o NP.
-        const tresParcialesLetales = !isVacio(p1) && !isVacio(p2) && !isVacio(p3) && 
-                                     [p1, p2, p3].every(p => p === 5 || p === -555);
-                                     
-        // Evaluación final de reprobación
-        const isReprobada = !isAcreditada && (finalExplicito || reprobadaConCero || tresParcialesLetales);
-        
-        // --- REGLA DE CURSANDO ---
-        // Si no está acreditada y no superó las reglas estrictas de reprobación (es decir, está llena de 0s, nulls, o faltan parciales), está en curso.
-        const isPorAcreditar = !isAcreditada && !isReprobada;
-
+        const situacion = situacionHistorial(item, calificacionMinima);
+        const isAcreditada = situacion === 'Acreditada';
+        const isReprobada = situacion === 'Reprobada';
+        const isPorAcreditar = situacion === 'Por acreditar / Cursando';
         if (filtroEstatus.includes('Acreditadas') && isAcreditada) return true;
         if (filtroEstatus.includes('Reprobadas') && isReprobada) return true;
         if (filtroEstatus.includes('Por acreditar / Cursando') && isPorAcreditar) return true;
@@ -585,6 +538,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
     return resultadoFinal;
   }, [datosFiltrados]);
 
+  const columnasVisibles=useMemo(()=>resolverColumnasHistorial(esEspecialidad,columnasElegidas,ocultarColumnasVacias,historialAgrupado),[esEspecialidad,columnasElegidas,ocultarColumnasVacias,historialAgrupado]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -594,147 +549,18 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
   }
 
   return (
-    <div className="p-4 sm:p-6 font-sans space-y-6">
+    <div className="historial-academico font-sans space-y-4">
       
-      {/* ── Encabezado y Acciones ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-semibold text-[#222222] dark:text-gray-100 flex items-center gap-2">
-             <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 p-1.5 rounded-[8px]">
-              <BookOpen size={18} />
-             </div>
-             Historial Académico (Kardex)
-          </h3>
-          <p className="text-sm text-gray-500 mt-1">Sincroniza desde el GES 4 y visualiza el agrupamiento de calificaciones.</p>
-          {alumno.kardex_sincronizado_at && (
-            <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-1.5 flex items-center gap-1.5">
-              <CheckCircle2 size={12} />
-              Última sincronización: {new Date(alumno.kardex_sincronizado_at).toLocaleString()}
-            </p>
-          )}
-        </div>
-        
-        <div className="flex gap-2">
-            <button
-            onClick={() => setShowModalCarga(true)}
-            className="flex items-center gap-2 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.12)] text-[#222222] dark:text-gray-200 px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] hover:shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-            title="Inscribir materias del plan actual"
-            disabled={!planActivoId}
-            >
-            <CalendarDays size={16} className="text-gray-500" />
-            <span className="hidden sm:inline">Generar Carga</span>
-            </button>
-            <button
-            onClick={handleSyncGES}
-            disabled={isSyncing}
-            className="flex items-center gap-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-brand)] hover:shadow-lg transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-            {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-            {isSyncing ? 'Importando...' : 'Importar GES 4'}
-            </button>
-        </div>
-      </div>
-
-      {historial.length > 0 && (
-          <>
-            {/* ── Tarjetas Estadísticas ── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-[#181e25] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] rounded-[16px] p-5 shadow-[var(--shadow-subtle)] flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-                        <GraduationCap size={24} className="text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Promedio General</p>
-                        <p className="text-2xl font-bold text-[#222222] dark:text-gray-100">{estadisticas.promedioGeneral}</p>
-                    </div>
-                </div>
-
-                <div className="bg-white dark:bg-[#181e25] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] rounded-[16px] p-5 shadow-[var(--shadow-subtle)] flex items-center gap-4 relative overflow-hidden">
-                    <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0 z-10">
-                        <CheckCircle2 size={24} className="text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <div className="z-10 flex-1">
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Materias Aprobadas</p>
-                        <div className="flex items-baseline gap-2">
-                           <p className="text-2xl font-bold text-[#222222] dark:text-gray-100">{estadisticas.aprobadas}</p>
-                           <p className="text-sm font-medium text-gray-400">/ {estadisticas.totalMaterias}</p>
-                        </div>
-                    </div>
-                    {/* Barra de progreso de fondo */}
-                    <div className="absolute bottom-0 left-0 h-1 bg-emerald-100 dark:bg-emerald-900/30 w-full z-0" />
-                    <div className="absolute bottom-0 left-0 h-1 bg-emerald-500 transition-all duration-1000 z-0" style={{ width: `${(estadisticas.aprobadas / estadisticas.totalMaterias) * 100 || 0}%` }} />
-                </div>
-
-                <div className="bg-white dark:bg-[#181e25] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] rounded-[16px] p-5 shadow-[var(--shadow-subtle)] flex items-center gap-4 relative overflow-hidden">
-                    <div className="w-12 h-12 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center shrink-0 z-10">
-                        <TrendingUp size={24} className="text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div className="z-10 flex-1">
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Avance Créditos</p>
-                        <div className="flex items-baseline gap-2">
-                           <p className="text-2xl font-bold text-[#222222] dark:text-gray-100">{estadisticas.porcentajeAvance}%</p>
-                           <p className="text-sm font-medium text-gray-400">({estadisticas.creditosCubiertos} / {estadisticas.creditosTotalesPlan})</p>
-                        </div>
-                    </div>
-                    <div className="absolute bottom-0 left-0 h-1 bg-purple-100 dark:bg-purple-900/30 w-full z-0" />
-                    <div className="absolute bottom-0 left-0 h-1 bg-purple-500 transition-all duration-1000 z-0" style={{ width: `${estadisticas.porcentajeAvance}%` }} />
-                </div>
-            </div>
-
-            {/* ── Selector Multi-Plan y Reinscripción ── */}
-            {programas.length > 0 && (
-              <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg border border-gray-200 dark:border-gray-700 mb-4 mt-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">Plan de Estudios:</span>
-                  <select 
-                    value={planActivoId || ''} 
-                    onChange={(e) => setPlanActivoId(e.target.value)}
-                    className="text-sm bg-white dark:bg-[#1c2228] border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-blue-600 dark:text-blue-400 font-bold focus:ring-2 focus:ring-blue-500"
-                  >
-                    {programas.map(prog => (
-                      <option key={prog.plan_id} value={prog.plan_id}>
-                        {formatPlanOption(prog)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                {(currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR CONTROL ESCOLAR')
-                  && !['BAJA', 'EGRESADO', 'TITULADO'].includes(alumno.estatus?.toUpperCase() || '') && planActivoId && (
-                  <button 
-                    onClick={() => setShowModalReinscripcion(true)}
-                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors shadow-sm flex items-center gap-2"
-                  >
-                    Preparar avance, pagos y carga
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* ── Barra de Filtros ── */}
-            <div className="bg-[#f8f9ff] dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[12px] p-3 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <Filter size={16} className="text-gray-400 ml-1" />
-                    <MultiSelectFilter
-                       label="Estatus"
-                       options={OPCIONES_ESTATUS}
-                       selected={filtroEstatus}
-                       onChange={setFiltroEstatus}
-                    />
-                </div>
-
-                <label className="flex items-center gap-2 text-sm font-medium text-[#45515e] dark:text-gray-300 cursor-pointer select-none pr-2">
-                    <input 
-                       type="checkbox"
-                       checked={ocultarComplementarias}
-                       onChange={(e) => setOcultarComplementarias(e.target.checked)}
-                       className="rounded text-blue-600 focus:ring-blue-500 border-gray-300"
-                    />
-                    Ocultar Complementarias
-                </label>
-            </div>
-          </>
-      )}
+      <CabeceraHistorial alumno={alumno} programas={programas} planActivoId={planActivoId} onPlanChange={setPlanActivoId}
+        formatPlanOption={formatPlanOption} estadisticas={estadisticas} conHistorial={historial.length>0}
+        especialidad={esEspecialidad} columnasElegidas={columnasElegidas} onColumnasChange={setColumnasElegidas}
+        ocultarColumnasVacias={ocultarColumnasVacias} onOcultarColumnasVacias={setOcultarColumnasVacias} filtroEstatus={filtroEstatus} onEstatusChange={setFiltroEstatus}
+        ocultarComplementarias={ocultarComplementarias} onOcultarComplementarias={setOcultarComplementarias}
+        ampliado={ampliado} onAmpliar={onAmpliar} isSyncing={isSyncing} onSync={handleSyncGES}
+        onGenerarCarga={()=>setShowModalCarga(true)}
+        onPrepararAvance={(currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR CONTROL ESCOLAR')
+          && !['BAJA','EGRESADO','TITULADO'].includes(alumno.estatus?.toUpperCase()||'') && planActivoId
+          ? ()=>setShowModalReinscripcion(true) : undefined}/>
 
       {/* ── Tabla de Datos ── */}
       {historial.length === 0 ? (
@@ -746,167 +572,8 @@ export default function TabHistorialAcademico({ alumno }: TabHistorialAcademicoP
            </p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-[#181e25] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] rounded-[16px] overflow-hidden shadow-[var(--shadow-subtle)]">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-[#1c2228] border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
-                  <th className="px-4 py-3 sticky left-0 bg-gray-50 dark:bg-[#1c2228] z-10 border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Asignatura</th>
-                  <th className="px-3 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Ciclo</th>
-                  {esEspecialidad ? (
-                    <>
-                      <th className="px-2 py-3 text-center">Eval. Final</th>
-                      <th className="px-2 py-3 text-center text-gray-400">Prom.</th>
-                      <th className="px-3 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Final Ord.</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="px-2 py-3 text-center">P1</th>
-                      <th className="px-2 py-3 text-center">P2</th>
-                      <th className="px-2 py-3 text-center">P3</th>
-                      <th className="px-2 py-3 text-center text-gray-400">Prom.</th>
-                      <th className="px-3 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Final Ord.</th>
-                      <th className="px-2 py-3 text-center">Ext. 1</th>
-                      <th className="px-2 py-3 text-center">Ext. 2</th>
-                    </>
-                  )}
-                  <th className="px-2 py-3 text-center border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">Recur.</th>
-                  <th className="px-3 py-3 text-center text-[#1456f0] dark:text-[#60a5fa] text-xs">Final</th>
-                  <th className="px-3 py-3 text-center">Letra</th>
-                  <th className="px-3 py-3 text-center">Créd.</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f2f3f5] dark:divide-[rgba(255,255,255,0.04)] text-sm">
-                {datosAgrupados.length === 0 ? (
-                  <tr>
-                    <td colSpan={totalColumnas} className="px-4 py-8 text-center text-gray-500">
-                      No hay registros académicos con los filtros actuales.
-                    </td>
-                  </tr>
-                ) : (
-                  datosAgrupados.map((planEstructurado) => (
-                    <React.Fragment key={planEstructurado.planClave}>
-                      {/* SÚPER CABECERA DEL PLAN DE ESTUDIOS */}
-                      <tr className="bg-[#1456f0] dark:bg-blue-900 text-white">
-                        <td colSpan={totalColumnas} className="px-4 py-3 text-sm font-black uppercase tracking-wider shadow-inner">
-                          🎓 {planEstructurado.planNombre} <span className="font-normal text-blue-200 text-xs ml-2">(CLAVE: {planEstructurado.planClave})</span>
-                        </td>
-                      </tr>
+        <TablaHistorialAcademico datosAgrupados={datosAgrupados} cantidad={datosFiltrados.length} esEspecialidad={esEspecialidad} columnas={columnasVisibles} minimo={calificacionMinima}/>
 
-                      {/* ITERACIÓN DE LOS SEMESTRES/BLOQUES DE ESE PLAN */}
-                      {planEstructurado.grupos.map((grupo: any) => (
-                        <React.Fragment key={grupo.titulo}>
-                          <tr className="bg-gray-100 dark:bg-gray-800/60 border-y border-gray-200 dark:border-gray-700">
-                            <td colSpan={totalColumnas} className="px-4 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">
-                              {grupo.titulo}
-                              {grupo.modelo === 'FLEXIBLE' && <span className="text-xs font-normal text-gray-500 lowercase ml-2">(orden cronológico)</span>}
-                            </td>
-                          </tr>
-                          
-                          {/* ITERACIÓN DE MATERIAS (Mantener el map(item => ...) original aquí adentro exactamente como estaba) */}
-                          {grupo.items.map((item: any, idx: number) => {
-                          const rowClass = item.acreditada 
-                              ? 'hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors' 
-                              : (item.mejor_calificacion !== null)
-                                  ? 'bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50/80 dark:hover:bg-red-900/20 transition-colors'
-                                  : 'hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors';
-
-                          return (
-                              <tr key={item.asignatura?.id || idx} className={`${rowClass} text-[#45515e] dark:text-gray-300`}>
-                            {/* Asignatura */}
-                            <td className="px-4 py-2.5 font-medium sticky left-0 bg-white dark:bg-[#181e25] border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] shadow-[2px_0_4px_rgba(0,0,0,0.02)]">
-                            <div className="flex flex-col max-w-[250px]">
-                                <span className={`text-[#222222] dark:text-gray-100 truncate ${!item.acreditada && item.mejor_calificacion !== null ? 'text-red-700 dark:text-red-400' : ''}`}>
-                                    {item.asignatura?.nombre || 'Desconocida'}
-                                </span>
-                                <span className="text-[10px] text-gray-400 mt-0.5 tracking-wide uppercase">CLAVE: {item.asignatura?.clave_legado || '-'}</span>
-                            </div>
-                            </td>
-                            
-                            {/* Ciclo */}
-                            <td className="px-3 py-2.5 text-center font-semibold text-[12px] border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-                                {item.ordinario?.ciclo?.nombre || item.ordinario?.ciclo_legado || '-'}
-                            </td>
-                            
-                            {/* Ordinario */}
-                            {esEspecialidad ? (
-                              <>
-                                {/* Especialidad: Eval. Final (= parcial_1) */}
-                                <td className="px-2 py-2.5 text-center font-mono text-[13px] font-semibold">{safeRender(item.ordinario?.parcial_1)}</td>
-                                {/* Prom. */}
-                                <td className="px-2 py-2.5 text-center font-mono text-[13px] text-gray-400">
-                                    {item.ordinario?.promedio_calculado !== null && item.ordinario?.promedio_calculado !== undefined 
-                                        ? renderCalif(item.ordinario.promedio_calculado) === 'NP' ? 'NP' : Number(item.ordinario.promedio_calculado).toFixed(2)
-                                        : '-'}
-                                </td>
-                                {/* Final Ord. (= parcial_1 para Especialidades) */}
-                                <td className="px-3 py-2.5 text-center font-mono text-[13px] font-semibold border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-                                    {safeRender(item.ordinario?.calificacion_final ?? item.ordinario?.parcial_1)}
-                                </td>
-                              </>
-                            ) : (
-                              <>
-                                {/* Licenciatura: P1, P2, P3, Prom, Final, Ext1, Ext2 */}
-                                <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_1)}</td>
-                                <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_2)}</td>
-                                <td className="px-2 py-2.5 text-center font-mono text-[13px]">{safeRender(item.ordinario?.parcial_3)}</td>
-                                <td className="px-2 py-2.5 text-center font-mono text-[13px] text-gray-400">
-                                    {item.ordinario?.promedio_calculado !== null && item.ordinario?.promedio_calculado !== undefined 
-                                        ? renderCalif(item.ordinario.promedio_calculado) === 'NP' ? 'NP' : Number(item.ordinario.promedio_calculado).toFixed(2)
-                                        : '-'}
-                                </td>
-                                <td className="px-3 py-2.5 text-center font-mono text-[13px] font-semibold border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-                                    {safeRender(item.ordinario?.calificacion_final)}
-                                </td>
-
-                                {/* Extraordinarios */}
-                                <td className="px-2 py-2.5 text-center font-mono text-[13px] text-amber-700 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-900/10">
-                                    {safeRender(item.extras[0]?.calificacion_final)}
-                                </td>
-                                <td className="px-2 py-2.5 text-center font-mono text-[13px] text-amber-700 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-900/10">
-                                    {safeRender(item.extras[1]?.calificacion_final)}
-                                </td>
-                              </>
-                            )}
-
-                            {/* Recursamiento (común a ambos layouts) */}
-                            <td className="px-2 py-2.5 text-center font-mono text-[13px] text-purple-700 dark:text-purple-400 bg-purple-50/30 dark:bg-purple-900/10 border-r border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-                                {safeRender(item.extras[esEspecialidad ? 0 : 2]?.calificacion_final)}
-                            </td>
-
-                            {/* Final, Letra y Créditos */}
-                            <td className={`px-3 py-2.5 text-center font-mono font-bold text-[14px] ${
-                                item.acreditada ? 'text-emerald-600 dark:text-emerald-400' : 
-                                item.mejor_calificacion !== null ? 'text-red-600 dark:text-red-400' : 'text-gray-400'
-                            }`}>
-                                {safeRender(item.mejor_calificacion)}
-                            </td>
-                            <td className="px-3 py-2.5 text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
-                                {calificacionALetras(item.mejor_calificacion)}
-                            </td>
-                            <td className="px-3 py-2.5 text-center font-mono text-[12px] text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/50 dark:bg-blue-900/20">
-                                {item.asignatura?.creditos || '-'}
-                            </td>
-                        </tr>
-                    );
-                })}
-                        </React.Fragment>
-                      ))}
-                    </React.Fragment>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="bg-gray-50 dark:bg-[#1c2228] border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] px-4 py-3 flex items-center justify-between">
-              <span className="text-xs text-gray-500 font-medium">Mostrando {datosFiltrados.length} asignaturas</span>
-              <div className="flex gap-4 text-xs font-semibold">
-                  <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Acreditadas</span>
-                  <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Reprobadas</span>
-                  <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Extraordinario</span>
-              </div>
-          </div>
-        </div>
       )}
       
       {/* MONTAJE EXPLÍCITO DEL MODAL DE REINSCRIPCIÓN */}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileText, User, BarChart3, Users, GraduationCap, Calendar, AlertCircle, Wallet, ChevronDown, TrendingDown, ClipboardList, FileCheck2 } from 'lucide-react';
 
+import { puedeAccederRuta } from '../app/capacidades';
 import { useAppStore } from '../store/useAppStore';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { useCicloModulo } from '../hooks/useCicloModulo';
@@ -341,6 +342,10 @@ export default function Dashboard() {
                           )}
                         </button>
                       )}
+
+                      {puedeAccederRuta(currentUser.rol,'/pagos-adeudos-alumnos')&&<button type="button" onClick={()=>navigate('/pagos-adeudos-alumnos')} className="card-interactive bg-white dark:bg-[#1c2228] p-6 rounded-[20px] shadow-[var(--shadow-subtle)] text-left border border-[#e5e7eb] dark:border-gray-700 focus-visible:outline-2 focus-visible:outline-[#1456f0]">
+                        <div className="bg-blue-600 p-3 rounded-xl text-white mb-4 w-fit"><FileText size={24}/></div><h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pagos y adeudos por alumno</h2><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Consulta por ciclo y filtros del padrón. Exporta CSV o imprime PDF.</p>
+                      </button>}
 
                       {(currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR FINANCIERO') && (
                         <button

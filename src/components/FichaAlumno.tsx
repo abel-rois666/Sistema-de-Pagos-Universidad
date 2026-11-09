@@ -5,6 +5,7 @@ import type { PaymentPlan, Alumno, Usuario, Catalogos, ServicioSocial } from '..
 import { DEFAULT_CONSTANCIA_PARAMS } from '../types';
 import { calculateStudentTotals, toTitleCase } from '../utils';
 import FichaSecciones from './ficha/FichaSecciones';
+import CabeceraFichaAlumno from './ficha/CabeceraFichaAlumno';
 import TabPagos from './tabs/TabPagos';
 import TabInscripcionesAlumno from './tabs/TabInscripcionesAlumno';
 import TabServicioSocial from './tabs/TabServicioSocial';
@@ -85,6 +86,8 @@ export default function FichaAlumno({
     executeUpdateMonedero,
   } = useFichaAlumnoLogic(initialAlumnoId, TABS);
 
+  const [historialAmpliado,setHistorialAmpliado]=useState(false);
+  useEffect(()=>{if(activeTab!=='academico')setHistorialAmpliado(false);},[activeTab,selectedAlumnoId]);
   const [programaTrayectoriaId,setProgramaTrayectoriaId]=useState<string|undefined>();
   useEffect(()=>setProgramaTrayectoriaId(undefined),[selectedAlumnoId]);
   const [capturaIngresoAbierta,setCapturaIngresoAbierta]=useState(false);
@@ -176,7 +179,7 @@ export default function FichaAlumno({
 
   return (
     <div className="w-full min-w-0 font-sans">
-      <div className="ficha-alumno-marco mx-auto px-4 sm:px-8 pt-6 pb-8">
+      <div className="ficha-alumno-marco mx-auto px-4 sm:px-6 pt-6 pb-8" data-historial-ampliado={historialAmpliado&&activeTab==='academico'}>
 
         {/* Navegación superior */}
         <div className="ficha-alumno-barra mb-6">
@@ -215,111 +218,10 @@ export default function FichaAlumno({
         {/* Card principal */}
         <div className="bg-white dark:bg-[#181e25] rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] overflow-clip">
 
-          {/* ── Header oscuro del alumno ─────────────────────────────────── */}
-          <div className="relative bg-[#181e25] p-6 sm:p-8 text-white overflow-hidden">
-            <div className="absolute -right-12 -top-12 w-48 h-48 bg-[#3b82f6]/8 rounded-full blur-3xl" />
-            <div className="absolute right-8 bottom-0 w-32 h-32 bg-[#1456f0]/10 rounded-full blur-2xl" />
+          <CabeceraFichaAlumno alumno={selectedAlumno} plan={activePlan} totals={totals} verFinanzas={activeTab==='pagos'} isAdmin={isAdmin}
+            onMonedero={()=>{setTempMonedero((selectedAlumno.saldo_a_favor||0).toString());setEditingMonedero(true);}}/>
 
-            <div className="relative flex flex-col md:flex-row md:items-center gap-6">
-              {/* Avatar + datos */}
-              <div className="flex items-start gap-5">
-                <div className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-[13px] bg-white/15 border border-white/20 backdrop-blur-sm flex items-center justify-center shadow-[var(--shadow-brand)]">
-                  <span className="text-xl sm:text-2xl font-semibold text-white" style={{ fontFamily: 'var(--font-display)' }}>
-                    {selectedAlumno.nombre_completo.split(' ').slice(0, 2).map(n => n[0]).join('')}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-lg sm:text-2xl font-semibold text-white leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
-                    {toTitleCase(selectedAlumno.nombre_completo)}
-                  </h2>
-                  {/* Estatus Institucional del Alumno (Gobernado por Planes Académicos) */}
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/60 select-none">
-                      Estatus Institucional:
-                    </span>
-                    <div 
-                      title="Estatus institucional calculado automáticamente por el motor académico a partir de los programas de estudio del alumno."
-                      className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold border shadow-xs select-none backdrop-blur-md ${
-                        selectedAlumno.estatus === 'BAJA'             ? 'bg-red-500/20 border-red-400 text-red-200' :
-                        selectedAlumno.estatus?.includes('TITULADO')   ? 'bg-purple-500/20 border-purple-400 text-purple-200' :
-                        selectedAlumno.estatus?.includes('EGRESADO')  ? 'bg-amber-500/20 border-amber-400 text-amber-200' :
-                                                                        'bg-emerald-500/20 border-emerald-400 text-emerald-200'
-                      }`}
-                    >
-                      <ShieldCheck size={12} className="opacity-90" />
-                      <span>{selectedAlumno.estatus || 'ACTIVO'}</span>
-                      <span className="text-[9px] uppercase tracking-wider opacity-60 font-mono ml-0.5">· Oficial</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    <span className="bg-white/10 border border-white/20 text-white/90 text-xs px-2.5 py-1 rounded-[9999px] font-medium">{toTitleCase(selectedAlumno.licenciatura)}</span>
-                    <span className="bg-white/10 border border-white/20 text-white/90 text-xs px-2.5 py-1 rounded-[9999px] font-medium">{activePlan?.grado ? formatGrado(activePlan.grado) : formatGrado(selectedAlumno.grado_actual)}</span>
-                    <span className="bg-white/10 border border-white/20 text-white/90 text-xs px-2.5 py-1 rounded-[9999px] font-medium">{activePlan?.turno || selectedAlumno.turno}</span>
-                    {selectedAlumno.beca_porcentaje && selectedAlumno.beca_porcentaje !== '0%' && (
-                      <span className="bg-[#1456f0]/30 border border-[#3b82f6]/50 text-blue-200 text-xs px-2.5 py-1 rounded-[9999px] font-medium">Beca {selectedAlumno.beca_porcentaje}</span>
-                    )}
-                    {activePlan && (
-                      <span className="bg-[#3b82f6]/30 border border-[#60a5fa]/50 text-blue-200 text-xs px-2.5 py-1 rounded-[9999px] font-medium">Plan #{activePlan.no_plan_pagos}</span>
-                    )}
-                    {/* Monedero */}
-                    {((selectedAlumno.saldo_a_favor ?? 0) > 0 || isAdmin) && (
-                      <div className="flex items-center gap-1.5">
-                        <span className={`inline-flex items-center gap-1.5 border text-xs px-2.5 py-1 rounded-[9999px] font-semibold shadow-lg ${
-                          (selectedAlumno.saldo_a_favor ?? 0) > 0
-                            ? 'bg-emerald-900/70 border-emerald-500/70 text-emerald-200 shadow-emerald-900/40'
-                            : 'bg-white/5 border-white/20 text-white/50 backdrop-blur-sm'
-                        }`}>
-                          <Wallet size={11} />
-                          Monedero: ${(selectedAlumno.saldo_a_favor ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
-                        </span>
-                        {isAdmin && (
-                          <button onClick={() => { setTempMonedero((selectedAlumno.saldo_a_favor || 0).toString()); setEditingMonedero(true); }}
-                            className="p-1 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/20 rounded-[8px] border border-white/10" title="Ajustar Monedero (Admin)">
-                            <Edit2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Mini-card financiero */}
-              {activePlan && totals ? (
-                <div className="md:ml-auto shrink-0 bg-white/8 border border-white/15 backdrop-blur-md rounded-[20px] p-4 sm:p-5 shadow-[var(--shadow-brand)] min-w-[200px]">
-                  <p className="text-[11px] font-semibold text-blue-200 uppercase tracking-wider mb-3">{activePlan.ciclo_escolar}</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[11px] text-blue-200 font-medium mb-0.5">Pagado</p>
-                      <p className="text-xl font-semibold text-emerald-300" style={{ fontFamily: 'var(--font-data)' }}>${totals.paid.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-blue-200 font-medium mb-0.5">Adeudo</p>
-                      <p className="text-xl font-semibold text-rose-300" style={{ fontFamily: 'var(--font-data)' }}>${totals.owed.toLocaleString()}</p>
-                    </div>
-                  </div>
-                  {(totals.paid + totals.owed) > 0 && (
-                    <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#3b82f6] rounded-full transition-all duration-700" style={{ width: `${(totals.paid / (totals.paid + totals.owed)) * 100}%` }} />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="md:ml-auto shrink-0 bg-white/8 border border-white/15 backdrop-blur-md rounded-[20px] p-4 shadow-[var(--shadow-brand)] flex items-center gap-3">
-                  <div className="bg-amber-400/20 text-amber-200 p-2 rounded-lg">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  </div>
-                  <div>
-                    <p className="font-bold text-base leading-tight">Sin plan de pagos</p>
-                    <p className="text-xs text-blue-200 mt-0.5">Sin plan de pagos en el ciclo consultado.</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <FichaSecciones secciones={visibleTabs} activa={activeTab} onCambiar={id=>{if(id!==activeTab)salirSiNecesario(()=>setActiveTab(id));}}>
+          <FichaSecciones ampliado={historialAmpliado} secciones={visibleTabs} activa={activeTab} onCambiar={id=>{if(id!==activeTab)salirSiNecesario(()=>setActiveTab(id));}}>
           {/* ── Contenido del tab activo ──────────────────────────────────── */}
           {activeTab === 'pagos' && (
             <div className="ficha-pagos-contexto">
@@ -344,9 +246,9 @@ export default function FichaAlumno({
               onVerTrayectoria={visibleTabs.some(t=>t.id==='inscripciones')?id=>salirSiNecesario(()=>{setProgramaTrayectoriaId(id);setActiveTab('inscripciones');}):undefined}
             />
           )}
-          {activeTab === 'inscripciones' && <TabInscripcionesAlumno key={selectedAlumno.id} alumnoId={selectedAlumno.id} programaInicialId={programaTrayectoriaId} onCapturaChange={setCapturaIngresoAbierta} />}
+          {activeTab === 'inscripciones' && <TabInscripcionesAlumno key={selectedAlumno.id} alumno={selectedAlumno} onAlumnoUpdated={()=>onRefreshAlumnos?.()} programaInicialId={programaTrayectoriaId} onCapturaChange={setCapturaIngresoAbierta} />}
           {activeTab === 'academico' && (
-            <TabHistorialAcademico alumno={selectedAlumno} />
+            <TabHistorialAcademico key={selectedAlumno.id} alumno={selectedAlumno} ampliado={historialAmpliado} onAmpliar={()=>setHistorialAmpliado(a=>!a)} />
           )}
           {activeTab === 'servicio_social' && isAdmin && (
             <TabServicioSocial

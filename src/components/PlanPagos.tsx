@@ -1,14 +1,20 @@
+import SelectorBusqueda from './ui/SelectorBusqueda';
+import BarraConsultaPlanesPago from './planesPago/BarraConsultaPlanesPago';
+import CabeceraPlanesAlumno from './planesPago/CabeceraPlanesAlumno';
+import ModalVinculacionFinanciera from './recibos/ModalVinculacionFinanciera';
+import { periodosFinancieros, periodoPlan, filtrarPeriodoPlanes, conceptosFinancieros, describirPlan, TODOS_PERIODOS } from '../finanzas/consulta';
+import { guardarObservacionFinanciera, refrescarPlanFinanciero } from '../services/consultaFinancieraService';
 import { useProteccionCaptura } from '../app/ProteccionCaptura';
 import { puedeCobrar } from '../app/capacidades';
 import ModalConfirmacion from './ui/ModalConfirmacion';
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ArrowLeft, Inbox, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, PlusCircle, Link2, FileText, User, ChevronLeft, ChevronRight, Trash2, ChevronDown } from 'lucide-react';
+import { X, Edit, DollarSign, Save, Printer, Search, Loader2, Plus, PlusCircle, Link2, FileText, Trash2, ChevronDown } from 'lucide-react';
 import { PaymentPlan, Alumno, CicloEscolar } from '../types';
 import { isPaid, getMaxFolioCounter, getCyclePrefix, toTitleCase } from '../utils';
 import { formatGrado } from '../utils/formatUtils';
 import { estatusVisiblePlanPago } from '../utils/estatusPlanPago';
-import { coincideConceptoReciboPlan, resolverCicloPlanPagoImportado, tipoPeriodoPlanPago, validarCicloPlanPago, validarPeriodicidadAcademicaPlanPago } from '../utils/cicloPlanPago';
-import { cargarPeriodicidadAcademicaAlumno, conciliarReciboDetallePlan, tieneVinculoExplicitoPlan, vincularReciboDetallePlanes } from '../services/asociacionPlanPagoService';
+import { resolverCicloPlanPagoImportado, tipoPeriodoPlanPago, validarCicloPlanPago, validarPeriodicidadAcademicaPlanPago } from '../utils/cicloPlanPago';
+import { cargarPeriodicidadAcademicaAlumno, tieneVinculoExplicitoPlan } from '../services/asociacionPlanPagoService';
 import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import jsPDF from 'jspdf';
@@ -18,6 +24,7 @@ import RevisarAsociacionPlanPago from './planesPago/RevisarAsociacionPlanPago';
 import SelectorCicloPlanPago from './planesPago/SelectorCicloPlanPago';
 import { useCicloModulo } from '../hooks/useCicloModulo';
 import { buscarPlanesPago, ordenarHistorialPlanes } from '../utils/planesPagoVista';
+import EstadoVacioPlanesPago from './planesPago/EstadoVacioPlanesPago';
 
 const generateFolioForPlan = (alumnoId: string, tipoPlan: string, cicloNombre: string, allPlans: PaymentPlan[]) => {
   const prefix = getCyclePrefix(cicloNombre);
@@ -277,7 +284,15 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
   };
   // La consulta financiera incluye todos los planes; el ciclo exacto se elige al guardar.
   const plans = allPlans;
-  const planesRecientes = ordenarHistorialPlanes(plans, ciclos);
+  const clavePeriodo = `finanzas-periodo:${currentUser?.id || 'sesion'}`;
+  const [periodoConsulta, setPeriodoConsulta] = useState(() => {
+    const destino = allPlans.find(p => p.id === initialPlanId) || ordenarHistorialPlanes(allPlans.filter(p => !initialAlumnoId || p.alumno_id === initialAlumnoId), ciclos)[0];
+    return initialPlanId || initialAlumnoId ? destino ? periodoPlan(destino, ciclos) : '' : localStorage.getItem(clavePeriodo) || (destino ? periodoPlan(destino, ciclos) : '');
+  });
+  const planesConsulta = filtrarPeriodoPlanes(plans, ciclos, periodoConsulta);
+  const planesRecientes = ordenarHistorialPlanes(planesConsulta, ciclos);
+  useEffect(() => { if (periodoConsulta) localStorage.setItem(clavePeriodo, periodoConsulta); }, [periodoConsulta, clavePeriodo]);
+  useEffect(() => { if (!periodoConsulta && allPlans.length) setPeriodoConsulta(periodoPlan(ordenarHistorialPlanes(allPlans, ciclos)[0], ciclos)); }, [allPlans, ciclos, periodoConsulta]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>(() => {
     if (initialPlanId && plans.find(p => p.id === initialPlanId)) {
       return initialPlanId;
@@ -290,8 +305,10 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
     if (savedId && plans.find(p => p.id === savedId)) return savedId;
     return planesRecientes[0]?.id || '';
   });
-  const planVisibleId = plans.some(plan => plan.id === selectedPlanId)
-    ? selectedPlanId : planesRecientes[0]?.id || '';
+  const alumnoSeleccionado = allPlans.find(p => p.id === selectedPlanId)?.alumno_id;
+  const planVisibleId = planesConsulta.some(plan => plan.id === selectedPlanId)
+    ? selectedPlanId : (alumnoSeleccionado ? planesRecientes.find(p => p.alumno_id === alumnoSeleccionado)?.id : planesRecientes[0]?.id) || '';
+  const planVisibleRef = useRef(planVisibleId); planVisibleRef.current = planVisibleId;
   const [vinculosPorIndice, setVinculosPorIndice] = useState<Record<number, Array<{ folio: string; importe: number }>>>({});
   const [revisionVinculos, setRevisionVinculos] = useState(0);
 
@@ -343,9 +360,10 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
   const destinoInicialAplicado = useRef(false);
   useEffect(() => {
     if (destinoInicialAplicado.current || (!initialPlanId && !initialAlumnoId)) return;
-    const destino = (initialPlanId && plans.find(plan => plan.id === initialPlanId))
-      || (initialAlumnoId && planesRecientes.find(plan => plan.alumno_id === initialAlumnoId));
+    const destino = (initialPlanId && allPlans.find(plan => plan.id === initialPlanId))
+      || (initialAlumnoId && ordenarHistorialPlanes(allPlans, ciclos).find(plan => plan.alumno_id === initialAlumnoId));
     if (!destino) return;
+    setPeriodoConsulta(periodoPlan(destino, ciclos));
     destinoInicialAplicado.current = true;
     setSelectedPlanId(destino.id);
     setSearchTerm(destino.nombre_alumno || alumnos.find(alumno => alumno.id === destino.alumno_id)?.nombre_completo || '');
@@ -374,8 +392,6 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
   const canDeletePlan  = currentUser.rol === 'ADMINISTRADOR';
   const canConciliarHistoricos = currentUser.rol === 'ADMINISTRADOR'
     || currentUser.rol === 'COORDINADOR FINANCIERO';
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [limiteSugerencias, setLimiteSugerencias] = useState(30);
 
   // Modal States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -391,10 +407,9 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
   const [paymentInput, setPaymentInput] = useState('');
   // Vincular recibo state
   const [paymentModalTab, setPaymentModalTab] = useState<'manual' | 'vincular'>('manual');
-  const [candidateDetalles, setCandidateDetalles] = useState<any[]>([]);
-  const [loadingRecibos, setLoadingRecibos] = useState(false);
-  const [selectedDetalleId, setSelectedDetalleId] = useState<string>('');
-  const [importeHistorico, setImporteHistorico] = useState('');
+  const [guardandoEstatus, setGuardandoEstatus] = useState(false);
+  const guardandoEstatusRef = useRef(false);
+  const estatusOriginal = useRef({ raw: '', visible: '' });
   const [customMaxPayments, setCustomMaxPayments] = useState<number>(0);
 
   const [editForm, setEditForm] = useState<Partial<PaymentPlan>>({});
@@ -419,7 +434,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
   const [cicloPropuestoEdicionId, setCicloPropuestoEdicionId] = useState('');
   const [showNewAlumnoSuggestions, setShowNewAlumnoSuggestions] = useState(false);
   const newPlanAlumnoRef = useRef<HTMLDivElement>(null);
-  const mainSearchRef = useRef<HTMLDivElement>(null);
+  const consultaRef = useRef<HTMLDivElement>(null);
 
   // Close suggestions on click outside
   const planFormularioBase = plans.find(plan => plan.id === planVisibleId) || planesRecientes[0];
@@ -427,17 +442,14 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
     (isEditPlanModalOpen && planFormularioBase && JSON.stringify(editForm) !== JSON.stringify(planFormularioBase))
     || (isNewPlanModalOpen && (newPlanForm.alumno_id || newPlanSearchTerm.trim() || selectedTemplateId
       || Object.keys(newPlanForm).some(clave => /^concepto_/.test(clave) && Boolean(newPlanForm[clave as keyof PaymentPlan]))))
-    || (isPaymentModalOpen && (paymentInput.trim() || selectedDetalleId))
+    || (isPaymentModalOpen && paymentModalTab === 'manual' && paymentInput !== estatusOriginal.current.visible)
   );
-  const solicitarSalida = useProteccionCaptura(hayCambiosPlan, isSavingPlan || eliminandoPlan);
+  const solicitarSalida = useProteccionCaptura(hayCambiosPlan, isSavingPlan || eliminandoPlan || guardandoEstatus);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (newPlanAlumnoRef.current && !newPlanAlumnoRef.current.contains(event.target as Node)) {
         setShowNewAlumnoSuggestions(false);
-      }
-      if (mainSearchRef.current && !mainSearchRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -446,25 +458,25 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
 
   useEffect(() => {
     let temporizador: ReturnType<typeof setTimeout> | undefined;
-    const actualizar = () => {
+    const pendientes = new Set<string>();
+    const actualizar = (payload?: any) => {
+      const id = payload?.new?.plan_id || payload?.old?.plan_id || (payload?.table === 'planes_pago' && (payload?.new?.id || payload?.old?.id)) || planVisibleRef.current;
+      if (id) pendientes.add(id);
       if (temporizador) clearTimeout(temporizador);
-      temporizador = setTimeout(() => { void refreshPlans(); setRevisionVinculos(valor => valor + 1); }, 250);
+      temporizador = setTimeout(() => {
+        const ids = [...pendientes]; pendientes.clear();
+        void Promise.all(ids.map(id => refrescarPlanFinanciero(id, true))).catch(() => toast.error('No se pudo actualizar el plan. Reintenta la consulta.'));
+        setRevisionVinculos(v => v+1);
+      }, 350);
     };
     const canal = supabase.channel(`planes-pago-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'planes_pago' }, actualizar)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'planes_pago_detalles' }, actualizar)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'planes_pago_vinculos_recibo' }, actualizar)
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'planes_pago_vinculos_recibo' }, actualizar).subscribe();
     const alVolver = () => { if (document.visibilityState === 'visible') actualizar(); };
-    window.addEventListener('focus', alVolver);
-    document.addEventListener('visibilitychange', alVolver);
-    return () => {
-      if (temporizador) clearTimeout(temporizador);
-      window.removeEventListener('focus', alVolver);
-      document.removeEventListener('visibilitychange', alVolver);
-      void supabase.removeChannel(canal);
-    };
-  }, [refreshPlans]);
+    window.addEventListener('focus', alVolver); document.addEventListener('visibilitychange', alVolver);
+    return () => { if (temporizador) clearTimeout(temporizador); window.removeEventListener('focus', alVolver); document.removeEventListener('visibilitychange', alVolver); void supabase.removeChannel(canal); };
+  }, []);
 
   // Removed filter to allow multiple plans per student
   const availableAlumnos = alumnos;
@@ -689,32 +701,19 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
     }
   };
 
-  if (plans.length === 0) {
+  if (!planVisibleId) {
     return (
-      <div className="w-full p-8 font-sans flex flex-col items-center justify-center">
-        <div className="bg-white dark:bg-[#1c2228] p-10 rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] text-center max-w-md w-full">
-          <div className="bg-blue-50 dark:bg-blue-900/40 text-blue-500 dark:text-blue-400 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Inbox size={40} />
-          </div>
-          <h2 className="text-2xl font-bold text-[#222222] dark:text-gray-100 mb-3">Sin Planes de Pago</h2>
-          <p className="text-[#8e8e93] dark:text-[#8e8e93] mb-8">No hay planes de pago registrados. Puedes crear el primero para un alumno.</p>
-          <div className="flex flex-col gap-3">
-            {canManagePlans && (
-              <button
-                onClick={() => setIsNewPlanModalOpen(true)}
-                className="bg-[#1456f0] hover:bg-[#1d4ed8] text-white px-6 py-3 rounded-[13px] font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
-              >
-                <Plus size={20} /> Crear Nuevo Plan
-              </button>
-            )}
-            <button
-              onClick={onBack}
-              className="bg-gray-100 hover:bg-gray-200 text-[#45515e] px-6 py-3 rounded-[13px] font-semibold transition-colors flex items-center gap-2 mx-auto w-full justify-center"
-            >
-              <ArrowLeft size={20} /> {origenComunicados ? 'Volver a Comunicados' : 'Volver al Inicio'}
-            </button>
-          </div>
-        </div>
+      <div className="w-full font-sans">
+        <EstadoVacioPlanesPago periodo={periodoConsulta} periodos={periodosFinancieros(ciclos,plans)}
+          onPeriodo={p=>solicitarSalida(()=>setPeriodoConsulta(p))}
+          onHistorial={allPlans.length?()=>solicitarSalida(()=>setPeriodoConsulta(TODOS_PERIODOS)):undefined}
+          onCrear={canManagePlans?()=>setIsNewPlanModalOpen(true):undefined}
+          onVolver={onBack} volverTexto={origenComunicados?'Volver a Comunicados':'Volver al Inicio'}
+          hayPlanesDelPeriodo={planesConsulta.length>0}
+          buscador={planesConsulta.length > 0 && <><label className="w-full max-w-md text-sm font-semibold text-gray-800 dark:text-gray-200">Buscar alumno o plan en este periodo
+          <input className="mt-1 h-[42px] w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        </label>
+        {buscarPlanesPago(planesConsulta, alumnos, ciclos, searchTerm).slice(0,30).map(p => <button key={p.id} className="text-left text-blue-700 dark:text-blue-300" onClick={() => setSelectedPlanId(p.id)}>{p.nombre_alumno} · {describirPlan(p, ciclos)}</button>)}</>}/>
 
         {/* New Plan Modal (Empty State) */}
         {isNewPlanModalOpen && (
@@ -991,7 +990,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                       concepto_15: newPlanForm.concepto_15, fecha_15: newPlanForm.fecha_15, cantidad_15: newPlanForm.cantidad_15,
                     };
                     if (!await onSavePlan(newPlan)) return;
-                    setSelectedPlanId(newPlan.id);
+                    setSelectedPlanId(newPlan.id); setPeriodoConsulta(periodoPlan(newPlan, ciclos));
                     setIsNewPlanModalOpen(false);
                     setNewPlanSearchTerm('');
                     setNewPlanForm({
@@ -1041,209 +1040,49 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
 
   // ── Navegación Alfabética ──
   const ordenReciente = new Map(planesRecientes.map((plan, indice) => [plan.id, indice]));
-  const sortedActivePlans = [...plans].sort((a, b) => {
+  const sortedActivePlans = [...planesConsulta].sort((a, b) => {
     const nombreA = a.nombre_alumno || alumnos.find(alumno => alumno.id === a.alumno_id)?.nombre_completo || '';
     const nombreB = b.nombre_alumno || alumnos.find(alumno => alumno.id === b.alumno_id)?.nombre_completo || '';
     return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' })
       || (ordenReciente.get(a.id) ?? 0) - (ordenReciente.get(b.id) ?? 0);
   });
 
-  const currentPlanIndex = sortedActivePlans.findIndex(p => p.id === selectedPlanId);
+  const currentPlanIndex = sortedActivePlans.findIndex(p => p.id === selectedPlan.id);
   const safeCurrentIndex = currentPlanIndex >= 0 ? currentPlanIndex : 0;
   
   const prevPlan = safeCurrentIndex > 0 ? sortedActivePlans[safeCurrentIndex - 1] : null;
   const nextPlan = safeCurrentIndex < sortedActivePlans.length - 1 ? sortedActivePlans[safeCurrentIndex + 1] : null;
 
-  const jumpToPlan = (plan: PaymentPlan) => {
+  const jumpToPlan = (plan: PaymentPlan) => solicitarSalida(() => {
     setSelectedPlanId(plan.id);
     setSearchTerm(plan.nombre_alumno || alumnos.find(alumno => alumno.id === plan.alumno_id)?.nombre_completo || '');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const filteredPlans = buscarPlanesPago(plans, alumnos, ciclos, searchTerm || '');
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setLimiteSugerencias(30);
-    setShowSuggestions(true);
-  };
-
-  const handleSuggestionClick = (plan: PaymentPlan) => {
-    setSelectedPlanId(plan.id);
-    setSearchTerm(plan.nombre_alumno || alumnos.find(alumno => alumno.id === plan.alumno_id)?.nombre_completo || '');
-    setShowSuggestions(false);
-  };
+    consultaRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
 
   const handleStudentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newId = e.target.value;
-    setSelectedPlanId(newId);
-    const plan = plans.find(p => p.id === newId);
-    if (plan) setSearchTerm(plan.nombre_alumno || alumnos.find(alumno => alumno.id === plan.alumno_id)?.nombre_completo || '');
+    const plan = planesConsulta.find(p => p.id === e.target.value);
+    if (plan) jumpToPlan(plan);
   };
 
   const getConceptData = (plan: PaymentPlan, index: number) => {
-    if (plan.detalles && plan.detalles.length > 0) {
-      const detail = plan.detalles.find(d => d.indice_concepto === index);
-      if (detail && detail.concepto) {
-         return {
-           concepto: detail.concepto,
-           fecha: detail.fecha_vencimiento,
-           cantidad: detail.cantidad,
-           estatus: detail.estatus || 'PENDIENTE'
-         };
-      }
-      // Hay planes históricos con detalles normalizados parciales y conceptos
-      // legados todavía presentes en columnas numeradas.
-    }
-    const concepto = plan[`concepto_${index}` as keyof PaymentPlan] as string | undefined;
-    if (!concepto) return null;
-    return {
-      concepto,
-      fecha: plan[`fecha_${index}` as keyof PaymentPlan] as string | undefined,
-      cantidad: plan[`cantidad_${index}` as keyof PaymentPlan] as number | undefined,
-      estatus: plan[`estatus_${index}` as keyof PaymentPlan] as string | undefined,
-    };
+    const c = conceptosFinancieros(plan).find(c => c.indice === index);
+    return c ? { concepto: c.concepto, fecha: c.fecha, cantidad: c.cantidad, estatus: c.estatus } : null;
   };
-
   const openPaymentModal = (index: number) => {
     setSelectedPaymentIndex(index);
     const data = getConceptData(selectedPlan, index);
-    setPaymentInput(estatusVisiblePlanPago(data?.estatus, data?.cantidad, vinculosPorIndice[index] || []));
-    setPaymentModalTab('manual');
-    setCandidateDetalles([]);
-    setSelectedDetalleId('');
-    setImporteHistorico('');
-    setIsPaymentModalOpen(true);
+    const visible = estatusVisiblePlanPago(data?.estatus, data?.cantidad, vinculosPorIndice[index] || []);
+    estatusOriginal.current = { raw: data?.estatus || 'PENDIENTE', visible };
+    setPaymentInput(visible); setPaymentModalTab('manual'); setIsPaymentModalOpen(true);
   };
-
-  const loadCandidateRecibos = async () => {
-    setLoadingRecibos(true);
-    try {
-      const alumnoId = selectedPlan.alumno_id || alumnos.find(a => a.nombre_completo === selectedPlan.nombre_alumno)?.id;
-      if (!alumnoId) { setLoadingRecibos(false); return; }
-      const nombreCiclo = ciclos.find(ciclo => ciclo.id === selectedPlan.ciclo_id)?.nombre;
-      const idsPeriodo = ciclos.filter(ciclo => ciclo.nombre === nombreCiclo).map(ciclo => ciclo.id);
-      const conceptoPlan = getConceptData(selectedPlan, selectedPaymentIndex)?.concepto;
-      // Los recibos conservados en el otro ID homónimo siguen siendo visibles
-      // como posibles vínculos; nunca se atribuyen automáticamente al plan.
-      const { data, error } = await supabase
-        .from('recibos')
-        .select('*, recibos_detalles(*)')
-        .eq('alumno_id', alumnoId)
-        .in('ciclo_id', idsPeriodo.length ? idsPeriodo : [selectedPlan.ciclo_id])
-        .eq('estatus', 'ACTIVO')
-        .order('folio', { ascending: false });
-      if (error) throw error;
-      const { data: vinculos, error: errorVinculos } = await supabase
-        .from('planes_pago_vinculos_recibo')
-        .select('recibo_detalle_id, indice_concepto')
-        .eq('plan_id', selectedPlan.id)
-        .eq('indice_concepto', selectedPaymentIndex)
-        .is('anulado_en', null);
-      if (errorVinculos) throw errorVinculos;
-      const confirmados = new Set((vinculos || []).map(vinculo => vinculo.recibo_detalle_id));
-      const detallesLibres: any[] = [];
-      (data || []).forEach((r: any) => {
-        (r.recibos_detalles || []).forEach((d: any) => {
-          const mismoId = r.ciclo_id === selectedPlan.ciclo_id;
-          const coincide = coincideConceptoReciboPlan(d.concepto, conceptoPlan);
-          const confirmado = confirmados.has(d.id);
-          const legado = !confirmado && coincide && d.indice_concepto_plan === selectedPaymentIndex;
-          const revisable = !confirmado && d.indice_concepto_plan != null
-            && d.indice_concepto_plan !== selectedPaymentIndex;
-          detallesLibres.push({ ...d, _recibo: r,
-            _estadoVinculo: confirmado ? 'confirmado' : revisable ? 'revisar'
-              : legado || !mismoId ? 'historico' : 'libre',
-            _otroId: !mismoId, _conceptoCoincide: coincide });
-        });
-      });
-      setCandidateDetalles(detallesLibres);
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudieron consultar los recibos.'); }
-    setLoadingRecibos(false);
-  };
-
   const handleSavePayment = async () => {
-    if (paymentModalTab === 'vincular' && selectedDetalleId) {
-      const candidato = candidateDetalles.find(detalle => detalle.id === selectedDetalleId);
-      if (!candidato || candidato._estadoVinculo === 'confirmado' || candidato._estadoVinculo === 'revisar') {
-        toast.error('Selecciona un detalle pendiente de revisión.'); return;
-      }
-      const errorCiclo = validarCicloPlanPago(ciclos.find(ciclo => ciclo.id === selectedPlan.ciclo_id), selectedPlan.tipo_plan);
-      if (errorCiclo) { toast.error(`${errorCiclo} Corrige la asociación antes de vincular.`); return; }
-      try {
-        if (candidato._estadoVinculo === 'historico') {
-          const importe = Number(importeHistorico);
-          if (!Number.isFinite(importe) || importe <= 0 || importe > Number(candidato.subtotal)) {
-            toast.error('Indica un abono positivo que no supere el importe del detalle del recibo.'); return;
-          }
-          const revision = await conciliarReciboDetallePlan(selectedDetalleId, selectedPlan.id,
-            selectedPaymentIndex, importe);
-          if (!revision.aplicable) throw new Error(revision.motivo || 'Este detalle requiere revisión financiera.');
-          const resultado = await conciliarReciboDetallePlan(selectedDetalleId, selectedPlan.id,
-            selectedPaymentIndex, importe, true);
-          if (!resultado.aplicado) throw new Error('El servidor no confirmó la conciliación.');
-          toast.success(resultado.remanente_historico_sin_movimiento
-            ? `Vínculo registrado. Verifica si $${Number(resultado.remanente_historico_sin_movimiento).toFixed(2)} ya fueron al monedero; esta conciliación no modificó el saldo.`
-            : 'Vínculo registrado. El folio aparecerá en el plan; el saldo y el recibo se conservaron.');
-        } else {
-          const resultado = await vincularReciboDetallePlanes(selectedDetalleId,
-            [{ planId: selectedPlan.id, idx: selectedPaymentIndex }]);
-          toast.success(resultado.excedente > 0
-            ? `Abono aplicado. Excedente de $${resultado.excedente.toFixed(2)} acreditado al monedero.`
-            : 'Abono aplicado al plan.');
-        }
-        await refreshPlans();
-        setRevisionVinculos(valor => valor + 1);
-        setCandidateDetalles([]);
-        setIsPaymentModalOpen(false);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'No se pudo vincular el recibo.');
-      }
-      return;
-    }
-    const statusToWrite = paymentInput.trim() || 'PENDIENTE';
-    if (statusToWrite === 'PENDIENTE') {
-      try {
-        if (await tieneVinculoExplicitoPlan(selectedPlan.id, [selectedPaymentIndex])) {
-          toast.error('Este pago conserva un vínculo explícito con un recibo. Concílialo antes de cambiar el estatus.');
-          return;
-        }
-      } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudieron comprobar los vínculos.'); return; }
-      const nombreCiclo = ciclos.find(ciclo => ciclo.id === selectedPlan.ciclo_id)?.nombre;
-      const idsHomonomos = ciclos.filter(ciclo => ciclo.nombre === nombreCiclo).map(ciclo => ciclo.id);
-      const { data: recibos, error: errorRecibos } = await supabase.from('recibos')
-        .select('id').eq('alumno_id', selectedPlan.alumno_id)
-        .in('ciclo_id', idsHomonomos.length ? idsHomonomos : [selectedPlan.ciclo_id]);
-      if (errorRecibos) { toast.error(errorRecibos.message); return; }
-      if (recibos?.length) {
-        const { data: detalles, error: errorDetalles } = await supabase.from('recibos_detalles')
-          .select('id').in('recibo_id', recibos.map(recibo => recibo.id))
-          .eq('indice_concepto_plan', selectedPaymentIndex).limit(1);
-        if (errorDetalles) { toast.error(errorDetalles.message); return; }
-        if (detalles?.length) {
-          toast.error('Este pago tiene un recibo vinculado. Revísalo antes de cambiar el estatus.');
-          return;
-        }
-      }
-    }
-    const updatedPlan = { ...selectedPlan, [`estatus_${selectedPaymentIndex}`]: statusToWrite };
-    if (updatedPlan.detalles?.length) {
-      updatedPlan.detalles = updatedPlan.detalles.map(detalle =>
-        detalle.indice_concepto === selectedPaymentIndex ? { ...detalle, estatus: statusToWrite } : detalle);
-    }
-    if (!await onSavePlan(updatedPlan)) return;
-    if (updatedPlan.detalles?.some(detalle => detalle.indice_concepto === selectedPaymentIndex)) {
-      const { error } = await supabase.from('planes_pago_detalles').update({ estatus: statusToWrite })
-        .eq('plan_id', selectedPlan.id).eq('indice_concepto', selectedPaymentIndex);
-      if (error) {
-        toast.error(`El texto se guardó en el plan, pero no en su detalle: ${error.message}`);
-        await refreshPlans();
-        return;
-      }
-    }
-    await refreshPlans();
-    setCandidateDetalles([]);
-    setIsPaymentModalOpen(false);
+    if (guardandoEstatusRef.current) return;
+    if (paymentInput === estatusOriginal.current.visible) { setIsPaymentModalOpen(false); return; }
+    guardandoEstatusRef.current = true; setGuardandoEstatus(true);
+    try {
+      await guardarObservacionFinanciera(selectedPlan.id, selectedPaymentIndex, estatusOriginal.current.raw, paymentInput.trim() || 'PENDIENTE');
+      setIsPaymentModalOpen(false); toast.success('Observación del pago guardada.');
+    } finally { guardandoEstatusRef.current = false; setGuardandoEstatus(false); }
   };
 
   const openEditPlanModal = () => {
@@ -1473,182 +1312,23 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
   const paymentIndices = Array.from({ length: maxPayments }, (_, i) => i + 1);
 
   // Pestañas dinámicas para estudiantes con múltiples planes
-  const studentAllPlans = ordenarHistorialPlanes(plans.filter(p => p.alumno_id === selectedPlan.alumno_id), ciclos);
+  const studentAllPlans = ordenarHistorialPlanes(planesConsulta.filter(p => p.alumno_id === selectedPlan.alumno_id), ciclos);
 
   return (
-    <div className="w-full p-2 md:p-6 flex flex-col items-center justify-start font-sans print:p-0">
-      
-      {/* Top Action Bar - Hidden in Print (Movido estilo Stack para responsividad y claridad) */}
-      <div className="flex flex-col gap-4 mb-6 w-full max-w-[816px] mx-auto print:hidden relative z-30">
-        
-        {/* Row 1: Back Buttons & Mobile Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 text-[#45515e] dark:text-gray-200 hover:text-black dark:hover:text-white font-bold transition-colors shrink-0"
-            >
-              <ArrowLeft size={18} /> <span className="text-sm">{origenComunicados ? 'Volver a Comunicados' : 'Volver al Inicio'}</span>
-            </button>
-            
-            {onBackToFicha && (
-              <>
-                <div className="hidden sm:block w-px h-5 bg-gray-300"></div>
-                <button
-                  onClick={() => onBackToFicha(selectedPlan.alumno_id!)}
-                  className="flex items-center gap-2 text-[#1456f0] hover:text-indigo-900 font-bold transition-colors shrink-0"
-                >
-                  <User size={16} /> <span className="text-sm">Regresar a Ficha</span>
-                </button>
-              </>
-            )}
-
-            {onBackToReceipt && (
-              <>
-                <div className="hidden sm:block w-px h-5 bg-gray-300"></div>
-                <button
-                  onClick={onBackToReceipt}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-[8px] bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 transition-colors shrink-0"
-                >
-                  <ArrowLeft size={13} /> Volver al Recibo
-                </button>
-              </>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-2 shrink-0">
-            {canManagePlans && (
-              <button 
-                onClick={() => setIsNewPlanModalOpen(true)} 
-                className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white rounded-[8px] shadow-[var(--shadow-subtle)] gap-2 transition-colors font-medium"
-                title={`Crear nuevo plan (${currentUser.rol})`}
-              >
-                <Plus size={18} /> <span className="hidden xl:inline">Nuevo Plan</span>
-              </button>
-            )}
-            {canEditPlan && (
-              <button 
-                onClick={openEditPlanModal} 
-                className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-white hover:bg-[#f2f3f5] text-[#222222] border border-gray-300 rounded-[8px] shadow-[var(--shadow-subtle)] gap-2 transition-all font-bold text-sm"
-                title={`Editar plan (${currentUser.rol})`}
-              >
-                <Edit size={18} /> <span className="hidden xl:inline">Editar</span>
-              </button>
-            )}
-            <button 
-              onClick={handleGeneratePDF} 
-              disabled={isGeneratingPDF} 
-              className="flex items-center justify-center p-2 xl:px-4 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-[8px] shadow-[var(--shadow-subtle)] disabled:opacity-50 gap-2 transition-all font-bold text-sm"
-            >
-              {isGeneratingPDF ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
-              <span className="hidden xl:inline">{isGeneratingPDF ? 'Generando...' : 'PDF / Imprimir'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Row 2: Navegación Móvil y Búsqueda */}
-        <div className="relative z-20 w-full xl:max-w-md mx-auto xl:mx-0 flex flex-col gap-3" ref={mainSearchRef}>
-          
-          {/* Navegación Móvil/Tablet */}
-          <div className="flex xl:hidden justify-between items-center gap-2 w-full mt-2">
-            <button
-              onClick={() => prevPlan && jumpToPlan(prevPlan)}
-              disabled={!prevPlan}
-              className="flex items-center justify-center py-2 px-3 bg-white dark:bg-[#1c2228] hover:bg-[#eef2ff] text-[#45515e] dark:text-gray-300 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] shadow-[var(--shadow-subtle)] disabled:opacity-40 transition-colors w-full gap-1 active:scale-95"
-            >
-              <ChevronLeft size={16} /> <span className="text-sm font-semibold truncate max-w-[90px]">{prevPlan ? getAlumnoName(prevPlan).split(' ')[0] : 'Inicio'}</span>
-            </button>
-            <span className="text-xs font-bold text-[#8e8e93] min-w-fit px-2 whitespace-nowrap">
-               {safeCurrentIndex + 1} de {sortedActivePlans.length}
-            </span>
-            <button
-              onClick={() => nextPlan && jumpToPlan(nextPlan)}
-              disabled={!nextPlan}
-              className="flex items-center justify-center py-2 px-3 bg-white dark:bg-[#1c2228] hover:bg-[#eef2ff] text-[#45515e] dark:text-gray-300 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] shadow-[var(--shadow-subtle)] disabled:opacity-40 transition-colors w-full gap-1 active:scale-95"
-            >
-              <span className="text-sm font-semibold truncate max-w-[90px]">{nextPlan ? getAlumnoName(nextPlan).split(' ')[0] : 'Fin'}</span> <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="bg-white border border-gray-400 p-2.5 rounded-[8px] flex items-center shadow-[var(--shadow-subtle)] w-full transition-shadow focus-within:ring-2 focus-within:ring-indigo-500/50">
-            <Search size={18} className="text-[#8e8e93] mr-2 shrink-0" />
-            <input
-              type="text"
-              className="w-full bg-transparent outline-none text-sm font-bold min-w-0"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              onFocus={() => setShowSuggestions(true)}
-              placeholder="Buscar por nombre, matrícula, folio o ciclo..."
-            />
-            {searchTerm && (
-              <button
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setSearchTerm('');
-                  setShowSuggestions(true);
-                }}
-                className="text-[#8e8e93] hover:text-[#222222] ml-2"
-                title="Limpiar búsqueda"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          {showSuggestions && (
-            <div className="absolute top-[105%] left-0 w-full bg-white border border-gray-400 rounded-[8px] max-h-60 overflow-y-auto shadow-[var(--shadow-brand)] z-50">
-              {filteredPlans.length > 0 ? (
-                <>
-                {filteredPlans.slice(0, limiteSugerencias).map(p => (
-                  <div
-                    key={p.id}
-                    className="p-3 hover:bg-indigo-50 cursor-pointer text-sm border-b border-[#f2f3f5] last:border-none font-medium text-[#45515e] transition-colors"
-                    onClick={() => handleSuggestionClick(p)}
-                  >
-                    {getAlumnoName(p)}
-                    <span className="ml-2 text-xs text-slate-500">
-                      {alumnos.find(alumno => alumno.id === p.alumno_id)?.matricula || ''} · {p.no_plan_pagos || 'sin folio'} · {p.ciclo_escolar} · {ciclos.find(ciclo => ciclo.id === p.ciclo_id)?.tipo_periodo || 'sin ciclo'}
-                    </span>
-                  </div>
-                ))}
-                {filteredPlans.length > limiteSugerencias && <button type="button" onClick={() => setLimiteSugerencias(valor => valor + 30)}
-                  className="w-full p-3 text-center text-sm font-semibold text-blue-700 hover:bg-blue-50">
-                  Mostrar más ({filteredPlans.length - limiteSugerencias} restantes)
-                </button>}
-                </>
-              ) : (
-                <div className="p-3 text-sm text-[#8e8e93] text-center">No hay coincidencias</div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="w-full max-w-[1000px] mx-auto relative flex justify-center">
-        {/* --- Navegación Flotante Desktop --- */}
-        <div className="hidden xl:flex absolute top-[40%] -left-8 -translate-y-1/2 z-40 print:hidden items-center h-16 w-16">
-          <button
-            onClick={() => prevPlan && jumpToPlan(prevPlan)}
-            disabled={!prevPlan}
-            title={prevPlan ? `Anterior: ${getAlumnoName(prevPlan)}` : 'Primer plan'}
-            className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-[var(--shadow-brand)] shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-[#45515e] dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-[#1456f0] dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
-          >
-            <ChevronLeft size={36} className="group-hover:-translate-x-1 transition-transform" />
-          </button>
-        </div>
-
-        <div className="hidden xl:flex absolute top-[40%] -right-8 -translate-y-1/2 z-40 print:hidden items-center h-16 w-16">
-          <button
-            onClick={() => nextPlan && jumpToPlan(nextPlan)}
-            disabled={!nextPlan}
-            title={nextPlan ? `Siguiente: ${getAlumnoName(nextPlan)}` : 'Último plan'}
-            className="w-full h-full flex items-center justify-center rounded-full bg-white/50 dark:bg-gray-800/80 shadow-[var(--shadow-brand)] shadow-black/10 border-2 border-transparent hover:border-indigo-100 text-[#45515e] dark:text-gray-300 hover:bg-white dark:hover:bg-indigo-900/40 hover:text-[#1456f0] dark:hover:text-indigo-400 disabled:opacity-0 disabled:pointer-events-none transition-all duration-300 backdrop-blur-md group"
-          >
-            <ChevronRight size={36} className="group-hover:translate-x-1 transition-transform" />
-          </button>
-        </div>
-
-        <div className="w-full max-w-[816px] overflow-x-auto pb-4 custom-scrollbar relative z-10">
+    <div className="planes-consulta" ref={consultaRef}>
+      <BarraConsultaPlanesPago periodo={periodoConsulta} periodos={periodosFinancieros(ciclos, plans)}
+        onPeriodo={p => solicitarSalida(() => setPeriodoConsulta(p))} planes={planesConsulta} alumnos={alumnos} ciclos={ciclos}
+        busqueda={searchTerm} onBusqueda={setSearchTerm} onSeleccion={jumpToPlan}
+        onBack={() => solicitarSalida(onBack)} textoVolver={origenComunicados ? 'Volver a Comunicados' : 'Volver al Inicio'}
+        onFicha={onBackToFicha ? () => solicitarSalida(() => onBackToFicha(selectedPlan.alumno_id!)) : undefined}
+        onRecibo={onBackToReceipt ? () => solicitarSalida(onBackToReceipt) : undefined}
+        onNuevo={canManagePlans ? () => setIsNewPlanModalOpen(true) : undefined}
+        onEditar={canEditPlan ? openEditPlanModal : undefined} onPdf={handleGeneratePDF} generando={isGeneratingPDF}/>
+      <section className="planes-calendario" aria-label="Consulta del calendario de pagos">
+        <CabeceraPlanesAlumno seleccionado={selectedPlan} planesAlumno={studentAllPlans} ciclos={ciclos}
+          nombreAlumno={selectedPlan.nombre_alumno || alumnos.find(a => a.id === selectedPlan.alumno_id)?.nombre_completo || 'Alumno sin nombre'}
+          indice={safeCurrentIndex} total={sortedActivePlans.length} anterior={prevPlan} siguiente={nextPlan} onSeleccion={jumpToPlan}/>
+        <div className="planes-calendario-documento custom-scrollbar">
         {requiereRevisionAsociacion && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 print:hidden">
             <p>Asociación por revisar: este plan {selectedPlan.tipo_plan} está registrado en un ciclo {ciclos.find(c => c.id === selectedPlan.ciclo_id)?.tipo_periodo || 'de tipo desconocido'}.</p>
@@ -1661,27 +1341,8 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
         )}
         <div
           ref={printRef}
-          className="bg-white text-black shadow-none sm:shadow-xl sm:rounded-[8px] w-full min-w-[650px] mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0 print:min-w-0"
+          className="bg-white text-black shadow-none sm:shadow-xl sm:rounded-[8px] w-full max-w-[816px] min-w-[650px] mx-auto p-4 md:p-8 relative print:shadow-none print:border-none print:p-0 print:min-w-0"
         >
-
-        {studentAllPlans.length > 1 && (
-          <div data-html2canvas-ignore="true" className="flex flex-wrap gap-2 mb-6 border-b border-[#e5e7eb] w-full overflow-x-auto print:hidden">
-            {studentAllPlans.map(plan => (
-              <button 
-                key={plan.id}
-                onClick={() => setSelectedPlanId(plan.id)}
-                className={`px-4 py-3 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${
-                  plan.id === selectedPlan.id 
-                    ? 'border-indigo-600 text-[#1456f0] bg-indigo-50/50' 
-                    : 'border-transparent text-[#8e8e93] hover:text-[#45515e] hover:border-gray-300 hover:bg-[#f2f3f5]'
-                }`}
-              >
-                Plan {plan.tipo_plan || 'Cuatrimestral'} · {ciclos.find(ciclo => ciclo.id === plan.ciclo_id)?.tipo_periodo || 'sin ciclo'}
-                {plan.ciclo_escolar ? ` · ${plan.ciclo_escolar}` : ''}
-              </button>
-            ))}
-          </div>
-        )}
 
         <h1 className="text-2xl font-bold text-center mb-6 tracking-wide">
           CALENDARIOS DE PAGOS CICLO {selectedPlan.ciclo_escolar}
@@ -1777,10 +1438,11 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                     <td className="border border-black p-2 text-sm text-center">
                       <select
                         className="w-full bg-transparent outline-none text-center text-blue-600 font-semibold appearance-none cursor-pointer print:text-black"
-                        value={selectedPlanId}
+                        value={selectedPlan.id}
+                        aria-label="Plan mostrado en el documento"
                         onChange={handleStudentChange}
                       >
-                        {plans.map(p => (
+                        {planesConsulta.map(p => (
                           <option key={p.id} value={p.id}>{getAlumnoName(p)} · {p.ciclo_escolar} · {ciclos.find(ciclo => ciclo.id === p.ciclo_id)?.tipo_periodo || 'sin ciclo'}</option>
                         ))}
                       </select>
@@ -1793,173 +1455,22 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
           </div>
         </div>
 
-      </div>
-      </div>
-
-      {/* Payment Modal */}
-      {isPaymentModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-[13px] shadow-xl w-full max-w-lg overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-[#f2f3f5]">
-              <div>
-                <h3 className="text-base font-bold text-[#222222]">
-                  Estatus de Pago
-                </h3>
-                <p className="text-xs text-[#8e8e93] mt-0.5">
-                  {getConceptData(selectedPlan, selectedPaymentIndex)?.concepto} · {toTitleCase(selectedPlan.nombre_alumno)}
-                </p>
-              </div>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="text-[#8e8e93] hover:text-[#45515e]">
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex border-b border-[#e5e7eb]">
-              <button
-                onClick={() => setPaymentModalTab('manual')}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                  paymentModalTab === 'manual'
-                    ? 'border-blue-600 text-blue-700'
-                    : 'border-transparent text-[#8e8e93] hover:text-[#45515e]'
-                }`}
-              >
-                <Edit size={15} /> Manual
-              </button>
-              <button
-                onClick={() => { setPaymentModalTab('vincular'); if (candidateDetalles.length === 0) loadCandidateRecibos(); }}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                  paymentModalTab === 'vincular'
-                    ? 'border-emerald-600 text-emerald-700'
-                    : 'border-transparent text-[#8e8e93] hover:text-[#45515e]'
-                }`}
-              >
-                <Link2 size={15} /> Vincular Recibo
-              </button>
-            </div>
-
-            {/* Tab: Manual */}
-            {paymentModalTab === 'manual' && (
-              <div className="p-6">
-                <label className="block text-sm font-medium text-[#45515e] mb-2">
-                  Número de Recibo / Estatus
-                </label>
-                <input
-                  type="text"
-                  className="w-full border border-gray-300 rounded-[8px] p-3 outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-blue-500"
-                  placeholder="Ej. R-123 (Pagado)"
-                  value={paymentInput}
-                  onChange={(e) => setPaymentInput(e.target.value)}
-                  autoFocus
-                />
-                <p className="text-xs text-[#8e8e93] mt-2">
-                  Puedes editar la observación como antes. Los folios R- enlazan al recibo; cambiar el texto no crea ni elimina vínculos. Un concepto con recibo vinculado no puede marcarse como pendiente.
-                </p>
-              </div>
-            )}
-
-            {/* Tab: Vincular */}
-            {paymentModalTab === 'vincular' && (
-              <div className="p-4">
-                {loadingRecibos ? (
-                  <div className="flex items-center justify-center py-8 text-[#8e8e93] gap-2">
-                    <Loader2 size={20} className="animate-spin" /> Buscando recibos...
-                  </div>
-                ) : candidateDetalles.length === 0 ? (
-                  <div className="text-center py-8 text-[#8e8e93]">
-                    <FileText size={32} className="mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">No hay recibos candidatos para este concepto.</p>
-                    <p className="text-xs mt-1 text-[#8e8e93]">Se buscan recibos del mismo alumno y periodo nominal en ambos IDs de ciclo.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                    {candidateDetalles.map(d => {
-                      const confirmado = d._estadoVinculo === 'confirmado';
-                      const seleccionable = !confirmado && d._estadoVinculo !== 'revisar'
-                        && (d._estadoVinculo !== 'historico' || canConciliarHistoricos);
-                      return <div
-                        key={d.id}
-                        className={`flex items-center gap-3 p-3 rounded-[8px] border transition-all ${
-                          selectedDetalleId === d.id
-                            ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400'
-                            : 'border-[#e5e7eb] hover:border-gray-300 hover:bg-[#f2f3f5]'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="recibo-vincular"
-                          className="accent-emerald-600 w-4 h-4 shrink-0"
-                          checked={selectedDetalleId === d.id}
-                          disabled={!seleccionable}
-                          aria-label={`Seleccionar recibo ${d._recibo?.folio ?? ''}: ${d.concepto}`}
-                          onChange={() => { setSelectedDetalleId(d.id); setImporteHistorico(String(d.subtotal ?? '')); }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-emerald-700">R-{d._recibo?.folio ?? '—'}: {d.concepto}</span>
-                            <span className="text-xs text-[#8e8e93]">{d._recibo?.fecha_pago}</span>
-                            <span className="text-xs font-semibold text-[#45515e] ml-auto">${Number(d.subtotal || 0).toFixed(2)}</span>
-                          </div>
-                          <p className="text-xs text-[#8e8e93]">{d._recibo?.forma_pago} · {d._recibo?.banco} · {ciclos.find(ciclo => ciclo.id === d._recibo?.ciclo_id)?.tipo_periodo || 'sin tipo'}</p>
-                          <p className="mt-1 text-xs font-semibold text-slate-600">
-                            {confirmado ? 'Vínculo confirmado con este plan' : d._estadoVinculo === 'revisar'
-                              ? 'El índice del recibo apunta a otro concepto; requiere revisión'
-                              : d._estadoVinculo === 'historico'
-                              ? d._conceptoCoincide ? 'Vínculo histórico: requiere conciliación financiera'
-                                : 'Texto distinto: confirma manualmente que corresponde a este concepto'
-                              : 'Detalle libre del mismo ciclo'}
-                          </p>
-                        </div>
-                        {onViewReceipt && <button type="button"
-                          onClick={() => onViewReceipt(String(d._recibo?.folio), selectedPlan.alumno_id!)}
-                          className="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">
-                          Ver recibo
-                        </button>}
-                      </div>;
-                    })}
-                  </div>
-                )}
-                {selectedDetalleId && (
-                  <div className="mt-3 space-y-2">
-                  <p className="text-xs text-emerald-600 font-semibold">
-                    {candidateDetalles.find(d => d.id === selectedDetalleId)?._estadoVinculo === 'historico'
-                      ? 'Confirma el detalle y el importe. El folio se mostrará en el plan sin cambiar el recibo ni el monedero.'
-                      : `Se vinculará el abono de $${Number(candidateDetalles.find(d => d.id === selectedDetalleId)?.subtotal || 0).toFixed(2)} a este concepto.`}
-                  </p>
-                  {candidateDetalles.find(d => d.id === selectedDetalleId)?._estadoVinculo === 'historico' &&
-                    <label className="block text-xs font-semibold text-slate-700">Importe a vincular (admite abono parcial)
-                      <input type="number" min="0.01" step="0.01" value={importeHistorico}
-                        onChange={event => setImporteHistorico(event.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-                    </label>}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="p-5 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-between items-center gap-3">
-              <button
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
-              >
-                Cancelar
-              </button>
-              <div className="flex items-center gap-2">
-                {!paymentInput && paymentModalTab === 'manual' && (
-                  <span className="text-xs text-amber-600">Se guardará como PENDIENTE</span>
-                )}
-                <button
-                  onClick={handleSavePayment}
-                  disabled={paymentModalTab === 'vincular' && !selectedDetalleId}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[8px] font-medium transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Save size={16} /> Guardar
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
-      )}
+        </div>
+      </section>
+
+      {isPaymentModalOpen && paymentModalTab === 'manual' && <ModalConfirmacion isOpen type="info" title="Observación del pago / número de recibo" busy={guardandoEstatus}
+        confirmText="Guardar observación" onConfirm={handleSavePayment} onCancel={() => solicitarSalida(() => setIsPaymentModalOpen(false))}
+        message={<div className="space-y-3 text-left text-gray-800 dark:text-gray-200">
+          <p className="font-semibold">{describirPlan(selectedPlan, ciclos)}</p>
+          <p>{getConceptData(selectedPlan, selectedPaymentIndex)?.concepto} · {selectedPlan.nombre_alumno}</p>
+          <label className="block text-sm font-semibold">Observación editable<textarea value={paymentInput} onChange={e => setPaymentInput(e.target.value)} disabled={guardandoEstatus} maxLength={2000} className="mt-1 min-h-24 w-full rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></label>
+          <p className="text-xs">Escribir un folio R- conserva su enlace. Este texto no crea ni elimina vínculos ni cambia el monedero.</p>
+          <button type="button" disabled={guardandoEstatus} className="text-blue-700 underline dark:text-blue-300" onClick={() => solicitarSalida(() => setPaymentModalTab('vincular'))}>Vincular un recibo con este concepto</button>
+        </div>} />}
+      {isPaymentModalOpen && paymentModalTab === 'vincular' && <ModalVinculacionFinanciera plan={selectedPlan} indice={selectedPaymentIndex}
+        onClose={() => setIsPaymentModalOpen(false)} onManual={() => setPaymentModalTab('manual')}
+        onApplied={() => setRevisionVinculos(v => v+1)} />}
 
       {/* Edit Plan Modal */}
       {isEditPlanModalOpen && (
@@ -1976,19 +1487,16 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
 
             <div className="p-6 overflow-y-auto flex-grow">
               {(currentUser.rol === 'ADMINISTRADOR' || currentUser.rol === 'COORDINADOR FINANCIERO') &&
-                <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <p className="text-sm font-semibold text-slate-900">Asociación con el ciclo escolar</p>
-                  <p className="mt-1 text-xs text-slate-600">Registrado: {ciclos.find(ciclo => ciclo.id === selectedPlan.ciclo_id)?.nombre || selectedPlan.ciclo_escolar} · {ciclos.find(ciclo => ciclo.id === selectedPlan.ciclo_id)?.tipo_periodo || 'sin tipo'}{periodicidadAcademicaEdicion ? ` · Plan académico: ${periodicidadAcademicaEdicion}` : ''}</p>
+                <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Asociación con el ciclo escolar</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Registrado: {ciclos.find(ciclo => ciclo.id === selectedPlan.ciclo_id)?.nombre || selectedPlan.ciclo_escolar} · {ciclos.find(ciclo => ciclo.id === selectedPlan.ciclo_id)?.tipo_periodo || 'sin tipo'}{periodicidadAcademicaEdicion ? ` · Plan académico: ${periodicidadAcademicaEdicion}` : ''}</p>
                   <div className="mt-3 flex flex-wrap items-end gap-3">
-                    <div className="min-w-[220px] flex-1">
-                      <label htmlFor="ciclo-propuesto-edicion" className="block text-xs font-semibold text-slate-700">Ciclo correcto propuesto</label>
-                      <select id="ciclo-propuesto-edicion" value={cicloPropuestoEdicionId}
-                        onChange={event => setCicloPropuestoEdicionId(event.target.value)}
-                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
-                        <option value="">Selecciona el ciclo exacto</option>
-                        {[...ciclos].sort((a, b) => b.nombre.localeCompare(a.nombre, 'es-MX')).map(ciclo =>
-                          <option key={ciclo.id} value={ciclo.id}>{ciclo.nombre} · {ciclo.tipo_periodo}</option>)}
-                      </select>
+                    <div className="w-full max-w-[300px]">
+                      <label htmlFor="ciclo-propuesto-edicion" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">Ciclo correcto propuesto</label>
+                      <SelectorBusqueda id="ciclo-propuesto-edicion" value={cicloPropuestoEdicionId} onChange={setCicloPropuestoEdicionId}
+                        etiqueta="Ciclo correcto propuesto" placeholder="Selecciona el ciclo exacto"
+                        opciones={[{value:'',label:'Selecciona el ciclo exacto'},...[...ciclos].sort((a,b)=>b.nombre.localeCompare(a.nombre,'es-MX',{numeric:true})||(a.tipo_periodo||'').localeCompare(b.tipo_periodo||'','es-MX')).map(c=>({value:c.id,label:`${c.nombre} · ${c.tipo_periodo}`}))]}/>
+
                     </div>
                     <button type="button" disabled={!cicloPropuestoEdicionId || cicloPropuestoEdicionId === selectedPlan.ciclo_id}
                       onClick={() => { setCicloDestinoRevisionId(cicloPropuestoEdicionId); setIsEditPlanModalOpen(false); setRevisandoAsociacion(true); }}
@@ -1996,7 +1504,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                       Revisar cambio de asociación
                     </button>
                   </div>
-                  <p className="mt-2 text-xs text-slate-600">El cambio se revisa por separado y no se guarda desde «Guardar cambios».</p>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">El cambio se revisa por separado y no se guarda desde «Guardar cambios».</p>
                 </div>}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
                 <div>
@@ -2711,8 +2219,6 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
           </div>
         </div>
       </div>
-    </div>
-
     </div>
   );
 }

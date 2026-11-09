@@ -1,3 +1,4 @@
+import DestinosRecibo from './recibos/DestinosRecibo';
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Search, Eye, XCircle, Receipt, RefreshCw, Printer, Loader2, Upload, Download, AlertCircle, Filter, CheckSquare, Trash2, Archive, FileText, ArrowLeft } from 'lucide-react';
@@ -7,7 +8,7 @@ import ReciboPlantillaPDF from './ReciboPlantillaPDF';
 import LoadingSkeleton from './LoadingSkeleton';
 import type { Recibo, ReciboDetalle, PaymentPlan } from '../types';
 import { supabase, cancelarRecibo, fetchAllSupabase, updateReciboFactura } from '../lib/supabase';
-import { conciliarReciboDetallePlan, vincularReciboDetallePlanes } from '../services/asociacionPlanPagoService';
+import ModalVinculacionFinanciera from './recibos/ModalVinculacionFinanciera';
 import { CSV_HEADERS_RECIBOS, generateCSV, downloadCSV, toTitleCase } from '../utils';
 import ImportarRegistrosCSV from './ImportarRegistrosCSV';
 import { useAppStore } from '../store/useAppStore';
@@ -17,7 +18,7 @@ import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacio
 
 interface Props {
   initialSearchTerm?: string;
-  onNavigateToPlan?: (alumnoId: string, folioReciboOrigen?: string) => void;
+  onNavigateToPlan?: (alumnoId: string, folioReciboOrigen?: string, planId?: string) => void;
 }
 
 export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan }: Props) {
@@ -184,15 +185,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
   
   // Vincular Modal State
   const [vincularDetalle, setVincularDetalle] = useState<ReciboDetalle | null>(null);
-  const [planesAlumno, setPlanesAlumno] = useState<PaymentPlan[]>([]);
-  const [linking, setLinking] = useState(false);
-  const [vincularSeleccion, setVincularSeleccion] = useState<{ planId: string; idx: number }[]>([]);
-  const [importeHistorico, setImporteHistorico] = useState('');
-
-  useEffect(() => {
-    setImporteHistorico(vincularDetalle ? String(vincularDetalle.subtotal) : '');
-  }, [vincularDetalle?.id]);
-
+  const [revisionDestinos, setRevisionDestinos] = useState(0);
   // -- Edición de Observaciones --
   const [editandoObsId, setEditandoObsId] = useState<string | null>(null);
   const [tempObsText, setTempObsText] = useState<string>('');
@@ -425,6 +418,8 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
           const { error } = await supabase.rpc('desvincular_detalle_recibo_plan', { p_detalle_id: detalleId });
           if (error) { toast.error('Error: ' + error.message); return; }
 
+          setRevisionDestinos(v => v+1);
+
           setReciboSeleccionado(prev => {
               if (!prev) return prev;
               return {
@@ -435,92 +430,6 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
           if (onDataRefresh) onDataRefresh();
         }
       });
-  };
-
-  useEffect(() => {
-    if (vincularDetalle && reciboSeleccionado) {
-       const nombre = ciclos.find(ciclo => ciclo.id === reciboSeleccionado.ciclo_id)?.nombre;
-       const cicloIds = ciclos.filter(ciclo => ciclo.nombre === nombre).map(ciclo => ciclo.id);
-       supabase.from('planes_pago').select('*, detalles:planes_pago_detalles(*)')
-         .eq('alumno_id', reciboSeleccionado.alumno_id)
-         .in('ciclo_id', cicloIds.length ? cicloIds : [reciboSeleccionado.ciclo_id])
-         .then(({ data }) => setPlanesAlumno((data || []) as PaymentPlan[]));
-    } else {
-       setPlanesAlumno([]);
-       setVincularSeleccion([]);
-    }
-  }, [vincularDetalle, reciboSeleccionado, ciclos]);
-
-  const toggleSeleccion = (planId: string, idx: number) => {
-    setVincularSeleccion(prev => {
-      const key = `${planId}-${idx}`;
-      const exists = prev.some(s => `${s.planId}-${s.idx}` === key);
-      if (exists) return prev.filter(s => `${s.planId}-${s.idx}` !== key);
-      const esOtroId = planesAlumno.find(plan => plan.id === planId)?.ciclo_id !== reciboSeleccionado?.ciclo_id;
-      if (esOtroId) return [{ planId, idx }];
-      return [...prev.filter(s => planesAlumno.find(plan => plan.id === s.planId)?.ciclo_id
-        === reciboSeleccionado?.ciclo_id), { planId, idx }];
-    });
-  };
-
-  const handleConfirmarVinculacion = async () => {
-    if (!vincularDetalle || !reciboSeleccionado || vincularSeleccion.length === 0) return;
-    const esOtroId = vincularSeleccion.some(seleccion =>
-      planesAlumno.find(plan => plan.id === seleccion.planId)?.ciclo_id !== reciboSeleccionado.ciclo_id);
-    if (esOtroId) {
-      if (vincularSeleccion.length !== 1) {
-        toast.error('Para recibos históricos de otro ID, concilia un concepto por vez.');
-        return;
-      }
-      const seleccion = vincularSeleccion[0];
-      const importe = Number(importeHistorico);
-      if (!Number.isFinite(importe) || importe <= 0 || importe > vincularDetalle.subtotal) {
-        toast.error('Indica un abono positivo que no supere el importe del detalle del recibo.');
-        return;
-      }
-      setLinking(true);
-      try {
-        const revision = await conciliarReciboDetallePlan(vincularDetalle.id, seleccion.planId,
-          seleccion.idx, importe);
-        if (!revision.aplicable) throw new Error(revision.motivo || 'El vínculo requiere revisión individual.');
-        const resultado = await conciliarReciboDetallePlan(vincularDetalle.id, seleccion.planId,
-          seleccion.idx, importe, true);
-        if (!resultado.aplicado) throw new Error('El servidor no confirmó la conciliación.');
-        toast.success(resultado.remanente_historico_sin_movimiento
-          ? `Vínculo registrado. Verifica si $${Number(resultado.remanente_historico_sin_movimiento).toFixed(2)} ya fueron al monedero; esta conciliación no modificó el saldo.`
-          : 'Vínculo del recibo con el plan registrado; el estado fiscal se conservó.');
-        setVincularDetalle(null);
-        setVincularSeleccion([]);
-        cargarRecibos();
-        onDataRefresh?.();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'No se pudo conciliar el recibo.');
-      } finally {
-        setLinking(false);
-      }
-      return;
-    }
-    setLinking(true);
-    try {
-      const resultado = await vincularReciboDetallePlanes(vincularDetalle.id, vincularSeleccion);
-      toast.success(resultado.excedente > 0
-        ? `Abono aplicado. Excedente de $${resultado.excedente.toFixed(2)} acreditado al monedero.`
-        : 'Abono aplicado al plan.');
-      setVincularDetalle(null);
-      setVincularSeleccion([]);
-      cargarRecibos();
-      onDataRefresh?.(); // Notificar globalmente la actualización de planes
-      // Actualizar la vista local del recibo seleccionado
-      const firstIdx = vincularSeleccion[0].idx;
-      const updatedDetails = reciboSeleccionado.recibos_detalles.map(d =>
-        d.id === vincularDetalle.id ? { ...d, indice_concepto_plan: firstIdx, observaciones: 'Abono vinculado manualmente al plan' } : d
-      );
-      setReciboSeleccionado({ ...reciboSeleccionado, recibos_detalles: updatedDetails });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo vincular el recibo.');
-    } finally {
-      setLinking(false);
-    }
   };
 
   const handleExportCSV = () => {
@@ -1123,17 +1032,8 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
               </div>
             )}
 
-            {/* Enlace al plan de pagos si tiene conceptos vinculados */}
-            {(reciboSeleccionado.recibos_detalles || []).some(d => d.indice_concepto_plan != null) && onNavigateToPlan && (
-              <div className="mb-5 flex justify-center">
-                <button
-                  onClick={() => onNavigateToPlan(reciboSeleccionado.alumno_id, String(reciboSeleccionado.folio))}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[13px] text-sm font-bold bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors shadow-[var(--shadow-subtle)]"
-                >
-                  Ver Plan de Pagos Asociado
-                </button>
-              </div>
-            )}
+            <DestinosRecibo key={`${revisionDestinos}:${JSON.stringify(reciboSeleccionado.recibos_detalles)}`} detalleIds={(reciboSeleccionado.recibos_detalles || []).map(d=>d.id)}
+              onVerPlan={onNavigateToPlan ? planId => onNavigateToPlan(reciboSeleccionado.alumno_id, String(reciboSeleccionado.folio), planId) : undefined} />
 
             {/* Info cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
@@ -1267,7 +1167,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                       {d.indice_concepto_plan ? (
                         <div className="flex items-center gap-1 mt-0.5">
                           <span className="inline-block text-[10px] text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full font-semibold border border-blue-200 dark:border-blue-800">
-                            Plan #{d.indice_concepto_plan}
+                            Concepto #{d.indice_concepto_plan} (referencia histórica)
                           </span>
                           <button 
                              onClick={() => handleUnlinkDetail(d.id)}
@@ -1471,117 +1371,17 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
       )}
 
       {/* Modal Vincular Múltiple */}
-      {vincularDetalle && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[13px] shadow-xl w-full max-w-md flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-[#f2f3f5] bg-[#f2f3f5]">
-              <h3 className="font-bold text-[#222222]">Vincular a Plan de Pagos</h3>
-              <button onClick={() => { setVincularDetalle(null); setVincularSeleccion([]); }} className="p-1 hover:bg-gray-200 rounded-[8px]"><XCircle size={18} className="text-[#8e8e93]" /></button>
-            </div>
-
-            {/* Cabecera informativa */}
-            <div className="px-6 pt-5 pb-3">
-              <p className="text-sm text-[#45515e] mb-1">
-                Concepto del recibo: <strong className="text-[#222222]">{vincularDetalle.concepto}</strong>
-              </p>
-              <p className="text-sm text-[#45515e]">
-                Monto: <strong className="text-emerald-700">${vincularDetalle.subtotal.toFixed(2)}</strong>
-              </p>
-              <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-[8px] p-2 mt-3">
-                Los conceptos del mismo ID se aplican al saldo del plan y el excedente va al monedero. Para otro ID del mismo periodo, elige un concepto y confirma el importe; el vínculo histórico conserva el recibo, el estatus del plan y el monedero.
-              </p>
-              {vincularSeleccion.some(seleccion => planesAlumno.find(plan => plan.id === seleccion.planId)?.ciclo_id
-                !== reciboSeleccionado?.ciclo_id) &&
-                <label className="mt-3 block text-xs font-semibold text-slate-700">Importe a vincular (admite abono parcial)
-                  <input type="number" min="0.01" step="0.01" value={importeHistorico}
-                    onChange={event => setImporteHistorico(event.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-                </label>}
-            </div>
-
-            <div className="px-6 pb-4 overflow-y-auto max-h-72">
-              {planesAlumno.length === 0 ? (
-                <div className="bg-amber-50 border border-amber-200 p-3 rounded-[8px] text-sm text-amber-800 text-center">
-                  El alumno no tiene un plan de pagos activo en este ciclo escolar.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {planesAlumno.filter(plan => !vincularDetalle.indice_concepto_plan
-                    || plan.ciclo_id !== reciboSeleccionado?.ciclo_id).map(plan => {
-                    const pendientes = [];
-                    for (let i = 1; i <= 18; i++) {
-                      const detalle = plan.detalles?.find(d => d.indice_concepto === i);
-                      const c = detalle?.concepto || (plan as any)[`concepto_${i}`];
-                      const e = detalle?.estatus || (plan as any)[`estatus_${i}`];
-                      if (c && (!vincularDetalle.indice_concepto_plan
-                        || i === vincularDetalle.indice_concepto_plan)
-                        && (plan.ciclo_id !== reciboSeleccionado?.ciclo_id
-                        || !(e || '').toUpperCase().includes('PAGADO'))) {
-                        pendientes.push({ idx: i, concepto: c });
-                      }
-                    }
-                    return (
-                      <div key={plan.id}>
-                        <div className="text-xs font-bold text-[#8e8e93] mb-2 uppercase tracking-wide">Plan: {plan.no_plan_pagos} · {ciclos.find(ciclo => ciclo.id === plan.ciclo_id)?.tipo_periodo || 'sin periodicidad'}{plan.ciclo_id !== reciboSeleccionado?.ciclo_id ? ' · ciclo homónimo distinto' : ''}</div>
-                        {pendientes.length === 0 ? (
-                          <div className="text-sm text-[#8e8e93] italic">No hay conceptos PENDIENTES.</div>
-                        ) : (
-                          <div className="flex flex-col gap-2">
-                            {pendientes.map(p => {
-                              const isSelected = vincularSeleccion.some(s => s.planId === plan.id && s.idx === p.idx);
-                              return (
-                                <label
-                                  key={p.idx}
-                                  className={`flex items-center gap-3 p-2.5 rounded-[8px] border cursor-pointer transition-colors ${
-                                    isSelected
-                                      ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-300'
-                                      : 'bg-white border-[#e5e7eb] hover:border-blue-300 hover:bg-[rgba(0,0,0,0.03)]/40'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    className="w-4 h-4 rounded text-blue-600 focus:ring-[#3b82f6] border-gray-300 cursor-pointer"
-                                    checked={isSelected}
-                                    onChange={() => toggleSeleccion(plan.id, p.idx)}
-                                  />
-                                  <span className="font-semibold text-[#45515e] text-sm">{p.idx}. {p.concepto}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-[#f2f3f5] flex items-center justify-between gap-3">
-              <button
-                disabled={linking}
-                onClick={() => { setVincularDetalle(null); setVincularSeleccion([]); }}
-                className="px-4 py-2 text-sm font-semibold text-[#45515e] hover:bg-gray-100 rounded-[8px]"
-              >
-                Cancelar
-              </button>
-              <button
-                disabled={linking || vincularSeleccion.length === 0}
-                onClick={handleConfirmarVinculacion}
-                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-[8px] text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-[var(--shadow-subtle)]"
-              >
-                {linking ? <Loader2 size={15} className="animate-spin" /> : null}
-                {linking
-                  ? 'Vinculando...'
-                  : vincularSeleccion.length === 0
-                  ? 'Selecciona conceptos'
-                  : `Vincular ${vincularSeleccion.length} concepto${vincularSeleccion.length > 1 ? 's' : ''}`
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {vincularDetalle && reciboSeleccionado && <ModalVinculacionFinanciera recibo={reciboSeleccionado} detalle={vincularDetalle}
+        onClose={() => setVincularDetalle(null)}
+        onVerPlan={onNavigateToPlan ? planId => onNavigateToPlan(reciboSeleccionado.alumno_id, String(reciboSeleccionado.folio), planId) : undefined}
+        onApplied={async id => {
+          const { data, error } = await supabase.from('recibos').select('*, recibos_detalles(*)').eq('id', id).single();
+          if (error) throw new Error(error.message);
+          const actualizado = { ...reciboSeleccionado, ...data };
+          setReciboSeleccionado(actualizado);
+          setRevisionDestinos(v => v+1);
+          setRecibos(prev => prev.map(r => r.id === id ? actualizado : r));
+        }} />}
 
       {/* Modal Confirmación Custom */}
       {confirmModal.isOpen && (

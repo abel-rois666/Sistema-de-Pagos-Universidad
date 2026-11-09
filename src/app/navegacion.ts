@@ -1,3 +1,5 @@
+import { ROLES_REPORTE_PAGOS } from './capacidades';
+
 export interface TareaArea { titulo: string; descripcion: string; ruta: string; roles: readonly string[]; area: 'escolar' | 'academico' | 'finanzas' | 'rh' }
 const escolar = ['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'];
 const academico = ['ADMINISTRADOR', 'COORDINADOR ACADEMICO'];
@@ -16,6 +18,7 @@ export const tareasAreas: readonly TareaArea[] = [
   { titulo: 'Estadística 911', descripcion: 'Preparar y revisar el expediente estadístico anual.', ruta: '/estadistica-911', area: 'escolar', roles: [...escolar, ...academico, 'COORDINADOR FINANCIERO', 'COORDINADOR RECURSOS HUMANOS'] },
   { titulo: 'Docentes', descripcion: 'Administrar el directorio docente.', ruta: '/docentes', area: 'academico', roles: academico },
   { titulo: 'Horarios', descripcion: 'Configurar, generar y publicar horarios.', ruta: '/horarios', area: 'academico', roles: academico },
+  { titulo: 'Pagos y adeudos por alumno', descripcion: 'Consultar planes, pagos y adeudos por ciclo y exportar el reporte.', ruta: '/pagos-adeudos-alumnos', area: 'finanzas', roles: ROLES_REPORTE_PAGOS },
   { titulo: 'Resumen financiero', descripcion: 'Consultar indicadores y operaciones financieras.', ruta: '/', area: 'finanzas', roles: finanzas },
   { titulo: 'Planes de pago', descripcion: 'Consultar todos los planes y su estado.', ruta: '/plan-pagos', area: 'finanzas', roles: finanzas },
   { titulo: 'Registrar pago', descripcion: 'Capturar un cobro y confirmar su ciclo contable.', ruta: '/control-ingresos/registrar', area: 'finanzas', roles: finanzas },

@@ -1,43 +1,38 @@
-import EstadoError from './ui/EstadoError';
-import SeleccionVisible from './ui/SeleccionVisible';
-import { cambiarSeleccionVisible } from '../utils/seleccionVisible';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import DirectorioPersonal from './personal/DirectorioPersonal';
+import MenuDirectorio from './personal/MenuDirectorio';
+import { consultarDocentesDirectorio, consultarPersonasVinculadas, type DocenteDirectorio } from '../services/directorioPersonalService';
+import { estadoCuentaPersonal, type FilaDirectorioPersonal } from '../personal/directorio';
+import { useDialogoPersonal } from '../hooks/useDialogoPersonal';
 import { supabase } from '../lib/supabase';
 import { Docente } from '../types';
 import ModalDocente from './modals/ModalDocente';
-import { Plus, Edit2, Search, Trash2, ChevronUp, ChevronDown, Eye, X, Key, Loader2 } from 'lucide-react';
+import AltaPersonal from './personal/AltaPersonal';
+import FichaPersonal from './personal/FichaPersonal';
+import type { OrigenPersonal } from '../personal/types';
+import RevisionNombresDocentes from './personal/RevisionNombresDocentes';
+import { useAppStore } from '../store/useAppStore';
+import { Plus, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ModalConfirmacion, { ModalConfirmacionProps } from './ui/ModalConfirmacion';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toTitleCase } from '../utils';
 
 export default function DocentesConfig() {
-  const [docentes, setDocentes] = useState<Docente[]>([]);
+  const rol=useAppStore(s=>s.currentUser?.rol);
+  const [revisarNombres,setRevisarNombres]=useState(false);
+  const [altaPersonal,setAltaPersonal]=useState(false),[personaExistente,setPersonaExistente]=useState<OrigenPersonal|null>(null);
+  const [docentes, setDocentes] = useState<DocenteDirectorio[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorConsulta, setErrorConsulta] = useState('');
   const [selectedDocente, setSelectedDocente] = useState<Docente | null>(null);
   const [isModalDocenteOpen, setIsModalDocenteOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [omitirInactivos, setOmitirInactivos] = useState(() => localStorage.getItem('docentes_omitir_inactivos') !== 'false');
+  const [personasAdministrativas, setPersonasAdministrativas] = useState<Set<string> | null>(null);
+  const secuenciaConsulta = useRef(0);
   const [readOnlyMode, setReadOnlyMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
   
-  const [currentPage, setCurrentPage] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('docentes_currentPage');
-      return saved ? parseInt(saved, 10) : 1;
-    } catch {
-      return 1;
-    }
-  });
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  
-  useEffect(() => {
-    sessionStorage.setItem('docentes_currentPage', currentPage.toString());
-  }, [currentPage]);
-
   // Modal para crear acceso
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   const [accessDocente, setAccessDocente] = useState<Docente | null>(null);
@@ -45,36 +40,24 @@ export default function DocentesConfig() {
   const [accessEmail, setAccessEmail] = useState('');
   const [isCreatingAccess, setIsCreatingAccess] = useState(false);
 
-  useEffect(() => {
-    fetchDocentes();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('docentes_omitir_inactivos', String(omitirInactivos));
-  }, [omitirInactivos]);
+  useEffect(() => { void fetchDocentes(); return () => { secuenciaConsulta.current++; }; }, [rol]);
 
   const fetchDocentes = async () => {
-    setErrorConsulta('');
+    const turno = ++secuenciaConsulta.current;
+    setErrorConsulta(''); setLoading(true);
     try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('docentes')
-        .select('*, usuarios(id)')
-        .order('nombre_completo', { ascending: true });
-
-      if (error) {
-        throw error;
-      }
-
-      setDocentes(data as unknown as Docente[]);
+      const [filas, vinculadas] = await Promise.all([
+        consultarDocentesDirectorio(rol === 'ADMINISTRADOR'),
+        rol === 'ADMINISTRADOR' ? consultarPersonasVinculadas('empleados') : Promise.resolve(null)
+      ]);
+      if (turno !== secuenciaConsulta.current) return;
+      setDocentes(filas); setPersonasAdministrativas(vinculadas);
+      setSelectedIds(ids => ids.filter(id => filas.some(f => f.id === id)));
     } catch (error: any) {
-      setErrorConsulta('No se pudo consultar el directorio docente.');
-      setDocentes([]);
+      if (turno !== secuenciaConsulta.current) return;
+      setErrorConsulta('No se pudo consultar el directorio docente. Reintenta para ver los datos actualizados.');
       toast.error('Error al cargar los docentes: ' + error.message);
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
+    } finally { if (turno === secuenciaConsulta.current) setLoading(false); }
   };
 
   const handleBulkEstatus = async (nuevoEstatus: 'activo' | 'inactivo') => {
@@ -87,10 +70,11 @@ export default function DocentesConfig() {
       if (error) throw error;
       toast.success(`Estatus actualizado para ${selectedIds.length} docentes`);
       setSelectedIds([]);
-      fetchDocentes();
+      await fetchDocentes();
     } catch (error: any) {
       toast.error('Error al actualizar estatus: ' + error.message);
       setLoading(false);
+      throw error;
     }
   };
 
@@ -102,17 +86,18 @@ export default function DocentesConfig() {
       type: 'danger',
       onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
       onConfirm: async () => {
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
           setLoading(true);
           const { error } = await supabase.from('docentes').delete().in('id', selectedIds);
           if (error) throw error;
           toast.success(`${selectedIds.length} docentes eliminados correctamente`);
           setSelectedIds([]);
-          fetchDocentes();
+          await fetchDocentes();
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
         } catch (error: any) {
           toast.error('Error al eliminar docentes: ' + error.message);
           setLoading(false);
+          throw error;
         }
       }
     });
@@ -126,14 +111,15 @@ export default function DocentesConfig() {
       type: 'danger',
       onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })),
       onConfirm: async () => {
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
         try {
           const { error } = await supabase.from('docentes').delete().eq('id', id);
           if (error) throw error;
           toast.success('Docente eliminado correctamente');
-          fetchDocentes();
+          await fetchDocentes();
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
         } catch (error: any) {
           toast.error('Error al eliminar docente: ' + error.message);
+          throw error;
         }
       }
     });
@@ -197,322 +183,57 @@ export default function DocentesConfig() {
     }
   };
 
-  const handleSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
+  const abrirDocente = (id: string, editar = false) => {
+    const docente = docentes.find(d => d.id === id);
+    if (!docente) return;
+    setSelectedDocente(docente); setReadOnlyMode(!editar); setIsModalDocenteOpen(true);
   };
-
-  const filteredAndSortedDocentes = React.useMemo(() => {
-    let result = [...docentes];
-
-    if (searchQuery) {
-      const lowerQuery = searchQuery.toLowerCase();
-      result = result.filter(d => 
-        d.nombre_completo?.toLowerCase().includes(lowerQuery) ||
-        d.clave_legado?.toLowerCase().includes(lowerQuery) ||
-        d.email?.toLowerCase().includes(lowerQuery) ||
-        d.rfc?.toLowerCase().includes(lowerQuery) ||
-        d.curp?.toLowerCase().includes(lowerQuery)
-      );
-    }
-
-    if (omitirInactivos) {
-      result = result.filter(d => (d.estatus?.toLowerCase() || 'inactivo') === 'activo');
-    }
-
-    if (sortConfig) {
-      result.sort((a: any, b: any) => {
-        const valA = a[sortConfig.key]?.toString().toLowerCase() || '';
-        const valB = b[sortConfig.key]?.toString().toLowerCase() || '';
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return result;
-  }, [docentes, searchQuery, omitirInactivos, sortConfig]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, omitirInactivos, sortConfig]);
-
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, filteredAndSortedDocentes.length);
-  const paginatedDocentes = filteredAndSortedDocentes.slice(startIndex, startIndex + itemsPerPage);
-  const totalPages = Math.ceil(filteredAndSortedDocentes.length / itemsPerPage);
-
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedIds(prev => cambiarSeleccionVisible(prev, paginatedDocentes.map(fila => fila.id), e.target.checked));
+  const filas: FilaDirectorioPersonal[] = docentes.map(d => ({
+    id: d.id, nombre: toTitleCase(d.nombre_completo), clave: d.clave_legado, contacto: d.email, estatus: d.estatus,
+    funcionVinculada: personasAdministrativas === null ? undefined : Boolean(d.persona_id && personasAdministrativas.has(d.persona_id)),
+    cuenta: rol === 'ADMINISTRADOR' ? estadoCuentaPersonal(d.usuarios) : undefined,
+    detalles: [{ etiqueta: 'RFC', valor: d.rfc }, { etiqueta: 'CURP', valor: d.curp }],
+    busqueda: [d.nombre_completo,d.clave_legado,d.email,d.rfc,d.curp].join(' ')
+  }));
+  const confirmarEstatus = (estatus: 'activo' | 'inactivo') => setConfirmModal({
+    isOpen: true, title: estatus === 'activo' ? 'Activar docentes' : 'Inactivar docentes',
+    message: `Se cambiará la habilitación docente de ${selectedIds.length} registros seleccionados, incluidos los de otras páginas. La situación administrativa y las cuentas de usuario se conservan.`,
+    onCancel: () => setConfirmModal(p => ({ ...p, isOpen: false })),
+    onConfirm: async () => { await handleBulkEstatus(estatus); setConfirmModal(p => ({ ...p, isOpen: false })); }
+  });
+  const cerrarAcceso = () => {
+    if (isCreatingAccess) return;
+    if (accessPassword || accessEmail !== (accessDocente?.email || '')) {
+      setConfirmModal({ isOpen: true, title: 'Descartar datos de la cuenta', message: 'La cuenta todavía no se ha creado. Se descartarán el correo y la contraseña capturados.', confirmText: 'Descartar datos', onCancel: () => setConfirmModal(p => ({ ...p, isOpen: false })), onConfirm: () => { setConfirmModal(p => ({ ...p, isOpen: false })); setIsAccessModalOpen(false); setAccessPassword(''); setAccessEmail(''); } });
+    } else setIsAccessModalOpen(false);
   };
-
-  const handleSelectOne = (id: string) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-  };
-
-  const SortIcon = ({ columnKey }: { columnKey: string }) => {
-    if (sortConfig?.key !== columnKey) return null;
-    return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="inline" /> : <ChevronDown size={14} className="inline" />;
-  };
-
+  const dialogoAcceso = useDialogoPersonal(isAccessModalOpen, cerrarAcceso);
   return (
-    <div className="flex-1 overflow-auto bg-gray-50/50 dark:bg-[#181e25] flex flex-col p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl w-full mx-auto space-y-6">
-        
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-              Gestión de Docentes
-            </h1>
-            <p className="text-sm text-[#45515e] dark:text-gray-400 mt-1">
-              Administra el catálogo de profesores y su información general.
-            </p>
+    <div className="personal-pagina p-4 sm:p-6 lg:p-8">
+      <div className="personal-directorios-marco">
+        <header className="directorio-encabezado">
+          <div><h1>Gestión de Docentes</h1><p>Consulta sus fichas, habilitación y configuración académica.</p></div>
+          <div className="directorio-cabecera-acciones">
+            <MenuDirectorio nombre="Directorio docente" etiqueta="Herramientas" acciones={['ADMINISTRADOR','COORDINADOR ACADEMICO'].includes(rol || '') ? [{ texto: 'Revisar nombres', ejecutar: () => setRevisarNombres(true) }] : []}/>
+            <button type="button" onClick={() => { if (rol === 'ADMINISTRADOR') setAltaPersonal(true); else { setSelectedDocente(null); setReadOnlyMode(false); setIsModalDocenteOpen(true); } }}><Plus size={17}/>Registrar docente</button>
           </div>
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                aria-label="Buscar docente"
-                placeholder="Buscar docente..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-[#222830] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-lg text-sm text-[#222222] dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1456f0] focus:border-transparent transition-all"
-              />
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-[#45515e] dark:text-gray-300 bg-white dark:bg-[#222830] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 transition-all hover:bg-gray-50 dark:hover:bg-[#2c333b]">
-              <input 
-                type="checkbox" 
-                checked={omitirInactivos}
-                onChange={(e) => setOmitirInactivos(e.target.checked)}
-                className="w-4 h-4 text-[#1456f0] border-gray-300 rounded focus:ring-[#1456f0] focus:ring-2 bg-gray-50 dark:bg-[#181e25] dark:border-gray-600"
-              />
-              <span className="select-none">Omitir inactivos</span>
-            </label>
-            <button 
-              onClick={() => {
-                setSelectedDocente(null);
-                setReadOnlyMode(false);
-                setIsModalDocenteOpen(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#1456f0] hover:bg-blue-700 rounded-lg transition-colors shadow-sm whitespace-nowrap"
-            >
-              <Plus size={18} /> Nuevo Docente
-            </button>
-          </div>
-        </div>
-
-
-
-        {/* Tabla */}
-        <div className="bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.08)] rounded-[20px] shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50/80 dark:bg-[#222830] text-[#45515e] dark:text-gray-300 font-semibold border-b border-gray-200 dark:border-[rgba(255,255,255,0.08)] select-none">
-                <tr>
-                  <th className="px-4 py-4 w-10">
-                    <SeleccionVisible
-                      seleccion={selectedIds}
-                      visibles={paginatedDocentes.map(fila => fila.id)}
-                      onChange={handleSelectAll}
-                      className="w-4 h-4 text-[#1456f0] border-gray-300 rounded focus:ring-[#1456f0] focus:ring-2 bg-gray-50 dark:bg-[#181e25] dark:border-gray-600 cursor-pointer"
-                    />
-                  </th>
-                  <th className="px-6 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#2c333b] transition-colors" onClick={() => handleSort('clave_legado')}>
-                    <div className="flex items-center gap-2">Clave <SortIcon columnKey="clave_legado" /></div>
-                  </th>
-                  <th className="px-6 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#2c333b] transition-colors" onClick={() => handleSort('nombre_completo')}>
-                    <div className="flex items-center gap-2">Nombre Completo <SortIcon columnKey="nombre_completo" /></div>
-                  </th>
-                  <th className="px-6 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#2c333b] transition-colors" onClick={() => handleSort('rfc')}>
-                    <div className="flex items-center gap-2">Identificadores <SortIcon columnKey="rfc" /></div>
-                  </th>
-                  <th className="px-6 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#2c333b] transition-colors" onClick={() => handleSort('estatus')}>
-                    <div className="flex items-center gap-2">Estatus <SortIcon columnKey="estatus" /></div>
-                  </th>
-                  <th className="px-6 py-4 text-center">Acceso</th>
-                  <th className="px-6 py-4 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-[rgba(255,255,255,0.04)]">
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                      Cargando docentes...
-                    </td>
-                  </tr>
-                ) : errorConsulta ? <tr><td colSpan={7} className="p-4"><EstadoError mensaje={errorConsulta} onReintentar={() => void fetchDocentes()} /></td></tr> : filteredAndSortedDocentes.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                      No hay docentes registrados o no se encontraron coincidencias.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedDocentes.map((docente) => (
-                    <tr key={docente.id} className={`hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors group ${selectedIds.includes(docente.id) ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>
-                      <td className="px-4 py-4">
-                        <input 
-                          type="checkbox"
-                          checked={selectedIds.includes(docente.id)}
-                          onChange={() => handleSelectOne(docente.id)}
-                          className="w-4 h-4 text-[#1456f0] border-gray-300 rounded focus:ring-[#1456f0] focus:ring-2 bg-gray-50 dark:bg-[#181e25] dark:border-gray-600 cursor-pointer"
-                        />
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-[#222222] dark:text-gray-100">
-                        {docente.clave_legado}
-                      </td>
-                      <td className="px-6 py-4">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedDocente(docente);
-                            setReadOnlyMode(true);
-                            setIsModalDocenteOpen(true);
-                          }}
-                          className="text-left font-medium text-[#1456f0] underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1456f0] dark:text-blue-400"
-                          aria-label={`Ver ficha de ${toTitleCase(docente.nombre_completo)}`}
-                        >{toTitleCase(docente.nombre_completo)}</button>
-                        <div className="text-xs text-[#8e8e93] mt-0.5">{docente.email || 'Sin correo'}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-[#45515e] dark:text-gray-300">RFC: {docente.rfc || '-'}</div>
-                        <div className="text-xs text-[#8e8e93] mt-0.5">CURP: {docente.curp || '-'}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {docente.estatus?.toLowerCase() === 'activo' ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50">
-                            Activo
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/50">
-                            {docente.estatus || 'Inactivo'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {docente.usuarios && docente.usuarios.length > 0 ? (
-                          <div className="flex flex-col items-center justify-center gap-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50" title="Usuario activo">
-                              <Key size={14} />
-                              Tiene Acceso
-                            </span>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setAccessDocente(docente);
-                              setAccessPassword('');
-                              setAccessEmail(docente.email || '');
-                              setIsAccessModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#1456f0] dark:text-blue-300 bg-[#1456f0]/10 hover:bg-[#1456f0]/20 rounded-md transition-colors"
-                          >
-                            <Plus size={14} />
-                            Crear Acceso
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-
-                        <button 
-                          onClick={() => {
-                            setSelectedDocente(docente);
-                            setReadOnlyMode(true);
-                            setIsModalDocenteOpen(true);
-                          }}
-                          className="p-2 text-gray-400 hover:text-green-500 transition-colors"
-                          title="Ver Detalles"
-                        >
-                          <Eye size={18} />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setSelectedDocente(docente);
-                            setReadOnlyMode(false);
-                            setIsModalDocenteOpen(true);
-                          }}
-                          className="p-2 text-gray-400 hover:text-[#1456f0] dark:hover:text-blue-400 transition-colors"
-                          title="Editar Docente"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteDocente(docente.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                          title="Eliminar Docente"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-6 bg-[#f8f9fa] dark:bg-[rgba(0,0,0,0.15)] border-t border-[#e5e7eb] dark:border-[rgba(255,255,255,0.06)] rounded-b-xl">
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium">Mostrar</span>
-              <select
-                className="border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-md text-sm p-1.5 bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 outline-none focus:ring-2 focus:ring-[#3b82f6] font-medium cursor-pointer"
-                value={itemsPerPage}
-                onChange={(e) => setItemsPerPage(Number(e.target.value))}
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium">docentes</span>
-            </div>
-            <div className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium bg-white dark:bg-[#1c2228] px-3 py-1.5 rounded-[8px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] shadow-[var(--shadow-subtle)]">
-              Mostrando <span className="text-gray-900 dark:text-gray-100 font-bold">{startIndex + 1}</span> a <span className="text-gray-900 dark:text-gray-100 font-bold">{endIndex}</span> de <span className="text-gray-900 dark:text-gray-100 font-bold">{filteredAndSortedDocentes.length}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => p - 1)}
-                className="px-4 py-1.5 text-sm border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] disabled:opacity-40 hover:bg-white dark:hover:bg-gray-700 text-[#45515e] dark:text-gray-300 font-bold transition-all shadow-[var(--shadow-subtle)] hover:shadow active:scale-95"
-              >
-                Anterior
-              </button>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-[#45515e] dark:text-gray-300 font-medium">Página</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={totalPages || 1}
-                  value={currentPage || ''}
-                  title="Ir a página"
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (!isNaN(val) && val >= 1 && val <= totalPages) {
-                      setCurrentPage(val);
-                    }
-                  }}
-                  className="w-16 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] px-2 py-1.5 text-center text-sm bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-200 outline-none focus:ring-2 focus:ring-[#3b82f6] shadow-[var(--shadow-subtle)]"
-                />
-                <span className="text-sm text-[#45515e] dark:text-gray-300 font-medium">de {totalPages}</span>
-              </div>
-              <button
-                disabled={currentPage === totalPages || totalPages === 0}
-                onClick={() => setCurrentPage(p => p + 1)}
-                className="px-4 py-1.5 text-sm border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] disabled:opacity-40 hover:bg-white dark:hover:bg-gray-700 text-[#45515e] dark:text-gray-300 font-bold transition-all shadow-[var(--shadow-subtle)] hover:shadow active:scale-95"
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        </div>
+        </header>
+        <DirectorioPersonal tipo="docentes" filas={filas} cargando={loading} error={errorConsulta} reintentar={() => void fetchDocentes()} abrir={abrirDocente}
+          seleccion={selectedIds} cambiarSeleccion={setSelectedIds}
+          accionesSeleccion={<><button type="button" disabled={loading} onClick={() => confirmarEstatus('activo')}>Activar</button><button type="button" disabled={loading} onClick={() => confirmarEstatus('inactivo')}>Inactivar</button><button type="button" disabled={loading} onClick={handleBulkDelete}><Trash2 size={14}/>Eliminar</button></>}
+          acciones={id => {
+            const d = docentes.find(d => d.id === id)!;
+            return <MenuDirectorio nombre={toTitleCase(d.nombre_completo)} acciones={[
+              { texto: 'Editar docente', ejecutar: () => abrirDocente(id, true) },
+              ...(rol === 'ADMINISTRADOR' && !d.usuarios?.length ? [{ texto: 'Crear cuenta de usuario', ejecutar: () => { setAccessDocente(d); setAccessPassword(''); setAccessEmail(d.email || ''); setIsAccessModalOpen(true); } }] : []),
+              { texto: 'Eliminar docente', peligro: true, ejecutar: () => void handleDeleteDocente(id) }
+            ]}/>;
+          }}/>
       </div>
 
+      {altaPersonal&&<AltaPersonal destino="DOCENTE" onClose={()=>setAltaPersonal(false)} onCrear={()=>{setAltaPersonal(false);setSelectedDocente(null);setReadOnlyMode(false);setIsModalDocenteOpen(true);}} onAbrir={o=>{setAltaPersonal(false);setPersonaExistente(o);}}/>}
+      {personaExistente&&<FichaPersonal origen={personaExistente} seccionInicial="funciones" onClose={()=>setPersonaExistente(null)} onSaved={fetchDocentes}/>}
+      {revisarNombres&&<RevisionNombresDocentes onClose={()=>setRevisarNombres(false)} onSaved={fetchDocentes}/>}
       <ModalDocente
         isOpen={isModalDocenteOpen}
         onClose={() => {
@@ -525,60 +246,6 @@ export default function DocentesConfig() {
       />
       <ModalConfirmacion {...confirmModal} />
 
-      {selectedIds.length > 0 && !loading && !errorConsulta && (
-        <div className="fixed bottom-4 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:max-w-[calc(100vw-2rem)] bg-[#181C25] border border-[rgba(255,255,255,0.08)] p-2 pr-4 rounded-[30px] shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 animate-in slide-in-from-bottom-10 fade-in duration-300 flex flex-wrap items-center gap-3 text-white font-sans">
-          
-          {/* Badge & Text */}
-          <div className="flex items-center gap-3 pl-2">
-            <div className="w-6 h-6 rounded-full bg-[#1456f0] flex items-center justify-center text-xs font-bold text-white shadow-[0_0_10px_rgba(20,86,240,0.5)]">
-              {selectedIds.length}
-            </div>
-            <span className="text-sm font-semibold">
-              seleccionados · {selectedIds.filter(id => !paginatedDocentes.some(fila => fila.id === id)).length} fuera de esta vista
-            </span>
-          </div>
-
-          <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] mx-1"></div>
-
-          <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg px-2 py-1 text-xs underline focus-visible:outline-2 focus-visible:outline-white">Limpiar selección</button>
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            <select
-              className="bg-transparent border border-[rgba(255,255,255,0.1)] rounded-md px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-[#1456f0] cursor-pointer"
-              onChange={(e) => {
-                if (e.target.value) {
-                  handleBulkEstatus(e.target.value as 'activo' | 'inactivo');
-                  e.target.value = "";
-                }
-              }}
-              defaultValue=""
-            >
-              <option value="" disabled className="bg-[#181c25]">Cambiar a...</option>
-              <option value="activo" className="bg-[#181c25]">Activar</option>
-              <option value="inactivo" className="bg-[#181c25]">Inactivar</option>
-            </select>
-            
-            <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] mx-2"></div>
-
-            <button
-              onClick={handleBulkDelete}
-              className="px-4 py-1.5 text-sm font-semibold text-[#f87171] bg-[rgba(248,113,113,0.1)] hover:bg-[rgba(248,113,113,0.2)] rounded-lg transition-colors flex items-center gap-2"
-            >
-              <Trash2 size={16} /> Eliminar
-            </button>
-          </div>
-
-          {/* Close / Clear */}
-          <div className="w-px h-6 bg-[rgba(255,255,255,0.15)] ml-2"></div>
-          <button 
-            onClick={() => setSelectedIds([])}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-[rgba(255,255,255,0.1)] rounded-full transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
       {/* Modal Crear Acceso Docente */}
       <AnimatePresence>
         {isAccessModalOpen && accessDocente && (
@@ -587,10 +254,13 @@ export default function DocentesConfig() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsAccessModalOpen(false)}
+              onClick={cerrarAcceso}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
             <motion.div
+              ref={dialogoAcceso.dialogo}
+              onKeyDown={dialogoAcceso.teclado}
+              role="dialog" aria-modal="true" aria-labelledby="titulo-cuenta-docente"
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -598,11 +268,13 @@ export default function DocentesConfig() {
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white font-display">Crear Acceso al Sistema</h2>
+                  <h2 id="titulo-cuenta-docente" className="text-xl font-bold text-gray-900 dark:text-white font-display">Crear cuenta de usuario</h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Para el docente: <span className="font-semibold text-gray-700 dark:text-gray-300">{accessDocente.nombre_completo}</span></p>
                 </div>
                 <button
-                  onClick={() => setIsAccessModalOpen(false)}
+                  onClick={cerrarAcceso}
+                  disabled={isCreatingAccess}
+                  aria-label="Cerrar creación de cuenta"
                   className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2c333b] rounded-full transition-colors"
                 >
                   <X size={20} />
@@ -625,6 +297,7 @@ export default function DocentesConfig() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Correo Electrónico (Opcional)</label>
                     <input
                       type="email"
+                      aria-label="Correo de la cuenta" disabled={isCreatingAccess}
                       value={accessEmail}
                       onChange={(e) => setAccessEmail(e.target.value)}
                       placeholder="correo@ejemplo.com"
@@ -636,6 +309,7 @@ export default function DocentesConfig() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña Inicial</label>
                     <input
                       type="text"
+                      aria-label="Contraseña inicial" disabled={isCreatingAccess}
                       value={accessPassword}
                       onChange={(e) => setAccessPassword(e.target.value)}
                       placeholder="Mínimo 8 caracteres"
@@ -644,6 +318,7 @@ export default function DocentesConfig() {
                     />
                     <button
                       type="button"
+                      disabled={isCreatingAccess}
                       onClick={() => setAccessPassword(Math.random().toString(36).slice(-8))}
                       className="mt-2 text-xs text-[#1456f0] hover:underline"
                     >
@@ -655,7 +330,8 @@ export default function DocentesConfig() {
                 <div className="mt-8 flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setIsAccessModalOpen(false)}
+                    onClick={cerrarAcceso}
+                    disabled={isCreatingAccess}
                     className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl font-medium transition-colors"
                   >
                     Cancelar

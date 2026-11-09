@@ -1,0 +1,64 @@
+.planes-consulta{width:100%;max-width:1140px;margin:0 auto;display:flex;flex-direction:column;gap:24px;font-family:var(--font-ui,sans-serif);color:#182031;min-width:0}
+.planes-consulta-cabecera{position:relative;z-index:20}
+.planes-consulta-regreso{display:flex;flex-wrap:wrap;gap:4px 24px;margin-bottom:12px}
+.planes-consulta-regreso button{display:inline-flex;align-items:center;gap:8px;min-height:40px;font-size:13px;font-weight:600;color:#4b6080}
+.planes-consulta-regreso button:hover{color:#1456f0}
+.planes-consulta-barra,.planes-calendario{background:#fff;border:1px solid #e1e7f0;border-radius:18px;box-shadow:0 5px 16px #162b4c06}
+.planes-consulta-barra{display:grid;grid-template-columns:minmax(180px,235px) minmax(0,1fr);gap:16px 20px;align-items:end;padding:20px 24px}
+.planes-consulta-barra>div:first-child{max-width:none}
+.planes-consulta-barra select,.planes-buscador-campo{height:44px;border:1px solid #d2dced;border-radius:10px;background:#fff;color:#182031}
+.planes-consulta-barra .campo-con-ayuda-etiqueta,.planes-buscador>label{display:flex;align-items:center;min-height:24px;margin-bottom:6px;font-size:13px;font-weight:650;line-height:24px;color:inherit}
+.planes-buscador{position:relative;min-width:0}
+.planes-buscador-campo{display:flex;align-items:center;gap:10px;padding:0 12px}
+.planes-buscador-campo>svg{flex-shrink:0;color:#8192ad}
+.planes-buscador-campo input{width:100%;min-width:0;outline:none;background:transparent;color:inherit;font-size:13px;font-weight:600}
+.planes-buscador-campo input::placeholder{color:#64748b;font-weight:400}
+.planes-buscador-campo button{display:flex;align-items:center;justify-content:center;min-width:28px;min-height:36px;color:#64748b;border-radius:6px}
+.planes-buscador-campo:focus-within{outline:2px solid #1456f0;outline-offset:2px}
+.planes-buscador-resultados{position:absolute;top:calc(100% + 8px);left:0;right:0;max-height:320px;overflow-y:auto;background:#fff;border:1px solid #d2dced;border-radius:10px;box-shadow:0 8px 24px #162b4c20;z-index:25}
+.planes-buscador-resultados [role=option]{display:flex;flex-direction:column;gap:5px;width:100%;padding:12px;text-align:left;line-height:1.5;border-bottom:1px solid #e1e7f0;overflow-wrap:anywhere}
+.planes-buscador-resultados strong{font-size:13px;font-weight:600}.planes-buscador-resultados span{font-size:12px;color:#4b6080}
+.planes-buscador-resultados [role=option]:hover,.planes-buscador-resultados [aria-selected=true]{background:#edf4ff}
+.planes-buscador-resultados p,.planes-buscador-mas{padding:14px;font-size:13px;line-height:1.5}.planes-buscador-mas{width:100%;color:#1456f0;font-weight:600}
+.planes-consulta-acciones{display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}
+.planes-consulta-acciones button{min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;white-space:nowrap}
+.planes-consulta-acciones svg{flex-shrink:0}.planes-accion-primaria{background:#1456f0;color:#fff;box-shadow:0 2px 5px #1456f020}.planes-accion-primaria:hover{background:#114ad0}
+.planes-accion-secundaria{border:1px solid #d2dced;color:#27354a;background:#fff}.planes-accion-secundaria:hover{background:#f0f4fa}
+.planes-accion-pdf{background:#d90022;color:#fff}.planes-accion-pdf:hover{background:#ba001d}.planes-consulta button:disabled{opacity:.5;cursor:not-allowed}
+.planes-consulta button:focus-visible,.planes-consulta select:focus-visible{outline:2px solid #1456f0;outline-offset:3px}
+.planes-calendario{min-width:0;width:100%}
+.planes-calendario-cabecera{padding:20px 24px;border-bottom:1px solid #e1e7f0}
+.planes-calendario-titulo{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.planes-calendario-titulo>div{min-width:0}.planes-calendario-titulo h2{font-size:16px;font-weight:650;line-height:1.5;margin:0}
+.planes-calendario-titulo p{font-size:12px;color:#4b6080;line-height:1.6;margin:3px 0 0;overflow-wrap:anywhere}
+.planes-calendario-navegacion{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.planes-calendario-alcance{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#4b6080}
+.planes-calendario-flechas{display:flex;align-items:center;gap:8px}.planes-calendario-flechas button{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid #d2dced;border-radius:10px;background:#fff;color:inherit}
+.planes-calendario-flechas button:not(:disabled):hover{background:#edf4ff;color:#1456f0}.planes-calendario-flechas>span{min-width:48px;text-align:center;font-size:12px;color:#4b6080;font-variant-numeric:tabular-nums}
+.planes-alumno-opciones{padding-top:18px;margin-top:18px;border-top:1px solid #e1e7f0}
+.planes-alumno-opciones>label{display:block;font-size:12px;font-weight:600;margin-bottom:9px}.planes-alumno-opciones>label span{font-weight:400;color:#4b6080}
+.planes-alumno-botones{display:flex;flex-wrap:wrap;gap:8px}.planes-alumno-botones button{display:flex;flex-direction:column;gap:5px;align-items:flex-start;max-width:100%;padding:10px 14px;border:1px solid #d2dced;border-radius:10px;background:#fff;text-align:left;line-height:1.5;overflow-wrap:anywhere}
+.planes-alumno-botones strong{font-size:13px;font-weight:600}.planes-alumno-botones span{font-size:12px;color:#4b6080}
+.planes-alumno-botones [aria-pressed=true]{background:#edf4ff;border-color:#1456f0;color:#1456f0;box-shadow:inset 0 0 0 1px #1456f0}
+.planes-alumno-botones button:hover{border-color:#1456f0}
+.planes-alumno-selector{height:44px;max-width:100%;width:480px;border:1px solid #d2dced;border-radius:10px;background:#fff;padding:0 10px;font-size:13px;color:inherit}
+.planes-alumno-selector.compacto-movil{display:none}
+.planes-alumno-unico{font-size:13px;font-weight:600;margin:16px 0 0;line-height:1.6}.planes-alumno-unico span{font-size:12px;font-weight:400;color:#4b6080}
+.planes-calendario-documento{width:100%;overflow-x:auto;padding:24px;position:relative}
+.dark .planes-consulta{color:#f3f4f6}.dark .planes-consulta-barra,.dark .planes-calendario,.dark .planes-buscador-resultados{background:#1c2228;border-color:#374151;box-shadow:0 5px 16px #00000015}
+.dark .planes-consulta-regreso button,.dark .planes-calendario-titulo p,.dark .planes-calendario-alcance,.dark .planes-calendario-flechas>span,.dark .planes-alumno-botones span,.dark .planes-alumno-unico span,.dark .planes-alumno-opciones>label span,.dark .planes-buscador-resultados span{color:#b6c2d4}
+.dark .planes-consulta-regreso button:hover{color:#93c5fd}
+.dark .planes-consulta-barra select,.dark .planes-buscador-campo,.dark .planes-accion-secundaria,.dark .planes-calendario-flechas button,.dark .planes-alumno-botones button,.dark .planes-alumno-selector{background:#202b3b;color:#edf2fa;border-color:#48586e}
+.dark .planes-buscador-campo input::placeholder,.dark .planes-buscador-campo button,.dark .planes-buscador-campo>svg{color:#adbbcf}
+.dark .planes-calendario-cabecera,.dark .planes-alumno-opciones,.dark .planes-buscador-resultados [role=option]{border-color:#374151}
+.dark .planes-alumno-botones [aria-pressed=true],.dark .planes-alumno-botones button:hover,.dark .planes-calendario-flechas button:not(:disabled):hover,.dark .planes-buscador-resultados [role=option]:hover,.dark .planes-buscador-resultados [aria-selected=true],.dark .planes-accion-secundaria:hover{background:#18345a;color:#93c5fd;border-color:#72acff}
+.dark .planes-buscador-mas{color:#93c5fd}
+@media(min-width:1100px){.planes-consulta-barra{grid-template-columns:235px minmax(0,1fr) auto}.planes-consulta-acciones{grid-column:auto;flex-wrap:nowrap}}
+@media(max-width:899px){.planes-calendario-titulo{align-items:flex-start}.planes-calendario-navegacion{flex-direction:column;align-items:flex-end;gap:4px}}
+@media(max-width:639px){.planes-consulta{gap:18px}.planes-consulta-barra{grid-template-columns:minmax(0,1fr);padding:16px;gap:14px}.planes-consulta-acciones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.planes-consulta-acciones button{padding:10px 6px;font-size:11px;gap:4px;white-space:normal;line-height:1.4}.planes-consulta-regreso{gap:0 16px}.planes-consulta-regreso button{font-size:12px}.planes-calendario-cabecera{padding:16px}.planes-calendario-titulo{flex-direction:column;gap:12px}.planes-calendario-navegacion{flex-direction:row;align-items:center;justify-content:space-between;width:100%;gap:6px}.planes-alumno-selector.compacto-movil{display:block;width:100%}.planes-alumno-botones{display:none}.planes-calendario-documento{padding:16px 12px}.planes-calendario-flechas{gap:4px}.planes-calendario-flechas button{width:36px;height:36px}.planes-calendario-alcance{font-size:11px}.planes-calendario-flechas>span{font-size:11px;min-width:44px}}
+@media print{.planes-consulta{max-width:none;display:block}.planes-calendario{border:0;box-shadow:none}.planes-calendario-documento{padding:0;overflow:visible}}
+
+.planes-etiqueta-corta,.planes-alumno-detalle{display:none}
+@media(max-width:639px){.planes-consulta-acciones .planes-etiqueta-completa{display:none}.planes-consulta-acciones .planes-etiqueta-corta{display:inline}.planes-alumno-detalle{display:block;margin:8px 0 0;font-size:12px;line-height:1.6;color:#4b6080;overflow-wrap:anywhere}.dark .planes-alumno-detalle{color:#b6c2d4}}
+
+.planes-consulta-barra .selector-busqueda-control{height:44px}

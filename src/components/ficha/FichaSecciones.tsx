@@ -3,10 +3,10 @@ import { ChevronDown } from 'lucide-react';
 import type { TabDef, TabId } from '../../hooks/useFichaAlumnoLogic';
 import './fichaSecciones.css';
 
-export default function FichaSecciones({secciones,activa,onCambiar,children}:{secciones:TabDef[];activa:TabId;onCambiar:(id:TabId)=>void;children:ReactNode}){
+export default function FichaSecciones({secciones,activa,onCambiar,children,ampliado=false}:{secciones:TabDef[];activa:TabId;onCambiar:(id:TabId)=>void;children:ReactNode;ampliado?:boolean}){
  const [ancha,setAncha]=useState(false),[focoTeclado,setFocoTeclado]=useState(false),raiz=useRef<HTMLDivElement>(null);
  const id=useId(),menu=useRef<HTMLDetailsElement>(null),panel=useRef<HTMLElement>(null),anterior=useRef(activa);
- useEffect(()=>{const nodo=raiz.current;if(!nodo)return;const observar=new ResizeObserver(entradas=>setAncha(entradas[0].contentRect.width>=900));observar.observe(nodo);return()=>observar.disconnect();},[]);
+ useEffect(()=>{const nodo=raiz.current;if(!nodo)return;const observar=new ResizeObserver(entradas=>setAncha(entradas[0].contentRect.width>=1120));observar.observe(nodo);return()=>observar.disconnect();},[]);
  useEffect(()=>{if(ancha&&menu.current)menu.current.open=false;},[ancha]);
  const seleccionada=secciones.find(s=>s.id===activa);
  useEffect(()=>{
@@ -20,7 +20,7 @@ export default function FichaSecciones({secciones,activa,onCambiar,children}:{se
  },[activa]);
  useEffect(()=>{const cerrar=(e:PointerEvent)=>{if(menu.current?.open&&!menu.current.contains(e.target as Node))menu.current.open=false;};document.addEventListener('pointerdown',cerrar);return()=>document.removeEventListener('pointerdown',cerrar);},[]);
  const opciones=(compacto:boolean)=><ul>{secciones.map(s=><li key={s.id}><button type="button" aria-current={s.id===activa?'page':undefined} aria-controls={`${id}-panel`} onClick={()=>{if(menu.current)menu.current.open=false;onCambiar(s.id);}}><span aria-hidden="true">{s.icon}</span><span>{s.label}</span>{compacto&&s.id===activa&&<span className="ficha-seccion-marca">Actual</span>}</button></li>)}</ul>;
- return <div ref={raiz} className="ficha-secciones-root" data-ancha={ancha} data-foco-teclado={focoTeclado} onPointerDownCapture={()=>setFocoTeclado(false)} onKeyDownCapture={()=>setFocoTeclado(true)}><div className="ficha-secciones-layout">
+ return <div ref={raiz} className="ficha-secciones-root" data-ancha={ancha&&!ampliado} data-foco-teclado={focoTeclado} onPointerDownCapture={()=>setFocoTeclado(false)} onKeyDownCapture={()=>setFocoTeclado(true)}><div className="ficha-secciones-layout">
   <nav className="ficha-secciones-lateral" aria-label="Secciones de la ficha"><p>Secciones de la ficha</p>{opciones(false)}</nav>
   <details ref={menu} className="ficha-secciones-compactas" onKeyDown={e=>{if(e.key==='Escape'&&menu.current){menu.current.open=false;menu.current.querySelector('summary')?.focus();}}}>
    <summary><span><small>Secciones de la ficha</small><strong>{seleccionada?.label||'Elige una sección'}</strong></span><ChevronDown size={19} aria-hidden="true"/></summary>

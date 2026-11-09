@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import type { Nom035PlanAccion } from '../../types';
+import ModalConfirmacion from '../ui/ModalConfirmacion';
+import { useDialogoPersonal } from '../../hooks/useDialogoPersonal';
 
 interface ModalPlanAccionProps {
   plan?: Nom035PlanAccion | null;
   onClose: () => void;
-  onSaved: (plan: Nom035PlanAccion) => void;
+  onSaved: (plan: Nom035PlanAccion) => void | Promise<void>;
 }
 
 export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAccionProps) {
@@ -18,10 +20,15 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [confirmarSalida, setConfirmarSalida] = useState(false);
+  const [original, setOriginal] = useState(JSON.stringify(form));
+  const cerrar = () => { if (loading) return; if (JSON.stringify(form) !== original) setConfirmarSalida(true); else onClose(); };
+  const { dialogo, teclado } = useDialogoPersonal(true, cerrar);
 
   useEffect(() => {
     if (plan) {
       setForm({ ...plan });
+      setOriginal(JSON.stringify({ ...plan }));
     }
   }, [plan]);
 
@@ -37,9 +44,7 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
     setLoading(true);
 
     try {
-      // In a real scenario we'd use supabase.from('nom035_planes_accion').insert() or update()
-      // But we emit the event up for the parent component to handle
-      onSaved(form as Nom035PlanAccion);
+      await onSaved(form as Nom035PlanAccion);
     } catch (err: any) {
       setError(err.message || 'Ocurrió un error al guardar el plan.');
     } finally {
@@ -49,15 +54,17 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#181e25] rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+      <div ref={dialogo} onKeyDown={teclado} role="dialog" aria-modal="true" aria-labelledby="titulo-plan-accion" className="bg-white dark:bg-[#181e25] rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
         
         {/* Header */}
         <div className="px-6 py-5 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between bg-gray-50/50 dark:bg-[#1c2228]/50">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <h2 id="titulo-plan-accion" className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             {plan ? 'Editar Plan de Acción' : 'Nuevo Plan de Acción'}
           </h2>
           <button 
-            onClick={onClose}
+            onClick={cerrar}
+            disabled={loading}
+            aria-label="Cerrar plan de acción"
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
           >
             <X size={20} />
@@ -80,6 +87,7 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
               </label>
               <input
                 type="text"
+                aria-label="Título del plan de acción"
                 required
                 value={form.titulo || ''}
                 onChange={e => setForm({...form, titulo: e.target.value.toUpperCase()})}
@@ -93,6 +101,7 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
                 Descripción
               </label>
               <textarea
+                aria-label="Descripción del plan de acción"
                 rows={3}
                 value={form.descripcion || ''}
                 onChange={e => setForm({...form, descripcion: e.target.value})}
@@ -107,6 +116,7 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
                   Nivel de Intervención
                 </label>
                 <select
+                  aria-label="Nivel de intervención"
                   value={form.nivel_intervencion || 'Primer nivel'}
                   onChange={e => setForm({...form, nivel_intervencion: e.target.value})}
                   className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -122,6 +132,7 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
                   Estatus
                 </label>
                 <select
+                  aria-label="Estado del plan de acción"
                   value={form.estatus || 'Pendiente'}
                   onChange={e => setForm({...form, estatus: e.target.value})}
                   className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -140,7 +151,7 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
         <div className="px-6 py-4 border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)] bg-gray-50 dark:bg-gray-900/50 flex justify-end gap-3 rounded-b-2xl">
           <button
             type="button"
-            onClick={onClose}
+            onClick={cerrar}
             disabled={loading}
             className="px-5 py-2.5 text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors disabled:opacity-50"
           >
@@ -158,6 +169,7 @@ export default function ModalPlanAccion({ plan, onClose, onSaved }: ModalPlanAcc
         </div>
 
       </div>
+      <ModalConfirmacion isOpen={confirmarSalida} title="Descartar cambios" message="Los cambios de este plan de acción no se han guardado." confirmText="Descartar cambios" onCancel={() => setConfirmarSalida(false)} onConfirm={onClose}/>
     </div>
   );
 }

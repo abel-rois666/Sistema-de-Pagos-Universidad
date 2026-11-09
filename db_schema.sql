@@ -1208,3 +1208,15 @@ CREATE POLICY "personal: acceso completo ui_preferencias" ON public.ui_preferenc
 
 DROP POLICY IF EXISTS "personal: acceso completo control_pagos" ON public.control_pagos;
 CREATE POLICY "personal: acceso completo control_pagos" ON public.control_pagos FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Personal compartido, preparado el 08/11/2026 (sin ejecución informada):
+-- supabase/migrations/20261108120000_personal_y_docentes.sql define personal_personas,
+-- personal_vinculos_laborales, personal_formacion, personal_expedientes y personal_auditoria,
+-- junto con enlaces opcionales docentes.persona_id / empleados.persona_id y RPC privadas por rol.
+-- No hay backfill ni conversión automática de directorios. Véase docs/PERSONAL_Y_DOCENTES.md.
+
+-- Personal: nombres estructurados, antecedente y confirmación auditada preparados en
+-- supabase/migrations/20261108150000_nombres_estructurados_personal.sql (sin backfill).
+
+-- Ficha única y funciones operativas sin duplicar identidad: preparación en
+-- supabase/migrations/20261108180000_ficha_unica_y_funciones_personal.sql.
