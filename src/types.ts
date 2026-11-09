@@ -19,6 +19,7 @@ export interface Usuario {
   auth_id?: string | null;
   activo?: boolean | null;
   docente_id?: string | null;
+  empleado_id?: string | null;
 }
 
 export interface Alumno {
@@ -407,6 +408,9 @@ export interface FichaTitulacion {
 export interface FichaCertificacion {
   id: string;
   alumno_id: string;
+  alumno_programa_id?: string | null;
+  revision?: number;
+  archivado_en?: string | null;
 
   pago_certificado:            'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
 

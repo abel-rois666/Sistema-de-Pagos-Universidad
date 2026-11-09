@@ -1,569 +1,77 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import toast from 'react-hot-toast';
-import {
-  Award, Loader2, Save, CheckCircle2, Clock, Ban,
-  AlertCircle, ChevronDown, X, Edit3, CalendarDays, Flag, Lock, Trash2, AlertTriangle,
-} from 'lucide-react';
-import { supabase } from '../../lib/supabase';
-import { useAppStore } from '../../store/useAppStore';
+import { useEffect, useState } from 'react';
+import { Award, CheckCircle2, Edit3, Loader2, Save } from 'lucide-react';
 import type { FichaCertificacion } from '../../types';
+import { useCertificacionAlumno } from '../../hooks/useCertificacionAlumno';
+import { estadoPagoCertificado, estadoTramiteCertificado, requisitosCertificado, terminoOrientativoCertificado } from '../../certificacion/seguimiento';
+import EstadoError from '../ui/EstadoError';
+import ModalConfirmacion from '../ui/ModalConfirmacion';
+import SelectorBusqueda from '../ui/SelectorBusqueda';
+import { CampoConAyuda } from '../ui/AyudaContextual';
 import DrivePicker from '../DrivePicker';
+import CertificacionRequisitos from '../certificacion/CertificacionRequisitos';
+import { useProteccionCaptura } from '../../app/ProteccionCaptura';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function addBusinessDays(start: Date, days: number): Date {
-  let count = 0; const d = new Date(start);
-  while (count < days) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) count++; }
-  return d;
-}
-function businessDaysLeft(end: Date): number {
-  const today = new Date(); today.setHours(0,0,0,0);
-  if (today >= end) return 0;
-  let count = 0; const c = new Date(today);
-  while (c < end) { c.setDate(c.getDate() + 1); if (c.getDay() !== 0 && c.getDay() !== 6) count++; }
-  return count;
-}
-function toInputDate(d: Date) { 
-  if (isNaN(d.getTime())) return '';
-  return d.toISOString().slice(0,10); 
-}
-
-function checkRequisitos(draft: typeof BLANK, esEspecialidad: boolean): boolean {
-  const base =
-    draft.pago_certificado    === 'COMPLETADO' &&
-    draft.doc_acta_nacimiento === 'APROBADO'   &&
-    draft.doc_curp            === 'APROBADO'   &&
-    draft.doc_antecedente     === 'APROBADO'   &&
-    !!draft.tipo_certificado;
-  if (!base) return false;
-  if (esEspecialidad) return draft.doc_titulo_profesional === 'APROBADO' && draft.doc_cedula_profesional === 'APROBADO';
-  return true;
-}
-
-function getEstatus(ficha: FichaCertificacion | null, editing: boolean): 'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO' {
-  if (ficha?.tramite_completado) return 'COMPLETADO';
-  if (ficha || editing) return 'EN_CURSO';
-  return 'SIN_INICIAR';
-}
-
-// ── Badge maps ────────────────────────────────────────────────────────────────
-const B_EST = {
-  SIN_INICIAR: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700',
-  EN_CURSO:    'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700',
-  COMPLETADO:  'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700',
-};
-const B_DOC = {
-  SIN_INICIAR: B_EST.SIN_INICIAR,
-  APROBADO:    B_EST.COMPLETADO,
-  RECHAZADO:   'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700',
-};
-
-// ── Custom Dropdown (fixed position, dark-mode safe) ─────────────────────────
-function CustomDrop({ opciones, value, onChange, badgeMap, disabled }: {
-  opciones: { value: string; label: string }[];
-  value: string; onChange: (v: string) => void;
-  badgeMap: Record<string, string>; disabled?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [style, setStyle] = useState<React.CSSProperties>({});
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const label = opciones.find(o => o.value === value)?.label ?? value;
-  const badge = badgeMap[value] ?? B_EST.SIN_INICIAR;
-
-  const handleOpen = () => {
-    if (!btnRef.current) { setOpen(v => !v); return; }
-    const r = btnRef.current.getBoundingClientRect();
-    const panelH = opciones.length * 34 + 8;
-    const openUp = window.innerHeight - r.bottom < panelH + 16;
-    setStyle({ position:'fixed', zIndex:9999, left:r.left, minWidth:Math.max(r.width,140), ...(openUp ? {bottom:window.innerHeight-r.top+4} : {top:r.bottom+4}) });
-    setOpen(v => !v);
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (btnRef.current?.contains(e.target as Node) || panelRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [open]);
-
-  if (disabled) return <span className={`inline-flex items-center pl-3 pr-3 py-1.5 text-xs font-semibold rounded-full border ${badge} opacity-80`}>{label}</span>;
-
-  return (
-    <>
-      <button ref={btnRef} type="button" onClick={handleOpen}
-        className={`inline-flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs font-semibold rounded-full border cursor-pointer outline-none focus:ring-2 focus:ring-blue-400 ${badge}`}>
-        {label}<ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div ref={panelRef} style={style} className="bg-white dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] rounded-[10px] shadow-2xl overflow-hidden">
-          {opciones.map(o => (
-            <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors ${o.value === value ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'text-[#222222] dark:text-gray-200 hover:bg-[#f2f3f5] dark:hover:bg-[rgba(255,255,255,0.07)]'}`}>
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-// ── SelectorReq ───────────────────────────────────────────────────────────────
-const SelectorReq: React.FC<{
-  label: string; opciones: { value: string; label: string }[];
-  value: string; nota?: string | null; conNota?: boolean;
-  onChange: (v: string) => void; onNota?: (v: string) => void;
-  badgeMap: Record<string, string>; disabled?: boolean;
-}> = ({ label, opciones, value, nota, conNota, onChange, onNota, badgeMap, disabled }) => {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm font-medium text-[#45515e] dark:text-gray-300 min-w-[200px]">{label}</label>
-        <CustomDrop opciones={opciones} value={value} onChange={onChange} badgeMap={badgeMap} disabled={disabled} />
-      </div>
-      {conNota && value === 'RECHAZADO' && (
-        <div className="ml-[212px] mt-1">
-          <textarea rows={2} placeholder="Motivo del rechazo..." value={nota ?? ''}
-            onChange={e => onNota?.(e.target.value)}
-            className="w-full text-xs border border-red-200 dark:border-red-800 rounded-[8px] px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 outline-none focus:ring-2 focus:ring-red-400 resize-none" />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── BLANK ─────────────────────────────────────────────────────────────────────
-const BLANK: Omit<FichaCertificacion, 'id' | 'alumno_id' | 'created_at' | 'updated_at'> = {
-  pago_certificado: 'SIN_INICIAR',
-  doc_acta_nacimiento: 'SIN_INICIAR', doc_acta_nacimiento_nota: null,
-  doc_curp: 'SIN_INICIAR',            doc_curp_nota: null,
-  doc_antecedente: 'SIN_INICIAR',     doc_antecedente_nota: null,
-  doc_titulo_profesional: 'SIN_INICIAR', doc_titulo_profesional_nota: null,
-  doc_cedula_profesional: 'SIN_INICIAR', doc_cedula_profesional_nota: null,
-  tipo_certificado: null,
-  fecha_inicio_tramite: null as string|null,
-  fecha_termino_tramite: null as string|null,
-  tramite_completado: false,
-  fecha_completado: null as string|null,
-  enlace_drive: null as string|null,
-};
-
-// ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
-  alumnoId: string;
-  esEspecialidad: boolean;
-  onEstatusChange?: (e: 'SIN_INICIAR'|'EN_CURSO'|'COMPLETADO') => void;
-  onUpdate?: () => void;
+  alumnoId: string; esEspecialidad: boolean; programaInicialId?: string; soloLectura?: boolean;
+  onEstatusChange?: (e: 'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO') => void;
+  onUpdate?: () => void; onCapturaChange?: (abierta: boolean) => void;
+  onGuardandoChange?: (guardando: boolean) => void;
 }
-
-export default function TabCertificacion({ alumnoId, esEspecialidad, onEstatusChange, onUpdate }: Props) {
-  const [ficha, setFicha]       = useState<FichaCertificacion|null>(null);
-  const [draft, setDraft]       = useState(BLANK);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [editing, setEditing]   = useState(false);
-  const [saved, setSaved]       = useState(false);
-
-  // Reset total de la ficha
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [resetStep, setResetStep]           = useState<1|2>(1);
-  const [resetting, setResetting]           = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from('ficha_certificacion').select('*').eq('alumno_id', alumnoId).maybeSingle();
-    if (data) {
-      setFicha(data as FichaCertificacion);
-      const { id: _i, alumno_id: _a, created_at: _c, updated_at: _u, ...rest } = data as FichaCertificacion;
-      setDraft(rest as typeof BLANK);
-    } else {
-      setFicha(null); setDraft({ ...BLANK });
-    }
-    setLoading(false);
-  }, [alumnoId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const estatus = getEstatus(ficha, editing);
-  useEffect(() => { onEstatusChange?.(estatus); }, [estatus, onEstatusChange]);
-
-  const set = (field: keyof typeof BLANK, val: unknown) =>
-    setDraft(p => ({ ...p, [field]: val }));
-
-  const handleFechaInicio = (val: string) => {
-    let termino = null;
-    if (val) {
-      const d = new Date(val + 'T12:00:00');
-      if (!isNaN(d.getTime())) {
-        termino = toInputDate(addBusinessDays(d, 70));
-      }
-    }
-    setDraft(p => ({
-      ...p,
-      fecha_inicio_tramite: val || null,
-      fecha_termino_tramite: termino,
-    }));
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    if (ficha) {
-      await supabase.from('ficha_certificacion').update({ ...draft, updated_at: new Date().toISOString() }).eq('id', ficha.id);
-    } else {
-      const { data } = await supabase.from('ficha_certificacion').insert({ alumno_id: alumnoId, ...draft }).select().single();
-      if (data) setFicha(data as FichaCertificacion);
-    }
-
-    if (draft.tramite_completado) {
-      const ahora = new Date().toISOString();
-      await supabase.from('alumno_programas').update({
-        estatus: 'EGRESADO',
-        motivo_estatus: 'PLAN_CONCLUIDO',
-        fecha_ultimo_cambio: ahora,
-      }).eq('alumno_id', alumnoId).eq('estatus', 'CURSANDO');
-
-      await supabase.from('alumnos').update({ estatus: 'EGRESADO' }).eq('id', alumnoId).eq('estatus', 'ACTIVO');
-
-      useAppStore.getState().setAlumnos(prev => 
-        prev.map(a => a.id === alumnoId && (!a.estatus || a.estatus === 'ACTIVO') ? { ...a, estatus: 'EGRESADO' } : a)
-      );
-    }
-
-    setSaving(false); setEditing(false); setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-    load();
-    onUpdate?.();
-  };
-
-  const handleCancel = () => {
-    setEditing(false);
-    if (ficha) {
-      const { id: _i, alumno_id: _a, created_at: _c, updated_at: _u, ...r } = ficha;
-      setDraft(r as typeof BLANK);
-    } else setDraft({ ...BLANK });
-  };
-
-  const handleMarcarCompletados = () => {
-    setDraft(p => ({
-      ...p,
-      pago_certificado: 'COMPLETADO',
-      doc_acta_nacimiento: 'APROBADO',
-      doc_curp: 'APROBADO',
-      doc_antecedente: 'APROBADO',
-      ...(esEspecialidad ? { doc_titulo_profesional: 'APROBADO', doc_cedula_profesional: 'APROBADO' } : {})
-    }));
-    setEditing(true);
-  };
-
-  // ── Reset total ─────────────────────────────────────────────────────
-  const handleResetTotal = async () => {
-    if (!ficha) return;
-    setResetting(true);
-    const { error } = await supabase.from('ficha_certificacion').delete().eq('id', ficha.id);
-    setResetting(false);
-    if (error) {
-      toast.error('Error al eliminar la ficha: ' + error.message + '\n\nRevisa que tengas permisos de DELETE en la tabla ficha_certificacion en Supabase (RLS).', { duration: 6000 });
-      return;
-    }
-    setFicha(null);
-    setDraft({ ...BLANK });
-    setEditing(false);
-    setShowResetModal(false);
-    setResetStep(1);
-  };
-
-  // ── Derivados ──────────────────────────────────────────────────────────────
-  const requisitosMet = editing
-    ? checkRequisitos(draft, esEspecialidad)
-    : (ficha ? checkRequisitos(ficha as unknown as typeof BLANK, esEspecialidad) : false);
-
-  const diasRestantes = (() => {
-    const f = ficha?.fecha_termino_tramite ?? draft.fecha_termino_tramite;
-    return f ? businessDaysLeft(new Date(f + 'T23:59:59')) : null;
-  })();
-
-  const LABEL = { SIN_INICIAR:'Proceso sin iniciar', EN_CURSO:'En Curso', COMPLETADO:'Proceso completado' };
-
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={28} className="animate-spin text-sky-400" /></div>;
-
-  return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h3 className="text-[18px] font-semibold text-[#222222] dark:text-gray-100 flex items-center gap-2">
-            <span className="bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 p-1.5 rounded-[8px]"><Award size={18} /></span>
-            Ficha de Certificación
-          </h3>
-          <div className="ml-10 mt-2">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${estatus === 'SIN_INICIAR' ? B_EST.SIN_INICIAR : estatus === 'EN_CURSO' ? B_EST.EN_CURSO : B_EST.COMPLETADO}`}>
-              {estatus === 'SIN_INICIAR' ? <Ban size={12}/> : estatus === 'EN_CURSO' ? <Clock size={12}/> : <CheckCircle2 size={12}/>}
-              {LABEL[estatus]}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-end gap-2">
-          {saved && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 rounded-[8px]"><CheckCircle2 size={13}/> Guardado</span>}
-          {editing ? (
-            <div className="flex flex-wrap gap-2 justify-end">
-              <button onClick={handleMarcarCompletados} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 rounded-[8px] transition-colors"><CheckCircle2 size={14}/> Completar Requisitos</button>
-              <button onClick={handleCancel} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[8px] transition-colors"><X size={14}/> Cancelar</button>
-              <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-60 rounded-[8px] shadow-sm transition-colors active:scale-95">
-                {saving ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Guardar
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              {/* Botón reset — solo visible cuando existe ficha guardada */}
-              {ficha && (
-                <button
-                  onClick={() => { setShowResetModal(true); setResetStep(1); }}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-[8px] transition-colors"
-                  title="Eliminar toda la ficha y regresar al estado inicial"
-                >
-                  <Trash2 size={13}/> Resetear todo
-                </button>
-              )}
-              <button onClick={() => setEditing(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-[8px] shadow-sm transition-colors active:scale-95">
-                <Edit3 size={14}/> {ficha ? 'Editar' : 'Iniciar Registro'}
-              </button>
-            </div>
-          )}
-        </div>
+const control = 'h-[42px] w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 px-3 text-sm disabled:cursor-not-allowed';
+const boton = 'inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-500';
+export default function TabCertificacion({alumnoId,esEspecialidad,programaInicialId,soloLectura=false,onEstatusChange,onUpdate,onCapturaChange,onGuardandoChange}:Props) {
+  const c = useCertificacionAlumno(alumnoId,programaInicialId,onUpdate);
+  useProteccionCaptura(Boolean(c.draft),c.saving);
+  useEffect(()=>{onGuardandoChange?.(c.saving);return ()=>onGuardandoChange?.(false);},[c.saving,onGuardandoChange]);
+  const [motivo,setMotivo] = useState(''), [accion,setAccion] = useState<'cancelar'|'reabrir'|'archivar'|'recargar'|null>(null);
+  useEffect(()=>{onCapturaChange?.(Boolean(c.draft)||c.saving);return ()=>onCapturaChange?.(false);},[Boolean(c.draft),c.saving,onCapturaChange]);
+  useEffect(()=>{ onEstatusChange?.(c.ficha?.tramite_completado ? 'COMPLETADO' : c.ficha ? 'EN_CURSO' : 'SIN_INICIAR'); },[c.ficha,onEstatusChange]);
+  useEffect(()=>setMotivo(''),[c.programaId,c.fichaAnterior]);
+  const f = c.draft || c.ficha;
+  const nivel = c.programa?.planes_estudio?.carreras?.nivel_educativo;
+  const especialidad = nivel ? nivel === 'Especialidad' : esEspecialidad;
+  const requisitos = f ? requisitosCertificado(f,especialidad) : false;
+  const modificable = !soloLectura && c.disponible;
+  const asociando = Boolean(c.draft && c.ficha && !c.ficha.alumno_programa_id);
+  const destinoOcupado = c.fichaAnterior && c.fichas.some(f=>f.alumno_programa_id===c.programaId);
+  const opciones = c.programas.map(p=>({value:p.id,label:[p.planes_estudio?.carreras?.nombre,p.planes_estudio?.clave_legado,p.planes_estudio?.nombre].filter(Boolean).join(' · ')})).sort((a,b)=>a.label.localeCompare(b.label,'es',{numeric:true}));
+  function fechaInicio(valor: string) {
+    c.set('fecha_inicio_tramite',valor||null);
+    c.set('fecha_termino_tramite',terminoOrientativoCertificado(valor));
+  }
+  if(c.loading&&!c.error)return <p role="status" className="p-6 flex items-center gap-2 text-gray-600 dark:text-gray-300"><Loader2 size={18} className="animate-spin"/>Consultando certificaciones…</p>;
+  if(c.error&&!c.programas.length)return <EstadoError mensaje={c.error} onReintentar={c.recargar}/>;
+  return <section className="p-4 sm:p-6 space-y-5 text-gray-900 dark:text-gray-100" aria-label="Certificación por programa">
+    <header className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-xl flex items-center gap-2"><Award size={20} className="text-blue-600 dark:text-blue-400"/>Certificación</h3><p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Cada programa conserva su pago, documentos y trámite.</p></div>
+      {f&&<div className="text-sm space-y-1"><p>Pago: <strong>{estadoPagoCertificado(f)}</strong></p><p>Trámite: <strong>{estadoTramiteCertificado(f)}</strong>{c.draft&&<span className="ml-2 text-xs text-amber-700 dark:text-amber-300">Sin guardar</span>}</p></div>}</header>
+    <div className="max-w-xl"><CampoConAyuda etiqueta="Programa que vas a consultar" ayuda="Selecciona la asociación académica exacta. La marca Principal no transfiere certificaciones ni demuestra que una ficha antigua pertenezca a ese programa."><SelectorBusqueda id="programa-certificacion" etiqueta="Programa que vas a consultar" value={c.programaId} opciones={opciones} onChange={id=>{if(!c.draft&&!c.saving){c.setProgramaId(id);c.setFichaAnterior(false);}}} disabled={Boolean(c.draft)||c.saving} placeholder="Selecciona un programa"/></CampoConAyuda></div>
+    {!c.disponible&&<p role="status" className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-900 dark:text-amber-200">Consulta de fichas anteriores. Para registrar o asociar certificaciones por programa falta instalar la migración de certificación.</p>}
+    {c.legado.length>0&&<aside className="rounded-lg border border-amber-300 dark:border-amber-700 p-3 text-sm space-y-2"><p>Existe una ficha anterior sin programa. Sus datos se conservan y no se atribuyen automáticamente a una carrera.</p><button type="button" className={boton} disabled={Boolean(c.draft)||c.saving} onClick={()=>c.setFichaAnterior(!c.fichaAnterior)}>{c.fichaAnterior?'Volver al programa seleccionado':'Revisar ficha anterior'}</button></aside>}
+    {c.error&&<div role="alert" className="text-sm p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200"><p>{c.error}</p><button className="underline mt-2" disabled={c.saving} onClick={()=>setAccion('recargar')}>Revisar versión guardada</button></div>}
+    {destinoOcupado&&<p role="status" className="text-sm text-amber-800 dark:text-amber-200">El programa seleccionado ya tiene certificación. Elige el programa que corresponde a la ficha anterior; no se sobrescribirá la existente.</p>}
+    {!c.programas.length&&<p className="text-sm">Primero asocia un programa al alumno desde Trayectoria e inscripciones.</p>}
+    {!c.programaId&&!c.fichaAnterior&&c.programas.length>0&&<p className="text-sm text-gray-600 dark:text-gray-400">Elige un programa para consultar o iniciar su certificación.</p>}
+    {(c.programaId||c.fichaAnterior)&&<>
+      <div className="flex flex-wrap gap-2">
+        {c.draft?<><button className={boton} disabled={c.saving} onClick={()=>setAccion('cancelar')}>Cancelar cambios</button>{!c.draft.tramite_completado&&<button className={boton} disabled={c.saving} onClick={()=>{c.set('pago_certificado','COMPLETADO');for(const campo of ['doc_acta_nacimiento','doc_curp','doc_antecedente',...(especialidad?['doc_titulo_profesional','doc_cedula_profesional']:[])])c.set(campo as keyof FichaCertificacion,'APROBADO');}}>Completar requisitos</button>}<button className={boton+' bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-700'} disabled={c.saving||asociando&&motivo.trim().length<5} onClick={()=>void c.guardar(motivo)}>{c.saving?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>}Guardar certificación</button></>
+          :modificable&&<><button className={boton} disabled={!c.programaId||c.saving||destinoOcupado||!c.ficha&&c.legado.length>0} onClick={c.iniciar}><Edit3 size={15}/>{c.fichaAnterior?'Asociar y revisar esta ficha':c.ficha?'Editar':'Iniciar registro'}</button>{c.ficha&&<button className={boton} disabled={c.saving} onClick={()=>{setMotivo('');setAccion('archivar');}}>Archivar ficha</button>}</>}
       </div>
-
-      {/* Secciones — solo si hay ficha o se edita */}
-      {(ficha || editing) && (
-        <div className="bg-white dark:bg-[#181e25] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[16px]">
-
-          {/* Pago */}
-          <div className="px-5 py-4 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-            <p className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-4">Pago</p>
-            <SelectorReq label="Pago de Certificado"
-              opciones={[{value:'SIN_INICIAR',label:'Sin iniciar'},{value:'EN_CURSO',label:'En curso'},{value:'COMPLETADO',label:'Completado'}]}
-              value={draft.pago_certificado} onChange={v => set('pago_certificado', v)} badgeMap={B_EST} disabled={!editing} />
-          </div>
-
-          {/* Revisión documental */}
-          <div className="px-5 py-4 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-            <p className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-4">Revisión Documental</p>
-            <div className="space-y-3">
-              {([
-                {field:'doc_acta_nacimiento' as const, nota:'doc_acta_nacimiento_nota' as const, label:'Acta de Nacimiento'},
-                {field:'doc_curp'            as const, nota:'doc_curp_nota'            as const, label:'CURP'},
-                {field:'doc_antecedente'     as const, nota:'doc_antecedente_nota'     as const, label:'Antecedente Académico'},
-              ]).map(({field, nota, label}) => (
-                <SelectorReq key={field} label={label}
-                  opciones={[{value:'SIN_INICIAR',label:'Sin iniciar'},{value:'APROBADO',label:'Aprobado'},{value:'RECHAZADO',label:'Rechazado'}]}
-                  value={draft[field]} nota={draft[nota]} conNota
-                  onChange={v => set(field, v)} onNota={v => set(nota, v)}
-                  badgeMap={B_DOC} disabled={!editing} />
-              ))}
-
-              {esEspecialidad && ([
-                {field:'doc_titulo_profesional' as const, nota:'doc_titulo_profesional_nota' as const, label:'Título Profesional'},
-                {field:'doc_cedula_profesional' as const, nota:'doc_cedula_profesional_nota' as const, label:'Cédula Profesional'},
-              ]).map(({field, nota, label}) => (
-                <SelectorReq key={field} label={label}
-                  opciones={[{value:'SIN_INICIAR',label:'Sin iniciar'},{value:'APROBADO',label:'Aprobado'},{value:'RECHAZADO',label:'Rechazado'}]}
-                  value={draft[field]} nota={draft[nota]} conNota
-                  onChange={v => set(field, v)} onNota={v => set(nota, v)}
-                  badgeMap={B_DOC} disabled={!editing} />
-              ))}
-            </div>
-          </div>
-
-          {/* Tipo de Certificado */}
-          <div className="px-5 py-4">
-            <p className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-4">Tipo de Certificado</p>
-            <SelectorReq label="Tipo de Certificado"
-              opciones={[{value:'TOTAL',label:'Total'},{value:'PARCIAL',label:'Parcial'}]}
-              value={draft.tipo_certificado ?? ''}
-              onChange={v => set('tipo_certificado', v || null)}
-              badgeMap={{TOTAL: B_EST.COMPLETADO, PARCIAL: B_EST.EN_CURSO}} disabled={!editing} />
-          </div>
-        </div>
-      )}
-
-      {/* Inicio de Trámite */}
-      {(ficha || editing) && (
-        <div className={`border rounded-[16px] transition-all duration-200 ${
-          requisitosMet
-            ? 'bg-white dark:bg-[#181e25] border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]'
-            : 'bg-[#f8f9ff] dark:bg-[#1a1f26] border-dashed border-gray-200 dark:border-gray-700/50'
-        }`}>
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-            <div className={`p-1.5 rounded-[8px] ${ficha?.tramite_completado ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : requisitosMet ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-400'}`}>
-              <Flag size={16}/>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-[#222222] dark:text-gray-100">Inicio de Trámite</p>
-              <p className="text-[11px] text-[#8e8e93]">{ficha?.tramite_completado ? 'Trámite finalizado' : requisitosMet ? 'Requisitos cubiertos — habilitado' : 'Se habilita al cubrir todos los requisitos'}</p>
-            </div>
-            {!requisitosMet && !ficha?.tramite_completado && <Lock size={14} className="ml-auto text-gray-400"/>}
-          </div>
-
-          {!requisitosMet && !draft.tramite_completado && (
-            <div className="flex items-center gap-3 px-5 py-5 text-sm text-[#8e8e93]">
-              <AlertCircle size={16} className="text-amber-400 shrink-0"/> Cubre todos los requisitos para habilitar esta sección.
-            </div>
-          )}
-
-          {(requisitosMet || draft.tramite_completado) && (
-            <div className="px-5 py-5 space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider flex items-center gap-1.5"><CalendarDays size={12}/> Fecha de Inicio</label>
-                  <input type="date" disabled={!editing} value={(draft.fecha_inicio_tramite as string) ?? ''} onChange={e => handleFechaInicio(e.target.value)}
-                    className="px-3 py-2 text-sm rounded-[10px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-60" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider flex items-center gap-1.5"><CalendarDays size={12}/> Fecha de Término <span className="text-[10px] normal-case text-sky-500 font-normal">(70 días hábiles)</span></label>
-                  <input type="date" disabled={!editing} value={(draft.fecha_termino_tramite as string) ?? ''} onChange={e => set('fecha_termino_tramite', e.target.value || null)}
-                    className="px-3 py-2 text-sm rounded-[10px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-60" />
-                </div>
-              </div>
-
-              {draft.fecha_termino_tramite && diasRestantes !== null && !draft.tramite_completado && (
-                <div className={`flex items-center gap-3 px-4 py-3 rounded-[10px] border text-sm font-semibold ${diasRestantes <= 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300' : diasRestantes <= 15 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300' : 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300'}`}>
-                  <Clock size={16} className="shrink-0"/>
-                  {diasRestantes <= 0 ? 'Fecha de término vencida' : `${diasRestantes} días hábiles restantes`}
-                </div>
-              )}
-
-              {/* Status Section */}
-              <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-                <div>
-                  {draft.tramite_completado ? (
-                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 size={16}/>
-                      <span className="text-sm font-semibold">Proceso Completado</span>
-                      {draft.fecha_completado && <span className="text-xs text-[#8e8e93] font-normal ml-1">(el {new Date(draft.fecha_completado).toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'})})</span>}
-                    </div>
-                  ) : (
-                    <span className="text-sm text-[#8e8e93] font-semibold">Proceso en trámite</span>
-                  )}
-                </div>
-
-                {editing && (
-                  <div>
-                    {draft.tramite_completado ? (
-                      <button type="button" onClick={() => { 
-                          setDraft(prev => ({
-                            ...prev,
-                            tramite_completado: false,
-                            fecha_completado: null,
-                            pago_certificado: 'SIN_INICIAR',
-                            doc_acta_nacimiento: 'SIN_INICIAR', doc_acta_nacimiento_nota: null,
-                            doc_curp: 'SIN_INICIAR', doc_curp_nota: null,
-                            doc_antecedente: 'SIN_INICIAR', doc_antecedente_nota: null,
-                            doc_titulo_profesional: 'SIN_INICIAR', doc_titulo_profesional_nota: null,
-                            doc_cedula_profesional: 'SIN_INICIAR', doc_cedula_profesional_nota: null
-                          }));
-                        }}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                        Revertir a En Trámite
-                      </button>
-                    ) : (
-                      <button type="button" onClick={() => { set('tramite_completado', true); set('fecha_completado', new Date().toISOString()); }}
-                        disabled={!draft.fecha_inicio_tramite}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-1">
-                        <CheckCircle2 size={14}/> Marcar como Completado
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <DrivePicker
-            label="Expediente Digital"
-            value={draft.enlace_drive}
-            onSelect={(url) => set('enlace_drive', url)}
-            disabled={!draft.tramite_completado}
-            isEditing={editing}
-          />
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!ficha && !editing && (
-        <div className="flex flex-col items-center justify-center py-14 bg-[#f8f9ff] dark:bg-[#1c2228] rounded-[20px] border border-dashed border-sky-200 dark:border-sky-900/40">
-          <div className="bg-sky-100 dark:bg-sky-900/30 p-4 rounded-[13px] text-sky-500 mb-4"><Award size={32}/></div>
-          <p className="text-base font-semibold text-[#45515e] dark:text-gray-300">Sin proceso de certificación iniciado</p>
-          <p className="text-sm text-[#8e8e93] mt-1">Usa <strong>"Iniciar Registro"</strong> para comenzar el seguimiento.</p>
-        </div>
-      )}
-
-      {/* ── Modal Reset Total ────────────────────────────────────────────── */}
-      {showResetModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-2xl w-full max-w-md overflow-hidden border border-red-200 dark:border-red-900/60">
-            <div className="flex items-center gap-3 px-6 py-5 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/40">
-              <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-full text-red-600 dark:text-red-400">
-                <AlertTriangle size={20} />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-red-700 dark:text-red-400">Resetear Ficha de Certificación</p>
-                <p className="text-xs text-red-500 mt-0.5">Esta acción eliminará todo el progreso registrado</p>
-              </div>
-            </div>
-
-            {resetStep === 1 && (
-              <div className="px-6 py-5 space-y-4">
-                <p className="text-sm text-[#222222] dark:text-gray-200">Se eliminará por completo la ficha de certificación de este alumno de la base de datos. Todo el progreso, fechas, documentación revisada y estatus quedarán en cero.</p>
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-[10px] px-4 py-3">
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
-                    <AlertTriangle size={13} /> Advertencia
-                  </p>
-                  <ul className="text-xs text-amber-600 dark:text-amber-500 mt-1 space-y-1 list-disc list-inside leading-relaxed">
-                    <li>Se perderán todas las fechas de trámite registradas.</li>
-                    <li>El estatus de Certificado en Titulación se reiniciará automáticamente.</li>
-                    <li>Esta acción <strong>no se puede deshacer</strong>.</li>
-                  </ul>
-                </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  <button onClick={() => { setShowResetModal(false); setResetStep(1); }}
-                    className="px-4 py-2 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[10px] transition-colors">
-                    Cancelar
-                  </button>
-                  <button onClick={() => setResetStep(2)}
-                    className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-[10px] transition-colors">
-                    Entendido — Continuar
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {resetStep === 2 && (
-              <div className="px-6 py-5 space-y-4">
-                <p className="text-sm font-semibold text-red-700 dark:text-red-400 flex items-center gap-2">
-                  <AlertTriangle size={15} /> Confirmación final
-                </p>
-                <p className="text-sm text-[#45515e] dark:text-gray-300 leading-relaxed">
-                  ¿Estás <strong>completamente seguro</strong>? Se eliminará toda la ficha de certificación y no podrá recuperarse.
-                </p>
-                <div className="flex justify-end gap-2 pt-1">
-                  <button onClick={() => setResetStep(1)}
-                    className="px-4 py-2 text-sm font-semibold text-[#45515e] dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-[10px] transition-colors">
-                    Atrás
-                  </button>
-                  <button onClick={handleResetTotal} disabled={resetting}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 rounded-[10px] transition-colors">
-                    {resetting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    Sí, resetear todo
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+      {asociando&&<CampoConAyuda etiqueta="Respaldo de la asociación" ayuda="Explica cómo comprobaste que esta ficha anterior pertenece al programa seleccionado. Se guarda en auditoría; no se copia a los demás programas."><input value={motivo} disabled={c.saving} onChange={e=>setMotivo(e.target.value)} className={control+' max-w-xl'} placeholder="Documento o revisión que acredita el programa"/></CampoConAyuda>}
+      {f?<>
+        <CertificacionRequisitos ficha={f} especialidad={especialidad} editable={Boolean(c.draft)&&!c.saving&&!f.tramite_completado} onChange={c.set}/>
+        <section className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-4"><h4 className="font-semibold">Trámite del certificado</h4>
+          {!requisitos&&!f.tramite_completado&&<p className="text-sm text-gray-600 dark:text-gray-400">Completa el pago, la revisión documental y el tipo de certificado para registrar el inicio.</p>}
+          <div className="flex flex-wrap gap-4">{[['fecha_inicio_tramite','Inicio del trámite'],['fecha_termino_tramite','Término previsto']].map(([key,label])=><div key={key} className="w-full sm:w-56"><CampoConAyuda etiqueta={label} ayuda={key==='fecha_inicio_tramite'?'Fecha documentada en que comenzó el trámite, distinta del inicio de captura.':'Se proponen 70 días hábiles de lunes a viernes; revisa feriados y el plazo institucional.'}><input type="date" value={(f[key as keyof FichaCertificacion] as string)||''} disabled={!c.draft||c.saving||!requisitos||Boolean(f.tramite_completado)} onInput={e=>key==='fecha_inicio_tramite'?fechaInicio(e.currentTarget.value):c.set('fecha_termino_tramite',e.currentTarget.value||null)} onChange={e=>key==='fecha_inicio_tramite'?fechaInicio(e.target.value):c.set('fecha_termino_tramite',e.target.value||null)} className={control}/></CampoConAyuda></div>)}</div>
+          {f.fecha_completado&&<p className="text-sm">Completado el {new Date(f.fecha_completado).toLocaleDateString('es-MX')}.</p>}
+          {c.draft&&(f.tramite_completado?<button className={boton} disabled={c.saving} onClick={()=>setAccion('reabrir')}>Reabrir trámite</button>:<button className={boton} disabled={c.saving||!requisitos||!f.fecha_inicio_tramite} onClick={()=>c.set('tramite_completado',true)}><CheckCircle2 size={16}/>Marcar como completado</button>)}
+          <p className="text-xs text-gray-600 dark:text-gray-400">El pago se registra en esta ficha; no verifica automáticamente los recibos. Completar los requisitos no concluye el trámite. Un certificado parcial conserva el estatus académico; al completar uno total se cierra únicamente este programa si estaba cursando.</p>
+          <DrivePicker label="Expediente digital" value={f.enlace_drive} onSelect={url=>c.set('enlace_drive',url)} disabled={!f.tramite_completado} isEditing={Boolean(c.draft)&&!c.saving}/>
+        </section>
+      </>:<p className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-6 text-sm">Sin registro de certificación para este programa.</p>}
+    </>}
+    <ModalConfirmacion isOpen={accion==='cancelar'} title="Descartar cambios de certificación" message="Se conservará la última ficha guardada." onCancel={()=>setAccion(null)} onConfirm={()=>{c.cancelar();setAccion(null);}} confirmText="Descartar cambios"/>
+    <ModalConfirmacion isOpen={accion==='recargar'} title="Consultar versión guardada" message="Se descartará esta captura y se consultará nuevamente la ficha guardada. Puedes cancelar para conservar lo que estabas editando." onCancel={()=>setAccion(null)} onConfirm={()=>{c.cancelar();c.recargar();setAccion(null);}} confirmText="Descartar captura y recargar"/>
+    <ModalConfirmacion isOpen={accion==='reabrir'} title="Reabrir trámite" message="Se quitará su conclusión, conservando el pago, la revisión documental, las fechas y el expediente digital. Confirma después con Guardar certificación." onCancel={()=>setAccion(null)} onConfirm={()=>{c.reabrir();setAccion(null);}} confirmText="Reabrir"/>
+    <ModalConfirmacion isOpen={accion==='archivar'} title="Archivar certificación" message={<div className="space-y-3"><p>La ficha saldrá del seguimiento activo. Sus datos y auditoría se conservan; no se revierten egresos ni pagos.</p><label className="block text-sm">Motivo<input className={control+' mt-1'} value={motivo} onChange={e=>setMotivo(e.target.value)}/></label></div>} onCancel={()=>setAccion(null)} confirmDisabled={motivo.trim().length<5} onConfirm={async()=>{await c.archivar(motivo);setAccion(null);}} confirmText="Archivar" busy={c.saving}/>
+  </section>;
 }

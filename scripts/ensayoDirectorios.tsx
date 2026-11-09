@@ -11,6 +11,15 @@ let empleados = nombres.slice(0, 12).map((nombre, i) => ({ id: uuid(500 + i), pe
 const evaluaciones = [{ id: uuid(700), empleado_id: empleados[0].id, empleados: empleados[0], tipo_guia: 'GUIA_II', created_at: '2026-11-01T12:00:00Z', nivel_riesgo: 'Bajo', calificacion_final: 30, calificacion_desglose: { categorias: [] } }];
 const planes = [{ id: uuid(800), titulo: 'Seguimiento del entorno laboral', descripcion: 'Plan ficticio para comprobar el flujo de consulta.', nivel_intervencion: 'Primer nivel', estatus: 'Pendiente', created_at: '2026-11-01' }];
 const peticiones: string[] = [];
+let cuentasAdministrativas: any[] = [
+  { id: uuid(950), username: 'docente.compartido', rol: 'DOCENTE', activo: true, auth_id: uuid(960), empleado_id: null, docente_id: docentes[0].id },
+  { id: uuid(951), username: 'administrativo.inactivo', rol: 'CAJERO', activo: false, auth_id: uuid(961), empleado_id: empleados[1].id, docente_id: null },
+  { id: uuid(952), username: 'cuenta.existente', rol: 'COORDINADOR FINANCIERO', activo: true, auth_id: uuid(962), empleado_id: null, docente_id: null },
+];
+const cuentasEmpleado = (id: string) => {
+  const e = empleados.find(e => e.id === id), d = docentes.find(d => e?.persona_id && e.persona_id === d.persona_id);
+  return cuentasAdministrativas.filter(c => c.empleado_id === id || d && c.docente_id === d.id);
+};
 let errorConsulta = qs.has('error');
 const respuesta = (d: any, status=200) => new Response(JSON.stringify(d), { status, headers: { 'content-type': 'application/json' } });
 window.fetch = async (input: any, init?: RequestInit) => {
@@ -19,6 +28,26 @@ window.fetch = async (input: any, init?: RequestInit) => {
   const tabla = url.pathname.split('/').pop()!;
   const metodo = init?.method || 'GET';
   peticiones.push(`${metodo} ${tabla}`); document.getElementById('peticiones')!.textContent = JSON.stringify(peticiones);
+  const body = JSON.parse(String(init?.body || '{}'));
+  if (tabla.startsWith('personal_administrativo_') || tabla.startsWith('personal_cuentas_')) {
+    if (qs.has('sin-migracion')) return respuesta({ code: 'PGRST202', message: 'Función no instalada (ficticio)' }, 404);
+    if (tabla === 'personal_cuentas_administrativas_v1') return respuesta(empleados.filter(e => body.p_ids.includes(e.id)).map(e => ({ empleado_id: e.id, cuentas: cuentasEmpleado(e.id) })));
+    if (tabla === 'personal_cuentas_buscar_v1') return respuesta(cuentasAdministrativas.filter(c => c.username.includes(body.p_busqueda)));
+    const e = empleados.find(e => e.id === body.p_empleado);
+    if (!e) return respuesta({ message: 'El registro ya no existe (ficticio)' }, 409);
+    if (tabla === 'personal_administrativo_revisar_v1') {
+      const dependencias = e.id === uuid(500) ? [{ tabla: 'public.nom035_evaluaciones', cantidad: 1 }] : cuentasEmpleado(e.id).length ? [{ tabla: 'public.usuarios', cantidad: 1 }] : [];
+      return respuesta({ empleado: e, cuentas: cuentasEmpleado(e.id), docente_id: docentes.find(d => e.persona_id && d.persona_id === e.persona_id)?.id || null, dependencias, puede_eliminar: !dependencias.length });
+    }
+    if (qs.has('rechazar')) return respuesta({ message: 'Conflicto de revisión ficticio. La captura se conserva.' }, 409);
+    if (tabla === 'personal_administrativo_eliminar_v1') { empleados = empleados.filter(f => f.id !== e.id); return respuesta({ eliminado_id: e.id }); }
+    if (tabla === 'personal_administrativo_vincular_cuenta_v1') { cuentasAdministrativas = cuentasAdministrativas.map(c => c.id === body.p_usuario ? { ...c, empleado_id: e.id, docente_id: c.docente_id || docentes.find(d => e.persona_id && d.persona_id === e.persona_id)?.id || null } : c); return respuesta({ usuario_id: body.p_usuario }); }
+  }
+  if (tabla === 'manage-users' && body.action === 'CREATE_ADMINISTRATIVO') {
+    if (qs.has('rechazar')) return respuesta({ error: 'Conflicto de creación ficticio. Revisa el registro.' }, 409);
+    cuentasAdministrativas.push({ id: uuid(970 + cuentasAdministrativas.length), username: body.username, rol: body.rol, activo: true, auth_id: uuid(980 + cuentasAdministrativas.length), empleado_id: body.empleado_id, docente_id: null });
+    return respuesta({ success: true });
+  }
   if (metodo !== 'GET' && !url.pathname.includes('/rpc/')) return respuesta({ message: 'Ensayo de solo lectura: escritura bloqueada.' }, 403);
   if (errorConsulta && ['docentes','empleados'].includes(tabla)) return respuesta({ message: 'Fallo ficticio de consulta' }, 503);
   if (tabla === 'personal_consultar_v3') {

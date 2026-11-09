@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "preparar:manage-users-dashboard": "node scripts/generarManageUsersDashboard.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

@@ -1,12 +1,15 @@
 // Edge Function: manage-users
-// Supabase Dashboard → Edge Functions → New Function → nombre: "manage-users"
-// Pega este código completo y haz Deploy.
+// Fuente modular para desplegar con la CLI junto a sus archivos importados.
+// Para el editor del Dashboard: npm run preparar:manage-users-dashboard
+// y copiar COMPLETO supabase/dashboard/manage-users.ts en su index.ts.
 //
 // Variables de entorno: SUPABASE_URL, SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY
 // son inyectadas automáticamente por Supabase en todas las Edge Functions.
 
 // @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { crearCuentaAdministrativa } from './cuentaAdministrativa.ts';
+import { revisarCuentaDocenteExistente } from './cuentaDocenteExistente.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -84,6 +87,11 @@ Deno.serve(async (req) => {
 
     const { action } = body;
 
+    if (action === 'CREATE_ADMINISTRATIVO') {
+      const resultado = await crearCuentaAdministrativa(body, supabaseClient, supabaseAdmin);
+      return json(resultado.data, resultado.status);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // ACCIÓN: CREATE — Crear nuevo usuario
     // ════════════════════════════════════════════════════════════════════════
@@ -95,6 +103,11 @@ Deno.serve(async (req) => {
       }
       if (password.length < 8) {
         return json({ error: 'La contraseña debe tener al menos 8 caracteres.' }, 400);
+      }
+
+      if (docente_id) {
+        const bloqueo = await revisarCuentaDocenteExistente(docente_id, supabaseClient, supabaseAdmin);
+        if (bloqueo) return json({ error: bloqueo }, 409);
       }
 
       const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '');
@@ -161,7 +174,7 @@ Deno.serve(async (req) => {
         
         if (linkError) {
           console.error('Error vinculando docente_id:', linkError);
-          // No hacemos throw porque el usuario ya fue creado exitosamente
+          return json({ error: 'Auth creó la cuenta, pero no se confirmó su vínculo docente. Revisa Usuarios antes de repetir el alta; no se eliminaron cuentas preexistentes.' }, 409);
         }
       }
 

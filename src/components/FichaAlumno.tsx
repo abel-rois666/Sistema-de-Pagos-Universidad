@@ -39,11 +39,14 @@ interface FichaAlumnoProps {
   onGoToPlan?: (id: string, planId?: string) => void;
   onBackToAlumnos?: () => void;
   onBackToReporteEgresados?: () => void;
+  initialTab?: TabId;
+  initialProgramaId?: string;
+  onCertificacionUpdated?: () => void;
 }
 
 // ── Componente ──────────────────────────────────────────────────────────────
 export default function FichaAlumno({
-  initialAlumnoId, onBack, onGoToPlan, onBackToAlumnos, onBackToReporteEgresados
+  initialAlumnoId, onBack, onGoToPlan, onBackToAlumnos, onBackToReporteEgresados, initialTab, initialProgramaId, onCertificacionUpdated
 }: FichaAlumnoProps) {
 
   const {
@@ -58,7 +61,6 @@ export default function FichaAlumno({
     showConfirmMonedero, setShowConfirmMonedero,
     empresasLocales, setEmpresasLocales,
     ssRegistros, setSsRegistros,
-    certEstatus, setCertEstatus,
     isEditingEstatus, setIsEditingEstatus,
     tempEstatus, setTempEstatus,
     guardandoEstatus, setGuardandoEstatus,
@@ -84,15 +86,16 @@ export default function FichaAlumno({
     handleSaveEstatus,
     handleUpdateMonederoClick,
     executeUpdateMonedero,
-  } = useFichaAlumnoLogic(initialAlumnoId, TABS);
+  } = useFichaAlumnoLogic(initialAlumnoId, TABS, initialTab);
 
   const [historialAmpliado,setHistorialAmpliado]=useState(false);
   useEffect(()=>{if(activeTab!=='academico')setHistorialAmpliado(false);},[activeTab,selectedAlumnoId]);
   const [programaTrayectoriaId,setProgramaTrayectoriaId]=useState<string|undefined>();
   useEffect(()=>setProgramaTrayectoriaId(undefined),[selectedAlumnoId]);
   const [capturaIngresoAbierta,setCapturaIngresoAbierta]=useState(false);
+  const [certGuardando,setCertGuardando]=useState(false);
   const [salidaIngreso,setSalidaIngreso]=useState<(()=>void)|null>(null);
-  const salirSiNecesario=(accion:()=>void)=>capturaIngresoAbierta?setSalidaIngreso(()=>accion):accion();
+  const salirSiNecesario=(accion:()=>void)=>certGuardando?toast('Espera a que termine el guardado.'):capturaIngresoAbierta?setSalidaIngreso(()=>accion):accion();
 
   // ── Barra de búsqueda (inline para no perder foco) ────────────────────────
   const searchBarJSX = (
@@ -186,6 +189,7 @@ export default function FichaAlumno({
           <div className="flex flex-wrap items-center gap-4">
             <button 
               type="button"
+              data-cerrar-consulta="true"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); salirSiNecesario(onBack); }}
               className="flex items-center gap-2 text-[#45515e] dark:text-gray-300 hover:text-[#222222] dark:hover:text-white font-medium transition-colors" 
               style={{ fontFamily: 'var(--font-ui)' }}
@@ -262,12 +266,15 @@ export default function FichaAlumno({
               onRegistrosChange={setSsRegistros}
             />
           )}
-          {activeTab === 'certificacion' && isAdmin && (
+          {activeTab === 'certificacion' && visibleTabs.some(t=>t.id==='certificacion') && (
             <TabCertificacion
               alumnoId={selectedAlumno.id}
               esEspecialidad={esEspecialidad}
-              onEstatusChange={setCertEstatus}
-              onUpdate={() => onRefreshAlumnos?.()}
+              programaInicialId={initialProgramaId}
+              soloLectura={!isAdmin}
+              onCapturaChange={setCapturaIngresoAbierta}
+              onGuardandoChange={setCertGuardando}
+              onUpdate={() => { onCertificacionUpdated?.(); void onRefreshAlumnos?.().catch(()=>toast.error('La certificación se guardó, pero no se pudo actualizar el padrón. Recarga el reporte.')); }}
             />
           )}
           {activeTab === 'titulacion' && isAdmin && (
@@ -277,7 +284,6 @@ export default function FichaAlumno({
               modalidadesCatalogo={catalogos?.modalidades_titulacion ?? []}
               servicioSocialRegistros={ssRegistros}
               planesAlumno={planesDelAlumno}
-              certificacionEstatus={certEstatus}
               alumno={selectedAlumno}
               onUpdate={() => onRefreshAlumnos?.()}
             />

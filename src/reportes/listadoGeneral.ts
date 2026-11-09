@@ -1,7 +1,7 @@
 import type { Alumno } from '../types';
 import { STATE_MAPPING } from '../utils/geoUtils';
 
-export type ColumnaListadoId='nombre'|'licenciatura'|'turno'|'estatus'|'telefonos'|'email'|'grado'|'edad'|'sexo'|'nacimiento'|'procedencia'|'residencia';
+export type ColumnaListadoId='nombre'|'licenciatura'|'turno'|'estatus'|'telefonos'|'email'|'grado'|'edad'|'sexo'|'nacimiento'|'procedencia'|'residencia'|'pagoTitulacion'|'pagoCertificado'|'certificacion';
 export interface ColumnaListado {id:ColumnaListadoId;nombre:string;ayuda?:string;opcional?:boolean;ancho:number;valor:(a:Alumno,fecha:string)=>string}
 export function fechaActualListado(){return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
 export function fechaCivilValida(iso:string){
@@ -43,11 +43,14 @@ export const COLUMNAS_LISTADO:readonly ColumnaListado[]=[
  {id:'nacimiento',nombre:'Entidad de nacimiento',opcional:true,ancho:38,valor:a=>entidadListado(a.estado_nacimiento)},
  {id:'procedencia',nombre:'Entidad de escolaridad de procedencia',opcional:true,ancho:40,ayuda:'Estado de escolaridad registrado. En licenciatura suele corresponder al bachillerato; en posgrado puede representar otro antecedente. No se reclasifica automáticamente.',valor:a=>entidadListado(a.estado_escolaridad)},
  {id:'residencia',nombre:'Entidad de residencia',opcional:true,ancho:38,valor:a=>entidadListado(a.estado)},
+ {id:'pagoTitulacion',nombre:'Pago de titulación',opcional:true,ancho:48,ayuda:'Planes de pago de Titulación del alumno, identificados por ID. Con varios planes se muestra cada ciclo y folio; el ciclo del padrón no cambia esta consulta.',valor:()=> 'Sin consultar'},
+ {id:'pagoCertificado',nombre:'Pago del certificado',opcional:true,ancho:52,ayuda:'Pago declarado en la ficha de cada programa. No se comprueban automáticamente los recibos. Las fichas anteriores sin asociación se identifican por separado.',valor:()=> 'Sin consultar'},
+ {id:'certificacion',nombre:'Trámite de certificación',opcional:true,ancho:52,ayuda:'Sin registro, En preparación, En trámite o Completado por programa; no se confunde con el pago.',valor:()=> 'Sin consultar'},
 ];
-export const columnasListado=(seleccion:readonly ColumnaListadoId[])=>COLUMNAS_LISTADO.filter(c=>!c.opcional||seleccion.includes(c.id));
+export const columnasListado=(seleccion:readonly ColumnaListadoId[],seguimiento?:Partial<Record<ColumnaListadoId,(a:Alumno)=>string>>)=>COLUMNAS_LISTADO.filter(c=>!c.opcional||seleccion.includes(c.id)).map(c=>seguimiento?.[c.id]?{...c,valor:seguimiento[c.id]!}:c);
 export const etiquetaColumnaListado=(c:ColumnaListado,fecha:string)=>c.id==='edad'?`Edad al ${fechaLegibleListado(fecha)} (años)`:c.nombre;
-export function ordenarListado(alumnos:readonly Alumno[],columna:ColumnaListadoId,descendente:boolean,fecha:string){
- const c=COLUMNAS_LISTADO.find(c=>c.id===columna)||COLUMNAS_LISTADO[0];
+export function ordenarListado(alumnos:readonly Alumno[],columna:ColumnaListadoId,descendente:boolean,fecha:string,columnas:readonly ColumnaListado[]=COLUMNAS_LISTADO){
+ const c=columnas.find(c=>c.id===columna)||COLUMNAS_LISTADO[0];
  return [...alumnos].sort((a,b)=>(descendente?-1:1)*c.valor(a,fecha).localeCompare(c.valor(b,fecha),'es-MX',{numeric:true,sensitivity:'base'})||a.nombre_completo.localeCompare(b.nombre_completo,'es-MX')||a.id.localeCompare(b.id));
 }
 export function csvListado(alumnos:readonly Alumno[],columnas:readonly ColumnaListado[],fecha:string){

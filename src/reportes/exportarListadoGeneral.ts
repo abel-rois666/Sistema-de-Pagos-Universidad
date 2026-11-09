@@ -8,10 +8,12 @@ export function pdfListadoGeneral(alumnos:readonly Alumno[],columnas:readonly Co
  let y=15;
  doc.setFontSize(15);doc.text('Listado General de Alumnos',14,y);y+=8;doc.setFontSize(9);
  for(const texto of [...filtros,`Alumnos: ${alumnos.length}`,columnas.some(c=>c.id==='edad')?`Edad calculada al ${fechaLegibleListado(fecha)}. Datos generales actuales.`:'Datos generales actuales.']){
-  const lineas=doc.splitTextToSize(texto,doc.internal.pageSize.getWidth()-28);doc.text(lineas,14,y);y+=lineas.length*4.5;
+  const lineas=doc.splitTextToSize(texto,doc.internal.pageSize.getWidth()-28) as string[];
+  for(const linea of lineas){if(y>doc.internal.pageSize.getHeight()-22){doc.addPage();y=15;}doc.text(linea,14,y);y+=4.5;}
  }
+ if(y>doc.internal.pageSize.getHeight()-45){doc.addPage();y=15;}
  autoTable(doc,{startY:y+3,columns:columnas.map(c=>({header:etiquetaColumnaListado(c,fecha),dataKey:c.id})),body:alumnos.map(a=>Object.fromEntries(columnas.map(c=>[c.id,c.valor(a,fecha)]))),
-  theme:'grid',styles:{fontSize:8,cellPadding:2,overflow:'linebreak'},headStyles:{fillColor:[20,86,240]},margin:{left:14,right:14,bottom:15},
+  theme:'grid',rowPageBreak:'avoid',styles:{fontSize:8,cellPadding:2,overflow:'linebreak'},headStyles:{fillColor:[20,86,240]},margin:{left:14,right:14,bottom:15},
   columnStyles:Object.fromEntries(columnas.map(c=>[c.id,{cellWidth:c.ancho}])),horizontalPageBreak:true,horizontalPageBreakRepeat:'nombre',horizontalPageBreakBehaviour:'afterAllRows',
   didDrawPage:()=>{doc.setFontSize(8);doc.setTextColor(90);doc.text(`Página ${doc.getCurrentPageInfo().pageNumber} · ${alumnos.length} alumnos`,14,doc.internal.pageSize.getHeight()-7);doc.setTextColor(0);}
  });

@@ -15,7 +15,7 @@ export interface TabDef {
   adminOnly?: boolean;
 }
 
-export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: TabDef[] = []) {
+export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: TabDef[] = [], initialTab: TabId = 'pagos') {
   const {
     currentUser,
     plans: allPlans,
@@ -40,7 +40,7 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Tab activo
-  const [activeTab, setActiveTab] = useState<TabId>('pagos');
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
 
   // Plan activo (cuando hay múltiples)
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
@@ -68,8 +68,7 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
       .then((res) => { if (res.success) setSsRegistros(res.data as ServicioSocial[]); });
   }, [selectedAlumnoId]);
 
-  // Certificación — Estatus (Titulacion usa esto)
-  const [certEstatus, setCertEstatus] = useState<'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO'>('SIN_INICIAR');
+  // Edición del estatus institucional (independiente de la certificación).
   const [isEditingEstatus, setIsEditingEstatus] = useState(false);
   const [tempEstatus, setTempEstatus] = useState('');
   const [guardandoEstatus, setGuardandoEstatus] = useState(false);
@@ -82,26 +81,11 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
     }
   }, [selectedAlumno?.estatus, isEditingEstatus]);
 
-  useEffect(() => {
-    if (!selectedAlumnoId) {
-      setCertEstatus('SIN_INICIAR');
-      return;
-    }
-    academicosService.getCertificacionEstatusByAlumno(selectedAlumnoId)
-      .then(res => {
-        if (res.success && res.data) {
-          setCertEstatus(res.data.tramite_completado ? 'COMPLETADO' : 'EN_CURSO');
-        } else {
-          setCertEstatus('SIN_INICIAR');
-        }
-      });
-  }, [selectedAlumnoId]);
-
   // Resetear tab al cambiar de alumno
   useEffect(() => { 
-    setActiveTab('pagos'); 
+    setActiveTab(initialTab);
     setActivePlanId(null);
-  }, [selectedAlumnoId]);
+  }, [selectedAlumnoId, initialTab]);
 
   // ── Derivados ─────────────────────────────────────────────────────────────
   const filteredAlumnos = alumnos.filter(a =>
@@ -124,6 +108,7 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
 
   // Tabs visibles según el rol del usuario
   const visibleTabs = allTabs.filter(t => {
+    if (t.id === 'certificacion') return ['ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR'].includes(currentUser?.rol || '');
     if (t.id === 'inscripciones' && !['ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR'].includes(currentUser?.rol || '')) return false;
     if (t.adminOnly && !isAdmin) return false;
     if (currentUser?.rol === 'COORDINADOR FINANCIERO' && t.id === 'academico') return false;
@@ -205,7 +190,6 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
     showConfirmMonedero, setShowConfirmMonedero,
     empresasLocales, setEmpresasLocales,
     ssRegistros, setSsRegistros,
-    certEstatus, setCertEstatus,
     isEditingEstatus, setIsEditingEstatus,
     tempEstatus, setTempEstatus,
     guardandoEstatus, setGuardandoEstatus,

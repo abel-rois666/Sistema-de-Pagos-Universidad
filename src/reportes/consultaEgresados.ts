@@ -1,5 +1,6 @@
 export interface InscripcionResumenEgresado { alumno_id: string; ciclo_id: string | null; ciclo_legado: string | null }
-export interface CertificacionResumenEgresado { alumno_id: string; tramite_completado: boolean | null }
+import { textoCertificaciones, type ResumenCertificacion } from '../certificacion/seguimiento';
+export type CertificacionResumenEgresado = ResumenCertificacion;
 interface PaginaEgresados { ids: string[]; desde: number; cantidad: number; signal: AbortSignal }
 export interface FuenteReporteEgresados {
   inscripciones: (pagina: PaginaEgresados) => Promise<InscripcionResumenEgresado[]>;
@@ -9,6 +10,7 @@ export interface DatosReporteEgresados {
   ciclosEgresoMap: Record<string, string>;
   tieneKardexMap: Record<string, boolean>;
   certificacionMap: Record<string, string>;
+  certificaciones: ResumenCertificacion[];
 }
 
 export const pesoCicloEgresado = (nombre?: string): number => {
@@ -47,7 +49,8 @@ export async function consultarDatosEgresados(
   await Promise.resolve();
   comprobar(opciones.signal);
   const ids = [...new Set(alumnos)];
-  const resultado: DatosReporteEgresados = { ciclosEgresoMap: {}, tieneKardexMap: {}, certificacionMap: {} };
+  const resultado: DatosReporteEgresados = { ciclosEgresoMap: {}, tieneKardexMap: {}, certificacionMap: {}, certificaciones: [] };
+  const fichas = new Map<string, ResumenCertificacion>();
   if (!ids.length) { opciones.progreso?.(100); return resultado; }
   const control = new AbortController(), signal = control.signal;
   const cancelar = () => control.abort();
@@ -65,7 +68,8 @@ export async function consultarDatosEgresados(
         comprobar(signal);
         for (const dato of datos) {
           if (tipo === 'certificaciones') {
-            resultado.certificacionMap[dato.alumno_id] = (dato as CertificacionResumenEgresado).tramite_completado ? 'Completado' : 'En curso';
+            const f = dato as CertificacionResumenEgresado;
+            fichas.set(`${f.alumno_id}/${f.alumno_programa_id || 'legado'}/${f.id || ''}`, f);
           } else {
             const inscripcion = dato as InscripcionResumenEgresado;
             resultado.tieneKardexMap[dato.alumno_id] = true;
@@ -107,9 +111,10 @@ export async function consultarDatosEgresados(
     await Promise.all([trabajar(), trabajar()]);
     comprobar(opciones.signal);
     if (huboFallo) throw fallo;
+    resultado.certificaciones = [...fichas.values()];
     for (const id of ids) {
       resultado.tieneKardexMap[id] ??= false;
-      resultado.certificacionMap[id] ??= 'Sin iniciar';
+      resultado.certificacionMap[id] = textoCertificaciones(resultado.certificaciones,id,'certificacion');
     }
     opciones.progreso?.(100);
     return resultado;

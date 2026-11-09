@@ -1,5 +1,4 @@
 import EstadoError from '../ui/EstadoError';
-import { resumirPagoTitulacion } from '../../reportes/estadoPagoTitulacion';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MultiSelectFilter } from '../MultiSelectFilter';
@@ -21,7 +20,9 @@ import {
   Layers,
   Columns
 } from 'lucide-react';
-import FichaAlumno from '../FichaAlumno';
+import ConsultaAlumnoReporte, { type DestinoAlumnoReporte } from './ConsultaAlumnoReporte';
+import CeldaSeguimientoAlumno from './CeldaSeguimientoAlumno';
+import { textoCertificaciones, textoPagosTitulacion } from '../../certificacion/seguimiento';
 
 interface Props {
   onBack: () => void;
@@ -40,7 +41,7 @@ const toTitleCase = (str: string) => {
   }).join(' ');
 };
 
-type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email' | 'pagoTitulacion' | 'certificacion';
+type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email' | 'pagoTitulacion' | 'pagoCertificado' | 'certificacion';
 
 export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const navigate = useNavigate();
@@ -50,7 +51,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const [recargandoAlumnos, setRecargandoAlumnos] = useState(false);
   const [errorRecarga, setErrorRecarga] = useState('');
 
-  const [viewingAlumnoId, setViewingAlumnoId] = useState<string | null>(null);
+  const [destino, setDestino] = useState<DestinoAlumnoReporte | null>(null);
   
   // Paginación
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -74,6 +75,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     telefonos: true,
     email: false,
     pagoTitulacion: true,
+    pagoCertificado: false,
     certificacion: true
   });
 
@@ -95,7 +97,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   const egresadosIds = useMemo(() => egresadosBase.map(a => a.id), [egresadosBase]);
   const consulta = useDatosReporteEgresados(egresadosIds, ciclos, refreshTrigger);
-  const { ciclosEgresoMap, tieneKardexMap, certificacionMap, fetchProgress } = consulta;
+  const { ciclosEgresoMap, tieneKardexMap, certificacionMap, certificaciones, fetchProgress } = consulta;
+  const pagoCertificadoMap = useMemo(()=>Object.fromEntries(egresadosIds.map(id=>[id,textoCertificaciones(certificaciones,id,'pagoCertificado')])),[certificaciones,egresadosIds]);
   const loading = consulta.loading || recargandoAlumnos;
   const errorConsulta = errorRecarga || consulta.errorConsulta;
   const recargarReporte = async () => {
@@ -112,8 +115,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     if (!plans) return map;
     
     egresadosBase.forEach(a => {
-      const planTitulacion = plans.find(p => p.alumno_id === a.id && p.tipo_plan === 'Titulación');
-      map[a.id] = resumirPagoTitulacion(planTitulacion);
+      map[a.id] = textoPagosTitulacion(plans,a.id);
     });
     return map;
   }, [egresadosBase, plans]);
@@ -175,13 +177,17 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
           valA = certificacionMap[a.id] || 'Sin iniciar';
           valB = certificacionMap[b.id] || 'Sin iniciar';
           break;
+        case 'pagoCertificado':
+          valA = pagoCertificadoMap[a.id] || 'Sin registro';
+          valB = pagoCertificadoMap[b.id] || 'Sin registro';
+          break;
       }
       const cmp = valA.localeCompare(valB);
       return sortConfig.direction === 'asc' ? cmp : -cmp;
     });
 
     return result;
-  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, tieneKardexMap, pagoTitulacionMap, certificacionMap, sortConfig, groupByCiclo]);
+  }, [egresadosBase, selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, ciclosEgresoMap, tieneKardexMap, pagoTitulacionMap, pagoCertificadoMap, certificacionMap, sortConfig, groupByCiclo]);
 
   // Reset de página al cambiar filtros
   useEffect(() => { setCurrentPage(1); }, [selectedCicloEgreso, selectedLicenciaturas, selectedSegmento, itemsPerPage, sortConfig, groupByCiclo]);
@@ -216,50 +222,27 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   // Exportar a CSV
   const handleExportCSV = () => {
     if (loading || errorConsulta) return;
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    const headers = [];
-    if (visibleCols.nombre) headers.push("Nombre Completo");
-    if (visibleCols.licenciatura) headers.push("Licenciatura");
-    if (visibleCols.estatus) headers.push("Estatus");
-    if (visibleCols.ciclo) headers.push("Ciclo de Egreso");
-    if (visibleCols.telefonos) headers.push("Teléfonos");
-    if (visibleCols.email) headers.push("Correo Electrónico");
-    if (visibleCols.pagoTitulacion) headers.push("Pago Titulación");
-    if (visibleCols.certificacion) headers.push("Certificación");
-    
-    csvContent += headers.join(",") + "\n";
-
-    filteredEgresados.forEach(a => {
-      const row = [];
-      if (visibleCols.nombre) row.push(`"${toTitleCase(a.nombre_completo)}"`);
-      if (visibleCols.licenciatura) row.push(`"${toTitleCase(a.licenciatura)}"`);
-      if (visibleCols.estatus) row.push(`"${toTitleCase(a.estatus || '')}"`);
-      if (visibleCols.ciclo) row.push(`"${ciclosEgresoMap[a.id] || (tieneKardexMap[a.id] ? 'Ciclo Desconocido' : 'Sin Kardex')}"`);
-      if (visibleCols.telefonos) {
-        const telefonos = [a.telefono, a.celular].filter(Boolean).join(" / ");
-        row.push(`"${telefonos}"`);
-      }
-      if (visibleCols.email) row.push(`"${(a.email || '').toLowerCase()}"`);
-      if (visibleCols.pagoTitulacion) row.push(`"${pagoTitulacionMap[a.id] || 'Sin plan'}"`);
-      if (visibleCols.certificacion) row.push(`"${certificacionMap[a.id] || 'Sin iniciar'}"`);
-      
-      csvContent += row.join(",") + "\n";
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `reporte_egresados_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const columnas = [
+      ['nombre','Nombre completo',(a:any)=>toTitleCase(a.nombre_completo)],
+      ['licenciatura','Licenciatura',(a:any)=>toTitleCase(a.licenciatura)],
+      ['estatus','Estatus',(a:any)=>toTitleCase(a.estatus||'')],
+      ['ciclo','Ciclo de egreso',(a:any)=>ciclosEgresoMap[a.id]||(tieneKardexMap[a.id]?'Ciclo Desconocido':'Sin Kardex')],
+      ['telefonos','Teléfonos',(a:any)=>[a.telefono,a.celular].filter(Boolean).join(' / ')],
+      ['email','Correo electrónico',(a:any)=>(a.email||'').toLowerCase()],
+      ['pagoTitulacion','Pago de titulación',(a:any)=>pagoTitulacionMap[a.id]||'Sin plan'],
+      ['pagoCertificado','Pago del certificado',(a:any)=>pagoCertificadoMap[a.id]||'Sin registro'],
+      ['certificacion','Trámite de certificación',(a:any)=>certificacionMap[a.id]||'Sin registro']
+    ].filter(([key])=>visibleCols[key as keyof typeof visibleCols]);
+    const celda=(valor:string)=>'"'+(/^[\s]*[=+@-]/.test(valor)?"'"+valor:valor).replace(/"/g,'""')+'"';
+    const contenido='\uFEFF'+[columnas.map(c=>String(c[1])),...filteredEgresados.map(a=>columnas.map(c=>(c[2] as (a:any)=>string)(a)))].map(f=>f.map(celda).join(',')).join('\r\n');
+    const url=URL.createObjectURL(new Blob([contenido],{type:'text/csv;charset=utf-8;'}));
+    const link=document.createElement('a');link.href=url;link.download='reporte_egresados_'+new Date().toISOString().slice(0,10)+'.csv';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
 
   // Exportar a PDF
   const handleExportPDF = (action: 'download' | 'print') => {
     if (loading || errorConsulta) return;
-    const doc = new jsPDF();
+    const doc = new jsPDF({orientation:'landscape'});
     
     doc.setFontSize(16);
     doc.text('Reporte de Egresados y Titulados', 14, 15);
@@ -281,7 +264,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     if (visibleCols.telefonos) head.push('Teléfonos');
     if (visibleCols.email) head.push('Correo');
     if (visibleCols.pagoTitulacion) head.push('Pago Titulación');
-    if (visibleCols.certificacion) head.push('Certificación');
+    if (visibleCols.pagoCertificado) head.push('Pago del certificado');
+    if (visibleCols.certificacion) head.push('Trámite de certificación');
     
     const tableData: any[] = [];
     let currentCiclo: string | null = null;
@@ -309,7 +293,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       }
       if (visibleCols.email) row.push((a.email || '').toLowerCase());
       if (visibleCols.pagoTitulacion) row.push(pagoTitulacionMap[a.id] || 'Sin plan');
-      if (visibleCols.certificacion) row.push(certificacionMap[a.id] || 'Sin iniciar');
+      if (visibleCols.pagoCertificado) row.push(pagoCertificadoMap[a.id] || 'Sin registro');
+      if (visibleCols.certificacion) row.push(certificacionMap[a.id] || 'Sin registro');
       
       tableData.push(row);
     });
@@ -319,6 +304,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
       head: [head],
       body: tableData,
       theme: 'grid',
+      rowPageBreak: 'avoid',
       styles: { fontSize: 8 },
       headStyles: { fillColor: [147, 51, 234] },
     });
@@ -334,15 +320,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   return (
     <>
-      {viewingAlumnoId && (
-        <div className="absolute inset-0 bg-[#f7f7f9] dark:bg-[#0f1115] z-50 overflow-y-auto">
-          <FichaAlumno 
-            initialAlumnoId={viewingAlumnoId} 
-            onBack={() => setViewingAlumnoId(null)}
-            onBackToReporteEgresados={() => setViewingAlumnoId(null)}
-          />
-        </div>
-      )}
+      {destino && <ConsultaAlumnoReporte destino={destino} onCerrar={()=>setDestino(null)} onActualizado={()=>setRefreshTrigger(n=>n+1)}/>}
     <div className="flex flex-col min-w-0 h-full bg-white dark:bg-[#1c2228] p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
       <div className="flex items-center gap-3 mb-6">
         <button 
@@ -470,7 +448,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                       telefonos: 'Teléfonos',
                       email: 'Correo Electrónico',
                       pagoTitulacion: 'Pago de Titulación',
-                      certificacion: 'Certificación DGAIR'
+                      pagoCertificado: 'Pago del certificado',
+                      certificacion: 'Trámite de certificación'
                     }).map(([key, label]) => (
                       <label key={key} className="flex items-center gap-3 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg cursor-pointer transition-colors text-sm font-medium text-gray-700 dark:text-gray-300">
                         <input 
@@ -565,12 +544,13 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                       Pago Titulación <SortIcon columnKey="pagoTitulacion" />
                     </th>
                   )}
+                  {visibleCols.pagoCertificado && <th className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700"><button type="button" onClick={()=>handleSort('pagoCertificado')}>Pago del certificado <SortIcon columnKey="pagoCertificado"/></button></th>}
                   {visibleCols.certificacion && (
                     <th 
                       className="p-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       onClick={() => handleSort('certificacion')}
                     >
-                      Certificación <SortIcon columnKey="certificacion" />
+                      Trámite de certificación <SortIcon columnKey="certificacion" />
                     </th>
                   )}
                 </tr>
@@ -580,8 +560,6 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                   paginatedEgresados.map((a, idx) => {
                     const esTitulado = a.estatus === 'TITULADO' || a.estatus === 'EGRESADO TITULADO';
                     const cicloEgresoNombre = ciclosEgresoMap[a.id] || (tieneKardexMap[a.id] ? 'Ciclo Desconocido' : 'Sin Kardex');
-                    const pagoTitulacion = pagoTitulacionMap[a.id] || 'Sin plan';
-                    const certificacionStatus = certificacionMap[a.id] || 'Sin iniciar';
                     const rowNumber = startIndex + idx + 1;
                     
                     const globalIdx = startIndex + idx;
@@ -601,13 +579,13 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                           <td className="p-3 text-xs text-gray-400 dark:text-gray-500 tabular-nums">{rowNumber}</td>
                           {visibleCols.nombre && (
                             <td className="p-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
-                              <span 
-                                onClick={() => setViewingAlumnoId(a.id)}
-                                className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                              <button type="button"
+                                onClick={() => setDestino({alumnoId:a.id,vista:'datos_generales'})}
+                                className="text-left text-blue-700 dark:text-blue-300 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 rounded"
                                 title="Ver ficha del alumno"
                               >
                                 {toTitleCase(a.nombre_completo)}
-                              </span>
+                              </button>
                             </td>
                           )}
                           {visibleCols.licenciatura && (
@@ -637,24 +615,13 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
                           )}
                           {visibleCols.pagoTitulacion && (
                             <td className="p-3 text-sm">
-                              <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                                pagoTitulacion === 'Pago completo' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                pagoTitulacion === 'Pago en curso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                              }`}>
-                                {pagoTitulacion}
-                              </span>
+                              <CeldaSeguimientoAlumno alumnoId={a.id} campo="pagoTitulacion" certificaciones={certificaciones} planes={plans} onAbrir={setDestino}/>
                             </td>
                           )}
+                          {visibleCols.pagoCertificado && <td className="p-3 text-sm"><CeldaSeguimientoAlumno alumnoId={a.id} campo="pagoCertificado" certificaciones={certificaciones} planes={plans} onAbrir={setDestino}/></td>}
                           {visibleCols.certificacion && (
                             <td className="p-3 text-sm">
-                              <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                                certificacionStatus === 'Completado' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                                certificacionStatus === 'En curso' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' :
-                                'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                              }`}>
-                                {certificacionStatus}
-                              </span>
+                              <CeldaSeguimientoAlumno alumnoId={a.id} campo="certificacion" certificaciones={certificaciones} planes={plans} onAbrir={setDestino}/>
                             </td>
                           )}
                         </tr>

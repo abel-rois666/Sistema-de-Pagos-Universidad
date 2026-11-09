@@ -9,9 +9,10 @@ export interface MultiSelectProps {
   onChange: (values: string[]) => void;
   formatLabel?: (v: string) => string;
   fullWidth?: boolean;
+  ariaLabel?: string;
 }
 
-export function MultiSelectFilter({ label, options, selected, onChange, formatLabel, fullWidth = false }: MultiSelectProps) {
+export function MultiSelectFilter({ label, options, selected, onChange, formatLabel, fullWidth = false, ariaLabel }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -37,11 +38,12 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
   const isAll = selected.length === 0 || selected.length === options.length;
 
   return (
-    <div className={`relative ${fullWidth ? 'w-full' : ''}`} ref={ref}>
+    <div className={`relative ${fullWidth ? 'w-full' : ''}`} ref={ref} onKeyDown={e=>{if(e.key==='Escape'&&open){e.stopPropagation();setOpen(false);ref.current?.querySelector<HTMLButtonElement>('button')?.focus();}}}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
+        aria-label={ariaLabel}
         className={`flex items-center gap-2 px-3 py-2 rounded-[8px] border text-sm font-medium transition-all whitespace-nowrap ${fullWidth ? 'w-full justify-between min-w-0' : ''}
           ${isActive
             ? 'bg-indigo-50 border-indigo-300 text-[#1456f0] dark:bg-indigo-900/40 dark:border-indigo-600 dark:text-indigo-300'
@@ -68,6 +70,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
             <button
               type="button"
               onClick={toggleAll}
+              aria-pressed={isAll}
               className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] transition-colors
                 ${isAll ? 'bg-indigo-50 text-[#1456f0] dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-[#8e8e93] dark:text-[#8e8e93] hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`}
             >
@@ -84,6 +87,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
                   key={opt}
                   type="button"
                   onClick={() => toggle(opt)}
+                  aria-pressed={isSel}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors
                     ${isSel
                       ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200'

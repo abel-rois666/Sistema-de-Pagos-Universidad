@@ -27,9 +27,9 @@ test('egresados: limita concurrencia, pagina sin truncar y conserva el criterio 
   assert.equal(resultado.tieneKardexMap[ids[2]], true);
   assert.equal(resultado.ciclosEgresoMap[ids[2]], undefined);
   assert.equal(resultado.tieneKardexMap[ids[3]], false);
-  assert.equal(resultado.certificacionMap[ids[0]], 'Completado');
-  assert.equal(resultado.certificacionMap[ids[1]], 'En curso');
-  assert.equal(resultado.certificacionMap[ids[2]], 'Sin iniciar');
+  assert.equal(resultado.certificacionMap[ids[0]], 'Ficha anterior sin asociar: Completado');
+  assert.equal(resultado.certificacionMap[ids[1]], 'Ficha anterior sin asociar: En preparación');
+  assert.equal(resultado.certificacionMap[ids[2]], 'Sin registro');
   assert.equal(progresos.at(-1), 100);
   assert.ok(progresos.slice(0, -1).every(n => n < 100));
   assert.ok(progresos.every((n, i) => i === 0 || n >= progresos[i - 1]));
@@ -102,7 +102,7 @@ test('egresados: si un alumno sigue excediendo el tiempo se rechaza todo el repo
 test('egresados: una población vacía finaliza sin consultas ni alumnos inventados', async () => {
   const leer = async () => { throw new Error('No debe consultar'); };
   const resultado = await consultarDatosEgresados({ certificaciones: leer, inscripciones: leer }, [], ciclos, { signal: control().signal });
-  assert.deepEqual(resultado, { ciclosEgresoMap: {}, tieneKardexMap: {}, certificacionMap: {} });
+  assert.deepEqual(resultado, { ciclosEgresoMap: {}, tieneKardexMap: {}, certificacionMap: {}, certificaciones: [] });
 });
 
 test('egresados: un límite de respuesta del servidor menor a la página no pierde historial', async () => {

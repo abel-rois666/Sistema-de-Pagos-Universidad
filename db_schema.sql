@@ -752,7 +752,10 @@ CREATE INDEX IF NOT EXISTS idx_ficha_titulacion_folio ON public.ficha_titulacion
 -- Ficha de certificación DGAIR
 CREATE TABLE IF NOT EXISTS public.ficha_certificacion (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  alumno_id uuid NOT NULL UNIQUE,
+  alumno_id uuid NOT NULL,
+  alumno_programa_id uuid REFERENCES public.alumno_programas(id) ON DELETE NO ACTION,
+  revision integer NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  archivado_en timestamp with time zone,
   pago_certificado text NOT NULL DEFAULT 'SIN_INICIAR'::text,
   tipo_certificado text,
   doc_acta_nacimiento text NOT NULL DEFAULT 'SIN_INICIAR'::text,
@@ -775,6 +778,11 @@ CREATE TABLE IF NOT EXISTS public.ficha_certificacion (
   CONSTRAINT ficha_certificacion_pkey PRIMARY KEY (id),
   CONSTRAINT ficha_certificacion_alumno_id_fkey FOREIGN KEY (alumno_id) REFERENCES public.alumnos(id) ON DELETE CASCADE
 );
+-- Contrato ampliado preparado en 20261109120000_certificacion_por_programa.sql.
+-- Conserva una ficha anterior sin asociar y una activa por cada asociación académica.
+CREATE UNIQUE INDEX IF NOT EXISTS certificacion_programa_activa ON public.ficha_certificacion(alumno_programa_id) WHERE alumno_programa_id IS NOT NULL AND archivado_en IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS certificacion_legado_alumno_activa ON public.ficha_certificacion(alumno_id) WHERE alumno_programa_id IS NULL AND archivado_en IS NULL;
+-- La auditoría privada y las funciones transaccionales de consulta/guardado/archivo están documentadas en esa migración.
 
 -- ==========================================
 -- 7. TABLAS LEGADAS (SOPORTE HISTÓRICO)
@@ -1213,6 +1221,9 @@ CREATE POLICY "personal: acceso completo control_pagos" ON public.control_pagos 
 -- supabase/migrations/20261108120000_personal_y_docentes.sql define personal_personas,
 -- personal_vinculos_laborales, personal_formacion, personal_expedientes y personal_auditoria,
 -- junto con enlaces opcionales docentes.persona_id / empleados.persona_id y RPC privadas por rol.
+-- 20261109160000_gestion_administrativos_y_cuentas.sql añade usuarios.empleado_id (FK RESTRICT,
+-- único cuando no es NULL), RPC de revisión/vínculo/eliminación y personal_gestion_auditoria privada.
+-- Preparada sin ejecutar: no reasigna usuarios, cambia roles ni elimina registros al instalar.
 -- No hay backfill ni conversión automática de directorios. Véase docs/PERSONAL_Y_DOCENTES.md.
 
 -- Personal: nombres estructurados, antecedente y confirmación auditada preparados en

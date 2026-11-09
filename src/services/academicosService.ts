@@ -1,3 +1,4 @@
+import { certificacionService } from './certificacionService';
 import { errorOperacionAcademica } from './operacionesAcademicasService';
 import { supabase, fetchAllSupabase } from '../lib/supabase';
 import { CicloEscolar, Carrera, PlanEstudio, AlumnoPrograma } from '../types';
@@ -280,11 +281,12 @@ export const academicosService = {
     }
   },
 
-  async getCertificacionEstatusByAlumno(alumnoId: string): Promise<Result<{ tramite_completado: boolean } | null>> {
+  async getCertificacionEstatusByAlumno(alumnoId: string, programaId?: string): Promise<Result<{ tramite_completado: boolean } | null>> {
     try {
-      const { data, error } = await supabase.from('ficha_certificacion').select('tramite_completado').eq('alumno_id', alumnoId).maybeSingle();
-      if (error) throw error;
-      return createSuccess(data);
+      if (!programaId) throw new Error('Selecciona el programa para consultar su certificado.');
+      const r = await certificacionService.consultar(alumnoId);
+      const ficha = r.fichas.find(f=>f.alumno_programa_id===programaId);
+      return createSuccess(ficha?{tramite_completado:Boolean(ficha.tramite_completado)}:null);
     } catch (error) {
       return createError(error as Error);
     }

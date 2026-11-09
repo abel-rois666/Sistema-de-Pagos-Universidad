@@ -1,3 +1,5 @@
+import { certificacionService } from '../../services/certificacionService';
+import { resumirPagoTitulacion } from '../../reportes/estadoPagoTitulacion';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
@@ -361,7 +363,6 @@ interface TabTitulacionProps {
   modalidadesCatalogo: string[];
   servicioSocialRegistros?: ServicioSocial[];
   planesAlumno?: any[];
-  certificacionEstatus?: 'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
   alumno?: Alumno;
   onUpdate?: () => void;
 }
@@ -400,7 +401,7 @@ const BLANK: Omit<FichaTitulacion, 'id' | 'alumno_id' | 'created_at' | 'updated_
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function TabTitulacion({
-  alumnoId, esEspecialidad, modalidadesCatalogo, servicioSocialRegistros = [], planesAlumno = [], certificacionEstatus, alumno, onUpdate,
+  alumnoId, esEspecialidad, modalidadesCatalogo, servicioSocialRegistros = [], planesAlumno = [], alumno, onUpdate,
 }: TabTitulacionProps) {
 
   const [ficha, setFicha] = useState<FichaTitulacion | null>(null);
@@ -478,31 +479,29 @@ export default function TabTitulacion({
       setDraft(prev => ({ ...prev, pago_titulacion: 'SIN_INICIAR' }));
       return;
     }
-    // Plan existe → al menos EN_CURSO
-    let hasConcepts = false, allPaid = true;
-    for (let i = 1; i <= 18; i++) {
-      const cant = planTit[`cantidad_${i}`] as number | undefined;
-      const est  = planTit[`estatus_${i}`]  as string | undefined;
-      if (!cant) continue;
-      hasConcepts = true;
-      // Se considera pagado si el estatus es 'PAGADO' o empieza con 'ABONO'
-      const isPaid = est === 'PAGADO' || (est?.startsWith('ABONO') ?? false);
-      if (!isPaid) allPaid = false;
-    }
-    const status: 'EN_CURSO' | 'COMPLETADO' = hasConcepts && allPaid ? 'COMPLETADO' : 'EN_CURSO';
-    setDraft(prev => ({ ...prev, pago_titulacion: status }));
+    const resumen = resumirPagoTitulacion(planTit);
+    setDraft(prev => ({ ...prev, pago_titulacion: resumen === 'Pago completo' ? 'COMPLETADO' : 'EN_CURSO' }));
   }, [planesAlumno, ficha]);
 
-  // ── Auto-detectar Certificado de Estudios ─────────────────────────────────
-  // Lógica: Se mapea el estatus de la ficha de Certificación a Titulación
+  // Consulta el programa de la titulación, sin tomar la ficha de otra carrera o un legado sin asociar.
+  const [certificacionPrograma,setCertificacionPrograma] = useState<'SIN_INICIAR'|'EN_CURSO'|'COMPLETADO'>('SIN_INICIAR');
+  const [errorCertificacion,setErrorCertificacion] = useState('');
+  const [consultandoCertificacion,setConsultandoCertificacion] = useState(false);
   useEffect(() => {
-    if (!certificacionEstatus) return;
-    let certStatus: 'SIN_INICIAR' | 'EN_TRAMITE' | 'TRAMITADO' = 'SIN_INICIAR';
-    if (certificacionEstatus === 'EN_CURSO') certStatus = 'EN_TRAMITE';
-    if (certificacionEstatus === 'COMPLETADO') certStatus = 'TRAMITADO';
-    
-    setDraft(prev => ({ ...prev, certificado_estudios: certStatus }));
-  }, [certificacionEstatus, ficha]);
+    const control = new AbortController();
+    setCertificacionPrograma('SIN_INICIAR');setErrorCertificacion('');setConsultandoCertificacion(false);
+    if (!draft.alumno_programa_id) return;
+    setConsultandoCertificacion(true);
+    void certificacionService.consultar(alumnoId,control.signal).then(r => {
+      if(control.signal.aborted)return;
+      const cert = r.fichas.find(f=>f.alumno_programa_id===draft.alumno_programa_id);
+      if (!cert && r.fichas.some(f=>!f.alumno_programa_id)) { setErrorCertificacion('Asocia primero la ficha anterior de certificación al programa que le corresponde.'); return; }
+      const estado = cert?.tramite_completado ? 'COMPLETADO' : cert ? 'EN_CURSO' : 'SIN_INICIAR';
+      setCertificacionPrograma(estado);
+      setDraft(prev=>({...prev,certificado_estudios:estado==='COMPLETADO'?'TRAMITADO':estado==='EN_CURSO'?'EN_TRAMITE':'SIN_INICIAR'}));
+    }).catch(()=>{if(!control.signal.aborted)setErrorCertificacion('No se pudo comprobar el certificado de este programa. Reabre la sección para reintentar.');}).finally(()=>{if(!control.signal.aborted)setConsultandoCertificacion(false);});
+    return ()=>control.abort();
+  },[alumnoId,draft.alumno_programa_id,ficha]);
 
   // Manejo reactivo de Libro y Foja con autogeneración del Folio de Control
   const handleLibroChange = (val: string) => {
@@ -543,6 +542,7 @@ export default function TabTitulacion({
 
   // ── Guardar ────────────────────────────────────────────────────────────────
   const handleSave = async () => {
+    if (consultandoCertificacion || errorCertificacion) { toast.error(errorCertificacion || 'Espera a que termine la consulta del certificado.'); return; }
     if (!draft.modalidad) { setWarnNoModal(true); return; }
     setWarnNoModal(false);
     setSaving(true);
@@ -638,6 +638,7 @@ export default function TabTitulacion({
 
   // Marcar trámite como completado, asentar Acta oficial y cambiar estatus del alumno
   const handleCompletarTramite = async () => {
+    if (consultandoCertificacion || errorCertificacion) { toast.error(errorCertificacion || 'Espera la consulta del certificado.'); return; }
     if (!ficha) return;
 
     if (!draft.modalidad) {
@@ -851,6 +852,8 @@ export default function TabTitulacion({
 
   return (
     <div className="p-6">
+      {consultandoCertificacion&&<p role="status" className="text-sm text-gray-600 dark:text-gray-300 mb-4">Comprobando el certificado del programa de titulación…</p>}
+      {errorCertificacion&&<p role="alert" className="text-sm text-red-700 dark:text-red-300 mb-4">{errorCertificacion}</p>}
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
@@ -990,7 +993,7 @@ export default function TabTitulacion({
                   value={draft.certificado_estudios}
                   badgeMap={{ SIN_INICIAR: BADGE_ESTATUS.SIN_INICIAR, EN_TRAMITE: BADGE_ESTATUS.EN_CURSO, TRAMITADO: BADGE_ESTATUS.COMPLETADO }}
                   onChange={handleChange}
-                  disabled={!editing || (certificacionEstatus !== 'SIN_INICIAR')}
+                  disabled={!editing || (certificacionPrograma !== 'SIN_INICIAR') || consultandoCertificacion || Boolean(errorCertificacion)}
                 />
 
                 {/* Inglés (se oculta en Especialidad con modalidad correspondiente) */}

@@ -3,7 +3,7 @@ import { cargarReporteEgresados } from '../services/reporteEgresadosService';
 import { mensajeErrorReporteEgresados, type DatosReporteEgresados } from '../reportes/consultaEgresados';
 
 export default function useDatosReporteEgresados(ids: string[], ciclos: { id: string; nombre: string }[], revision: number) {
-  const [datos, setDatos] = useState<DatosReporteEgresados>({ ciclosEgresoMap: {}, tieneKardexMap: {}, certificacionMap: {} });
+  const [datos, setDatos] = useState<DatosReporteEgresados>({ ciclosEgresoMap: {}, tieneKardexMap: {}, certificacionMap: {}, certificaciones: [] });
   const [contexto, setContexto] = useState<{ ids: string[]; ciclos: typeof ciclos; revision: number } | null>(null);
   const [loading, setLoading] = useState(true), [errorConsulta, setErrorConsulta] = useState(''), [fetchProgress, setFetchProgress] = useState(0);
   useEffect(() => {

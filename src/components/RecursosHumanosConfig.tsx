@@ -16,7 +16,9 @@ import PlanesAccionNom035 from './personal/PlanesAccionNom035';
 import useConsultasRH, { type SeccionRH } from '../hooks/useConsultasRH';
 import { consultarPersonasVinculadas } from '../services/directorioPersonalService';
 import { edadPersonal, antiguedadPersonal } from '../personal/presentacion';
-import type { FilaDirectorioPersonal } from '../personal/directorio';
+import { estadoCuentaPersonal, type FilaDirectorioPersonal } from '../personal/directorio';
+import { useCuentasAdministrativos } from '../hooks/useCuentasAdministrativos';
+import GestionAdministrativo from './personal/GestionAdministrativo';
 import ModalEmpleado from './modals/ModalEmpleado';
 import FichaEmpleado from './modals/FichaEmpleado';
 import ModalPlanAccion from './modals/ModalPlanAccion';
@@ -31,6 +33,8 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
   const [ultimaNom, setUltimaNom] = useState<'resultados' | 'planes'>('resultados');
   const { datos, errores, cargando, cargar } = useConsultasRH(activeTab);
   const empleados = datos.directorio;
+  const cuentasAdministrativas = useCuentasAdministrativos(empleados, isAdmin);
+  const [gestionAdministrativo, setGestionAdministrativo] = useState<{ id: string; modo: 'cuenta' | 'eliminar' } | null>(null);
   const [personasDocentes, setPersonasDocentes] = useState<Set<string> | null>(null);
   const [directorioDocente, setDirectorioDocente] = useState(false);
   const [showModalEmpleado, setShowModalEmpleado] = useState(false);
@@ -115,6 +119,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
     const edad = edadPersonal(e.fecha_nacimiento);
     return { id: e.id, nombre: toTitleCase(nombre), contacto: e.telefono, puesto: e.puesto, area: e.departamento, estatus: e.estatus,
       funcionVinculada: personasDocentes === null ? undefined : Boolean(e.persona_id && personasDocentes.has(e.persona_id)),
+      cuenta: isAdmin ? cuentasAdministrativas.cuentas?.has(e.id) ? estadoCuentaPersonal(cuentasAdministrativas.cuentas.get(e.id)) : { texto: 'Cuenta por verificar', tono: 'aviso' } : undefined,
       busqueda: [nombre, e.nombres, e.rfc, e.curp, e.telefono, e.puesto, e.departamento].join(' '),
       detalles: [{ etiqueta: 'RFC', valor: e.rfc }, { etiqueta: 'CURP', valor: e.curp }, { etiqueta: 'Edad', valor: edad === null ? null : `${edad} años` }, { etiqueta: 'Estudios', valor: [e.nivel_estudios, e.nivel_estudios_estado].filter(Boolean).join(' · ') }, { etiqueta: 'Antigüedad', valor: antiguedadPersonal(e.fecha_ingreso) || 'Fecha de ingreso sin registrar' }]
     };
@@ -127,8 +132,13 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
     </header>
     <nav className="directorio-navegacion" aria-label="Secciones de Recursos Humanos"><button type="button" aria-current={activeTab === 'directorio' ? 'page' : undefined} onClick={() => setActiveTab('directorio')}>Personal</button><button type="button" aria-current={activeTab !== 'directorio' ? 'page' : undefined} onClick={() => setActiveTab(ultimaNom)}>NOM-035</button></nav>
     <div hidden={activeTab !== 'directorio'}>
+      {isAdmin && cuentasAdministrativas.error && <div role="status" className="mb-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-900 dark:text-amber-100"><p>{cuentasAdministrativas.error}</p><button type="button" className="mt-2 underline" onClick={cuentasAdministrativas.recargar}>Reintentar consulta de cuentas</button></div>}
       <DirectorioPersonal tipo="administrativos" filas={filas} cargando={cargando.directorio} error={errores.directorio} reintentar={() => void cargar('directorio')} abrir={abrirEmpleado}
-        acciones={id => isAdmin ? <MenuDirectorio nombre={filas.find(f => f.id === id)?.nombre || 'Administrativo'} acciones={[{ texto: 'Editar administrativo', ejecutar: () => abrirEmpleado(id, true) }]}/> : null}/>
+        acciones={id => isAdmin ? <MenuDirectorio nombre={filas.find(f => f.id === id)?.nombre || 'Administrativo'} acciones={[
+          { texto: 'Editar administrativo', ejecutar: () => abrirEmpleado(id, true) },
+          { texto: 'Gestionar cuenta de acceso', ejecutar: () => setGestionAdministrativo({ id, modo: 'cuenta' }) },
+          { texto: 'Eliminar administrativo', peligro: true, ejecutar: () => setGestionAdministrativo({ id, modo: 'eliminar' }) }
+        ]}/> : null}/>
       <details className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4" onToggle={e => setDirectorioDocente(e.currentTarget.open)}><summary className="cursor-pointer text-sm font-semibold">Consultar personal docente</summary>{directorioDocente && <DirectorioDocentePersonal/>}</details>
     </div>
     {activeTab !== 'directorio' && <section aria-label="NOM-035">
@@ -143,6 +153,7 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
   {viewingEmpleado && <FichaEmpleado empleado={viewingEmpleado} editarInicial={editarFicha} isAdmin={isAdmin} onActualizado={fetchData} onClose={() => setViewingEmpleado(null)} onEdit={() => { setEditingEmpleado(viewingEmpleado); setViewingEmpleado(null); setShowModalEmpleado(true); }}/>}
   {showModalEmpleado && <ModalEmpleado empleado={editingEmpleado} onClose={() => setShowModalEmpleado(false)} onSaved={handleSaveEmpleado}/>}
   {showModalPlan && <ModalPlanAccion plan={editingPlan} onClose={() => setShowModalPlan(false)} onSaved={handleSavePlan}/>}
+  {isAdmin && gestionAdministrativo && <GestionAdministrativo {...gestionAdministrativo} onClose={() => setGestionAdministrativo(null)} onSaved={async () => { await cargar('directorio'); cuentasAdministrativas.recargar(); }} onFicha={() => { const id = gestionAdministrativo.id; setGestionAdministrativo(null); abrirEmpleado(id, true); }}/>}
   <ModalConfirmacion isOpen={!!evaluacionToDelete} title="Eliminar evaluación" message="¿Eliminar esta evaluación? Esta acción no se puede deshacer y sus resultados se perderán permanentemente." onConfirm={confirmDeleteEvaluacion} onCancel={() => setEvaluacionToDelete(null)} type="danger" confirmText="Eliminar"/>
   </div>;
 }
