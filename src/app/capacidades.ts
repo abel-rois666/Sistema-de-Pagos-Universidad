@@ -5,6 +5,7 @@ export const ROLES_REPORTE_PAGOS = ['ADMINISTRADOR','COORDINADOR FINANCIERO','CO
 export const ROLES_COBRO = ['ADMINISTRADOR', 'COORDINADOR FINANCIERO', 'CAJERO'] as const;
 const personal = ['ADMINISTRADOR','CAJERO','COORDINADOR FINANCIERO','COORDINADOR CONTROL ESCOLAR','COORDINADOR ACADEMICO','COORDINADOR RECURSOS HUMANOS'];
 const rutas: Record<string, readonly string[]> = {
+  '/herramientas-escolares': ['ADMINISTRADOR'],
   '/alumnos': ROLES_ESCOLARES, '/inscripciones': ROLES_ESCOLARES, '/comunicados': ROLES_ESCOLARES,
   '/control-escolar': ROLES_ESCOLARES, '/certificacion': ROLES_ESCOLARES, '/titulacion': ROLES_ESCOLARES,
   '/reportes-escolares': ROLES_ESCOLARES, '/reporte-egresados': ROLES_ESCOLARES, '/aprobacion-prospectos': ROLES_ESCOLARES,

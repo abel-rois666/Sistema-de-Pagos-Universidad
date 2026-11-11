@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {interpretarValidacionPagoLote} from '../src/certificacion/validacionPagoLote';
+test('solo una validación completa sin incidencias permite avanzar',()=>{assert.deepEqual(interpretarValidacionPagoLote({valido:true,incidencias:[]}),[]);for(const r of [null,{}, {valido:true},{valido:false,incidencias:[]},{valido:true,incidencias:[{id:'f',motivo:'Cambió'}]}, {valido:false,incidencias:[{id:'f'}]}])assert.throws(()=>interpretarValidacionPagoLote(r));});
+test('las incidencias identifican fichas y conservan todos los motivos para revisión previa',()=>{const incidencias=[{id:'f1',motivo:'Archivada'},{id:'f2',motivo:'Cambió la ficha'}];assert.deepEqual(interpretarValidacionPagoLote({valido:false,incidencias}),incidencias);});
+const sql=readFileSync('supabase/migrations/20261110140000_validacion_previa_pago_certificado.sql','utf8');
+const helper=sql.split('create function public._certificacion_pago_lote_revisar_v1')[1].split('create function public.certificacion_pago_lote_validar_v1')[0];
+const aplicar=sql.split('create or replace function public.certificacion_pago_lote_aplicar_v1')[1];
+test('la validación previa no escribe y verifica pertenencia, huella y archivo',()=>{assert.doesNotMatch(helper,/update public|insert into|delete from/i);assert.match(helper,/archivado_en/);assert.match(helper,/md5\(to_jsonb\(v_ficha\)::text\)/);assert.match(helper,/_certificacion_autorizar_v1\(true\)/);assert.match(helper,/ap.alumno_id=v_ficha.alumno_id/);});
+test('corrige la ambigüedad con alias calificado y valida de nuevo bajo bloqueos antes de escribir',()=>{assert.match(aplicar,/declare v_fila jsonb/);assert.match(aplicar,/count\(distinct entrada.elemento->>'id'\)/);assert.doesNotMatch(aplicar,/declare x jsonb|count\(distinct x->>/);assert.ok(aplicar.indexOf('for update')<aplicar.indexOf('v_revision=public._certificacion_pago_lote_revisar_v1'));assert.ok(aplicar.indexOf('v_revision=public._certificacion_pago_lote_revisar_v1')<aplicar.indexOf('update public.ficha_certificacion set'));});

@@ -107,3 +107,10 @@ export async function tieneVinculoExplicitoPlan(planId: string, indices: number[
   if (error) throw new Error(`No se pudieron comprobar los vínculos del plan: ${error.message}`);
   return Boolean(data?.length);
 }
+
+/** Especialidad conserva su categoría financiera y todos los recibos en su ciclo original. */
+export async function revisarReasociacionEspecialidadPago(planId:string,cicloDestinoId:string,aplicar=false):Promise<RevisionReasociacionPlanPago>{
+ const {data,error}=await supabase.rpc('revisar_reasociacion_especialidad_pago',{p_plan_id:planId,p_ciclo_destino_id:cicloDestinoId,p_aplicar:aplicar});
+ if(error)throw new Error(['PGRST202','42883'].includes(error.code)?'Falta instalar la revisión de Especialidad Cuatrimestral (20261110110000). No se modificó el plan.':error.message);
+ if(!data||typeof data.aplicable!=='boolean')throw new Error('El servidor no confirmó una revisión válida.');return data as RevisionReasociacionPlanPago;
+}

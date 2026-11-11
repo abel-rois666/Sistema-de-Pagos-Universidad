@@ -4,17 +4,32 @@ let filas=Array.from({length:32},(_,n)=>({alumno_programa_id:'aaaaaaaa-aaaa-4aaa
 const programasPrueba=[{id:filas[0].alumno_programa_id,alumno_id:'alumno-ficticio-0',plan_id:filas[0].plan_id,es_vigente:true,estatus:'CURSANDO',fecha_inscripcion:'2026-10-24',created_at:'2026-10-24T16:00:00Z',planes_estudio:{id:filas[0].plan_id,nombre:'Derecho · Plan de prueba',clave_legado:'2017_LD',tipo_periodo:'CUATRIMESTRAL',carrera_id:'carrera-1'}},{id:filas[1].alumno_programa_id,alumno_id:'alumno-ficticio-0',plan_id:'77777777-7777-4777-8777-777777777777',es_vigente:false,estatus:'EGRESADO',fecha_inscripcion:'2026-09-20',created_at:'2026-10-25T16:00:00Z',planes_estudio:{id:'77777777-7777-4777-8777-777777777777',nombre:'Administración · Plan de prueba',clave_legado:'2017_LA',tipo_periodo:'CUATRIMESTRAL',carrera_id:'carrera-2'}}];
 let ingresoFicticio=[{alumno_programa_id:programasPrueba[0].id,ciclo_id:ciclosEnsayoNoUsado(),fecha:'2024-10-01',calidad:'APROXIMADA',evidencia:'Calificaciones ficticias revisadas',motivo:'Ingreso aproximado revisado',revision:1}],historialIngreso=[];
 function ciclosEnsayoNoUsado(){return '66666666-6666-4666-8666-666666666666';}
+if(new URLSearchParams(location.search).has('un-programa'))programasPrueba.splice(1);
 let historial=[],integrar=false,preparaciones=[],contextos=[],bitacoraPreparaciones=[];
 const ciclosEnsayo=[{id:sem,nombre:'2027-1',tipo_periodo:'Semestral',fecha_inicio:'2026-09-25',activo:false},{id:cuat,nombre:'2027-1',tipo_periodo:'Cuatrimestral',fecha_inicio:'2026-10-21',activo:true},{id:'55555555-5555-4555-8555-555555555555',nombre:'2026-3',tipo_periodo:'Cuatrimestral',fecha_inicio:'2026-06-25',activo:false},{id:'66666666-6666-4666-8666-666666666666',nombre:'2025-1',tipo_periodo:'Cuatrimestral',fecha_inicio:'2024-10-01',activo:false}];
 function trayectoria(c){const n=filas.indexOf(c);return {alumno_programa_id:c.alumno_programa_id,alumno_id:c.alumno_id,plan_id:c.plan_id,modelo:'RIGIDO',huella:'ficticia-'+c.alumno_programa_id,ciclos:[...(c.inscripcion||[1,2].includes(n)?[{...ciclosEnsayo[1],materias:[1,2].includes(n)?[{id:'materia-destino-ficticia',nombre:'Materia ficticia del destino',periodo:3,registros:1}]:[],inscripcion:c.inscripcion}]:[]),...(n<4?[{...ciclosEnsayo[2],materias:[{id:'materia-ficticia',nombre:'Materia ficticia',periodo:2,registros:1}],inscripcion:{id:'origen-ficticio',revision:1,grado_personal:'2',estado:'CONFIRMADA'}},{...ciclosEnsayo[3],materias:[{id:'materia-ingreso-ficticia',nombre:'Materia ficticia de primer ciclo',periodo:1,registros:1}],inscripcion:null}]:[])]};}
 function contextoFicticio(c,f){return {origen:f.referencia?'REVISION_HISTORIAL':'MANUAL',historial:trayectoria(c),referencia:f.referencia,desde:f.referencia?.aplicar_desde?{metodo:'INICIO_HISTORICO_CON_CALIFICACIONES',ciclo_id:f.referencia?.ciclo_desde_id,ciclo_destino_id:cuat,fecha:f.desde,aproximado:true}:'MANUAL'};}
 function guardarFicticio(c,f,ciclo){const nueva={...f,id:c.inscripcion?.id||crypto.randomUUID(),ciclo_id:ciclo,revision:(c.inscripcion?.revision||0)+1,hasta:f.hasta||null,procedencia:'CONTROL_ESCOLAR',actualizado_en:new Date().toISOString()};historial.push({id:crypto.randomUUID(),creado_en:nueva.actualizado_en,motivo:f.motivo,antes:c.inscripcion,despues:nueva});return {...c,inscripcion:nueva};}
 const ensayoEspecialidad=new URLSearchParams(location.search).has('especialidad');
+const opcionesRetiro=new URLSearchParams(location.search);let intentosRetiro=0;
+if(opcionesRetiro.has('retiro')&&programasPrueba[1])programasPrueba[1].estatus='CURSANDO';
+function revisionRetiroFicticia(programaId,prueba=false){const p=programasPrueba.find(p=>p.id===programaId);if(!p)return null;const cantidad=opcionesRetiro.has('retiro-certificado')?1:0,notas=opcionesRetiro.has('retiro-notas')?3:0;const motivos=[...(p.es_vigente?['Este es el programa principal. Establece primero el programa correcto como principal.']:[]),...(p.estatus==='EGRESADO'?['El programa conserva un logro académico concluido.']:[]),...(notas||(cantidad&&(!prueba||opcionesRetiro.has('retiro-evidencia')))?['Hay antecedentes que deben conservarse, incluidos los archivados.']:[])];return {alumnoId:p.alumno_id,programaId:p.id,planId:p.plan_id,programa:p.planes_estudio.clave_legado+' · '+p.planes_estudio.nombre,huella:(intentosRetiro?'b':'a').repeat(32),puedeRetirar:!motivos.length,motivos,...(prueba?{esPrueba:true,materiasVacias:notas?0:53,certificacionesPrueba:cantidad}:{}),antecedentes:[{clave:'materias',etiqueta:'Materias inscritas o calificaciones de este plan',cantidad:notas,bloquea:notas>0},{clave:'certificados',etiqueta:prueba?'Certificaciones con evidencia que requiere revisión':'Certificaciones, incluidas las archivadas',cantidad:prueba&&!opcionesRetiro.has('retiro-evidencia')?0:cantidad,bloquea:cantidad>0&&(!prueba||opcionesRetiro.has('retiro-evidencia'))},{clave:'inscripciones',etiqueta:'Inscripciones por ciclo',cantidad:0,bloquea:false},{clave:'grupos',etiqueta:'Asignaciones a grupos de este plan',cantidad:0,bloquea:false}]};}
 if(ensayoEspecialidad){programasPrueba[0].planes_estudio.nombre='Especialidad de prueba';programasPrueba[0].planes_estudio.clave_legado='2026_ESP';}
 window.fetch=async(input,init)=>{
  const url=new URL(typeof input==='string'?input:input.url||String(input),location.href);
  if(url.origin===location.origin)return originalFetch(input,init);
  const body=init?.body?JSON.parse(String(init.body)):{},rpc=url.pathname.split('/').pop();let data=[];
+ if(['ap_revisar_retiro_v1','ap_retirar_asociacion_v1','ap_revisar_prueba_v1','ap_retirar_prueba_v1'].includes(rpc)){
+  if(opcionesRetiro.has('sin-retiro'))return new Response(JSON.stringify({code:'PGRST202',message:'Función ficticia no instalada'}),{status:404,headers:{'content-type':'application/json'}});
+  data=revisionRetiroFicticia(body.p_programa,rpc.includes('prueba'));
+  if(rpc==='ap_retirar_asociacion_v1'||rpc==='ap_retirar_prueba_v1'){
+   if(rpc.includes('prueba')&&body.p_confirmacion!=='RETIRAR PRUEBA')return new Response(JSON.stringify({message:'Falta confirmar la prueba'}),{status:400});
+   if(opcionesRetiro.has('retiro-desactualizado')&&!intentosRetiro){intentosRetiro++;return new Response(JSON.stringify({code:'40001',message:'Los antecedentes cambiaron. Actualiza la revisión antes de confirmar'}),{status:409,headers:{'content-type':'application/json'}});}
+   if(!data?.puedeRetirar||body.p_huella!==data.huella)return new Response(JSON.stringify({code:'40001',message:'La asociación tiene antecedentes o cambió'}),{status:409,headers:{'content-type':'application/json'}});
+   programasPrueba.splice(programasPrueba.findIndex(p=>p.id===body.p_programa),1);data={retirado:true,programaId:body.p_programa,alumnoId:body.p_alumno};
+  }
+  return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json'}});
+ }
  if(rpc==='inscripciones_programa_ingreso')data=ingresoFicticio;
  else if(rpc==='inscripciones_programa_ingreso_historial')data=historialIngreso;
  else if(rpc==='ic_guardar_ingreso_programa'){const nuevo={alumno_programa_id:body.p_programa,ciclo_id:body.p_ciclo,fecha:body.p_fecha,calidad:body.p_calidad,evidencia:body.p_evidencia,motivo:body.p_motivo,revision:body.p_revision+1};historialIngreso.push({id:crypto.randomUUID(),creado_en:new Date().toISOString(),antes:ingresoFicticio[0]||null,despues:nuevo});ingresoFicticio=[nuevo];data=null;}
@@ -42,6 +57,7 @@ window.fetch=async(input,init)=>{
  else if(rpc==='inscripciones_ciclo')data=filas.filter(c=>c.inscripcion).map(c=>c.inscripcion);
  else if(rpc==='planes_estudio')data=programasPrueba.map(p=>({...p.planes_estudio,modelo:'RIGIDO',total_periodos:10}));
  else if(rpc==='alumno_programas')data=programasPrueba;
+ else if(rpc==='alumnos')data=[{id:'alumno-ficticio-0',matricula:'PRUEBA-001',nombre_completo:'Persona ficticia de prueba',licenciatura:'DERECHO',grado_actual:'2',turno:'MATUTINO',estatus:'ACTIVO',monedero:0}];
  else if(rpc==='ciclos_escolares')data=ciclosEnsayo;
  return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json','content-range':'0-31/32'}});
 };

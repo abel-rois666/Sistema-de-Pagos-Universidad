@@ -1,9 +1,19 @@
 import type { FichaCertificacion } from '../../types';
 import { CampoConAyuda } from '../ui/AyudaContextual';
+import { estadoPagoCertificado } from '../../certificacion/seguimiento';
+
+export function DatoCertificacion({etiqueta,valor}:{etiqueta:string;valor:string}) {
+  return <dl className="min-w-0"><dt className="text-xs font-semibold text-gray-600 dark:text-gray-400">{etiqueta}</dt><dd className="mt-1 break-words text-sm font-medium text-gray-900 dark:text-gray-100">{valor}</dd></dl>;
+}
+export const fechaCertificacion = (fecha?:string|null) => fecha ? fecha.slice(0,10).split('-').reverse().join('/') : 'Sin registrar';
 
 const control='h-[42px] w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 px-3 text-sm disabled:cursor-not-allowed';
 export default function CertificacionRequisitos({ficha:f,especialidad,editable,onChange}:{ficha:FichaCertificacion;especialidad:boolean;editable:boolean;onChange:(campo:keyof FichaCertificacion,valor:unknown)=>void}){
   const campos:[keyof FichaCertificacion,keyof FichaCertificacion,string][]=[['doc_acta_nacimiento','doc_acta_nacimiento_nota','Acta de nacimiento'],['doc_curp','doc_curp_nota','CURP'],['doc_antecedente','doc_antecedente_nota','Antecedente académico'],...(especialidad?[['doc_titulo_profesional','doc_titulo_profesional_nota','Título profesional'],['doc_cedula_profesional','doc_cedula_profesional_nota','Cédula profesional']] as [keyof FichaCertificacion,keyof FichaCertificacion,string][]:[])];
+  if(!editable)return <section aria-label="Datos guardados de certificación" className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><DatoCertificacion etiqueta="Pago del certificado" valor={estadoPagoCertificado(f)}/><DatoCertificacion etiqueta="Tipo de certificado" valor={f.tipo_certificado==='TOTAL'?'Total':f.tipo_certificado==='PARCIAL'?'Parcial':'Sin registrar'}/></div>
+    <h4 className="font-semibold text-gray-900 dark:text-gray-100">Revisión documental</h4><div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">{campos.map(([campo,nota,label])=><div key={campo}><DatoCertificacion etiqueta={label} valor={({SIN_INICIAR:'Sin iniciar',APROBADO:'Aprobado',RECHAZADO:'Rechazado'} as Record<string,string>)[String(f[campo]||'')]||'Sin registrar'}/>{f[campo]==='RECHAZADO'&&f[nota]&&<p className="mt-1 break-words text-xs text-red-700 dark:text-red-300">Motivo: {String(f[nota])}</p>}</div>)}</div>
+  </section>;
   return <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-5">
     <div className="flex flex-wrap gap-4"><div className="w-full sm:w-56"><CampoConAyuda etiqueta="Pago del certificado" ayuda="Estado declarado por el responsable. Es independiente del pago de titulación y de la conclusión del certificado."><select className={control} value={f.pago_certificado} disabled={!editable} onChange={e=>onChange('pago_certificado',e.target.value)}><option value="SIN_INICIAR">Sin iniciar</option><option value="EN_CURSO">En curso</option><option value="COMPLETADO">Completado</option></select></CampoConAyuda></div>
     <div className="w-full sm:w-56"><CampoConAyuda etiqueta="Tipo de certificado" ayuda="Elige Total o Parcial conforme al documento que se tramita."><select className={control} value={f.tipo_certificado||''} disabled={!editable} onChange={e=>onChange('tipo_certificado',e.target.value||null)}><option value="">Selecciona el tipo</option><option value="TOTAL">Total</option><option value="PARCIAL">Parcial</option></select></CampoConAyuda></div></div>

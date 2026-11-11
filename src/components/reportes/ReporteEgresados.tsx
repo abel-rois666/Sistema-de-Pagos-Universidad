@@ -23,23 +23,13 @@ import {
 import ConsultaAlumnoReporte, { type DestinoAlumnoReporte } from './ConsultaAlumnoReporte';
 import CeldaSeguimientoAlumno from './CeldaSeguimientoAlumno';
 import { textoCertificaciones, textoPagosTitulacion } from '../../certificacion/seguimiento';
+import ExportarListadoCSV from './ExportarListadoCSV';
+import { columnasEgresadosCSV, tituloEgresadosCSV as toTitleCase } from '../../reportes/exportacionEgresados';
+import { fechaActualListado } from '../../reportes/listadoGeneral';
 
 interface Props {
   onBack: () => void;
 }
-
-// Función auxiliar para Altas y Bajas (Title Case)
-const toTitleCase = (str: string) => {
-  if (!str) return '';
-  const lowers = ['de', 'la', 'del', 'las', 'los', 'y', 'en', 'el', 'a', 'por', 'para', 'con'];
-  return str.split(' ').map((word, index) => {
-    const lowerWord = word.toLowerCase();
-    if (index !== 0 && lowers.includes(lowerWord)) {
-      return lowerWord;
-    }
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-  }).join(' ');
-};
 
 type SortKey = 'nombre' | 'licenciatura' | 'estatus' | 'ciclo' | 'email' | 'pagoTitulacion' | 'pagoCertificado' | 'certificacion';
 
@@ -52,6 +42,7 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
   const [errorRecarga, setErrorRecarga] = useState('');
 
   const [destino, setDestino] = useState<DestinoAlumnoReporte | null>(null);
+  const [exportacionCSV, setExportacionCSV] = useState(false);
   
   // Paginación
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -219,24 +210,13 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
     return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="ml-1 inline" /> : <ChevronDown size={14} className="ml-1 inline" />;
   };
 
-  // Exportar a CSV
+  const columnasCSV = useMemo(() => columnasEgresadosCSV(visibleCols, {
+    ciclosEgresoMap, tieneKardexMap, pagoTitulacionMap, pagoCertificadoMap, certificacionMap
+  }), [visibleCols, ciclosEgresoMap, tieneKardexMap, pagoTitulacionMap, pagoCertificadoMap, certificacionMap]);
+
   const handleExportCSV = () => {
-    if (loading || errorConsulta) return;
-    const columnas = [
-      ['nombre','Nombre completo',(a:any)=>toTitleCase(a.nombre_completo)],
-      ['licenciatura','Licenciatura',(a:any)=>toTitleCase(a.licenciatura)],
-      ['estatus','Estatus',(a:any)=>toTitleCase(a.estatus||'')],
-      ['ciclo','Ciclo de egreso',(a:any)=>ciclosEgresoMap[a.id]||(tieneKardexMap[a.id]?'Ciclo Desconocido':'Sin Kardex')],
-      ['telefonos','Teléfonos',(a:any)=>[a.telefono,a.celular].filter(Boolean).join(' / ')],
-      ['email','Correo electrónico',(a:any)=>(a.email||'').toLowerCase()],
-      ['pagoTitulacion','Pago de titulación',(a:any)=>pagoTitulacionMap[a.id]||'Sin plan'],
-      ['pagoCertificado','Pago del certificado',(a:any)=>pagoCertificadoMap[a.id]||'Sin registro'],
-      ['certificacion','Trámite de certificación',(a:any)=>certificacionMap[a.id]||'Sin registro']
-    ].filter(([key])=>visibleCols[key as keyof typeof visibleCols]);
-    const celda=(valor:string)=>'"'+(/^[\s]*[=+@-]/.test(valor)?"'"+valor:valor).replace(/"/g,'""')+'"';
-    const contenido='\uFEFF'+[columnas.map(c=>String(c[1])),...filteredEgresados.map(a=>columnas.map(c=>(c[2] as (a:any)=>string)(a)))].map(f=>f.map(celda).join(',')).join('\r\n');
-    const url=URL.createObjectURL(new Blob([contenido],{type:'text/csv;charset=utf-8;'}));
-    const link=document.createElement('a');link.href=url;link.download='reporte_egresados_'+new Date().toISOString().slice(0,10)+'.csv';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    if (loading || errorConsulta || !filteredEgresados.length) return;
+    setExportacionCSV(true);
   };
 
   // Exportar a PDF
@@ -320,6 +300,10 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
 
   return (
     <>
+      {exportacionCSV && <ExportarListadoCSV tipoReporte="egresados" alumnos={filteredEgresados} planes={plans} ciclos={ciclos}
+        columnas={columnasCSV} fecha={fechaActualListado()} periodo={nombreCicloSeleccionado}
+        descripcionConsulta={`Ciclo de egreso: ${nombreCicloSeleccionado}. Licenciatura: ${selectedLicenciaturas.length ? selectedLicenciaturas.join(', ') : 'Todas'}. Segmento: ${selectedSegmento === 'TITULADOS' ? 'Solo titulados' : selectedSegmento === 'NO_TITULADOS' ? 'Egresados no titulados' : 'Todos'}.`}
+        onCerrar={() => setExportacionCSV(false)}/>}
       {destino && <ConsultaAlumnoReporte destino={destino} onCerrar={()=>setDestino(null)} onActualizado={()=>setRefreshTrigger(n=>n+1)}/>}
     <div className="flex flex-col min-w-0 h-full bg-white dark:bg-[#1c2228] p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
       <div className="flex items-center gap-3 mb-6">
@@ -481,7 +465,8 @@ export const ReporteEgresados: React.FC<Props> = ({ onBack }) => {
               </button>
               <button 
                 onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors font-medium text-sm border border-green-200 dark:border-green-800/50"
+                disabled={!filteredEgresados.length}
+                className="flex items-center gap-2 px-4 py-2 bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors font-medium text-sm border border-green-200 dark:border-green-800/50 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
               >
                 <Download size={18} /> CSV
               </button>

@@ -358,6 +358,8 @@ export type EstatusTresOpciones = 'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
 export type EstatusDocumental   = 'SIN_INICIAR' | 'APROBADO' | 'RECHAZADO';
 
 export interface FichaTitulacion {
+  revision?: number;
+  archivado_en?: string | null;
   id: string;
   alumno_id: string;
   modalidad: string | null;

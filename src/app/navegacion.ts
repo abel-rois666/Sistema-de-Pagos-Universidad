@@ -5,6 +5,7 @@ const escolar = ['ADMINISTRADOR', 'COORDINADOR CONTROL ESCOLAR'];
 const academico = ['ADMINISTRADOR', 'COORDINADOR ACADEMICO'];
 const finanzas = ['ADMINISTRADOR', 'COORDINADOR FINANCIERO', 'CAJERO'];
 export const tareasAreas: readonly TareaArea[] = [
+  {titulo:'Herramientas administrativas',descripcion:'Revisar y asociar certificaciones pendientes por programa.',ruta:'/herramientas-escolares',area:'escolar',roles:['ADMINISTRADOR']},
   { titulo: 'Gestión de alumnos', descripcion: 'Consultar fichas, programas e historial.', ruta: '/alumnos', area: 'escolar', roles: escolar },
   { titulo: 'Inscripciones por ciclo', descripcion: 'Preparar y confirmar la inscripción de cada alumno.', ruta: '/inscripciones', area: 'escolar', roles: escolar },
   { titulo: 'Grupos', descripcion: 'Organizar alumnos y materias del ciclo.', ruta: '/grupos', area: 'escolar', roles: escolar },

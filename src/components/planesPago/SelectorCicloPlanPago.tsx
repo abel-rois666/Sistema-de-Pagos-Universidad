@@ -32,7 +32,7 @@ export default function SelectorCicloPlanPago({ ciclos, cicloId, tipoPlan, nombr
       </div>
       {sugerido && elegido?.id !== sugerido.id &&
         <button type="button" onClick={() => onChange(sugerido.id)}
-          className="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-200">
+          className="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-200 dark:hover:bg-blue-900">
           Usar sugerido
         </button>}
     </div>

@@ -710,7 +710,7 @@ CREATE INDEX IF NOT EXISTS idx_servicio_social_alumno ON public.servicio_social(
 -- Ficha de titulación DGAIR
 CREATE TABLE IF NOT EXISTS public.ficha_titulacion (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  alumno_id uuid NOT NULL UNIQUE,
+  alumno_id uuid NOT NULL,
   modalidad text,
   pago_titulacion text NOT NULL DEFAULT 'SIN_INICIAR'::text,
   certificado_estudios text NOT NULL DEFAULT 'SIN_INICIAR'::text,
@@ -740,6 +740,8 @@ CREATE TABLE IF NOT EXISTS public.ficha_titulacion (
   fecha_examen date,
   fecha_exencion date,
   alumno_programa_id uuid,
+  revision integer NOT NULL DEFAULT 0,
+  archivado_en timestamptz,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT ficha_titulacion_pkey PRIMARY KEY (id),
@@ -1058,40 +1060,40 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Eliminación física controlada para administradores (devuelve monedero y reajusta secuencia)
-CREATE OR REPLACE FUNCTION public.borrar_recibo_admin(p_recibo_id uuid)
-RETURNS void AS $$
-DECLARE
-  v_uso_saldo numeric;
-  v_alumno_id uuid;
-  v_recibo record;
-BEGIN
-  SELECT * INTO v_recibo FROM public.recibos WHERE id = p_recibo_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Recibo no encontrado';
-  END IF;
-
-  v_uso_saldo := v_recibo.uso_saldo_a_favor;
-  v_alumno_id := v_recibo.alumno_id;
-
-  -- Devolver saldo a favor si se usó
-  IF v_uso_saldo > 0 AND v_alumno_id IS NOT NULL THEN
-    UPDATE public.alumnos
-    SET saldo_a_favor = COALESCE(saldo_a_favor, 0) + v_uso_saldo
-    WHERE id = v_alumno_id;
-  END IF;
-
-  -- Borrar recibo (en cascada sus detalles)
-  DELETE FROM public.recibos WHERE id = p_recibo_id;
-
-  -- Reajustar secuencia de folios
-  PERFORM setval(
-    'public.recibos_folio_seq', 
-    COALESCE((SELECT MAX(folio) FROM public.recibos), 1000), 
-    (SELECT MAX(folio) IS NOT NULL FROM public.recibos)
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Referencia preparada 20261109180000: borrado sin reajuste de folios.
+-- Su instalación en Supabase requiere preflight; editar este archivo no la instala.
+create or replace function public.borrar_recibo_prueba_v2(p_recibo_id uuid)
+returns void language plpgsql security definer set search_path=pg_catalog,public as $borrado$
+declare
+  v_recibo public.recibos%rowtype;
+begin
+  if auth.uid() is null or not (
+    select count(*)=1 and coalesce(bool_and(rol='ADMINISTRADOR' and activo is true),false)
+    from public.usuarios where auth_id=auth.uid()
+  ) then
+    raise exception 'Solo Administración con cuenta activa puede eliminar recibos de prueba' using errcode='42501';
+  end if;
+  if p_recibo_id is null then raise exception 'Selecciona el recibo de prueba'; end if;
+  select * into v_recibo from public.recibos where id=p_recibo_id for update;
+  if not found then raise exception 'El recibo ya no existe; actualiza la consulta'; end if;
+  if v_recibo.uso_saldo_a_favor>0 and v_recibo.alumno_id is not null then
+    update public.alumnos
+    set saldo_a_favor=coalesce(saldo_a_favor,0)+v_recibo.uso_saldo_a_favor
+    where id=v_recibo.alumno_id;
+  end if;
+  delete from public.recibos where id=p_recibo_id;
+end;
+$borrado$;
+create or replace function public.borrar_recibo_admin(p_recibo_id uuid)
+returns void language plpgsql security definer set search_path=pg_catalog,public as $compatible$
+begin
+  perform public.borrar_recibo_prueba_v2(p_recibo_id);
+end;
+$compatible$;
+revoke all on function public.borrar_recibo_prueba_v2(uuid) from public,anon;
+revoke all on function public.borrar_recibo_admin(uuid) from public,anon;
+grant execute on function public.borrar_recibo_prueba_v2(uuid) to authenticated;
+grant execute on function public.borrar_recibo_admin(uuid) to authenticated;
 
 -- ======================================================================================
 -- 11. SEGURIDAD Y POLÍTICAS ROW LEVEL SECURITY (RLS)
@@ -1231,3 +1233,351 @@ CREATE POLICY "personal: acceso completo control_pagos" ON public.control_pagos 
 
 -- Ficha única y funciones operativas sin duplicar identidad: preparación en
 -- supabase/migrations/20261108180000_ficha_unica_y_funciones_personal.sql.
+
+-- Vistas privadas del Listado General y retiro seguro de asociaciones académicas,
+-- preparados el 09/11/2026:
+-- 20261109200000_vistas_privadas_listado_alumnos.sql: preferencias por Auth mediante RPC.
+-- 20261109210000_retirar_asociacion_academica_segura.sql: revisión, auditoría y DELETE protegido.
+-- 20261109220000_retirar_asociaciones_de_prueba.sql: depuración auditada de materias vacías
+--   (incluyendo estatus SIN_EVALUAR y observación automática 'Carga inicial'/'Carga de reinscripción')
+--   y certificaciones sin evidencia creadas como prueba.
+-- Preflight, orden y pruebas: docs/ASOCIACIONES_Y_VISTAS_GUARDADAS.md y docs/RETIRAR_ASOCIACIONES_DE_PRUEBA.md.
+
+CREATE TABLE IF NOT EXISTS public.asociaciones_programa_retiro_auditoria (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  alumno_id uuid NOT NULL,
+  programa_id uuid NOT NULL,
+  actor uuid NOT NULL,
+  motivo text NOT NULL,
+  antes jsonb NOT NULL,
+  alumno_antes jsonb,
+  alumno_despues jsonb,
+  transaccion bigint NOT NULL DEFAULT txid_current(),
+  creado_en timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.asociaciones_programa_retiro_auditoria ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.asociaciones_programa_retiro_auditoria FROM public, anon, authenticated;
+GRANT SELECT ON public.asociaciones_programa_retiro_auditoria TO authenticated;
+DROP POLICY IF EXISTS asociaciones_retiro_auditoria_admin ON public.asociaciones_programa_retiro_auditoria;
+CREATE POLICY asociaciones_retiro_auditoria_admin ON public.asociaciones_programa_retiro_auditoria
+  FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.usuarios WHERE auth_id = auth.uid() AND activo IS TRUE AND rol = 'ADMINISTRADOR'));
+
+CREATE TABLE IF NOT EXISTS public.asociaciones_programa_pruebas_auditoria (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  alumno_id uuid NOT NULL,
+  programa_id uuid NOT NULL,
+  actor uuid NOT NULL,
+  motivo text NOT NULL,
+  programa_antes jsonb NOT NULL,
+  materias_antes jsonb NOT NULL,
+  certificados_antes jsonb NOT NULL,
+  certificados_despues jsonb NOT NULL,
+  creado_en timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ap_pruebas_auditoria_alumno ON public.asociaciones_programa_pruebas_auditoria(alumno_id);
+ALTER TABLE public.asociaciones_programa_pruebas_auditoria ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.asociaciones_programa_pruebas_auditoria FROM public, anon, authenticated;
+GRANT SELECT ON public.asociaciones_programa_pruebas_auditoria TO authenticated;
+DROP POLICY IF EXISTS ap_pruebas_lectura_admin ON public.asociaciones_programa_pruebas_auditoria;
+CREATE POLICY ap_pruebas_lectura_admin ON public.asociaciones_programa_pruebas_auditoria
+  FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.usuarios WHERE auth_id = auth.uid() AND activo IS TRUE AND rol = 'ADMINISTRADOR'));
+
+CREATE OR REPLACE FUNCTION public._ap_retiro_autorizar_v1()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF auth.uid() IS NULL OR NOT (
+    SELECT count(*) = 1 AND coalesce(bool_and(activo IS TRUE AND rol = 'ADMINISTRADOR'), false)
+    FROM public.usuarios WHERE auth_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Solo Administración con cuenta activa puede retirar asociaciones erróneas' USING ERRCODE = '42501';
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public._ap_materia_prueba_v1(j jsonb)
+RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public AS $$
+  SELECT j - ARRAY[
+    'id','alumno_id','ciclo_id','asignatura_id','created_at','updated_at','parcial_1','parcial_2','parcial_3',
+    'promedio_calculado','calificacion_final','modificada_manualmente','observaciones','tipo_evaluacion','estatus','ciclo_legado',
+    'bloqueo_p1','bloqueo_p2','bloqueo_p3','bloqueo_final','solicitud_p1','solicitud_p2','solicitud_p3','solicitud_final','id_observacion_certificacion'
+  ] = '{}'::jsonb
+  AND NOT EXISTS (
+    SELECT 1 FROM jsonb_each(j) x WHERE
+      (x.key IN ('parcial_1','parcial_2','parcial_3','promedio_calculado','calificacion_final','id_observacion_certificacion') AND x.value <> 'null'::jsonb)
+      OR (x.key IN ('modificada_manualmente','bloqueo_p1','bloqueo_p2','bloqueo_p3','bloqueo_final','solicitud_p1','solicitud_p2','solicitud_p3','solicitud_final') AND x.value NOT IN ('null'::jsonb,'false'::jsonb))
+      OR (x.key = 'ciclo_legado' AND nullif(btrim(x.value#>>'{}'),'') IS NOT NULL)
+      OR (x.key = 'observaciones' AND upper(btrim(coalesce(x.value#>>'{}',''))) NOT IN ('','CARGA INICIAL','CARGA DE REINSCRIPCIÓN','CARGA DE REINSCRIPCION','IMPORTADO DE GES 4'))
+  )
+  AND upper(btrim(coalesce(j->>'estatus',''))) IN ('','CURSANDO','SIN_EVALUAR','SIN EVALUAR')
+  AND upper(btrim(coalesce(j->>'tipo_evaluacion','ORDINARIO'))) = 'ORDINARIO';
+$$;
+
+CREATE OR REPLACE FUNCTION public._ap_certificado_prueba_v1(j jsonb)
+RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public AS $$
+  SELECT NOT coalesce((j->>'tramite_completado')::boolean, false)
+  AND NOT EXISTS (
+    SELECT 1 FROM jsonb_each(j) x WHERE
+      (x.key IN ('fecha_inicio_tramite','fecha_termino_tramite','fecha_completado','enlace_drive') OR x.key LIKE 'doc%nota')
+      AND nullif(btrim(x.value#>>'{}'),'') IS NOT NULL
+  )
+  AND j - ARRAY[
+    'id','alumno_id','alumno_programa_id','revision','archivado_en','pago_certificado','tipo_certificado',
+    'doc_acta_nacimiento','doc_acta_nacimiento_nota','doc_curp','doc_curp_nota','doc_antecedente','doc_antecedente_nota',
+    'doc_titulo_profesional','doc_titulo_profesional_nota','doc_cedula_profesional','doc_cedula_profesional_nota',
+    'fecha_inicio_tramite','fecha_termino_tramite','tramite_completado','fecha_completado','enlace_drive','created_at','updated_at'
+  ] = '{}'::jsonb;
+$$;
+
+CREATE OR REPLACE FUNCTION public._ap_cert_prueba_descartada_v1(j jsonb)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.asociaciones_programa_pruebas_auditoria a,
+    jsonb_array_elements(a.certificados_despues) c
+    WHERE c = j AND a.alumno_id = (j->>'alumno_id')::uuid
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public._ap_revision_retiro_v1(p_alumno uuid, p_programa uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE
+  p public.alumno_programas; r record; n bigint; antecedentes jsonb = '[]'; motivos jsonb = '[]';
+  principales integer; contexto jsonb; titulo text; etiqueta text; puede boolean;
+BEGIN
+  SELECT * INTO p FROM public.alumno_programas WHERE id = p_programa AND alumno_id = p_alumno;
+  IF p.id IS NULL THEN RAISE EXCEPTION 'La asociación ya no existe o no pertenece al alumno'; END IF;
+  SELECT count(*) FILTER (WHERE es_vigente IS TRUE), jsonb_agg(to_jsonb(ap) ORDER BY id) INTO principales, contexto
+  FROM public.alumno_programas ap WHERE alumno_id = p_alumno;
+  IF p.es_vigente IS TRUE THEN motivos = motivos || jsonb_build_array('Este es el programa principal. Establece primero el programa correcto como principal desde Administrar programas.'); END IF;
+  IF principales <> 1 THEN motivos = motivos || jsonb_build_array('El alumno requiere un único programa principal antes de retirar asociaciones.'); END IF;
+  IF upper(btrim(coalesce(p.estatus,''))) IN ('EGRESADO','TITULADO','EGRESADO TITULADO') OR p.motivo_estatus = 'PLAN_CONCLUIDO' THEN
+    motivos = motivos || jsonb_build_array('El programa conserva un logro académico concluido y requiere revisión individual.');
+  END IF;
+  FOR r IN
+    SELECT c.conname, c.conrelid, c.conkey, c.confkey, n.nspname, t.relname, a.attname
+    FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
+    LEFT JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+    WHERE c.contype = 'f' AND c.confrelid = 'public.alumno_programas'::regclass
+    ORDER BY n.nspname, t.relname, c.conname
+  LOOP
+    etiqueta = CASE r.relname
+      WHEN 'ficha_certificacion' THEN 'Certificaciones, incluidas las archivadas'
+      WHEN 'ficha_titulacion' THEN 'Trámites de titulación'
+      WHEN 'inscripciones_ciclo' THEN 'Inscripciones por ciclo'
+      WHEN 'inscripciones_ciclo_preparaciones' THEN 'Preparaciones de inscripción'
+      WHEN 'inscripciones_programa_ingreso' THEN 'Ingreso acreditado al programa'
+      WHEN 'inscripciones_programa_ingreso_historial' THEN 'Historial del ingreso'
+      WHEN 's911_inscripciones' THEN 'Inscripciones del expediente 911'
+      WHEN 's911_eventos' THEN 'Eventos del expediente 911'
+      ELSE 'Otros antecedentes vinculados'
+    END;
+    IF cardinality(r.conkey) <> 1 OR cardinality(r.confkey) <> 1 OR r.confkey[1] <> (SELECT attnum FROM pg_attribute WHERE attrelid = 'public.alumno_programas'::regclass AND attname = 'id') THEN
+      antecedentes = antecedentes || jsonb_build_array(jsonb_build_object('clave', format('%I.%I:%s', r.nspname, r.relname, r.conname), 'etiqueta', 'Relación adicional que requiere revisión individual', 'cantidad', null, 'bloquea', true));
+    ELSE
+      EXECUTE format('SELECT count(*) FROM %I.%I WHERE %I = $1', r.nspname, r.relname, r.attname) INTO n USING p.id;
+      antecedentes = antecedentes || jsonb_build_array(jsonb_build_object('clave', format('%I.%I:%s', r.nspname, r.relname, r.conname), 'etiqueta', etiqueta, 'cantidad', n, 'bloquea', n > 0));
+    END IF;
+  END LOOP;
+  SELECT count(*) INTO n FROM public.inscripciones_academicas i JOIN public.asignaturas a ON a.id = i.asignatura_id
+  WHERE i.alumno_id = p.alumno_id AND a.plan_id = p.plan_id;
+  antecedentes = antecedentes || jsonb_build_array(jsonb_build_object('clave', 'materias', 'etiqueta', 'Materias inscritas o calificaciones de este plan', 'cantidad', n, 'bloquea', n > 0));
+  SELECT count(*) INTO n FROM public.inscripciones_academicas i LEFT JOIN public.asignaturas a ON a.id = i.asignatura_id
+  WHERE i.alumno_id = p.alumno_id AND (a.id IS NULL OR a.plan_id IS NULL);
+  antecedentes = antecedentes || jsonb_build_array(jsonb_build_object('clave', 'materias_no_identificadas', 'etiqueta', 'Materias cuyo plan requiere identificación', 'cantidad', n, 'bloquea', n > 0));
+  SELECT count(*) INTO n FROM public.alumnos_grupos ag JOIN public.grupos g ON g.id = ag.grupo_id
+  WHERE ag.alumno_id = p.alumno_id AND g.plan_id = p.plan_id;
+  antecedentes = antecedentes || jsonb_build_array(jsonb_build_object('clave', 'grupos', 'etiqueta', 'Asignaciones a grupos de este plan', 'cantidad', n, 'bloquea', n > 0));
+  IF to_regclass('public.ficha_titulacion') IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.ficha_titulacion'::regclass AND attname = 'alumno_programa_id' AND NOT attisdropped) THEN
+      EXECUTE 'SELECT count(*) FROM public.ficha_titulacion WHERE alumno_id = $1 AND alumno_programa_id IS NULL' INTO n USING p.alumno_id;
+    ELSE
+      EXECUTE 'SELECT count(*) FROM public.ficha_titulacion WHERE alumno_id = $1' INTO n USING p.alumno_id;
+    END IF;
+    antecedentes = antecedentes || jsonb_build_array(jsonb_build_object('clave', 'titulacion_sin_programa', 'etiqueta', 'Titulación anterior pendiente de identificar', 'cantidad', n, 'bloquea', n > 0));
+  END IF;
+  IF to_regclass('public.ficha_certificacion') IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'public.ficha_certificacion'::regclass AND attname = 'alumno_programa_id' AND NOT attisdropped) THEN
+      EXECUTE 'SELECT count(*) FROM public.ficha_certificacion WHERE alumno_id = $1 AND alumno_programa_id IS NULL AND NOT public._ap_cert_prueba_descartada_v1(to_jsonb(ficha_certificacion))' INTO n USING p.alumno_id;
+    ELSE
+      EXECUTE 'SELECT count(*) FROM public.ficha_certificacion WHERE alumno_id = $1' INTO n USING p.alumno_id;
+    END IF;
+    antecedentes = antecedentes || jsonb_build_array(jsonb_build_object('clave', 'certificado_sin_programa', 'etiqueta', 'Certificaciones anteriores pendientes de identificar', 'cantidad', n, 'bloquea', n > 0));
+  END IF;
+  IF EXISTS (SELECT 1 FROM jsonb_array_elements(antecedentes) x WHERE (x->>'bloquea')::boolean) THEN
+    motivos = motivos || jsonb_build_array('Hay antecedentes que deben conservarse. Esta acción no elimina ni desvincula historial, aunque esté archivado.');
+  END IF;
+  puede = jsonb_array_length(motivos) = 0;
+  SELECT concat_ws(' · ', e.clave_legado, e.nombre) INTO titulo FROM public.planes_estudio e WHERE e.id = p.plan_id;
+  RETURN jsonb_build_object('alumnoId', p.alumno_id, 'programaId', p.id, 'planId', p.plan_id, 'programa', titulo,
+    'puedeRetirar', puede, 'motivos', motivos, 'antecedentes', antecedentes,
+    'huella', md5(jsonb_build_object('asociacion', to_jsonb(p), 'contexto', contexto, 'antecedentes', antecedentes)::text));
+END $$;
+
+CREATE OR REPLACE FUNCTION public.ap_revisar_retiro_v1(p_alumno uuid, p_programa uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+BEGIN
+  PERFORM public._ap_retiro_autorizar_v1();
+  RETURN public._ap_revision_retiro_v1(p_alumno, p_programa);
+END $$;
+
+CREATE OR REPLACE FUNCTION public._ap_proteger_retiro_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE revision jsonb;
+BEGIN
+  IF pg_trigger_depth() > 1 AND NOT EXISTS (SELECT 1 FROM public.alumnos WHERE id = old.alumno_id) THEN RETURN old; END IF;
+  PERFORM public._ap_retiro_autorizar_v1();
+  IF current_setting('app.retiro_asociacion', true) IS DISTINCT FROM old.id::text OR NOT EXISTS (
+    SELECT 1 FROM public.asociaciones_programa_retiro_auditoria WHERE programa_id = old.id AND alumno_id = old.alumno_id
+    AND actor = auth.uid() AND transaccion = txid_current() AND antes = to_jsonb(old)
+  ) THEN
+    RAISE EXCEPTION 'Revisa y confirma el retiro desde la ficha del alumno' USING ERRCODE = '42501';
+  END IF;
+  revision = public._ap_revision_retiro_v1(old.alumno_id, old.id);
+  IF NOT (revision->>'puedeRetirar')::boolean THEN RAISE EXCEPTION 'Hay antecedentes o cambió la situación del programa; no se retiró la asociación'; END IF;
+  RETURN old;
+END $$;
+
+DROP TRIGGER IF EXISTS ap_proteger_retiro ON public.alumno_programas;
+CREATE TRIGGER ap_proteger_retiro BEFORE DELETE ON public.alumno_programas FOR EACH ROW EXECUTE FUNCTION public._ap_proteger_retiro_v1();
+
+CREATE OR REPLACE FUNCTION public.ap_retirar_asociacion_v1(p_alumno uuid, p_programa uuid, p_huella text, p_motivo text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE revision jsonb; original public.alumno_programas; antes_alumno jsonb; auditoria uuid;
+BEGIN
+  PERFORM public._ap_retiro_autorizar_v1();
+  IF length(btrim(coalesce(p_motivo,''))) NOT BETWEEN 10 AND 1000 OR p_huella IS NULL THEN RAISE EXCEPTION 'Describe el error de asociación y revisa sus antecedentes'; END IF;
+  PERFORM set_config('lock_timeout', '3s', true);
+  PERFORM id FROM public.alumnos WHERE id = p_alumno FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'El alumno ya no existe'; END IF;
+  PERFORM id FROM public.alumno_programas WHERE alumno_id = p_alumno ORDER BY id FOR UPDATE;
+  LOCK TABLE public.inscripciones_academicas, public.asignaturas, public.alumnos_grupos, public.grupos IN SHARE MODE;
+  revision = public._ap_revision_retiro_v1(p_alumno, p_programa);
+  IF revision->>'huella' IS DISTINCT FROM p_huella THEN RAISE EXCEPTION 'Los antecedentes cambiaron. Actualiza la revisión antes de confirmar' USING ERRCODE = '40001'; END IF;
+  IF NOT (revision->>'puedeRetirar')::boolean THEN RAISE EXCEPTION 'La asociación tiene antecedentes o requiere otro programa principal. No se retiró'; END IF;
+  SELECT * INTO original FROM public.alumno_programas WHERE id = p_programa AND alumno_id = p_alumno;
+  SELECT jsonb_build_object('id', id, 'estatus', estatus, 'licenciatura', licenciatura) INTO antes_alumno FROM public.alumnos WHERE id = p_alumno;
+  INSERT INTO public.asociaciones_programa_retiro_auditoria(alumno_id, programa_id, actor, motivo, antes, alumno_antes)
+  VALUES (p_alumno, p_programa, auth.uid(), btrim(p_motivo), to_jsonb(original), antes_alumno) RETURNING id INTO auditoria;
+  PERFORM set_config('app.retiro_asociacion', p_programa::text, true);
+  DELETE FROM public.alumno_programas WHERE id = p_programa AND alumno_id = p_alumno;
+  PERFORM set_config('app.retiro_asociacion', '', true);
+  UPDATE public.asociaciones_programa_retiro_auditoria SET alumno_despues =
+    (SELECT jsonb_build_object('id', id, 'estatus', estatus, 'licenciatura', licenciatura) FROM public.alumnos WHERE id = p_alumno) WHERE id = auditoria;
+  RETURN jsonb_build_object('programaId', p_programa, 'alumnoId', p_alumno, 'retirado', true);
+END $$;
+
+CREATE OR REPLACE FUNCTION public.ap_revisar_prueba_v1(p_alumno uuid, p_programa uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE r jsonb; motivos jsonb; antecedentes jsonb = '[]'; x jsonb; clave_cert text;
+  materias jsonb; certificados jsonb; ids uuid[]; tabla regclass; fk record; n bigint; referencias bigint = 0;
+BEGIN
+  PERFORM public._ap_retiro_autorizar_v1(); r = public._ap_revision_retiro_v1(p_alumno, p_programa);
+  SELECT coalesce(jsonb_agg(to_jsonb(i) ORDER BY i.id), '[]') INTO materias FROM public.inscripciones_academicas i
+  JOIN public.asignaturas a ON a.id = i.asignatura_id WHERE i.alumno_id = p_alumno AND a.plan_id = (r->>'planId')::uuid;
+  SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.id), '[]') INTO certificados FROM public.ficha_certificacion f WHERE alumno_programa_id = p_programa;
+  IF to_regclass('public.operaciones_academicas_auditoria') IS NOT NULL THEN
+    EXECUTE $historial$SELECT count(*) FROM public.operaciones_academicas_auditoria a
+      WHERE a.entidad_id IN (SELECT (v->>'id')::uuid FROM jsonb_array_elements($1) v)
+      AND EXISTS (SELECT 1 FROM jsonb_array_elements(jsonb_build_array(a.antes, a.despues)) j
+        WHERE j <> 'null'::jsonb AND CASE WHEN jsonb_typeof(j) = 'object' THEN NOT public._ap_materia_prueba_v1(j) ELSE true END)$historial$
+      INTO n USING materias;
+    referencias = referencias + n;
+  END IF;
+  SELECT count(*) INTO n FROM public.certificacion_auditoria a
+  WHERE a.ficha_id IN (SELECT (v->>'id')::uuid FROM jsonb_array_elements(certificados) v)
+  AND EXISTS (SELECT 1 FROM jsonb_array_elements(jsonb_build_array(a.antes, a.despues)) j
+    WHERE j <> 'null'::jsonb AND CASE WHEN jsonb_typeof(j) = 'object' THEN NOT public._ap_certificado_prueba_v1(j) ELSE true END);
+  referencias = referencias + n;
+  SELECT format('%I.%I:%s', ns.nspname, t.relname, c.conname) INTO clave_cert FROM pg_constraint c
+  JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace ns ON ns.oid = t.relnamespace
+  WHERE c.contype = 'f' AND c.conrelid = 'public.ficha_certificacion'::regclass AND c.confrelid = 'public.alumno_programas'::regclass
+  AND cardinality(c.conkey) = 1 AND (SELECT attname FROM pg_attribute WHERE attrelid = c.conrelid AND attnum = c.conkey[1]) = 'alumno_programa_id';
+  FOREACH tabla IN ARRAY ARRAY['public.inscripciones_academicas'::regclass, 'public.ficha_certificacion'::regclass] LOOP
+    SELECT array_agg((v->>'id')::uuid) INTO ids FROM jsonb_array_elements(CASE WHEN tabla = 'public.inscripciones_academicas'::regclass THEN materias ELSE certificados END) v;
+    FOR fk IN SELECT c.*, ns.nspname, t.relname, a.attname FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace ns ON ns.oid = t.relnamespace
+      LEFT JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+      WHERE c.contype = 'f' AND c.confrelid = tabla LOOP
+      IF cardinality(fk.conkey) <> 1 OR cardinality(fk.confkey) <> 1 OR fk.confkey[1] <> (SELECT attnum FROM pg_attribute WHERE attrelid = tabla AND attname = 'id') THEN
+        IF cardinality(ids) > 0 THEN referencias = referencias + 1; END IF;
+      ELSE
+        EXECUTE format('SELECT count(*) FROM %I.%I WHERE %I = ANY($1)', fk.nspname, fk.relname, fk.attname) INTO n USING ids;
+        referencias = referencias + n;
+      END IF;
+    END LOOP;
+  END LOOP;
+  FOR x IN SELECT * FROM jsonb_array_elements(r->'antecedentes') LOOP
+    IF x->>'clave' = 'materias' THEN
+      SELECT count(*) INTO n FROM jsonb_array_elements(materias) j WHERE NOT public._ap_materia_prueba_v1(j);
+      x = jsonb_set(x, '{cantidad}', to_jsonb(n)); x = jsonb_set(x, '{bloquea}', to_jsonb(n > 0)); x = jsonb_set(x, '{etiqueta}', '"Materias con información que debe conservarse"');
+    ELSIF x->>'clave' = clave_cert THEN
+      SELECT count(*) INTO n FROM jsonb_array_elements(certificados) j WHERE NOT public._ap_certificado_prueba_v1(j);
+      x = jsonb_set(x, '{cantidad}', to_jsonb(n)); x = jsonb_set(x, '{bloquea}', to_jsonb(n > 0)); x = jsonb_set(x, '{etiqueta}', '"Certificaciones con evidencia o campos que requieren revisión"');
+    END IF;
+    antecedentes = antecedentes || jsonb_build_array(x);
+  END LOOP;
+  SELECT coalesce(jsonb_agg(m), '[]') INTO motivos FROM jsonb_array_elements(r->'motivos') m
+  WHERE m#>>'{}' <> 'Hay antecedentes que deben conservarse. Esta acción no elimina ni desvincula historial, aunque esté archivado.';
+  IF referencias > 0 THEN motivos = motivos || jsonb_build_array('Hay referencias a materias o certificaciones que requieren revisión individual.'); END IF;
+  IF EXISTS (SELECT 1 FROM jsonb_array_elements(antecedentes) v WHERE (v->>'bloquea')::boolean) THEN
+    motivos = motivos || jsonb_build_array('Se conserva información académica o antecedentes que no pueden retirarse como prueba.');
+  END IF;
+  RETURN r || jsonb_build_object('esPrueba', true, 'antecedentes', antecedentes, 'motivos', motivos, 'puedeRetirar', jsonb_array_length(motivos) = 0,
+    'materiasVacias', (SELECT count(*) FROM jsonb_array_elements(materias) j WHERE public._ap_materia_prueba_v1(j)),
+    'certificacionesPrueba', jsonb_array_length(certificados),
+    'huella', md5(jsonb_build_object('revision', r, 'materias', materias, 'certificados', certificados, 'referencias', referencias)::text));
+END $$;
+
+CREATE OR REPLACE FUNCTION public.ap_retirar_prueba_v1(p_alumno uuid, p_programa uuid, p_huella text, p_motivo text, p_confirmacion text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE r jsonb; materias jsonb; certificados jsonb; despues jsonb; resultado jsonb;
+BEGIN
+  PERFORM public._ap_retiro_autorizar_v1();
+  IF p_confirmacion IS DISTINCT FROM 'RETIRAR PRUEBA' OR length(btrim(coalesce(p_motivo,''))) NOT BETWEEN 10 AND 1000 THEN RAISE EXCEPTION 'Confirma los datos de prueba y explica el motivo'; END IF;
+  PERFORM set_config('lock_timeout', '3s', true);
+  PERFORM id FROM public.alumnos WHERE id = p_alumno FOR UPDATE;
+  PERFORM id FROM public.alumno_programas WHERE alumno_id = p_alumno ORDER BY id FOR UPDATE;
+  LOCK TABLE public.inscripciones_academicas, public.asignaturas, public.alumnos_grupos, public.grupos IN SHARE ROW EXCLUSIVE MODE;
+  PERFORM id FROM public.inscripciones_academicas WHERE alumno_id = p_alumno ORDER BY id FOR UPDATE;
+  PERFORM id FROM public.ficha_certificacion WHERE alumno_id = p_alumno ORDER BY id FOR UPDATE;
+  r = public.ap_revisar_prueba_v1(p_alumno, p_programa);
+  IF r->>'huella' IS DISTINCT FROM p_huella THEN RAISE EXCEPTION 'Los antecedentes cambiaron. Actualiza la revisión' USING ERRCODE = '40001'; END IF;
+  IF NOT (r->>'puedeRetirar')::boolean THEN RAISE EXCEPTION 'Hay antecedentes protegidos; no se retiró la prueba'; END IF;
+  SELECT coalesce(jsonb_agg(to_jsonb(i) ORDER BY i.id), '[]') INTO materias FROM public.inscripciones_academicas i JOIN public.asignaturas a ON a.id = i.asignatura_id
+  WHERE i.alumno_id = p_alumno AND a.plan_id = (r->>'planId')::uuid;
+  SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY id), '[]') INTO certificados FROM public.ficha_certificacion f WHERE alumno_programa_id = p_programa;
+  UPDATE public.ficha_certificacion SET alumno_programa_id = null, archivado_en = coalesce(archivado_en, now()), revision = revision + 1, updated_at = now() WHERE alumno_programa_id = p_programa;
+  SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY id), '[]') INTO despues FROM public.ficha_certificacion f WHERE id IN (SELECT (v->>'id')::uuid FROM jsonb_array_elements(certificados) v);
+  INSERT INTO public.asociaciones_programa_pruebas_auditoria(alumno_id, programa_id, actor, motivo, programa_antes, materias_antes, certificados_antes, certificados_despues)
+  SELECT p_alumno, p_programa, auth.uid(), btrim(p_motivo), to_jsonb(p), materias, certificados, despues FROM public.alumno_programas p WHERE id = p_programa;
+  INSERT INTO public.certificacion_auditoria(ficha_id, usuario_auth, accion, motivo, antes, despues)
+  SELECT (v->>'id')::uuid, auth.uid(), 'DESCARTAR_PRUEBA', btrim(p_motivo), v,
+    (SELECT d FROM jsonb_array_elements(despues) d WHERE d->>'id' = v->>'id') FROM jsonb_array_elements(certificados) v;
+  DELETE FROM public.inscripciones_academicas WHERE id IN (SELECT (v->>'id')::uuid FROM jsonb_array_elements(materias) v);
+  r = public._ap_revision_retiro_v1(p_alumno, p_programa);
+  resultado = public.ap_retirar_asociacion_v1(p_alumno, p_programa, r->>'huella', p_motivo);
+  RETURN resultado;
+END $$;
+
+REVOKE ALL ON FUNCTION public._ap_retiro_autorizar_v1(), public._ap_revision_retiro_v1(uuid,uuid), public._ap_proteger_retiro_v1() FROM public, anon, authenticated;
+REVOKE ALL ON FUNCTION public._ap_materia_prueba_v1(jsonb), public._ap_certificado_prueba_v1(jsonb), public._ap_cert_prueba_descartada_v1(jsonb) FROM public, anon, authenticated;
+REVOKE ALL ON FUNCTION public.ap_revisar_retiro_v1(uuid,uuid), public.ap_retirar_asociacion_v1(uuid,uuid,text,text), public.ap_revisar_prueba_v1(uuid,uuid), public.ap_retirar_prueba_v1(uuid,uuid,text,text,text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.ap_revisar_retiro_v1(uuid,uuid), public.ap_retirar_asociacion_v1(uuid,uuid,text,text), public.ap_revisar_prueba_v1(uuid,uuid), public.ap_retirar_prueba_v1(uuid,uuid,text,text,text) TO authenticated;
+
+
+-- DOCENCIA / DATOS PRIVADOS DE PAGO: PROPUESTA ADITIVA 11/11/2026, NO EJECUTADA.
+-- Definiciones canónicas en 20261111100000_datos_pago_personal.sql y
+-- 20261111110000_expedientes_y_tarifas_docencia.sql; no modificar tablas operativas.
+-- personal_datos_pago: persona_id PK/FK personal_personas RESTRICT; nss text(11 dígitos),
+--   clabe <=18, cuenta <=11, tarjeta <=16; todos opcionales, revisión positiva.
+-- docencia_expedientes: id PK; docente_id/ciclo_id UNIQUE con FKs RESTRICT,
+--   carpeta_drive opcional HTTPS, revisión positiva.
+-- docencia_entregas: PK(expediente_id,asignatura_id), FKs RESTRICT;
+--   nombres de referencia, examenes text[], entregados text[] validados.
+-- docencia_tarifas_generales: ciclo_id PK/FK RESTRICT, monto numeric(12,2) opcional >=0,
+--   cortes jsonb, revisión; docencia_tarifas_docentes: PK(ciclo_id,docente_id),
+--   monto opcional >=0 y revisión. NULL hereda general, cero es explícito.
+-- docencia_auditoria: UUID PK, ciclo/docente de referencia, motivo, antes/después,
+--   actor/rol/fecha; no lectura directa del cliente.
+-- Las seis tablas usan RLS sin grants authenticated/anon. Únicamente cinco RPC
+--   de consulta/guardado autorizadas; información bancaria excluida de JSON general.

@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import type { FichaCertificacion } from '../types';
 import { certificacionService, type ConsultaCertificacion } from '../services/certificacionService';
 import { reabrirCertificado } from '../certificacion/seguimiento';
+import { prepararAsociacionCertificacion, resolverVistaCertificacion } from '../certificacion/consulta';
 
 export const nuevaCertificacion = (alumnoId: string, programaId: string): FichaCertificacion => ({
   id: crypto.randomUUID(), alumno_id: alumnoId, alumno_programa_id: programaId, revision: 0,
@@ -30,32 +31,46 @@ export function useCertificacionAlumno(alumnoId: string, programaInicialId?: str
       .finally(() => { if (!control.signal.aborted) setLoading(false); });
     return () => { contexto.current++; control.abort(); };
   },[alumnoId,programaInicialId,revision]);
-  const ficha = consulta.fichas.find(f => f.alumno_programa_id === programaId) || null;
-  const legado = consulta.fichas.filter(f => !f.alumno_programa_id);
   const programa = consulta.programas.find(p => p.id === programaId);
-  const [fichaAnterior,setFichaAnterior] = useState(programaInicialId === '__legado__');
-  useEffect(() => { setFichaAnterior(programaInicialId === '__legado__'); },[alumnoId,programaInicialId]);
-  const visible = fichaAnterior ? legado[0] || null : ficha;
+  // La consulta principal nunca se sustituye por una ficha sin programa.
+  const vista = resolverVistaCertificacion(consulta.fichas, programaId, false);
+  const visible = vista.ficha;
   const iniciar = () => { if (!ocupado.current && programaId && consulta.disponible) setDraft(visible ? { ...visible, alumno_programa_id: programaId } : nuevaCertificacion(alumnoId,programaId)); };
   const set = (campo: keyof FichaCertificacion, valor: unknown) => { if (!ocupado.current) setDraft(d => d ? { ...d, [campo]: valor } : d); };
+  const incorporar = (guardada: FichaCertificacion) => {
+    setConsulta(c => ({ ...c, fichas: [...c.fichas.filter(f => f.id !== guardada.id),guardada] }));
+    setProgramaId(guardada.alumno_programa_id || programaId);
+    actualizado.current?.();
+  };
   const guardar = async (motivo = '') => {
     if (!draft || ocupado.current) return;
     ocupado.current = true; setSaving(true); setError('');
     try {
       const guardada = await certificacionService.guardar(draft,motivo);
-      setConsulta(c => ({ ...c, fichas: [...c.fichas.filter(f => f.id !== guardada.id),guardada] }));
-      setDraft(null); setFichaAnterior(false); toast.success('Certificación guardada para este programa.'); actualizado.current?.();
+      incorporar(guardada);
+      setDraft(null); toast.success('Certificación guardada para este programa.');
     } catch (e) { setError((e as Error).message); toast.error('No se guardó la certificación. La captura se conserva.'); }
     finally { ocupado.current = false; setSaving(false); }
   };
-  const archivar = async (motivo: string) => {
-    if (!visible || ocupado.current) return;
+  const asociar = async (fichaId: string, destinoId: string, motivo: string) => {
+    if (ocupado.current || draft || !consulta.disponible) throw new Error('Espera a que termine la operación actual.');
+    const propuesta = prepararAsociacionCertificacion(fichaId,destinoId,motivo,consulta.fichas,consulta.programas);
     ocupado.current = true; setSaving(true);
-    try { await certificacionService.archivar(visible,motivo); setConsulta(c=>({...c,fichas:c.fichas.filter(f=>f.id!==visible.id)})); setFichaAnterior(false); toast.success('Ficha archivada. Se conserva en auditoría.'); actualizado.current?.(); }
+    try {
+      incorporar(await certificacionService.guardar(propuesta,motivo));
+      toast.success('Certificación asignada. Ya puedes consultarla en este programa.');
+    } finally { ocupado.current = false; setSaving(false); }
+  };
+  const archivarFicha = async (ficha: FichaCertificacion | null, motivo: string) => {
+    if (!ficha || ocupado.current) return;
+    ocupado.current = true; setSaving(true);
+    try { await certificacionService.archivar(ficha,motivo); setConsulta(c=>({...c,fichas:c.fichas.filter(f=>f.id!==ficha.id)})); toast.success('Ficha archivada. Se conserva en auditoría.'); actualizado.current?.(); }
     finally { ocupado.current = false; setSaving(false); }
   };
-  return { ...consulta, ficha: visible, legado, programaId, programa, setProgramaId, fichaAnterior,setFichaAnterior,
-    draft,set, loading: loading || alumnoCargado !== alumnoId, error,saving, iniciar,guardar,archivar,
+  return { ...consulta, ...vista, programaId, programa, setProgramaId, asociar,
+    archivar: (motivo: string) => archivarFicha(visible,motivo),
+    archivarAnterior: (id: string, motivo: string) => archivarFicha(vista.legado.find(f=>f.id===id)||null,motivo),
+    draft,set, loading: loading || alumnoCargado !== alumnoId, error,saving, iniciar,guardar,
     reabrir: () => { if (draft) setDraft(reabrirCertificado(draft)); }, cancelar: () => { if (!ocupado.current) { setDraft(null);setError(''); } },
     recargar: useCallback(() => setRevision(r=>r+1),[]) };
 }

@@ -1,0 +1,31 @@
+/* Solo captura/edición: el documento imprimible conserva su aspecto de papel. */
+.plan-pago-modal :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
+  transition: background-color .15s, border-color .15s;
+}
+.plan-pago-modal :is(input:not([type=checkbox]):not([type=radio]), select, textarea):not(:disabled):not([readonly]):hover {
+  border-color: #94a3b8;
+}
+.plan-pago-modal :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+.dark .plan-pago-modal {
+  background-color: #1c2228;
+  color: #e5e7eb;
+}
+.dark .plan-pago-modal :is(label, h3, h4) { color: #e5e7eb; }
+.dark .plan-pago-modal :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
+  background-color: #111827;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+.dark .plan-pago-modal :is(input, textarea)::placeholder { color: #aebcd0; }
+.dark .plan-pago-modal :is(input:not([type=checkbox]):not([type=radio]), select, textarea):not(:disabled):not([readonly]):hover {
+  background-color: #2b3747;
+  border-color: #94a3b8;
+}
+.dark .plan-pago-modal :is(input, select, textarea):disabled {
+  background-color: #222a34;
+  color: #b3c0d2;
+  cursor: not-allowed;
+}

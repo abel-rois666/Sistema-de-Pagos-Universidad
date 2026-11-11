@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, ArrowRight, CheckCircle2, Loader2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { CicloEscolar, PaymentPlan } from '../../types';
-import { revisarReasociacionPlanPago, revisarReasociacionSoloPlanPago, revisarReasociacionConRecibos, type RevisionReasociacionPlanPago } from '../../services/asociacionPlanPagoService';
+import { revisarReasociacionEspecialidadPago, revisarReasociacionPlanPago, revisarReasociacionSoloPlanPago, revisarReasociacionConRecibos, type RevisionReasociacionPlanPago } from '../../services/asociacionPlanPagoService';
+import {tipoPeriodoPlanPago} from '../../utils/cicloPlanPago';
 import ModalConfirmacion from '../ui/ModalConfirmacion';
 
 interface Props {
@@ -21,8 +22,11 @@ export default function RevisarAsociacionPlanPago({ plan, ciclos, cicloDestinoId
   const [aplicando, setAplicando] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
   const [modo, setModo] = useState<'junto' | 'solo' | 'con_recibos'>('junto');
+  const esEspecialidad=(plan.tipo_plan||'').trim().toLocaleLowerCase('es')==='especialidad cuatrimestral';
   const origen = ciclos.find(ciclo => ciclo.id === plan.ciclo_id);
   const destino = ciclos.find(ciclo => ciclo.id === cicloDestinoId);
+  const especialidadNoAdmitida=plan.tipo_plan==='Especialidad Cuatrimestral' && Boolean(revision?.motivo?.includes('ciclo ordinario')||revision?.motivo?.includes('especialidad se revisan por separado'));
+  const motivoRevision=especialidadNoAdmitida?'La revisión del servidor todavía no admite Especialidad Cuatrimestral. Debe actualizarse para corregir el ciclo conservando la categoría Especialidad.':revision?.motivo;
 
   useEffect(() => {
     let vigente = true;
@@ -30,6 +34,11 @@ export default function RevisarAsociacionPlanPago({ plan, ciclos, cicloDestinoId
     setRevision(null);
     setError('');
     setModo('junto');
+    if(esEspecialidad){
+      setModo('con_recibos');
+      void revisarReasociacionEspecialidadPago(plan.id,cicloDestinoId).then(r=>{if(vigente)setRevision(r);}).catch(e=>{if(vigente)setError(e.message);}).finally(()=>{if(vigente)setCargando(false);});
+      return ()=>{vigente=false;};
+    }
     void revisarReasociacionPlanPago(plan.id, cicloDestinoId)
       .then(async resultado => {
         if (!vigente) return;
@@ -46,7 +55,7 @@ export default function RevisarAsociacionPlanPago({ plan, ciclos, cicloDestinoId
       .catch(fallo => { if (vigente) setError(fallo instanceof Error ? fallo.message : 'No se pudo revisar la asociación.'); })
       .finally(() => { if (vigente) setCargando(false); });
     return () => { vigente = false; };
-  }, [plan.id, cicloDestinoId]);
+  }, [plan.id, cicloDestinoId,esEspecialidad]);
 
   const revisarSoloPlan = async () => {
     setCargando(true);
@@ -80,7 +89,7 @@ export default function RevisarAsociacionPlanPago({ plan, ciclos, cicloDestinoId
     setConfirmar(false);
     setAplicando(true);
     try {
-      const resultado = modo === 'solo'
+      const resultado = esEspecialidad ? await revisarReasociacionEspecialidadPago(plan.id,cicloDestinoId,true) : modo === 'solo'
         ? await revisarReasociacionSoloPlanPago(plan.id, cicloDestinoId, true)
         : modo === 'con_recibos'
           ? await revisarReasociacionConRecibos(plan.id, cicloDestinoId, true)
@@ -114,7 +123,7 @@ export default function RevisarAsociacionPlanPago({ plan, ciclos, cicloDestinoId
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60">
             <div><p className="text-[11px] font-bold uppercase text-slate-500">Registrado</p><p className="mt-1 font-semibold text-slate-900 dark:text-white">{origen?.nombre || 'Ciclo desconocido'}</p><p className="text-xs text-slate-500">{origen?.tipo_periodo || 'Sin tipo'} · {plan.tipo_plan}</p></div>
             <ArrowRight size={19} className="text-blue-600" />
-            <div><p className="text-[11px] font-bold uppercase text-slate-500">Propuesto</p><p className="mt-1 font-semibold text-slate-900 dark:text-white">{destino?.nombre || 'Ciclo desconocido'}</p><p className="text-xs text-slate-500">{destino?.tipo_periodo || 'Sin tipo'}</p></div>
+            <div><p className="text-[11px] font-bold uppercase text-slate-500">Propuesto</p><p className="mt-1 font-semibold text-slate-900 dark:text-white">{destino?.nombre || 'Ciclo desconocido'}</p><p className="text-xs text-slate-500">{destino?.tipo_periodo || 'Sin tipo'}</p>{plan.tipo_plan==='Especialidad Cuatrimestral'&&tipoPeriodoPlanPago(plan.tipo_plan)==='cuatrimestral'&&<p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Conservar categoría Especialidad</p>}</div>
           </div>
           {cargando ? <p className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><Loader2 size={16} className="animate-spin" /> Comprobando plan académico, grupo y recibos…</p>
             : error ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300">{error}</p>
@@ -122,7 +131,7 @@ export default function RevisarAsociacionPlanPago({ plan, ciclos, cicloDestinoId
                 <p className="flex items-center gap-2 font-semibold text-emerald-900 dark:text-emerald-200"><CheckCircle2 size={18} /> Asociación comprobada</p>
                 {revision.criterio_asociacion === 'PROGRAMA_VIGENTE' &&
                   <p className="mt-2 text-sm text-emerald-800 dark:text-emerald-300">El alumno aún no tiene grupo en el destino. Su único programa de estudios vigente confirma la periodicidad; el grupo no se creará ni modificará.</p>}
-                <p className="mt-2 text-sm text-emerald-800 dark:text-emerald-300">Se cambiará el tipo y el ID del plan. {modo === 'solo'
+                <p className="mt-2 text-sm text-emerald-800 dark:text-emerald-300">{esEspecialidad?'Se corregirá el ID de ciclo conservando la categoría Especialidad Cuatrimestral. ':'Se cambiará el tipo y el ID del plan. '}{modo === 'solo'
                   ? `${revision.recibos_en_origen} recibo(s) permanecerán en el ciclo anterior: folios ${revision.folios.join(', ')}. Sus pagos no se atribuirán al plan corregido; revísalos por separado.`
                   : modo === 'con_recibos'
                     ? `${revision.recibos_en_origen} recibo(s) conservarán su ciclo, folio y estado fiscal. ${revision.detalles_pendientes_conciliar || 0} detalle(s) con índice legado y ${revision.estados_cobrados_conservados || 0} estado(s) cobrado(s) requieren revisión de sus vínculos. Los estados de pago del plan se conservarán.`
@@ -130,11 +139,11 @@ export default function RevisarAsociacionPlanPago({ plan, ciclos, cicloDestinoId
                     : `Se reasociarán ${revision.recibos_en_origen} recibo(s) vinculados: folios ${revision.folios.join(', ')}.`}</p>
               </div> : <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                 <p className="flex items-center gap-2 font-semibold text-amber-900 dark:text-amber-200"><AlertTriangle size={18} /> Revisión individual necesaria</p>
-                <p className="mt-2 text-sm text-amber-800 dark:text-amber-300">{revision?.motivo}</p>
-                {revision?.programas_vigentes !== undefined &&
+                <p className="mt-2 text-sm text-amber-800 dark:text-amber-300">{motivoRevision}</p>
+                {(typeof revision?.programas_vigentes==='number'||typeof revision?.grupos_destino==='number') ?
                   <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
-                    Programas vigentes: {revision.programas_vigentes}. Planes académicos en grupos del destino: {revision.grupos_destino ?? 0}.
-                  </p>}
+                    Programas vigentes: {revision?.programas_vigentes ?? 'No evaluado'}. Planes académicos en grupos del destino: {revision?.grupos_destino ?? 'No evaluado'}.
+                  </p> : <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">La revisión se detuvo antes de comprobar programas y grupos.</p>}
                 {!!revision?.folios.length && <div className="mt-3 flex flex-wrap gap-2">{revision.folios.map(folio =>
                   <button key={folio} type="button" disabled={!onViewReceipt} onClick={() => {
                     if (plan.alumno_id) { onClose(); onViewReceipt?.(String(folio), plan.alumno_id); }

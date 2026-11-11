@@ -1,0 +1,31 @@
+// Ensayo del reporte completo. Toda petición externa se responde con datos ficticios.
+import React, { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import '../src/index.css';
+const qs = new URLSearchParams(location.search), original = window.fetch.bind(window);
+document.documentElement.classList.toggle('dark', qs.has('oscuro'));
+const id = (n: number) => `66666666-6666-4666-8666-${String(n).padStart(12, '0')}`;
+const alumnos = Array.from({ length: 55 }, (_, i) => ({ id: id(i + 1), nombre_completo: `PERSONA FICTICIA ${String(i + 1).padStart(3, '0')}`, matricula: `00${i + 1}`, licenciatura: i % 3 === 2 ? 'Administración' : 'Derecho', estatus: i === 54 ? 'ACTIVO' : i % 2 === 1 ? 'TITULADO' : 'EGRESADO', email: 'FICTICIO@EXAMPLE.INVALID' }));
+const programas = alumnos.slice(0, 54).flatMap((a, i) => [0, ...(i === 0 ? [1] : [])].map(n => ({ id: id(1000 + i * 2 + n), alumno_id: a.id, plan_id: id(2000 + n), estatus: n ? 'CURSANDO' : a.estatus, es_vigente: !n, planes_estudio: { nombre: `PLAN_${n ? '2001' : '2017'}`, clave_legado: n ? '2001_LD' : '2017_LD', tipo_periodo: 'SEMESTRAL', modalidad: 'ESCOLARIZADA', carreras: { nombre: a.licenciatura } } })));
+const certificaciones = [...programas.map((p, i) => ({ alumno_id: p.alumno_id, alumno_programa_id: p.id, programa: `${p.planes_estudio.carreras.nombre} · ${p.planes_estudio.clave_legado}`, id: i === 0 ? id(3000) : null, sin_ficha: i !== 0, pago_certificado: i === 0 ? 'COMPLETADO' : null, tramite_completado: i === 0 })), { alumno_id: id(2), alumno_programa_id: null, programa: 'Ficha anterior sin asociar', id: id(3001), sin_ficha: false, pago_certificado: 'EN_CURSO', tramite_completado: false }];
+const historial = alumnos.slice(0, 53).map((a, i) => ({ alumno_id: a.id, ciclo_id: id(i < 27 ? 4001 : 4002), ciclo_legado: null }));
+const planes = [1, 2].map(n => ({ id: id(5000 + n), alumno_id: id(1), no_plan_pagos: 'FOLIO REPETIDO', tipo_plan: 'Titulación', ciclo_id: id(4000 + n), ciclo_escolar: n === 1 ? '2026-2' : '2026-1', concepto_1: 'PAGO', cantidad_1: 1000, estatus_1: n === 1 ? 'F-12306' : 'Abono $500' }));
+const ciclos = [{ id: id(4001), nombre: '2026-2', tipo_periodo: 'Semestral' }, { id: id(4002), nombre: '2026-1', tipo_periodo: 'Semestral' }];
+window.fetch = async (input, init) => {
+  const u = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.origin);
+  if (u.origin === location.origin) return original(input, init);
+  const body = JSON.parse(String(init?.body || '{}'));
+  const desde = Number(u.searchParams.get('offset') || 0);
+  const seleccionados = (u.searchParams.get('alumno_id') || '').replace(/^in\.\(/, '').replace(/\)$/, '').split(',');
+  const responder = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
+  if (u.pathname.endsWith('/inscripciones_academicas')) return responder(historial.filter(h => seleccionados.includes(h.alumno_id)).slice(desde, desde + 500));
+  if (u.pathname.endsWith('/alumno_programas')) return responder(programas.filter(p => seleccionados.includes(p.alumno_id)).slice(desde, desde + 500));
+  if (u.pathname.endsWith('/certificacion_resumen_v1')) return qs.has('fallo') && body.p_alumnos.length < 50 ? responder({ code: '42501', message: 'Fallo ficticio de detalle' }, 403) : responder(certificaciones.filter(f => body.p_alumnos.includes(f.alumno_id)).slice(body.p_desde, body.p_desde + body.p_cantidad));
+  return responder({ message: 'Petición no prevista en ensayo ficticio', code: '42501' }, 403);
+};
+const { useAppStore } = await import('../src/store/useAppStore');
+useAppStore.setState({ currentUser: { id: id(9000), auth_id: id(9000), username: 'ENSAYO', rol: 'ADMINISTRADOR' } as any, alumnos: alumnos as any, plans: planes as any, ciclos: ciclos as any, catalogos: { licenciaturas: ['Administración', 'Derecho'], turnos: [] } as any });
+const { ReporteEgresados } = await import('../src/components/reportes/ReporteEgresados');
+createRoot(document.getElementById('root')!).render(<StrictMode><MemoryRouter><main className="min-h-screen bg-gray-50 p-3 text-gray-900 dark:bg-slate-950 dark:text-gray-100"><p className="mb-2 text-xs">ENSAYO LOCAL · DATOS FICTICIOS · RED EXTERNA INTERCEPTADA</p><ReporteEgresados onBack={() => {}}/><Toaster/></main></MemoryRouter></StrictMode>);

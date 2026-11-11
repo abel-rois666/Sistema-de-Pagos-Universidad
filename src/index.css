@@ -248,23 +248,6 @@ html, body, #root {
   color: #e5e7eb;
 }
 
-/* Contraste de los formularios de planes de pago en tema oscuro. */
-.dark .plan-pago-modal {
-  background-color: #1c2228;
-  color: #e5e7eb;
-}
-.dark .plan-pago-modal label,
-.dark .plan-pago-modal h3 {
-  color: #e5e7eb;
-}
-.dark .plan-pago-modal input:not([type="checkbox"]):not([type="radio"]),
-.dark .plan-pago-modal select {
-  background-color: #111827;
-  border-color: #475569;
-  color: #f1f5f9;
-}
-.dark .plan-pago-modal input::placeholder { color: #94a3b8; }
-
 /* El recibo conserva su presentación en papel dentro del tema oscuro. */
 .dark .recibo-captura input,
 .dark .recibo-captura select {

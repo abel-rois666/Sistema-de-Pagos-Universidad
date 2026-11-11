@@ -11,12 +11,12 @@ export interface ResumenCertificacion {
   fecha_inicio_tramite?: string | null;
   sin_ficha?: boolean;
 }
-export function estadoTramiteCertificado(ficha?: Pick<ResumenCertificacion, 'tramite_completado' | 'fecha_inicio_tramite' | 'sin_ficha'> | null) {
+export function estadoTramiteCertificado(ficha?: Partial<Pick<ResumenCertificacion, 'tramite_completado' | 'fecha_inicio_tramite' | 'sin_ficha'>> | null) {
   if (!ficha || ficha.sin_ficha) return 'Sin registro';
   if (ficha.tramite_completado) return 'Completado';
   return ficha.fecha_inicio_tramite ? 'En trámite' : 'En preparación';
 }
-export function estadoPagoCertificado(ficha?: ResumenCertificacion | null) {
+export function estadoPagoCertificado(ficha?: Pick<ResumenCertificacion, 'pago_certificado' | 'sin_ficha'> | null) {
   if (!ficha || ficha.sin_ficha) return 'Sin registro';
   return ({ SIN_INICIAR: 'Sin iniciar', EN_CURSO: 'En curso', COMPLETADO: 'Completado' } as Record<string, string>)[ficha.pago_certificado || ''] || 'Por revisar';
 }

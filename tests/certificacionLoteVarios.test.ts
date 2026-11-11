@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {prepararDestinoLote} from '../src/certificacion/lote';
+import type {CandidatoCertificacion} from '../src/services/certificacionLoteService';
+const ficha:CandidatoCertificacion={id:'f',alumnoId:'a',nombre:'Prueba',matricula:'',programaId:null,programa:null,elegible:false,revisable:true,motivo:'Elige',pago:'COMPLETADO',tramite:'Completado',huella:'h',opciones:[{id:'historico',etiqueta:'2001',disponible:true,motivo:''},{id:'principal',etiqueta:'2017',disponible:false,motivo:'Ocupado'}]};
+test('varios programas no preseleccionan el principal ni el primero',()=>{assert.equal(prepararDestinoLote(ficha).elegible,false);assert.equal(prepararDestinoLote(ficha).programaId,null);});
+test('permite revisar un histórico exacto sin cambiar ficha ni estados',()=>{const r=prepararDestinoLote(ficha,'historico');assert.equal(r.elegible,true);assert.equal(r.programaId,'historico');assert.equal(r.pago,'COMPLETADO');assert.equal(r.huella,'h');assert.equal(ficha.programaId,null);});
+test('destinos ocupados, desconocidos y fichas no revisables no habilitan selección',()=>{for(const id of ['principal','otro',''])assert.equal(prepararDestinoLote(ficha,id).elegible,false);assert.equal(prepararDestinoLote({...ficha,revisable:false},'historico').elegible,false);});
+test('conserva propuesta única pero permite sustituirla explícitamente',()=>{assert.equal(prepararDestinoLote({...ficha,programaId:'historico'}).elegible,true);assert.equal(prepararDestinoLote({...ficha,programaId:'historico'},'').elegible,false);});
+const sql=readFileSync('supabase/migrations/20261110020000_certificaciones_lote_varios_programas.sql','utf8');
+test('lote v2 verifica pertenencia, huella y permisos sin escrituras financieras o académicas',()=>{assert.match(sql,/id=destino and alumno_id=f.alumno_id/);assert.match(sql,/perform public._ap_lote_cert_autorizar_v1/);assert.match(sql,/for update/);assert.match(sql,/r->>'huella' is distinct from x->>'huella'/);assert.match(sql,/not between 1 and 50/);assert.doesNotMatch(sql,/update public\.(alumnos|alumno_programas|recibos|planes_pago)\b|delete from/i);});

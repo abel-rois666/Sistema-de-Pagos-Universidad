@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   FileText, 
   GraduationCap
@@ -7,14 +7,16 @@ import {
 import { ReporteListadoGeneral } from './ReporteListadoGeneral';
 import { ReporteEgresados } from './ReporteEgresados';
 import { WizardBoletas } from './WizardBoletas';
+import {Navigate} from 'react-router-dom';
 
-type ReportView = 'dashboard' | 'general' | 'egresados' | 'boletas';
+type ReportView = 'dashboard' | 'general' | 'egresados' | 'boletas' | 'asociar-certificaciones';
 
 export const ReportesControlEscolar: React.FC = () => {
   const [parametros, setParametros] = useSearchParams();
   const vista = parametros.get('vista');
-  const currentView: ReportView = ['general', 'egresados', 'boletas'].includes(vista || '') ? vista as ReportView : 'dashboard';
+  const currentView: ReportView = ['general', 'egresados', 'boletas','asociar-certificaciones'].includes(vista || '') ? vista as ReportView : 'dashboard';
   const setCurrentView = (vista: ReportView) => setParametros(vista === 'dashboard' ? {} : { vista });
+  if(currentView==='asociar-certificaciones')return <Navigate to="/herramientas-escolares/certificaciones" replace/>;
 
   if (currentView === 'general') {
     return <ReporteListadoGeneral onBack={() => setCurrentView('dashboard')} />;

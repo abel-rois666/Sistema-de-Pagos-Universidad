@@ -25,6 +25,7 @@ import SelectorCicloPlanPago from './planesPago/SelectorCicloPlanPago';
 import { useCicloModulo } from '../hooks/useCicloModulo';
 import { buscarPlanesPago, ordenarHistorialPlanes } from '../utils/planesPagoVista';
 import EstadoVacioPlanesPago from './planesPago/EstadoVacioPlanesPago';
+import './planesPago/formularioPlanPago.css';
 
 const generateFolioForPlan = (alumnoId: string, tipoPlan: string, cicloNombre: string, allPlans: PaymentPlan[]) => {
   const prefix = getCyclePrefix(cicloNombre);
@@ -207,18 +208,18 @@ const EspecialidadDesgloseTable = ({ form, setForm, isEditing = true }: { form: 
       </div>
       <div className="bg-white/60 dark:bg-gray-900/40 p-4 border-t border-indigo-100 dark:border-indigo-800/30 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
-          <p className="text-xs text-[#8e8e93] uppercase font-semibold mb-1">Total Bruto</p>
+          <p className="text-xs text-[#8e8e93] dark:text-slate-400 uppercase font-semibold mb-1">Total Bruto</p>
           <p className="text-lg font-bold text-[#222222] dark:text-gray-200">${Number(dtb).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8e8e93] uppercase font-semibold mb-1">Descuento (%)</p>
+          <p className="text-xs text-[#8e8e93] dark:text-slate-400 uppercase font-semibold mb-1">Descuento (%)</p>
           <div className="flex items-center gap-2">
              <input type="number" step="0.1" className="w-20 p-1.5 border border-indigo-200 rounded bg-white dark:bg-[#1c2228] outline-none focus:ring-2 focus:ring-[#3b82f6]" value={dp} onChange={e => updateDescuento(Number(e.target.value))} />
              <span className="text-[#8e8e93] font-bold">%</span>
           </div>
         </div>
         <div>
-           <p className="text-xs text-[#8e8e93] uppercase font-semibold mb-1">Descuento ($)</p>
+           <p className="text-xs text-[#8e8e93] dark:text-slate-400 uppercase font-semibold mb-1">Descuento ($)</p>
            <p className="text-lg font-bold text-orange-600 dark:text-orange-400">-${Number(dm).toLocaleString('en-US', {minimumFractionDigits:2})}</p>
         </div>
         <div>
@@ -723,7 +724,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                 <h3 className="text-lg font-bold text-[#222222] dark:text-gray-100">
                   Crear Nuevo Plan de Pagos
                 </h3>
-                <button onClick={() => solicitarSalida(() => setIsNewPlanModalOpen(false))} className="text-[#8e8e93] hover:text-[#45515e]">
+                <button onClick={() => solicitarSalida(() => setIsNewPlanModalOpen(false))} className="text-[#8e8e93] hover:text-[#45515e] dark:text-slate-400 dark:hover:text-slate-100">
                   <X size={20} />
                 </button>
               </div>
@@ -748,7 +749,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                     {newPlanSearchTerm && (
                       <button
                         onClick={() => { setNewPlanSearchTerm(''); setShowNewAlumnoSuggestions(true); }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#45515e]"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#45515e] dark:text-slate-400 dark:hover:text-slate-100"
                       >
                         <X size={14} />
                       </button>
@@ -756,16 +757,16 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                   </div>
 
                   {showNewAlumnoSuggestions && newPlanSearchTerm && (
-                    <div className="absolute top-full left-0 w-full bg-white border border-[#e5e7eb] rounded-[8px] shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
+                    <div className="absolute top-full left-0 w-full bg-white dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-slate-600 rounded-[8px] shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
                       {filteredNewAlumnoSuggestions.length > 0 ? (
                         filteredNewAlumnoSuggestions.map(alumno => (
                           <button
                             key={alumno.id}
-                            className="w-full text-left px-4 py-3 hover:bg-[rgba(0,0,0,0.03)] border-b border-gray-50 last:border-none transition-colors"
+                            className="w-full text-left px-4 py-3 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[#2b3747] focus-visible:bg-blue-50 dark:focus-visible:bg-[#2b3747] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500 border-b border-gray-50 dark:border-slate-700 last:border-none transition-colors"
                             onClick={() => void seleccionarAlumnoNuevoPlan(alumno)}
                           >
-                            <p className="font-bold text-[#222222] text-sm">{toTitleCase(alumno.nombre_completo)}</p>
-                            <p className="text-xs text-[#8e8e93]">{toTitleCase(alumno.licenciatura)} · {formatGrado(alumno.grado_actual)} {alumno.turno}</p>
+                            <p className="font-bold text-[#222222] dark:text-slate-100 text-sm">{toTitleCase(alumno.nombre_completo)}</p>
+                            <p className="text-xs text-[#8e8e93] dark:text-slate-400">{toTitleCase(alumno.licenciatura)} · {formatGrado(alumno.grado_actual)} {alumno.turno}</p>
                           </button>
                         ))
                       ) : (
@@ -779,7 +780,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                     <p className="text-xs text-amber-600 mt-1">Todos los alumnos registrados ya tienen un plan en este ciclo.</p>
                   )}
                   {planAcademicoNuevo && planAcademicoNuevo.alumnoId === newPlanForm.alumno_id &&
-                    <p className="mt-2 text-xs font-semibold text-blue-700">Plan académico: {planAcademicoNuevo.nombre} · {planAcademicoNuevo.periodo}</p>}
+                    <p className="mt-2 text-xs font-semibold text-blue-700 dark:text-blue-300">Plan académico: {planAcademicoNuevo.nombre} · {planAcademicoNuevo.periodo}</p>}
                 </div>
 
                 <SelectorCicloPlanPago ciclos={ciclos} cicloId={newPlanForm.ciclo_id || ''}
@@ -873,7 +874,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                       placeholder="Ej. 1er Cuatrimestre / Sabatino"
                       onChange={(e) => setNewPlanForm({ ...newPlanForm, grado_turno: e.target.value })}
                     />
-                    <p className="text-[10px] text-[#8e8e93] leading-tight mt-1">Si lo dejas en blanco, el plan siempre mostrará el grado/turno actual del alumno en tiempo real. Si escribes algo, el plan quedará sellado con este texto permanentemente.</p>
+                    <p className="text-[10px] text-[#8e8e93] dark:text-slate-400 leading-tight mt-1">Si lo dejas en blanco, el plan siempre mostrará el grado/turno actual del alumno en tiempo real. Si escribes algo, el plan quedará sellado con este texto permanentemente.</p>
                   </div>
                 </div>
                 {newPlanForm.tipo_plan !== 'Titulación' && (
@@ -939,10 +940,10 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                 )}
               </div>
 
-              <div className="p-6 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-end gap-3">
+              <div className="p-6 bg-[#f2f3f5] dark:bg-[#222a34] border-t border-[#f2f3f5] dark:border-slate-700 flex justify-end gap-3">
                 <button
                   onClick={() => solicitarSalida(() => { setIsNewPlanModalOpen(false); setNewPlanSearchTerm(''); })}
-                  className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
+                  className="px-4 py-2 text-[#45515e] dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-[#34445a] rounded-[8px] font-medium transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1476,11 +1477,11 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
       {isEditPlanModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="plan-pago-modal bg-white rounded-[13px] shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-[#f2f3f5]">
+            <div className="flex justify-between items-center p-6 border-b border-[#f2f3f5] dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#222222]">
                 Editar Estructura del Plan - {toTitleCase(selectedPlan.nombre_alumno)}
               </h3>
-              <button onClick={() => solicitarSalida(() => setIsEditPlanModalOpen(false))} className="text-[#8e8e93] hover:text-[#45515e]">
+              <button onClick={() => solicitarSalida(() => setIsEditPlanModalOpen(false))} className="text-[#8e8e93] hover:text-[#45515e] dark:text-slate-400 dark:hover:text-slate-100">
                 <X size={20} />
               </button>
             </div>
@@ -1576,7 +1577,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                     placeholder="Ej. 6to Cuatrimestre / Sabatino"
                     onChange={(e) => setEditForm({ ...editForm, grado_turno: e.target.value })}
                   />
-                  <p className="text-[10px] text-[#8e8e93] leading-tight mt-1">Si lo borras/dejas en blanco, el plan se sincronizará automáticamente para mostrar el grado y turno que tenga el alumno actualmente en su perfil principal.</p>
+                  <p className="text-[10px] text-[#8e8e93] dark:text-slate-400 leading-tight mt-1">Si lo borras/dejas en blanco, el plan se sincronizará automáticamente para mostrar el grado y turno que tenga el alumno actualmente en su perfil principal.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#45515e] mb-1">Fecha del Plan</label>
@@ -1654,12 +1655,12 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                 <EspecialidadDesgloseTable form={editForm} setForm={setEditForm as any} />
               )}
 
-              <h4 className="font-bold text-[#222222] mb-4 border-b pb-2">Pagos Programados</h4>
+              <h4 className="font-bold text-[#222222] dark:text-slate-100 mb-4 border-b dark:border-slate-700 pb-2">Pagos Programados</h4>
 
               <div className="space-y-4">
                 {Array.from({ length: Math.min(18, customMaxPayments) }, (_, i) => i + 1).map(i => {
                   return (
-                    <div key={i} className="flex gap-4 items-end bg-[#f2f3f5] p-4 rounded-[8px] border border-[#f2f3f5]">
+                    <div key={i} className="flex gap-4 items-end bg-[#f2f3f5] dark:bg-[#222a34] p-4 rounded-[8px] border border-[#f2f3f5] dark:border-slate-700">
                       <div className="w-12 text-center font-bold text-[#8e8e93] pt-2">#{i}</div>
                       <div className="flex-grow">
                         <label className="block text-xs font-medium text-[#8e8e93] mb-1">Concepto</label>
@@ -1667,7 +1668,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                           <button
                             type="button"
                             onClick={() => setOpenConceptDropdown(openConceptDropdown === i ? null : i)}
-                            className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white flex justify-between items-center text-left"
+                            className="w-full border border-gray-300 rounded p-2 text-sm outline-none focus:ring-2 focus:ring-[#3b82f6] bg-white dark:bg-[#111827] dark:border-slate-600 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-[#2b3747] flex justify-between items-center text-left"
                           >
                             <span className="truncate pr-2">
                               {editForm[`concepto_${i}` as keyof PaymentPlan] as string || '-- Seleccionar Concepto --'}
@@ -1676,8 +1677,8 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                           </button>
                           
                           {openConceptDropdown === i && (
-                            <div className="absolute top-full left-0 min-w-[280px] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-[100]">
-                              <div className="p-2 border-b border-gray-100">
+                            <div className="absolute top-full left-0 min-w-[280px] w-full mt-1 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-slate-600 rounded-lg shadow-xl z-[100]">
+                              <div className="p-2 border-b border-gray-100 dark:border-slate-700">
                                 <input
                                   type="text"
                                   placeholder="Buscar concepto..."
@@ -1702,7 +1703,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                                     setEditForm({ ...editForm, [`concepto_${i}`]: '' });
                                     setOpenConceptDropdown(null);
                                   }}
-                                  className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
+                                  className="w-full text-left px-3 py-2 text-sm text-gray-500 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-[#2b3747]"
                                 >
                                   -- Seleccionar Concepto --
                                 </button>
@@ -1718,8 +1719,8 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                                         setEditForm({ ...editForm, [`concepto_${i}`]: c });
                                         setOpenConceptDropdown(null);
                                       }}
-                                      className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-blue-50 transition-colors
-                                        ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}
+                                      className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-blue-50 dark:hover:bg-[#34445a] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500 transition-colors
+                                        ${isSelected ? 'bg-blue-50 text-blue-700 dark:bg-[#20364e] dark:text-blue-200 font-medium' : 'text-gray-700 dark:text-slate-200'}
                                       `}
                                     >
                                       <span className="truncate">{c}</span>
@@ -1758,7 +1759,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                   <div className="flex justify-center mt-4">
                     <button
                       onClick={() => setCustomMaxPayments(prev => Math.min(18, prev + 1))}
-                      className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-[8px] font-bold text-sm transition-colors border border-emerald-200"
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-200 dark:hover:bg-emerald-900 rounded-[8px] font-bold text-sm transition-colors border border-emerald-200"
                     >
                       <PlusCircle size={16} /> Añadir Pago Extra
                     </button>
@@ -1767,11 +1768,11 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
               </div>
             </div>
 
-            <div className="p-6 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-between items-center gap-3">
+            <div className="p-6 bg-[#f2f3f5] dark:bg-[#222a34] border-t border-[#f2f3f5] dark:border-slate-700 flex justify-between items-center gap-3">
               {canDeletePlan ? (
                 <button
                   onClick={() => setDeleteConfirmPlanId(editForm.id!)}
-                  className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-[8px] font-semibold transition-colors border border-transparent hover:border-red-200 text-sm"
+                  className="px-4 py-2 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950 rounded-[8px] font-semibold transition-colors border border-transparent hover:border-red-200 text-sm"
                 >
                   Eliminar Plan
                 </button>
@@ -1782,7 +1783,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
               <div className="flex gap-3">
                 <button
                   onClick={() => solicitarSalida(() => setIsEditPlanModalOpen(false))}
-                  className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
+                  className="px-4 py-2 text-[#45515e] dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-[#34445a] rounded-[8px] font-medium transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1842,11 +1843,11 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
       {isNewPlanModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="plan-pago-modal bg-white rounded-[13px] shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-[#f2f3f5]">
+            <div className="flex justify-between items-center p-6 border-b border-[#f2f3f5] dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#222222]">
                 Crear Nuevo Plan de Pagos
               </h3>
-              <button onClick={() => solicitarSalida(() => setIsNewPlanModalOpen(false))} className="text-[#8e8e93] hover:text-[#45515e]">
+              <button onClick={() => solicitarSalida(() => setIsNewPlanModalOpen(false))} className="text-[#8e8e93] hover:text-[#45515e] dark:text-slate-400 dark:hover:text-slate-100">
                 <X size={20} />
               </button>
             </div>
@@ -1871,7 +1872,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                   {newPlanSearchTerm && (
                     <button
                       onClick={() => { setNewPlanSearchTerm(''); setShowNewAlumnoSuggestions(true); }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#45515e]"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-[#45515e] dark:text-slate-400 dark:hover:text-slate-100"
                     >
                       <X size={14} />
                     </button>
@@ -1879,16 +1880,16 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                 </div>
 
                 {showNewAlumnoSuggestions && newPlanSearchTerm && (
-                  <div className="absolute top-full left-0 w-full bg-white border border-[#e5e7eb] rounded-[8px] shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
+                  <div className="absolute top-full left-0 w-full bg-white dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-slate-600 rounded-[8px] shadow-xl mt-1 z-[60] max-h-60 overflow-y-auto">
                     {filteredNewAlumnoSuggestions.length > 0 ? (
                       filteredNewAlumnoSuggestions.map(alumno => (
                         <button
                           key={alumno.id}
-                          className="w-full text-left px-4 py-3 hover:bg-[rgba(0,0,0,0.03)] border-b border-gray-50 last:border-none transition-colors"
+                          className="w-full text-left px-4 py-3 hover:bg-[rgba(0,0,0,0.03)] dark:hover:bg-[#2b3747] focus-visible:bg-blue-50 dark:focus-visible:bg-[#2b3747] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500 border-b border-gray-50 dark:border-slate-700 last:border-none transition-colors"
                           onClick={() => void seleccionarAlumnoNuevoPlan(alumno)}
                         >
-                          <p className="font-bold text-[#222222] text-sm">{toTitleCase(alumno.nombre_completo)}</p>
-                          <p className="text-xs text-[#8e8e93]">{toTitleCase(alumno.licenciatura)} · {formatGrado(alumno.grado_actual)} {alumno.turno}</p>
+                          <p className="font-bold text-[#222222] dark:text-slate-100 text-sm">{toTitleCase(alumno.nombre_completo)}</p>
+                          <p className="text-xs text-[#8e8e93] dark:text-slate-400">{toTitleCase(alumno.licenciatura)} · {formatGrado(alumno.grado_actual)} {alumno.turno}</p>
                         </button>
                       ))
                     ) : (
@@ -2029,10 +2030,10 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                 )}
             </div>
 
-            <div className="p-6 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-end gap-3">
+            <div className="p-6 bg-[#f2f3f5] dark:bg-[#222a34] border-t border-[#f2f3f5] dark:border-slate-700 flex justify-end gap-3">
               <button
                 onClick={() => solicitarSalida(() => setIsNewPlanModalOpen(false))}
-                className="px-4 py-2 text-[#45515e] hover:bg-gray-200 rounded-[8px] font-medium transition-colors"
+                className="px-4 py-2 text-[#45515e] dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-[#34445a] rounded-[8px] font-medium transition-colors"
               >
                 Cancelar
               </button>
@@ -2107,7 +2108,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
               <h3 className="text-lg font-bold text-[#222222] mb-2">{modalState.title}</h3>
               <p className="text-[#45515e]">{modalState.message}</p>
             </div>
-            <div className="p-4 bg-[#f2f3f5] border-t border-[#f2f3f5] flex justify-end">
+            <div className="p-4 bg-[#f2f3f5] dark:bg-[#222a34] border-t border-[#f2f3f5] dark:border-slate-700 flex justify-end">
               <button
                 onClick={() => setModalState({ ...modalState, isOpen: false })}
                 className="px-6 py-2 bg-[#1456f0] hover:bg-[#1d4ed8] text-white rounded-[8px] font-medium transition-colors"
@@ -2132,7 +2133,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
                 La carátula del plan ha sido guardada. Sin embargo, antes de imprimirlo o cobrarlo, es <b>altamente recomendable configurar las fechas de vencimiento y montos</b> de los pagos programados.
               </p>
             </div>
-            <div className="p-4 bg-[#f2f3f5] border-t border-[#f2f3f5] flex gap-3 justify-end">
+            <div className="p-4 bg-[#f2f3f5] dark:bg-[#222a34] border-t border-[#f2f3f5] dark:border-slate-700 flex gap-3 justify-end">
               <button
                 onClick={() => {
                   setSelectedPlanId(postCreatePrompt.id);

@@ -1,4 +1,5 @@
 import InicioArea from './app/InicioArea';
+import HerramientasEscolares from './components/certificacion/HerramientasEscolares';
 import AccesoRuta from './app/AccesoRuta';
 import PaginaNoEncontrada from './app/PaginaNoEncontrada';
 import notificar from 'react-hot-toast';
@@ -329,6 +330,7 @@ export default function App() {
           <Route path="/inscripciones" element={['ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR'].includes(currentUser.rol)
             ? <PageWrapper keyStr="inscripciones"><InscripcionesCiclo /></PageWrapper>
             : <Navigate to="/" replace />} />
+          <Route path="/herramientas-escolares/*" element={<HerramientasEscolares />} />
           <Route path="/control-escolar" element={<InicioArea area="escolar" />} />
 
           <Route path="/control-academico" element={<InicioArea area="academico" />} />

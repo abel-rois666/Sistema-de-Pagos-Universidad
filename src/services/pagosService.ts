@@ -1,6 +1,7 @@
 import { supabase, fetchAllSupabase } from '../lib/supabase';
 import { PaymentPlan, PlantillaPlan } from '../types';
 import { Result, createSuccess, createError } from './types';
+import { borrarReciboPrueba } from '../recibos/borradoPrueba';
 
 export const pagosService = {
   async getPlanesPago(): Promise<Result<PaymentPlan[]>> {
@@ -88,13 +89,6 @@ export const pagosService = {
   },
 
   async borrarReciboAdmin(reciboId: string): Promise<Result<void>> {
-    try {
-      const { error } = await supabase.rpc('borrar_recibo_admin', { p_recibo_id: reciboId });
-      if (error) throw error;
-      return createSuccess(undefined);
-    } catch (error) {
-      console.error('[borrarReciboAdmin]', error);
-      return createError(error as Error);
-    }
+    return borrarReciboPrueba(reciboId, (funcion, parametros) => supabase.rpc(funcion, parametros));
   }
 };
