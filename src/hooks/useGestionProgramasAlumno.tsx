@@ -373,6 +373,7 @@ export function useGestionProgramasAlumno(alumno:Alumno,onActualizado?:()=>void|
     window.addEventListener('focus',actualizar);return()=>{window.removeEventListener('focus',actualizar);void supabase.removeChannel(canal);};
   },[alumno.id,canManageProgramas,fetchProgramas]);
   return {alumno,carreras,isAdmin,canManageProgramas,programas,loadingProgramas,errorProgramas,fetchProgramas,vigentePlanId,progVigente,
+    retirarConfirmado:(id:string)=>setProgramas(prev=>prev.filter(p=>p.id!==id)),
     showModalInscripcion,setShowModalInscripcion,modoModalProg,setModoModalProg,submittingPrograma,desbloquearTitulado,setDesbloquearTitulado,
     planesDisponibles,nuevoPrograma,setNuevoPrograma,carreraInscripcionId,setCarreraInscripcionId,systemConfirmModal,setSystemConfirmModal,
     handleOpenModalInscripcion,handleGuardarPrograma,handleActivarProgramaRapido,formatPlanName,getCarreraFullName,

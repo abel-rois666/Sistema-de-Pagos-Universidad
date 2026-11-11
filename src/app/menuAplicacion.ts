@@ -19,6 +19,7 @@ export function menuAplicacion(rol: string): ElementoMenu[] {
       {name:'Calificaciones',path:'/calificaciones',icon:'academico'},
       {name:'Exportar certificados',path:'/certificacion',icon:'documento'},
       {name:'Exportar títulos',path:'/titulacion',icon:'documento'},
+      {name:'Herramientas administrativas',path:'/herramientas-escolares',icon:'configuracion'},
       {name:'Reportes',path:'/reportes-escolares',icon:'documento'},
       {name:'Aprobación Prospectos',path:'/aprobacion-prospectos',icon:'inscripciones'},
     ]},

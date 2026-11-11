@@ -1,0 +1,14 @@
+.listado-vistas{--v-fondo:#f7f9fc;--v-control:#fff;--v-linea:#ccd7e5;--v-texto:#233247;--v-secundario:#52627a;--v-hover:#edf3fc;border:1px solid var(--v-linea);background:var(--v-fondo);color:var(--v-texto);padding:16px;border-radius:12px;min-width:0}
+.dark .listado-vistas,.dark .listado-vistas-formulario{--v-fondo:#222a34;--v-control:#1c2228;--v-linea:#475569;--v-texto:#e5edf8;--v-secundario:#b7c4d7;--v-hover:#2b3747}
+.listado-vistas-barra,.listado-vistas-acciones,.listado-vistas-pie{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px}
+.listado-vistas-selector{width:300px;max-width:100%;min-width:0}.listado-vistas-selector .campo-con-ayuda-etiqueta{font-size:13px;font-weight:600}
+.listado-vistas-acciones button,.listado-vistas-pie button,.listado-vistas-error button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:8px 12px;border:1px solid var(--v-linea);border-radius:8px;background:var(--v-control);color:var(--v-texto);font-size:13px;font-weight:550}
+.listado-vistas button:not(:disabled):hover{background:var(--v-hover)}.listado-vistas button:disabled{cursor:default;opacity:.6}
+.listado-vistas-pie{align-items:center;justify-content:space-between;margin-top:12px;font-size:12px;color:var(--v-secundario)}.listado-vistas-pie button{min-height:32px;padding:4px 8px;font-size:12px;color:var(--v-secundario)}
+.listado-vistas-fecha,.listado-vistas-check{display:flex!important;align-items:center;gap:8px;font-size:12px;margin-top:12px}
+.listado-vistas input[type=checkbox],.listado-vistas-formulario input[type=checkbox]{width:16px;height:16px;accent-color:#1456f0;flex-shrink:0}
+.listado-vistas-error{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;margin-top:12px;color:#b91c1c}.dark .listado-vistas-error{color:#fca5a5}
+.listado-vistas-formulario{--v-control:#fff;--v-linea:#ccd7e5;--v-texto:#233247;display:grid;gap:14px;text-align:left;color:var(--v-texto)}.listado-vistas-formulario>label{display:grid;gap:6px;font-weight:550}
+.listado-vistas-formulario input:not([type=checkbox]){width:100%;min-height:42px;border:1px solid var(--v-linea);border-radius:8px;padding:8px 10px;color:var(--v-texto);background:var(--v-control)}
+.listado-vistas button:focus-visible,.listado-vistas input:focus-visible,.listado-vistas-formulario input:focus-visible{outline:2px solid #3b82f6;outline-offset:3px}
+@media(max-width:599px){.listado-vistas-selector,.listado-vistas-acciones{width:100%}.listado-vistas-acciones button{flex:1 1 150px}.listado-vistas-pie{align-items:flex-start}}

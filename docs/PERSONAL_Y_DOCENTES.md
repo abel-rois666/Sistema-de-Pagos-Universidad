@@ -65,6 +65,8 @@ Guardar el desglose conserva el nombre anterior, fecha, actor y fuente en `perso
 
 ### Regularización por lotes
 
+Corrección preparada el 10/11/2026: el lote deja de llamar al guardado general para evitar que un RFC histórico bloquee nombres. La proyección nominal sincroniza solo nombres de las identidades ya relacionadas, sin reescribir datos fiscales/contacto. La validación general continúa vigente. Los errores de guardado conservan las filas visibles; actualizar mantiene nombres y motivo, renueva testigos y exige nueva revisión. Instalación y límites en [REVISION_NOMBRES_SIN_VALIDACION_FISCAL.md](REVISION_NOMBRES_SIN_VALIDACION_FISCAL.md). SQL correctivo no ejecutado.
+
 En Gestión de Docentes, Administración y Coordinación Académica disponen de Revisar nombres. Lista solo pendientes, ordenados alfabéticamente y paginados de 15 en 15. Cada fila conserva su nombre y clave, permite escribir las tres partes y debe marcarse Revisado. Cambiar una parte revoca esa marca. La captura se conserva entre páginas y búsquedas; se confirman como máximo 50 docentes por lote, con motivo y confirmación propios.
 
 Exportar página XLSX entrega únicamente ID, clave, nombre registrado, revisión y las tres partes. Importar propuestas XLSX admite la plantilla de la página consultada, hasta 50 filas y 2 MB; rechaza fórmulas, IDs repetidos, nombres/revisiones cambiados y desgloses incompletos. Primero presenta vista previa. Cargar la propuesta no marca Revisado ni escribe en Supabase; el responsable revisa cada fila antes de guardar. No se exportan contactos, RFC, CURP ni datos laborales.

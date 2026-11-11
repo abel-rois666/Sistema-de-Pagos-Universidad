@@ -29,6 +29,10 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
   const [recibos, setRecibos] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm || '');
+  // Un acceso por folio no debe quedar oculto por el ciclo consultado en una visita anterior.
+  useEffect(() => {
+    if (initialSearchTerm) setCicloConsultaId('');
+  }, [initialSearchTerm, setCicloConsultaId]);
   const [reciboSeleccionado, setReciboSeleccionado] = useState<(Recibo & { recibos_detalles: ReciboDetalle[] }) | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const exportRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -555,21 +559,22 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
   const handleBorrarFisico = (id: string, folio: number) => {
     setSystemConfirmModal({
       isOpen: true,
-      title: 'Borrar Registro Físico (Peligro)',
-      message: `¿Estás completamente seguro de BORRAR el recibo #${folio}? Esta acción es IRREVERSIBLE, eliminará todos sus detalles y liberará el número de folio actual para que sea utilizado en el siguiente recibo. Ideal SOLO para borrar recibos de prueba recientes.`,
+      title: 'Eliminar recibo de prueba',
+      confirmText: 'Eliminar recibo de prueba',
+      message: `Se eliminará permanentemente el recibo #${folio} y sus detalles. Esta acción no se puede deshacer. Úsala únicamente para recibos de prueba; los cobros reales deben conservarse. Se conserva la secuencia: no se renumeran otros recibos ni se libera este folio para reutilizarlo.`,
       type: 'danger',
       onCancel: () => setSystemConfirmModal(prev => ({ ...prev, isOpen: false })),
       onConfirm: async () => {
-        setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
         const result = await pagosService.borrarReciboAdmin(id);
         if (result.success) {
-          toast.success(`Recibo #${folio} borrado exitosamente. Folio liberado.`);
+          setSystemConfirmModal(prev => ({ ...prev, isOpen: false }));
+          toast.success(`Recibo de prueba #${folio} eliminado.`);
           if (reciboSeleccionado?.id === id) {
             setReciboSeleccionado(null);
           }
-          cargarRecibos();
+          await cargarRecibos();
         } else {
-          toast.error('Error al borrar recibo: ' + result.error?.message);
+          throw new Error(result.error.message);
         }
       }
     });
@@ -1017,7 +1022,7 @@ export default function ConsultarRegistros({ initialSearchTerm, onNavigateToPlan
                     <button
                       onClick={() => handleBorrarFisico(reciboSeleccionado.id, reciboSeleccionado.folio)}
                       className="flex items-center gap-2 bg-red-700/80 hover:bg-red-600 text-white px-3 py-2 rounded-[13px] text-sm font-semibold transition-colors border border-red-500 shadow-[var(--shadow-subtle)]"
-                      title="Borrar registro permanentemente y liberar folio"
+                      title="Eliminar permanentemente un recibo de prueba"
                     >
                       <Trash2 size={15} /> Borrar Físico (Prueba)
                     </button>

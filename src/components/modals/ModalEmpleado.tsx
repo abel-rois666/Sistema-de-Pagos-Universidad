@@ -1,3 +1,4 @@
+import {normalizarEmpleado,validarEmpleadoBasico,mensajeErrorEmpleado} from '../../personal/validacionEmpleado';
 import { useRef } from 'react';
 import { useDialogoPersonal } from '../../hooks/useDialogoPersonal';
 import { useProteccionCaptura } from '../../app/ProteccionCaptura';
@@ -51,6 +52,8 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const errorRef=useRef<HTMLDivElement>(null);
+  const mostrarError=(mensaje:string,tab?:'generales'|'laborales')=>{setError(mensaje);if(tab)setActiveTab(tab);requestAnimationFrame(()=>{errorRef.current?.scrollIntoView({block:'nearest'});errorRef.current?.focus();});};
   const [confirmarSalida,setConfirmarSalida]=useState(false),[baseCaptura,setBaseCaptura]=useState<string|null>(null);
   const formActual=useRef(form);formActual.current=form;
   useEffect(()=>{const frame=requestAnimationFrame(()=>setBaseCaptura(JSON.stringify(formActual.current)));return()=>cancelAnimationFrame(frame);},[empleado]);
@@ -135,15 +138,15 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
     e.preventDefault();
     setError('');
 
-    if (!form.nombres?.trim() || !form.apellido_paterno?.trim()) {
-      setError('El nombre y el apellido paterno son obligatorios.');
-      return;
-    }
+    const fechaInvalida=Array.from<HTMLInputElement>((e.currentTarget as HTMLFormElement).querySelectorAll<HTMLInputElement>('input[type="date"]')).find(input=>input.validity.badInput);
+    if(fechaInvalida){mostrarError('Completa una fecha válida o deja el campo vacío; las fechas son opcionales.',fechaInvalida.name==='fecha_ingreso'?'laborales':'generales');return;}
+    const faltantes=validarEmpleadoBasico(form);
+    if(faltantes.length){mostrarError('No se guardó el empleado. '+faltantes.map(f=>f.mensaje).join(' '),faltantes[0].tab);return;}
 
     if (form.rfc && form.rfc.trim().length > 0) {
       const rfcRegex = /^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/;
       if (!rfcRegex.test(form.rfc.trim())) {
-        setError('El RFC ingresado no tiene un formato válido.');
+        mostrarError('El RFC ingresado no tiene un formato válido. Revisa el campo RFC en Datos generales.','generales');
         return;
       }
     }
@@ -151,7 +154,7 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
     if (form.curp && form.curp.trim().length > 0) {
       const curpRegex = /^([A-Z][AEIOUX][A-Z]{2}\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])[HM](?:AS|B[CS]|C[CLMSH]|D[FG]|G[TR]|HG|JC|M[CNS]|N[ETL]|OC|PL|Q[TR]|S[PLR]|T[CSL]|VZ|YN|ZS)[B-DF-HJ-NP-TV-Z]{3}[A-Z\d])(\d)$/;
       if (!curpRegex.test(form.curp.trim())) {
-        setError('El CURP ingresado no tiene un formato válido.');
+        mostrarError('La CURP ingresada no tiene un formato válido. Revisa el campo CURP en Datos generales.','generales');
         return;
       }
     }
@@ -182,13 +185,13 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
         }
       }
 
-      const finalForm = { ...form };
+      const finalForm = normalizarEmpleado(form);
       if (finalForm.nivel_estudios === 'Sin formación') {
         finalForm.nivel_estudios_estado = null;
       }
       await onSaved(finalForm as Empleado);
     } catch (err: any) {
-      setError(err.message || 'Ocurrió un error al guardar el empleado.');
+      mostrarError(mensajeErrorEmpleado(err));
     } finally {
       setLoading(false);
     }
@@ -323,13 +326,14 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
         {/* Body */}
         <div className="p-6 overflow-y-auto custom-scrollbar" style={{ minHeight: '420px' }}>
           {error && (
-            <div className="mb-6 p-4 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-xl flex items-center gap-3 border border-red-100 dark:border-red-500/20">
+            <div ref={errorRef} tabIndex={-1} role="alert" className="mb-6 p-4 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-xl flex items-center gap-3 border border-red-100 dark:border-red-500/20">
               <AlertCircle size={20} className="shrink-0" />
               <p className="text-sm font-medium">{error}</p>
             </div>
           )}
 
-          <form id="empleado-form" onSubmit={handleSubmit} className="space-y-8"><fieldset disabled={loading} className="min-w-0">
+          <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">Los campos con * son obligatorios: Nombre(s) y Apellido paterno. Los demás datos pueden completarse después.</p>
+          <form id="empleado-form" noValidate onSubmit={handleSubmit} className="space-y-8"><fieldset disabled={loading} className="min-w-0">
             
             {/* TAB: Datos Generales */}
             <div className={activeTab === 'generales' ? 'block' : 'hidden'}>
@@ -371,9 +375,9 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Nacimiento</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Nacimiento <span className="font-normal text-gray-500 dark:text-gray-400">(opcional)</span></label>
                   <input disabled={loading||Boolean(empleado?.persona_id)}
-                    type="date"
+                    type="date" name="fecha_nacimiento"
                     value={form.fecha_nacimiento || ''}
                     onChange={e => setForm({...form, fecha_nacimiento: e.target.value})}
                     className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"
@@ -506,9 +510,9 @@ export default function ModalEmpleado({ empleado, onClose, onSaved }: ModalEmple
             <div className={activeTab === 'laborales' ? 'block' : 'hidden'}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Ingreso</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Ingreso <span className="font-normal text-gray-500 dark:text-gray-400">(opcional)</span></label>
                   <input disabled={loading||Boolean(empleado?.persona_id)}
-                    type="date"
+                    type="date" name="fecha_ingreso"
                     value={form.fecha_ingreso || ''}
                     onChange={e => setForm({...form, fecha_ingreso: e.target.value})}
                     className="w-full px-4 py-2.5 bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.1)] rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#1456f0] outline-none"

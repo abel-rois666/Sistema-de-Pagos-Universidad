@@ -1,5 +1,5 @@
-.personal-pagina{--dir-fondo:#fff;--dir-suave:#f6f8fc;--dir-linea:#dce3ed;--dir-texto:#202c3e;--dir-secundario:#52627a;color:var(--dir-texto);font-family:var(--font-ui);min-width:0}
-.dark .personal-pagina{--dir-fondo:#1c2228;--dir-suave:#222a34;--dir-linea:#3b4757;--dir-texto:#f1f5f9;--dir-secundario:#b3c0d2}
+.personal-pagina{--dir-fondo:#fff;--dir-suave:#f6f8fc;--dir-linea:#dce3ed;--dir-texto:#202c3e;--dir-secundario:#52627a;--dir-hover:#edf2fa;--dir-hover-linea:#94a3b8;color:var(--dir-texto);font-family:var(--font-ui);min-width:0}
+.dark .personal-pagina{--dir-fondo:#1c2228;--dir-suave:#222a34;--dir-linea:#3b4757;--dir-texto:#f1f5f9;--dir-secundario:#b3c0d2;--dir-hover:#2b3747;--dir-hover-linea:#94a3b8}
 .personal-directorios-marco{width:100%;max-width:1360px;margin:0 auto}
 .directorio-encabezado{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}
 .directorio-encabezado h1{font-family:var(--font-display);font-size:28px;font-weight:650;line-height:1.3}
@@ -9,7 +9,8 @@
 .directorio-cabecera-acciones>button,.directorio-primario{background:#1456f0!important;color:#fff!important;border:1px solid #1456f0!important;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:650;min-height:42px}
 .directorio-personal{background:var(--dir-fondo);border:1px solid var(--dir-linea);border-radius:16px;min-width:0}
 .directorio-personal button,.directorio-menu>button,.directorio-retorno,.directorio-navegacion button{border:1px solid var(--dir-linea);border-radius:8px;min-height:38px;padding:8px 12px;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--dir-fondo);color:var(--dir-texto);font-size:13px;font-weight:550;cursor:pointer}
-.personal-pagina button:hover{filter:brightness(.97)}
+.directorio-personal button:not(:disabled):hover,.directorio-menu>button:not(:disabled):hover,.directorio-retorno:hover{background:var(--dir-hover);border-color:var(--dir-hover-linea)}
+.personal-pagina .directorio-cabecera-acciones>button:not(:disabled):hover,.personal-pagina .directorio-primario:not(:disabled):hover{background:#1047c6!important;border-color:#1047c6!important}
 .personal-pagina :is(button,input,select):focus-visible,.directorio-menu-panel button:focus-visible{outline:2px solid #3b82f6;outline-offset:3px}
 .personal-pagina button:disabled{cursor:default;color:var(--dir-secundario);background:var(--dir-suave);filter:none}
 .directorio-barra{display:flex;align-items:flex-end;gap:14px;padding:20px;flex-wrap:wrap}
@@ -20,6 +21,7 @@
 .directorio-busqueda svg{position:absolute;left:12px;top:13px;color:var(--dir-secundario)}
 .directorio-personal input:not([type=checkbox]),.directorio-personal select{background:var(--dir-fondo);color:var(--dir-texto);border:1px solid var(--dir-linea);border-radius:8px;min-height:42px;padding:8px 10px;font-size:13px}
 .directorio-personal input::placeholder{color:var(--dir-secundario)}
+.directorio-personal input:not([type=checkbox]):not(:disabled):hover,.directorio-personal select:not(:disabled):hover{background:var(--dir-hover);border-color:var(--dir-hover-linea)}
 .directorio-busqueda input{width:100%;padding-left:36px!important}
 .directorio-personal .directorio-filtro-boton{min-height:42px}
 .directorio-columnas{display:flex;align-items:center;gap:8px;min-height:42px;font-size:12px;color:var(--dir-secundario);cursor:pointer}
@@ -64,7 +66,8 @@
 .directorio-menu-panel{--dir-fondo:#fff;--dir-linea:#dce3ed;--dir-texto:#202c3e;position:fixed;width:232px;max-width:calc(100vw - 24px);z-index:90;background:var(--dir-fondo);border:1px solid var(--dir-linea);padding:6px;border-radius:10px;box-shadow:0 10px 32px #0003}
 .dark .directorio-menu-panel{--dir-fondo:#222a34;--dir-linea:#435064;--dir-texto:#f1f5f9}
 .directorio-menu-panel button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--dir-texto);min-height:40px;padding:8px 10px;font-size:13px;border-radius:6px;cursor:pointer}
-.directorio-menu-panel button:hover{background:#1456f012}
+.directorio-menu-panel button:not(:disabled):hover{background:#edf2fa}
+.dark .directorio-menu-panel button:not(:disabled):hover{background:#34445a}
 .directorio-menu-panel .directorio-peligro{color:#b91c1c}
 .dark .directorio-menu-panel .directorio-peligro{color:#fca5a5}
 .directorio-detalles{font-size:11px;min-width:200px;display:grid;gap:5px}

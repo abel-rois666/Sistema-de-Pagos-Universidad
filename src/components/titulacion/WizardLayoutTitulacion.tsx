@@ -105,10 +105,12 @@ export default function WizardLayoutTitulacion() {
       const inscData = (inscDataRaw || []).filter((i: any) => i.asignatura?.plan_id === plan.id);
 
       // Obtener ficha de titulación
-      const { data: fichaTitulacionData } = await supabase
+      const { data: fichaTitulacionData,error:errorFichaTitulacion } = await supabase
         .from('ficha_titulacion')
         .select('*')
         .eq('alumno_id', al.id)
+        .eq('alumno_programa_id', prog.id)
+        .is('archivado_en', null)
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -120,7 +122,9 @@ export default function WizardLayoutTitulacion() {
         .order('created_at', { ascending: false })
         .limit(1);
 
+      if(errorFichaTitulacion)throw errorFichaTitulacion;
       const fTit = fichaTitulacionData?.[0];
+      if(!fTit)throw new Error('No hay ficha de titulación activa asociada al programa seleccionado. Revisa su asociación antes de exportar.');
       const alumnoObj = { ...al, plan, carrera, uid, inscripciones: inscData || [], servicio_social: ssData?.[0], doc_curp: fTit?.doc_curp };
 
       // Construcción del folio: si existe en ficha_titulacion se respeta, si no, se genera con Libro y Foja si existen

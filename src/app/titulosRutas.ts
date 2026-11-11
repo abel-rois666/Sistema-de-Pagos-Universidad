@@ -1,6 +1,7 @@
 import { puedeCobrar } from './capacidades';
 
 const titulos: Record<string, string> = {
+  '/herramientas-escolares': 'Herramientas administrativas',
   '/dashboard': 'Inicio', '/control-escolar': 'Control Escolar', '/control-academico': 'Control Académico',
   '/alumnos': 'Gestión de Alumnos', '/inscripciones': 'Inscripciones por ciclo',
   '/estadistica-911': 'Estadística Educativa 911', '/comunicados': 'Comunicados Escolares',

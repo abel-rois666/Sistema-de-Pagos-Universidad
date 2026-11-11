@@ -1,3 +1,4 @@
+import {normalizarEmpleado,validarEmpleadoBasico} from '../personal/validacionEmpleado';
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Plus, FileBarChart2 } from 'lucide-react';
@@ -52,6 +53,8 @@ export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }
   }, [empleados]);
   // ── Empleados Handlers ──
   const handleSaveEmpleado = async (emp: Empleado) => {
+    const errores=validarEmpleadoBasico(emp);if(errores.length)throw new Error(errores.map(e=>e.mensaje).join(' '));
+    emp=normalizarEmpleado(emp) as Empleado;
     try {
       if (emp.id) {
         const {data:actual,error:consultaError}=await supabase.from('empleados').select('*').eq('id',emp.id).single();

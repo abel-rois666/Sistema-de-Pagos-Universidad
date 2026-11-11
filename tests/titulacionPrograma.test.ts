@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const sql=readFileSync('supabase/migrations/20261110100000_titulacion_por_programa.sql','utf8');
+test('titulación valida pertenencia, revisión y permiso antes de escribir',()=>{assert.match(sql,/id=p_programa and alumno_id=p_alumno for update/);assert.match(sql,/f.revision is distinct from p_revision/);assert.match(sql,/_titulacion_autorizar_v1\(true\)/);assert.match(sql,/revoke all on public.ficha_titulacion/);});
+test('no reasigna automáticamente antecedentes ni escribe estatus institucional separado',()=>{assert.doesNotMatch(sql,/update public.alumnos set|delete from public.ficha_titulacion/i);assert.match(sql,/where id=p_programa/);assert.match(sql,/create unique index titulacion_programa_activa/);});
+test('asociación en lote conserva los campos del acta y no cierra programas',()=>{const lote=sql.split('create function public.titulacion_asociar_lote_v1')[1];assert.match(lote,/not between 1 and 50/);assert.match(lote,/huella/);assert.doesNotMatch(lote,/set estatus=|set libro=|set fecha_completado=/);});
+test('exportación exige programa exacto y ficha activa sin última ficha de otra carrera',()=>{const s=readFileSync('src/components/titulacion/WizardLayoutTitulacion.tsx','utf8');assert.match(s,/eq\('alumno_programa_id', prog.id\)/);assert.match(s,/is\('archivado_en', null\)/);assert.match(s,/if\(!fTit\)throw/);});
+test('la ficha ya no realiza escrituras separadas al alumno, programa o trámite',()=>{const s=readFileSync('src/components/titulacion/FichaTitulacionPrograma.tsx','utf8');assert.doesNotMatch(s,/from\('(?:alumnos|alumno_programas|ficha_titulacion)'\)\.(?:update|insert|delete)/);assert.match(s,/guardarTitulacion/);assert.match(s,/alumno_programa_id', programaId/);});

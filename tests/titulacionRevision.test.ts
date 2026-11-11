@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {validarArchivoTitulacion,prepararAsociacionTitulacion} from '../src/titulacion/revision';
+import type {FichaTitulacion,AlumnoPrograma} from '../src/types';
+const ficha={id:'f',alumno_id:'a',alumno_programa_id:null,revision:3,modalidad:null,tramite_completado:true,libro:2,foja:34,folio_control:'ACTA-2-34'} as FichaTitulacion;
+const programas=[{id:'p',alumno_id:'a'},{id:'ajeno',alumno_id:'b'}] as AlumnoPrograma[];
+test('archivo admite ficha anterior sin programa ni modalidad conservando el acta',()=>{const antes=structuredClone(ficha);validarArchivoTitulacion(ficha,'Revisión institucional');assert.deepEqual(ficha,antes);});
+test('archivo requiere motivo y no actúa sobre una ficha ya archivada',()=>{assert.throws(()=>validarArchivoTitulacion(ficha,''));assert.throws(()=>validarArchivoTitulacion({...ficha,archivado_en:'2026-11-10'},'Revisión documentada'));});
+test('asignación preserva ficha, pago, acta y revisión y exige destino del alumno libre',()=>{assert.equal(prepararAsociacionTitulacion(ficha,'p','Ficha revisada',programas,[]),ficha);assert.throws(()=>prepararAsociacionTitulacion(ficha,'ajeno','Ficha revisada',programas,[]));assert.throws(()=>prepararAsociacionTitulacion(ficha,'p','Ficha revisada',programas,['p']));assert.throws(()=>prepararAsociacionTitulacion({...ficha,alumno_programa_id:'p'},'p','Ficha revisada',programas,[]));});
+const sql=readFileSync('supabase/migrations/20261110120000_titulacion_revision_y_archivo.sql','utf8');
+test('archivo SQL solo actualiza metadatos y audita, sin requisitos de modalidad ni programa',()=>{const body=sql.split('create function public.titulacion_archivar_v1')[1].split('create function public.titulacion_asociar_anterior_v1')[0];assert.match(body,/revision<>p_revision/);assert.match(body,/insert into public.titulacion_auditoria/);assert.doesNotMatch(body,/delete from|set estatus|set modalidad|f.tramite_completado|if.*alumno_programa_id/i);});
+test('asignación SQL valida pertenencia, revisión y destino ocupado sin ejecutar guardado general',()=>{assert.match(sql,/alumno_id=f.alumno_id/);assert.match(sql,/f.alumno_programa_id is not null/);assert.match(sql,/alumno_programa_id=p_programa and id<>p_id/);assert.match(sql,/for update/);assert.doesNotMatch(sql,/titulacion_guardar_v1\(|update public.alumno_programas|delete from/);});

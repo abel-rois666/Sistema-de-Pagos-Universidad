@@ -11,6 +11,8 @@ import CabeceraGestionAlumnos from './alumnos/CabeceraGestionAlumnos';
 import MenuOperaciones from './alumnos/MenuOperaciones';
 import TarjetasAlumnos from './alumnos/TarjetasAlumnos';
 import OperacionCicloAlumno from './alumnos/OperacionCicloAlumno';
+import RevisionEliminacionAlumnos from './alumnos/RevisionEliminacionAlumnos';
+import { useEliminacionAlumnos } from '../hooks/useEliminacionAlumnos';
 import SeleccionVisible from './ui/SeleccionVisible';
 import { cambiarSeleccionVisible } from '../utils/seleccionVisible';
 import { filtrarPadron, ordenarPadron, plantillaDisponibleEnCiclo } from '../utils/consultaAlumnos';
@@ -707,31 +709,17 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   };
 
   const handleDelete = (alumno: Alumno) => {
-    showConfirm(
-      "Eliminar Alumno",
-      `¿Estás seguro de que deseas eliminar permanentemente a ${toTitleCase(alumno.nombre_completo)}? Esta acción no se puede deshacer y **eliminará todos sus planes de pago** si existen.`,
-      async () => {
-        setSaving(true);
-        // Supabase has ON DELETE CASCADE configured, so it will delete associated plans.
-        const { error } = await supabase.from('alumnos').delete().eq('id', alumno.id);
-
-        if (error) {
-          console.error('[AlumnosConfig] delete error:', error);
-          showNotification('error', `Error al eliminar el alumno: ${error.message}`);
-          setSaving(false);
-          return;
-        }
-
-        const updated = alumnos.filter(a => a.id !== alumno.id);
-        setAlumnos(updated);
-        setSaving(false);
-        showNotification('success', `Alumno eliminado exitosamente.`);
-      }
-    );
+    if (!saving) eliminacionAlumnos.solicitar([alumno]);
   };
 
   // ── Selección Múltiple Principal y Ordenamiento ──
   const [mainTableSelected, setMainTableSelected] = useState<Set<string>>(new Set());
+  const eliminacionAlumnos = useEliminacionAlumnos(ids => {
+    const eliminados = new Set(ids);
+    setAlumnos(prev => prev.filter(a => !eliminados.has(a.id)));
+    setPlans(prev => prev.filter(p => !p.alumno_id || !eliminados.has(p.alumno_id)));
+    setMainTableSelected(prev => new Set([...prev].filter(id => !eliminados.has(id))));
+  }, setSaving);
   const [showBulkStatusModal, setShowBulkStatusModal] = useState(false);
   const [bulkStatusTarget, setBulkStatusTarget] = useState('ACTIVO');
 
@@ -819,25 +807,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
   const toggleAllMainTable = (marcar: boolean) => setMainTableSelected(prev=>new Set(cambiarSeleccionVisible([...prev],paginatedAlumnos.map(a=>a.id),marcar)));
 
   const handleBulkDelete = () => {
-    showConfirm(
-      "Eliminar Alumnos Seleccionados",
-      `¿Estás seguro de que deseas eliminar permanentemente a ${mainTableSelected.size} alumno(s)? Esta acción no se puede deshacer y **eliminará todos sus planes de pago**.`,
-      async () => {
-        setSaving(true);
-        const idsToDelete = Array.from(mainTableSelected);
-        const { error } = await supabase.from('alumnos').delete().in('id', idsToDelete);
-
-        if (error) {
-          showNotification('error', `Error al eliminar: ${error.message}`);
-        } else {
-          const updated = alumnos.filter(a => !mainTableSelected.has(a.id));
-          setAlumnos(updated);
-          setMainTableSelected(new Set());
-          showNotification('success', `${idsToDelete.length} alumno(s) eliminado(s) exitosamente.`);
-        }
-        setSaving(false);
-      }
-    );
+    if (!saving) eliminacionAlumnos.solicitar(alumnos.filter(a => mainTableSelected.has(a.id)));
   };
 
   const executeBulkStatusChange = async () => {
@@ -1005,6 +975,7 @@ export default function AlumnosConfig({ onBack, onViewFicha }: AlumnosConfigProp
             {texto:'Pagos y adeudos del padrón filtrado',ejecutar:()=>navigate('/pagos-adeudos-alumnos',{state:{desdeAlumnos:true,filtrosPadron}})},
           ]}/>
 
+        <RevisionEliminacionAlumnos flujo={eliminacionAlumnos} administrador={currentUser.rol === 'ADMINISTRADOR'} />
         {notification && (
           <div className={`mb-4 flex items-center gap-2 px-4 py-3 rounded-[13px] text-sm font-semibold shadow-[var(--shadow-subtle)]
             ${notification.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>

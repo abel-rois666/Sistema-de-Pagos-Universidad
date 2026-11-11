@@ -14,3 +14,7 @@
 .selector-busqueda-panel .selector-busqueda-buscar input[role=combobox]{height:22px;min-height:0;padding:0;margin:0;border:0;border-radius:0;background:transparent;box-shadow:none;outline:none;font-size:13px}
 
 .selector-busqueda-buscar input::placeholder{color:#64748b;opacity:1}.dark .selector-busqueda-buscar input::placeholder{color:#aebcd0}
+
+/* El control mantiene una superficie legible también al pasar el cursor. */
+.selector-busqueda-control:not(:disabled):hover{background:#f1f5f9;border-color:#94a3b8}
+.dark .selector-busqueda-control:not(:disabled):hover{background:#2b3747;border-color:#94a3b8;color:#f1f5f9}

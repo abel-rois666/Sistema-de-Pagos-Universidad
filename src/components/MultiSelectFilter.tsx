@@ -44,10 +44,10 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
         aria-label={ariaLabel}
-        className={`flex items-center gap-2 px-3 py-2 rounded-[8px] border text-sm font-medium transition-all whitespace-nowrap ${fullWidth ? 'w-full justify-between min-w-0' : ''}
+        className={`flex items-center gap-2 px-3 py-2 rounded-[8px] border text-sm font-medium transition-colors whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${fullWidth ? 'w-full justify-between min-w-0' : ''}
           ${isActive
-            ? 'bg-indigo-50 border-indigo-300 text-[#1456f0] dark:bg-indigo-900/40 dark:border-indigo-600 dark:text-indigo-300'
-            : 'bg-white border-gray-300 text-[#45515e] hover:bg-[#f2f3f5] dark:bg-[#1c2228] dark:border-gray-600 dark:text-gray-200'}`}
+            ? 'bg-indigo-50 border-indigo-300 text-[#1456f0] hover:bg-indigo-100 dark:bg-indigo-900/40 dark:border-indigo-600 dark:text-indigo-200 dark:hover:bg-indigo-900/60'
+            : 'bg-white border-gray-300 text-[#45515e] hover:bg-[#f2f3f5] hover:border-gray-400 dark:bg-[#1c2228] dark:border-gray-600 dark:text-gray-200 dark:hover:bg-[#2b3747] dark:hover:border-slate-400'}`}
       >
         <span className="truncate">{label}</span>
         {isActive && (
@@ -71,8 +71,8 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
               type="button"
               onClick={toggleAll}
               aria-pressed={isAll}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] transition-colors
-                ${isAll ? 'bg-indigo-50 text-[#1456f0] dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-[#8e8e93] dark:text-[#8e8e93] hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.08)] transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500
+                ${isAll ? 'bg-indigo-50 text-[#1456f0] hover:bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-200 dark:hover:bg-indigo-900/60' : 'text-slate-600 dark:text-slate-300 hover:bg-[#f2f3f5] dark:hover:bg-[#2b3747]'}`}
             >
               <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all
                 ${isAll ? 'bg-[#1456f0] border-indigo-600' : 'border-gray-300 dark:border-gray-500'}`}>
@@ -88,10 +88,10 @@ export function MultiSelectFilter({ label, options, selected, onChange, formatLa
                   type="button"
                   onClick={() => toggle(opt)}
                   aria-pressed={isSel}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500
                     ${isSel
-                      ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200'
-                      : 'text-[#45515e] dark:text-gray-300 hover:bg-[#f2f3f5] dark:hover:bg-gray-700'}`}
+                      ? 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/60'
+                      : 'text-[#45515e] dark:text-gray-300 hover:bg-[#f2f3f5] dark:hover:bg-[#2b3747]'}`}
                 >
                   <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all
                     ${isSel ? 'bg-[#1456f0] border-indigo-600' : 'border-gray-300 dark:border-gray-500'}`}>

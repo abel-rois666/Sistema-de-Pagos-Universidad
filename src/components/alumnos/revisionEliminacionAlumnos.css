@@ -1,0 +1,9 @@
+.alumnos-eliminacion-aviso{--el-fondo:#fffbeb;--el-texto:#713f12;--el-borde:#d6a84b;--el-control:#fff;--el-enlace:#1d4ed8;--el-secundario:#52627a;--el-hover:#eff6ff;background:var(--el-fondo);border-color:var(--el-borde);color:var(--el-texto);overflow-wrap:anywhere}
+.dark .alumnos-eliminacion-aviso{--el-fondo:#28251f;--el-texto:#f8dfa9;--el-borde:#8c6b36;--el-control:#1c2228;--el-enlace:#93c5fd;--el-secundario:#c0ccdc;--el-hover:#2b3747}
+.alumnos-eliminacion-aviso h2{color:var(--el-texto)}
+.alumnos-eliminacion-recibo{background:var(--el-control);border-color:var(--el-borde);color:var(--el-enlace)}
+.alumnos-eliminacion-recibo:hover{background:var(--el-hover)}
+.alumnos-eliminacion-aviso .alumnos-eliminacion-nombre{color:var(--el-secundario)}
+.alumnos-eliminacion-cerrar{background:transparent;color:var(--el-texto);min-width:32px;min-height:32px}
+.alumnos-eliminacion-cerrar:hover{background:var(--el-control)}
+.alumnos-eliminacion-aviso button:focus-visible{outline:2px solid var(--el-enlace);outline-offset:3px}
