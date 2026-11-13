@@ -16,7 +16,7 @@ import { useAppStore } from '../store/useAppStore';
 import { supabase, updateUserPreferences } from '../lib/supabase';
 import DarkModeToggle from './DarkModeToggle';
 import { playNotificationSound } from '../utils/notificationSound';
-import { menuAplicacion, menuActivo } from '../app/menuAplicacion';
+import { menuAplicacion, menuActivo, destinoActivoMenu } from '../app/menuAplicacion';
 import IconoMenu from './navegacion/IconoMenu';
 import NavegacionMovil from './navegacion/NavegacionMovil';
 
@@ -150,7 +150,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {menuItems.map((item) => {
             const hasChildren = item.children && item.children.length > 0;
             const active = isActive(item.path);
-            const isOpen = openMenus[item.name];
+            const isOpen = openMenus[item.name] ?? active;
 
             const handleItemClick = (e: React.MouseEvent) => {
               if (hasChildren) {
@@ -160,7 +160,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   setIgnorarHoverHastaSalir(false);
                   setOpenMenus(prev => ({ ...prev, [item.name]: true }));
                 } else {
-                  setOpenMenus(prev => ({ ...prev, [item.name]: !prev[item.name] }));
+                  setOpenMenus(prev => ({ ...prev, [item.name]: !(prev[item.name] ?? active) }));
                 }
               }
             };
@@ -169,6 +169,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               <div key={item.name} className="flex flex-col">
                 <Link
                   to={hasChildren ? '#' : (item.path !== '#' ? item.path : '#')}
+                  aria-expanded={hasChildren ? Boolean(isSidebarOpen && isOpen) : undefined}
                   onClick={hasChildren ? handleItemClick : undefined}
                   className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
                     active && !hasChildren
@@ -214,19 +215,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         className="overflow-hidden ml-9 mt-1 flex flex-col gap-1 border-l-2 border-gray-100 dark:border-gray-800"
                       >
                         {item.children!.map((subItem) => {
-                          const isSubActive = location.pathname.startsWith(subItem.path);
+                          const isSubActive = destinoActivoMenu(item.children!,location.pathname)===subItem.path;
                           return (
                             <Link
                               key={subItem.path}
                               to={subItem.path}
+                              aria-current={isSubActive ? 'page' : undefined}
                               className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded-r-xl transition-colors text-[13.5px] ${
                                 isSubActive
                                   ? 'bg-blue-50/50 text-[#1456f0] dark:bg-blue-900/10 dark:text-blue-400 font-semibold'
                                   : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-200'
                               }`}
                             >
-                               <span className="opacity-70"><IconoMenu icono={subItem.icon} size={16}/></span>
-                               <span className="whitespace-nowrap">{subItem.name}</span>
+                               <span className="shrink-0 opacity-70"><IconoMenu icono={subItem.icon} size={16}/></span>
+                               <span className="min-w-0 whitespace-normal break-words leading-5">{subItem.name}</span>
                             </Link>
                           );
                         })}

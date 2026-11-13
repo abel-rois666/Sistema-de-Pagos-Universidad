@@ -1,0 +1,138 @@
+/* Distribución local del tablero financiero; conserva las fuentes e iconos de la aplicación. */
+.tablero-financiero {
+  --finanzas-icono:#2460eb;
+  width:100%;padding-bottom:24px;color:var(--inicio-texto);
+}
+.tablero-financiero .tablero-contenido {
+  container:finanzas / inline-size;display:flex;flex-direction:column;gap:24px;
+  max-width:1200px;margin:0 auto;min-width:0;
+}
+.tablero-financiero .tablero-panel {
+  min-width:0;overflow:hidden;border:1px solid var(--inicio-borde);border-radius:16px;
+  background:var(--inicio-fondo);box-shadow:var(--inicio-sombra);
+}
+.tablero-financiero .tablero-resumen {padding:24px}
+.tablero-financiero .tablero-saludo {
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;
+}
+.tablero-financiero .tablero-bienvenida {min-width:0;flex:1 1 320px}
+.tablero-financiero .tablero-bienvenida h2 {
+  font-size:24px;font-weight:600;line-height:1.25;letter-spacing:-.025em;overflow-wrap:anywhere;
+}
+.tablero-financiero .tablero-bienvenida p {
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;line-height:1.6;
+  margin-top:6px;color:var(--inicio-secundario);
+}
+.tablero-financiero .tablero-bienvenida strong {color:var(--inicio-texto);font-weight:600}
+.tablero-financiero .tablero-fecha-separador {color:var(--inicio-secundario)}
+.tablero-financiero .tablero-controles {display:flex;align-items:flex-end;gap:16px;max-width:100%}
+.tablero-financiero .selector-ciclo-modulo {width:210px;max-width:100%;flex-shrink:1;min-width:0}
+.tablero-financiero .selector-ciclo-modulo label {
+  color:var(--inicio-secundario);font-size:12px;min-height:18px;margin-bottom:4px;line-height:1.5;
+}
+.tablero-financiero .selector-busqueda-control {
+  height:42px;background:var(--inicio-fondo);color:var(--inicio-texto);
+  border-color:var(--inicio-borde);font-size:12px;font-weight:500;
+}
+.tablero-financiero .selector-busqueda-control:not(:disabled):hover {
+  background:var(--inicio-suave);border-color:var(--inicio-borde-hover);
+}
+.tablero-financiero .tablero-importar {
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;
+  min-height:42px;padding:10px 16px;border:1px solid #00855d;border-radius:8px;
+  background:#00855d;color:#fff;font-size:12px;font-weight:600;line-height:1.5;
+  transition:background-color .15s,border-color .15s;
+}
+.tablero-financiero .tablero-importar:hover {background:#006e4d;border-color:#006e4d}
+.tablero-financiero .tablero-estadisticas {
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;
+  border-top:1px solid var(--inicio-divisor);margin-top:24px;padding-top:24px;
+}
+.tablero-financiero .tablero-estadistica {
+  min-width:0;padding:16px;border:1px solid var(--inicio-borde);border-radius:12px;
+  background:var(--inicio-fondo);
+}
+.tablero-financiero .tablero-icono {
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  width:44px;height:44px;border:1px solid var(--finanzas-icono);border-radius:11px;
+  background:var(--finanzas-icono);color:#fff;
+}
+.tablero-financiero .tablero-estadistica .tablero-icono {width:40px;height:40px;border-radius:8px;margin-bottom:16px}
+.tablero-financiero .tablero-estadistica-valor {
+  font-size:26px;font-weight:600;line-height:1.2;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;
+}
+.tablero-financiero .tablero-estadistica-etiqueta {font-size:12px;font-weight:600;line-height:1.5;margin-top:4px;color:var(--inicio-secundario)}
+.tablero-financiero .tablero-estadistica-ayuda {font-size:11px;line-height:1.5;color:var(--inicio-secundario)}
+.tablero-financiero .tablero-encabezado {
+  display:flex;width:100%;align-items:center;justify-content:space-between;gap:16px;padding:18px 24px;
+  background:var(--inicio-suave);color:var(--inicio-texto);border-bottom:1px solid var(--inicio-separador);
+}
+.tablero-financiero .tablero-encabezado>span {display:flex;align-items:center;gap:12px;min-width:0;text-align:left;font-size:16px;font-weight:600;line-height:1.5}
+.tablero-financiero .tablero-desplegar {transition:background-color .15s}
+.tablero-financiero .tablero-desplegar[aria-expanded=false] {border-bottom-color:transparent}
+.tablero-financiero .tablero-desplegar:hover {background:var(--inicio-icono-seleccion)}
+.tablero-financiero .tablero-desplegar svg {color:var(--inicio-acento);flex-shrink:0}
+.tablero-financiero .tablero-desplegar>svg {color:var(--inicio-secundario);transition:transform .2s}
+.tablero-financiero .tablero-flecha-abierta {transform:rotate(180deg)}
+.tablero-financiero .tablero-bloque-animado {overflow:hidden}
+.tablero-financiero .tablero-operaciones-grid,
+.tablero-financiero .tablero-reportes-grid {display:grid;gap:20px;padding:24px;min-width:0}
+.tablero-financiero .tablero-operaciones-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.tablero-financiero .tablero-reportes-grid {grid-template-columns:repeat(3,minmax(0,1fr))}
+.tablero-financiero .tablero-tarjeta {
+  display:flex;flex-direction:column;align-items:flex-start;position:relative;min-width:0;
+  padding:20px;border:1px solid var(--inicio-borde);border-radius:12px;text-align:left;
+  background:var(--inicio-fondo);color:var(--inicio-texto);
+  transition:background-color .15s,border-color .15s;
+}
+.tablero-financiero .tablero-tarjeta>.tablero-icono {margin-bottom:16px}
+.tablero-financiero .tablero-tarjeta:hover {background:var(--inicio-suave);border-color:var(--inicio-borde-hover)}
+.tablero-financiero .tablero-tarjeta-texto {min-width:0;flex:1}
+.tablero-financiero .tablero-tarjeta h2 {color:var(--inicio-texto);font-size:14px;line-height:1.5;font-weight:600;overflow-wrap:anywhere}
+.tablero-financiero .tablero-tarjeta:hover h2 {color:var(--inicio-acento)}
+.tablero-financiero .tablero-tarjeta p {color:var(--inicio-secundario);font-size:12px;line-height:1.65;margin-top:5px}
+.tablero-financiero .tablero-tarjeta-operacion {
+  display:grid;grid-template-columns:48px minmax(0,1fr);gap:14px 16px;align-items:start;
+}
+.tablero-financiero .tablero-tarjeta-operacion>.tablero-icono {width:48px;height:48px;margin:0}
+.tablero-financiero .tablero-tarjeta-operacion h2 {font-size:16px}
+.tablero-financiero .tablero-acceder {display:flex;align-items:center;justify-content:flex-end;gap:4px;grid-column:2;font-size:12px;font-weight:600;line-height:1.5;color:var(--inicio-acento)}
+.tablero-financiero .tablero-insignia {
+  position:absolute;top:16px;right:16px;display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border:1px solid var(--inicio-separador);border-radius:999px;
+  background:var(--inicio-insignia);color:var(--inicio-acento);font-size:11px;font-weight:600;line-height:1.5;
+}
+.tablero-financiero .tablero-pie {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--inicio-borde);padding:16px 0;color:var(--inicio-secundario)}
+.tablero-financiero .tablero-marca {display:flex;align-items:center;gap:8px;min-width:0;font-size:12px;font-weight:500}
+.tablero-financiero .tablero-marca>span {overflow-wrap:anywhere}
+.tablero-financiero .tablero-marca>img {max-width:100px;object-fit:contain}
+.tablero-financiero .tablero-pie-datos {display:flex;flex-wrap:wrap;align-items:center;gap:20px;font-size:11px}
+.tablero-financiero .tablero-pie-ciclo {display:flex;align-items:center;gap:5px}
+.tablero-financiero .tablero-tarjeta:focus-visible,
+.tablero-financiero .tablero-desplegar:focus-visible {outline:2px solid var(--inicio-acento);outline-offset:-3px}
+.tablero-financiero .tablero-importar:focus-visible,
+.tablero-financiero .selector-busqueda-control:focus-visible {outline:2px solid var(--inicio-acento);outline-offset:3px}
+@container finanzas (max-width:959px){
+  .tablero-financiero .tablero-reportes-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@container finanzas (max-width:759px){
+  .tablero-financiero .tablero-estadisticas {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tablero-financiero .tablero-operaciones-grid {grid-template-columns:1fr}
+}
+@container finanzas (max-width:559px){
+  .tablero-financiero .tablero-resumen {padding:18px 16px}
+  .tablero-financiero .tablero-bienvenida {flex-basis:100%}
+  .tablero-financiero .tablero-bienvenida h2 {font-size:22px}
+  .tablero-financiero .tablero-controles {display:grid;grid-template-columns:1fr;gap:12px;width:100%}
+  .tablero-financiero .selector-ciclo-modulo {width:100%;max-width:none}
+  .tablero-financiero .tablero-estadisticas {gap:12px;margin-top:20px;padding-top:20px}
+  .tablero-financiero .tablero-estadistica {padding:14px 12px}
+  .tablero-financiero .tablero-estadistica-valor {font-size:22px}
+  .tablero-financiero .tablero-encabezado {padding:16px}
+  .tablero-financiero .tablero-encabezado>span {font-size:14px}
+  .tablero-financiero .tablero-operaciones-grid,.tablero-financiero .tablero-reportes-grid {padding:16px;gap:14px}
+  .tablero-financiero .tablero-reportes-grid {grid-template-columns:1fr}
+  .tablero-financiero .tablero-tarjeta {padding:18px}
+  .tablero-financiero .tablero-tarjeta-operacion {gap:12px}
+  .tablero-financiero .tablero-pie-datos {gap:10px 16px}
+}

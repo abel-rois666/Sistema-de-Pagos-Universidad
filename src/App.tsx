@@ -1,3 +1,5 @@
+import RecursosHumanosRuta from './app/RecursosHumanosRuta';
+import { rutaInicialUsuario,usaInicioFinanciero } from './app/inicioUsuario';
 import InicioArea from './app/InicioArea';
 import HerramientasEscolares from './components/certificacion/HerramientasEscolares';
 import AccesoRuta from './app/AccesoRuta';
@@ -39,7 +41,6 @@ const InscripcionesCiclo = lazy(() => import('./components/inscripciones/Inscrip
 import { ROLES911 } from './estadistica911/types';
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const CalificacionesModule = lazy(() => import('./components/CalificacionesModule'));
-const RecursosHumanosConfig = lazy(() => import('./components/RecursosHumanosConfig'));
 const EvaluacionNom035 = lazy(() => import('./components/EvaluacionNom035'));
 const WizardLayoutDGAIR = lazy(() => import('./components/certificacion/WizardLayoutDGAIR'));
 const WizardLayoutTitulacion = lazy(() => import('./components/titulacion/WizardLayoutTitulacion'));
@@ -160,6 +161,7 @@ export default function App() {
           }
           const u = perfil as Usuario;
           setCurrentUser(u);
+      navigate(rutaInicialUsuario(u.rol), { replace: true });
           // Aplicar tema guardado
           if (u.preferencia_tema) {
             const root = window.document.documentElement;
@@ -370,7 +372,7 @@ export default function App() {
           <Route path="/" element={['ADMINISTRADOR','COORDINADOR FINANCIERO','CAJERO'].includes(currentUser.rol)
             ? <PageWrapper keyStr="inicio-financiero"><Dashboard /></PageWrapper> : <InicioArea />} />
           {/* Rutas Placeholders para el Sidebar */}
-          <Route path="/dashboard" element={<InicioArea />} />
+          <Route path="/dashboard" element={usaInicioFinanciero(currentUser.rol) ? <PageWrapper keyStr="inicio-financiero"><Dashboard /></PageWrapper> : <InicioArea />} />
 
           <Route path="/planes-estudio" element={
             <PageWrapper keyStr="academico">
@@ -402,14 +404,10 @@ export default function App() {
               ? <PageWrapper keyStr="horarios"><HorariosAcademicos /></PageWrapper>
               : <Navigate to="/" replace />
           } />
-          <Route path="/rh" element={
-            <PageWrapper keyStr="rh">
-              <RecursosHumanosConfig 
-                onBack={() => navigate('/')} 
-                onNavigateToEvaluacion={() => navigate('/rh/evaluacion')} 
-              />
-            </PageWrapper>
-          } />
+          <Route path="/rh" element={<InicioArea area="rh" />} />
+          <Route path="/rh/personal" element={<PageWrapper keyStr="rh"><RecursosHumanosRuta seccion="directorio"/></PageWrapper>} />
+          <Route path="/rh/resultados" element={<PageWrapper keyStr="rh"><RecursosHumanosRuta seccion="resultados"/></PageWrapper>} />
+          <Route path="/rh/planes" element={<PageWrapper keyStr="rh"><RecursosHumanosRuta seccion="planes"/></PageWrapper>} />
           <Route path="/rh/evaluacion" element={
             <PageWrapper keyStr="rh_eval">
               <EvaluacionNom035 onBack={() => navigate('/rh')} />

@@ -1,0 +1,22 @@
+/* Superficies compartidas por los inicios de área y tableros. Sin tipografía global. */
+.paleta-dashboard {
+  --inicio-fondo:#fff; --inicio-suave:#f3f7fe; --inicio-pie:#f9fbff;
+  --inicio-borde:#dce5f2; --inicio-borde-hover:#a6bddf; --inicio-divisor:#e8eef7;
+  --inicio-texto:#101b2e; --inicio-secundario:#4b6280; --inicio-acento:#1456f0; --inicio-flecha:#1456f0;
+  --inicio-seleccion:#fff; --inicio-seleccion-borde:#1456f0; --inicio-anillo:#1456f01a;
+  --inicio-icono-fondo:#eff5ff; --inicio-icono-borde:#e0eaff; --inicio-icono-seleccion:#e8f1ff;
+  --inicio-encabezado-inicio:#eaf2ff; --inicio-encabezado-fin:#fbfdff;
+  --inicio-separador:#cdddf3; --inicio-ayuda-encabezado:#415b7c; --inicio-insignia:#fff;
+  --inicio-sombra:0 1px 2px #223c6410,0 5px 18px #223c6405;
+  color:var(--inicio-texto);
+}
+.dark .paleta-dashboard {
+  --inicio-fondo:#151d2d; --inicio-suave:#1d2b42; --inicio-pie:#111827;
+  --inicio-borde:#2b3850; --inicio-borde-hover:#506888; --inicio-divisor:#29364d;
+  --inicio-texto:#f3f6fc; --inicio-secundario:#aebed3; --inicio-acento:#72b3ff; --inicio-flecha:#aebed3;
+  --inicio-seleccion:#182840; --inicio-seleccion-borde:#4b91f8; --inicio-anillo:#4b91f829;
+  --inicio-icono-fondo:#1d2a3e; --inicio-icono-borde:#34465f; --inicio-icono-seleccion:#213c60;
+  --inicio-encabezado-inicio:#1d2d48; --inicio-encabezado-fin:#151e2e;
+  --inicio-separador:#354760; --inicio-ayuda-encabezado:#c5d4e9; --inicio-insignia:#1c2a40;
+  --inicio-sombra:0 1px 2px #03071233,0 6px 22px #03071229;
+}

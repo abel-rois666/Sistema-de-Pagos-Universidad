@@ -1,0 +1,32 @@
+/* Paleta del directorio de reportes, sin extender estilos a los reportes abiertos. */
+.tablero-reportes {
+  height:auto;min-height:100%;
+  background:var(--inicio-fondo);border:1px solid var(--inicio-borde);box-shadow:var(--inicio-sombra);
+}
+.tablero-reportes .reportes-encabezado {
+  padding:20px;border:1px solid var(--inicio-separador);border-radius:14px;
+  background:linear-gradient(105deg,var(--inicio-encabezado-inicio),var(--inicio-encabezado-fin));
+}
+.tablero-reportes .reportes-encabezado h2,
+.tablero-reportes .reportes-tarjeta h3 {color:var(--inicio-texto)}
+.tablero-reportes .reportes-encabezado p {color:var(--inicio-ayuda-encabezado)}
+.tablero-reportes .reportes-tarjeta {
+  min-width:0;background:var(--inicio-fondo);border:1px solid var(--inicio-borde);
+  box-shadow:var(--inicio-sombra);transition:background-color .15s,border-color .15s;
+}
+.tablero-reportes .reportes-tarjeta p {color:var(--inicio-secundario)}
+.tablero-reportes .reportes-tarjeta:hover {
+  background:var(--inicio-suave);border-color:var(--inicio-borde-hover);
+}
+.tablero-reportes .reportes-tarjeta:hover h3 {color:var(--inicio-acento)}
+.tablero-reportes .reportes-icono {
+  flex-shrink:0;background:var(--inicio-icono-fondo);border:1px solid var(--inicio-icono-borde);
+}
+.tablero-reportes .reportes-icono svg {color:var(--inicio-acento)}
+.tablero-reportes .reportes-tarjeta:focus-visible {
+  outline:2px solid var(--inicio-acento);outline-offset:3px;
+}
+@media(max-width:560px){
+  .tablero-reportes{padding:16px}
+  .tablero-reportes .reportes-encabezado{padding:16px;align-items:flex-start}
+}

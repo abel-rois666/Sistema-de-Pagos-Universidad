@@ -1,0 +1,31 @@
+import {createRequire} from 'node:module';
+import {readFile,mkdir} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULO||'C:/Users/sopor/AppData/Local/npm-cache/_npx/e41f203b7505f1fb/node_modules/playwright');
+const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM||'C:/Users/sopor/AppData/Local/ms-playwright/chromium_headless_shell-1200/chrome-headless-shell-win64/chrome-headless-shell.exe'});
+const raiz=path.resolve('.tmp-vencimientos-dist'),errores=[];
+await mkdir('.tmp-vencimientos-capturas',{recursive:true});
+try{for(const ancho of [390,820,1440,1920])for(const oscuro of [false,true]){
+ const p=await browser.newPage({viewport:{width:ancho,height:1000}});p.on('pageerror',e=>errores.push(e.message));
+ await p.route('**/*',async r=>{const u=new URL(r.request().url());if(u.hostname!=='ensayo.invalid')return r.abort();const f=path.resolve(raiz,'.'+u.pathname);if(!f.startsWith(raiz+path.sep))return r.abort();try{await r.fulfill({body:await readFile(f),contentType:f.endsWith('.js')?'text/javascript':f.endsWith('.css')?'text/css':'text/html'});}catch{await r.fulfill({status:404,body:''});}});
+ await p.goto(`https://ensayo.invalid/scripts/ensayoVencimientos.html?cobertura${oscuro?'&oscuro':''}`);
+ const root=p.locator('.cobertura-planes');await root.locator('table tbody tr').first().waitFor();
+ assert.ok((await root.boundingBox()).width<=1280,'Ancho de Gestión de Alumnos');
+ assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Sin desborde de página');
+ const region=root.locator('.cobertura-desplazamiento');
+ if(ancho>=1440)assert.equal(await region.evaluate(e=>e.scrollWidth<=e.clientWidth+1),true,'Tabla completa dentro del contenedor');
+ const filas=await root.locator('tbody tr').count();assert.ok(filas>0);
+ assert.ok(await root.locator('tbody a').first().getAttribute('href'),'Enlace del alumno conservado');
+ await root.getByRole('button',{name:/Columnas visibles/}).click();
+ const columnas=root.getByRole('group',{name:'Elegir columnas del reporte y del PDF'});
+ for(const c of await columnas.getByRole('checkbox').all())if(await c.isEnabled())await c.uncheck();
+ assert.equal(await root.locator('thead th').count(),1);
+ assert.equal(await region.evaluate(e=>e.scrollWidth<=e.clientWidth+1),true,'Una columna no conserva ancho mínimo excesivo');
+ await columnas.getByRole('button',{name:'Mostrar todas',exact:true}).click();assert.equal(await root.locator('thead th').count(),9);
+ await root.getByRole('button',{name:/Columnas visibles/}).click();
+ await root.getByLabel('Buscar alumno o plan').fill('NO EXISTE');assert.equal(await root.locator('tbody tr').count(),0);
+ await root.getByLabel('Buscar alumno o plan').fill('');assert.equal(await root.locator('tbody tr').count(),filas);
+ await root.locator('thead button').first().click();assert.equal(await root.locator('tbody tr').count(),filas);
+ await region.scrollIntoViewIfNeeded();await p.screenshot({path:`.tmp-vencimientos-capturas/cobertura-${ancho}-${oscuro?'oscuro':'claro'}.png`});await p.close();
+}assert.deepEqual(errores,[]);console.log('Cobertura: ancho 1280, tabla, columnas variables, enlaces, búsqueda y orden en 390/820/1440/1920 y ambos temas aprobados sin red.');}finally{await browser.close();}

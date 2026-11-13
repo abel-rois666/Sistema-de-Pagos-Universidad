@@ -30,6 +30,8 @@ Referencias: [CampoConAyuda y AyudaContextual](../src/components/ui/AyudaContext
 
 ## Dimensiones según el contexto
 
+- Escala de las tres consultas financieras (Deudores, Pagos y adeudos por alumno y Cobertura): usar Gestión de Alumnos como referencia, con ancho máximo de 1,280 px, controles de 42–44 px y celdas compactas de 10 × 12 px. Nombres de 13 px y contenido tabular de 12 px; permitir que encabezados y textos largos se envuelvan, conservando los importes completos. En móvil/tableta, desplazar solo el interior de la tabla; si se ocultan columnas, reducir el ancho mínimo para no conservar espacio innecesario. No aplicar esta escala automáticamente al documento imprimible.
+
 - Navegación móvil: hasta cuatro accesos principales más «Más», con icono y etiqueta, en lugar de comprimir siete botones. En Administración: Inicio, C. Escolar, Financiero, Académico y Más; RRHH, Configuración y Salir quedan accesibles dentro de Más. Secciones con hijos abren un panel con todos sus destinos permitidos. Respetar área segura inferior y reservar espacio para que la barra no cubra el contenido; tabletas y escritorio conservan la barra lateral.
 - Estados vacíos de Planes: una franja de consulta independiente del mensaje. En escritorio, mensaje y acciones en columnas; en tableta, acciones debajo en dos columnas; en móvil, contenido centrado y acciones apiladas. No convertir el estado vacío en un formulario de búsqueda si el periodo no tiene registros.
 - Consulta con planes: regreso visible sobre la barra; periodo, búsqueda y acciones alineados. Un único recorrido anterior/siguiente con contador en la cabecera explica su alcance. Las opciones de planes del alumno se identifican por tipo, ciclo y folio, fuera del documento imprimible; en móvil o con muchas opciones, preferir un selector a pestañas que requieran desplazamiento horizontal. El documento conserva su desplazamiento interno independiente.
@@ -45,6 +47,7 @@ Referencias: [CampoConAyuda y AyudaContextual](../src/components/ui/AyudaContext
 
 ## Temas y contraste
 
+- Dashboards de Inicio y de áreas: reutilizar `src/app/paletaDashboard.css`, con superficies blancas/azul suave en claro y azul marino en oscuro, bordes discretos, iconos delimitados y cabecera de área diferenciada. Mantener estilos acotados al dashboard; no cambiar menú, logotipo, encabezado global ni estilos de los módulos abiertos para aplicar esta paleta. Los indicadores sin acción no deben elevarse como si fueran botones.
 - Comprobar por separado temas claro y oscuro: texto principal, secundario, etiquetas, valores, placeholders, iconos, bordes, tooltips y controles nativos.
 - Revisar estados normal, hover, foco, seleccionado, error, éxito y deshabilitado. Un texto secundario o un estado deshabilitado deben seguir siendo comprensibles; no resolverlos con opacidad excesiva.
 - Evitar texto oscuro sobre fondo oscuro, texto claro sobre fondo claro e iconos que desaparezcan al cambiar de tema. No comunicar un estado únicamente por color.
@@ -102,3 +105,11 @@ Los directorios de Personal comparten cabecera con una acción principal y herra
 Las vistas guardadas de reportes son configuraciones privadas, separadas de los datos consultados. Identificar la vista aplicada y los cambios sin guardar; confirmar antes de sustituir una consulta distinta. Guardar columnas, filtros y orden de manera conjunta, sin persistir filas ni convertir una vista en un corte histórico. Una respuesta tardía de preferencias no debe reemplazar filtros ya ajustados. La eliminación de una vista debe explicar que conserva los registros.
 
 En escritorio usar tablas con acciones accesibles incluso al consultar columnas opcionales; en tableta vertical y móvil, tarjetas con igual contenido operativo, filtros y orden. Mantener búsqueda, página y selección al cerrar o guardar una ficha. La selección masiva muestra su alcance e incluye solo los IDs de la página al usar Seleccionar página. Los estados de carga, error con reintento y cero resultados deben ser distintos. Personal y NOM-035 tienen accesos separados dentro de RH; consultar el directorio no exige cargar evaluaciones ni planes de acción.
+
+### Inicio general por áreas (11/11/2026)
+
+El directorio de Inicio agrupa tareas operativas por área con icono, nombre y contador, y muestra un solo panel a la vez. La búsqueda localiza tareas en todas las áreas autorizadas; distingue ausencia de coincidencias de falta de permisos. En escritorio los accesos compactos se distribuyen en dos columnas; en móvil en una, con las áreas en una cuadrícula de dos columnas y sin navegación horizontal obligatoria. Las herramientas de configuración o saneamiento conservan su menú especializado y no forman parte de este directorio operativo.
+
+En Inicio, el panel presenta primero seis accesos con revelado progresivo de los restantes mediante un contador real. La búsqueda abarca también las funciones ocultas y muestra todas las coincidencias. Ctrl+K/Cmd+K enfoca la búsqueda si no hay un diálogo modal; el indicador del atajo se omite en móvil. Mantener visibles el área seleccionada, las cantidades y la acción para contraer sin depender solo del color.
+
+Los accesos Inicio de un área no se marcan por coincidencia de prefijo con todas sus subrutas. El submenú lateral selecciona un solo destino, permite etiquetas multilínea y conserva el icono sin comprimirlo. Cuando el mismo inicio ya existe como hijo, el panel móvil no añade otro enlace equivalente. Los destinos iniciales por perfil se aplican al login explícito, sin redirigir toda navegación con una sesión vigente.

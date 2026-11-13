@@ -1,10 +1,19 @@
-.pagos-adeudos-alumnos{width:100%;max-width:1280px;margin:0 auto;color:#182031;font-family:var(--font-ui,sans-serif)}
-.reporte-volver{display:flex;align-items:center;gap:8px;min-height:42px;font-size:13px;font-weight:600;color:#4b6080;margin-bottom:12px}
-.reporte-consulta{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;padding:22px 24px;background:#fff;border:1px solid #e1e7f0;border-radius:18px;margin-bottom:18px}
-.reporte-consulta>div:first-child{width:320px;max-width:100%}.reporte-busqueda{width:400px;max-width:100%;font-size:13px;font-weight:600}.reporte-busqueda input{display:block;margin-top:6px;height:42px;width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:0 12px;font-size:13px;background:#fff;color:inherit}
-.reporte-filtros{display:flex;flex-wrap:wrap;gap:10px;width:100%}.reporte-filtros>button{display:flex;align-items:center;gap:7px;color:#4b6080;font-size:13px;min-height:40px}.reporte-consulta>p{width:100%;font-size:12px;color:#4b6080;line-height:1.6}
-.reporte-financiero-panel{max-height:none!important}.reporte-financiero-panel>div:first-child{flex-wrap:wrap;gap:12px}.reporte-financiero-panel>div:first-child>div{min-width:0}.reporte-financiero-panel h2{font-size:22px;line-height:1.4}.reporte-financiero-panel>div:nth-child(2){overflow:visible}.reporte-financiero-panel>div:nth-child(3){flex-wrap:wrap}.reporte-financiero-panel>div:nth-child(3) button{min-height:44px}
-.dark .pagos-adeudos-alumnos{color:#f3f4f6}.dark .reporte-consulta{background:#1c2228;border-color:#374151}.dark .reporte-busqueda input{background:#202b3b;border-color:#48586e}.dark .reporte-volver,.dark .reporte-consulta>p,.dark .reporte-filtros>button{color:#b6c2d4}
-@media(max-width:639px){.reporte-consulta{padding:16px}.reporte-busqueda{width:100%}.reporte-financiero-panel h2{font-size:20px}.reporte-financiero-panel>div{padding:16px}.reporte-financiero-panel>div:first-child .h-4.w-px{display:none}.reporte-financiero-panel>div:first-child .flex.flex-wrap{gap:12px}.reporte-financiero-panel>div:nth-child(3) button{flex:1;padding:10px;font-size:12px}}
-
-.reporte-filtros>div>button{min-height:42px}.reporte-financiero-panel>div:first-child select{min-height:42px;border-radius:8px}.reporte-financiero-panel>div:first-child label:has(input[type=checkbox]){min-height:42px}.reporte-financiero-panel h2 svg{flex-shrink:0}.reporte-busqueda input::placeholder{color:#64748b}.dark .reporte-busqueda input::placeholder{color:#adbbcf}
+@import "./consultasFinancieras.css";
+.pagos-adeudos-alumnos{width:100%;max-width:1280px;margin:0 auto;font-family:var(--font-ui,sans-serif)}
+.pagos-adeudos-alumnos .reporte-volver{display:inline-flex;align-items:center;gap:8px;min-height:42px;font-size:13px;font-weight:600;color:var(--inicio-secundario);margin-bottom:12px;border-radius:8px}
+.pagos-adeudos-alumnos .reporte-volver:hover{color:var(--inicio-acento)}
+.consulta-financiera .reporte-consulta{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 20px;padding-top:18px;margin-top:18px;border-top:1px solid var(--inicio-divisor)}
+.consulta-financiera .reporte-consulta>.selector-ciclo-modulo{width:280px;max-width:100%}
+.consulta-financiera .reporte-busqueda{display:block;width:360px;max-width:100%;font-size:12px;font-weight:600;color:var(--inicio-secundario)}
+.consulta-financiera .reporte-busqueda input{display:block;margin-top:6px;height:42px;width:100%;padding:0 12px}
+.consulta-financiera .reporte-busqueda>span{display:block;min-height:24px;line-height:24px}
+.consulta-financiera .reporte-filtros{display:flex;flex-wrap:wrap;gap:10px;width:100%;align-items:center}
+.consulta-financiera .cf-filtros-padron{width:100%}
+.consulta-financiera .cf-filtros-padron>summary{display:flex;align-items:center;gap:8px;min-height:36px;cursor:pointer;width:fit-content;font-size:12px;font-weight:600;color:var(--inicio-acento);border-radius:6px;list-style:none}
+.consulta-financiera .cf-filtros-padron>summary::-webkit-details-marker{display:none}
+.consulta-financiera .cf-filtros-padron>summary:after{content:'+';font-size:16px;margin-left:5px}
+.consulta-financiera .cf-filtros-padron[open]>summary:after{content:'−'}
+.consulta-financiera .cf-filtros-padron[open]>.reporte-filtros{padding-top:8px}
+.consulta-financiera .reporte-filtros>button{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--inicio-secundario);min-height:42px;border-radius:8px;padding:0 8px}
+.consulta-financiera .reporte-consulta>p{font-size:12px;color:var(--inicio-secundario);line-height:1.6;width:100%}
+@media(max-width:639px){.consulta-financiera .reporte-busqueda,.consulta-financiera .reporte-consulta>.selector-ciclo-modulo{width:100%;max-width:none}.consulta-financiera .reporte-filtros>div{flex:1 1 130px;min-width:0}.consulta-financiera .reporte-filtros>div>button{width:100%;justify-content:space-between}}

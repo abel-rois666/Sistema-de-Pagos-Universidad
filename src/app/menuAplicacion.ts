@@ -1,7 +1,7 @@
 import { puedeAccederRuta } from './capacidades';
 
 export type IconoNavegacion = 'inicio' | 'escolar' | 'financiero' | 'academico' | 'rh' | 'configuracion' | 'alumnos' | 'calendario' | 'horarios' | 'documento' | 'docentes' | 'inscripciones';
-export interface ElementoMenu { name: string; shortName?: string; path: string; icon: IconoNavegacion; children?: ElementoMenu[] }
+export interface ElementoMenu { name: string; shortName?: string; path: string; icon: IconoNavegacion; children?: ElementoMenu[]; incluirInicioMovil?: boolean }
 
 /** Un único catálogo alimenta la barra lateral y la navegación móvil, sin ampliar permisos. */
 export function menuAplicacion(rol: string): ElementoMenu[] {
@@ -23,12 +23,26 @@ export function menuAplicacion(rol: string): ElementoMenu[] {
       {name:'Reportes',path:'/reportes-escolares',icon:'documento'},
       {name:'Aprobación Prospectos',path:'/aprobacion-prospectos',icon:'inscripciones'},
     ]},
-    {name:'Control Financiero',shortName:'Financiero',path:'/',icon:'financiero'},
+    {name:'Control Financiero',shortName:'Financiero',path:'/',icon:'financiero',incluirInicioMovil:false,children:[
+      {name:'Planes de pago',path:'/plan-pagos',icon:'documento'},
+      {name:'Registrar pago',path:'/control-ingresos/registrar',icon:'financiero'},
+      {name:'Consultar recibos',path:'/control-ingresos/consultar',icon:'documento'},
+      {name:'Ficha del alumno',path:'/ficha-alumno',icon:'alumnos'},
+      {name:'Estadísticas financieras',path:'/estadisticas',icon:'financiero'},
+      {name:'Deudores',path:'/deudores',icon:'alumnos'},
+      {name:'Pagos y adeudos por alumno',path:'/pagos-adeudos-alumnos',icon:'documento'},
+      {name:'Cobertura de planes de pago',path:'/cobertura-planes-pago',icon:'documento'},
+    ]},
     {name:'Control Académico',shortName:'Académico',path:'/control-academico',icon:'academico',children:[
       {name:'Docentes',path:'/docentes',icon:'docentes'},
       {name:'Generador de Horarios',path:'/horarios',icon:'horarios'},
     ]},
-    {name:'Recursos Humanos',shortName:'RRHH',path:'/rh',icon:'rh'},
+    {name:'Recursos Humanos',shortName:'RRHH',path:'/rh',icon:'rh',incluirInicioMovil:false,children:[
+      {name:'Personal administrativo',path:'/rh/personal',icon:'alumnos'},
+      {name:'Evaluaciones y resultados NOM-035',path:'/rh/resultados',icon:'documento'},
+      {name:'Planes de acción NOM-035',path:'/rh/planes',icon:'documento'},
+      {name:'Portal de evaluación NOM-035',path:'/rh/evaluacion',icon:'documento'},
+    ]},
   ];
   const porRol: Record<string,string[]> = {
     'COORDINADOR FINANCIERO':['Control Financiero'], CAJERO:['Control Financiero'],
@@ -50,11 +64,17 @@ export function menuAplicacion(rol: string): ElementoMenu[] {
     .filter(i=>i.children?i.children.length>0:puedeAccederRuta(rol,i.path));
 }
 const coincide=(ruta:string,path:string)=>ruta===path||ruta.startsWith(path+'/');
+/** Un solo hijo activo; los enlaces de inicio no son prefijos de todas las pantallas. */
+export function destinoActivoMenu(items:readonly ElementoMenu[],ruta:string){
+ const path=ruta.split('?')[0];
+ if(path==='/dashboard'&&items.some(i=>i.path==='/'))return '/';
+ return [...items].sort((a,b)=>b.path.length-a.path.length).find(i=>i.path==='/'||i.path==='/rh'?path===i.path:coincide(path,i.path))?.path;
+}
 export function menuActivo(items: readonly ElementoMenu[], ruta: string): ElementoMenu | undefined {
   const path=ruta.split('?')[0];
   const exacto=items.find(i=>i.children?.some(h=>coincide(path,h.path))||(i.path!=='/'&&i.path!=='#'&&coincide(path,i.path)));
   if (exacto) return exacto;
-  if (path==='/'||['/control-ingresos','/plan-pagos','/ficha-alumno','/estadisticas','/deudores','/cobertura-planes-pago','/pagos-adeudos-alumnos'].some(p=>coincide(path,p)))
+  if (path==='/'||path==='/dashboard'||['/control-ingresos','/plan-pagos','/ficha-alumno','/estadisticas','/deudores','/cobertura-planes-pago','/pagos-adeudos-alumnos'].some(p=>coincide(path,p)))
     return items.find(i=>i.path==='/') || (path==='/pagos-adeudos-alumnos'?items.find(i=>i.path==='/control-escolar'):undefined);
   // Las rutas académicas compartidas conservan la sección disponible para ese rol.
   if (['/calificaciones','/grupos','/planes-estudio'].some(p=>coincide(path,p))) return items.find(i=>i.path==='/control-academico');

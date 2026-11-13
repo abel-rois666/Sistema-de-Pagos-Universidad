@@ -26,12 +26,15 @@ import ModalPlanAccion from './modals/ModalPlanAccion';
 import ModalConfirmacion from './ui/ModalConfirmacion';
 import EstadoError from './ui/EstadoError';
 
-interface RecursosHumanosConfigProps { onBack: () => void; onNavigateToEvaluacion: () => void }
+interface RecursosHumanosConfigProps { onBack: () => void; onNavigateToEvaluacion: () => void; seccion?:SeccionRH; onSeccionChange?:(seccion:SeccionRH)=>void }
 
-export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion }: RecursosHumanosConfigProps) {
+export default function RecursosHumanosConfig({ onBack, onNavigateToEvaluacion,seccion,onSeccionChange }: RecursosHumanosConfigProps) {
   const isAdmin = useAppStore(s => s.currentUser?.rol === 'ADMINISTRADOR');
-  const [activeTab, setActiveTab] = useState<SeccionRH>('directorio');
+  const [tabLocal,setTabLocal]=useState<SeccionRH>('directorio');
+  const activeTab=seccion||tabLocal;
+  const setActiveTab=(v:SeccionRH)=>onSeccionChange?onSeccionChange(v):setTabLocal(v);
   const [ultimaNom, setUltimaNom] = useState<'resultados' | 'planes'>('resultados');
+  useEffect(()=>{if(activeTab!=='directorio')setUltimaNom(activeTab);},[activeTab]);
   const { datos, errores, cargando, cargar } = useConsultasRH(activeTab);
   const empleados = datos.directorio;
   const cuentasAdministrativas = useCuentasAdministrativos(empleados, isAdmin);

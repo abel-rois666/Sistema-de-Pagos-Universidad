@@ -1,5 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import React from 'react';
+import '../../app/paletaDashboard.css';
+import './dashboardReportes.css';
 import { 
   FileText, 
   GraduationCap
@@ -31,9 +33,9 @@ export const ReportesControlEscolar: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-[#1c2228] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
+    <div className="paleta-dashboard tablero-reportes flex flex-col h-full p-6 rounded-2xl">
+      <div className="reportes-encabezado flex items-center gap-3 mb-8">
+        <div className="reportes-icono p-3 rounded-xl">
           <FileText className="text-blue-600 dark:text-blue-400" size={28} />
         </div>
         <div>
@@ -46,9 +48,9 @@ export const ReportesControlEscolar: React.FC = () => {
         {/* Tarjeta Listado General */}
         <button 
           onClick={() => setCurrentView('general')}
-          className="flex flex-col text-left p-6 bg-gray-50 hover:bg-blue-50 dark:bg-[#252d36] dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-800/50 rounded-2xl transition-all group"
+          className="reportes-tarjeta flex flex-col text-left p-6 rounded-2xl group"
         >
-          <div className="p-4 bg-white dark:bg-[#1c2228] rounded-xl shadow-sm mb-4 group-hover:scale-105 transition-transform self-start">
+          <div className="reportes-icono p-4 rounded-xl mb-4 self-start">
             <FileText className="text-blue-600 dark:text-blue-400" size={32} />
           </div>
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Listado General</h3>
@@ -60,9 +62,9 @@ export const ReportesControlEscolar: React.FC = () => {
         {/* Tarjeta Egresados */}
         <button 
           onClick={() => setCurrentView('egresados')}
-          className="flex flex-col text-left p-6 bg-gray-50 hover:bg-purple-50 dark:bg-[#252d36] dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-800/50 rounded-2xl transition-all group"
+          className="reportes-tarjeta flex flex-col text-left p-6 rounded-2xl group"
         >
-          <div className="p-4 bg-white dark:bg-[#1c2228] rounded-xl shadow-sm mb-4 group-hover:scale-105 transition-transform self-start">
+          <div className="reportes-icono p-4 rounded-xl mb-4 self-start">
             <GraduationCap className="text-purple-600 dark:text-purple-400" size={32} />
           </div>
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Reporte de Egresados</h3>
@@ -74,9 +76,9 @@ export const ReportesControlEscolar: React.FC = () => {
         {/* Tarjeta Boletas */}
         <button 
           onClick={() => setCurrentView('boletas')}
-          className="flex flex-col text-left p-6 bg-gray-50 hover:bg-emerald-50 dark:bg-[#252d36] dark:hover:bg-emerald-900/20 border border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-800/50 rounded-2xl transition-all group"
+          className="reportes-tarjeta flex flex-col text-left p-6 rounded-2xl group"
         >
-          <div className="p-4 bg-white dark:bg-[#1c2228] rounded-xl shadow-sm mb-4 group-hover:scale-105 transition-transform self-start">
+          <div className="reportes-icono p-4 rounded-xl mb-4 self-start">
             <FileText className="text-emerald-600 dark:text-emerald-400" size={32} />
           </div>
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Generador de Boletas</h3>

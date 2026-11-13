@@ -1,54 +1,33 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, AlertTriangle, Search, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, Printer, ChevronDown } from 'lucide-react';
-import { PaymentPlan } from '../types';
-import { isPaid, getRestanteFromEstatus , toTitleCase} from '../utils';
+import { ArrowLeft, AlertTriangle, Search, Filter, X, Printer, ChevronDown } from 'lucide-react';
+import { toTitleCase} from '../utils';
 import { printElement } from '../lib/printUtils';
 import { useAppStore } from '../store/useAppStore';
 import { useCicloModulo } from '../hooks/useCicloModulo';
 import { MultiSelectFilter } from './MultiSelectFilter';
 import SelectorCicloModulo from './ui/SelectorCicloModulo';
+import { saldosPorVencimiento } from '../finanzas/vencimientos';
+import { useFechaFinanciera } from '../hooks/useFechaFinanciera';
+import { construirDeudasVencidas, type DebtRecord } from '../finanzas/deudores';
+import CabeceraConsultaFinanciera from './reportes/CabeceraConsultaFinanciera';
+import TablaDeudores from './reportes/TablaDeudores';
+import './reportes/consultasFinancieras.css';
 
 interface DeudoresProps {
   onBack: () => void;
   onNavigateToAlumno: (alumnoId: string) => void;
 }
 
-interface DebtRecord {
-  id: string;
-  alumno_id: string;
-  alumno: string;
-  licenciatura: string;
-  grado: string;
-  turno: string;
-  concepto: string;
-  tipo_plan: string;
-  monto: number;
-  fecha_limite: string;
-}
-
 type SortKey = keyof DebtRecord;
 
 
-
-// ── Helpers de fecha ────────────────────────────────────────────────────────
-const parsePaymentDate = (dStr: string): Date | null => {
-  if (!dStr) return null;
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
-    const [d, m, y] = dStr.split('/');
-    return new Date(Number(y), Number(m) - 1, Number(d));
-  }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
-    const [y, m, d] = dStr.split('-');
-    return new Date(Number(y), Number(m) - 1, Number(d));
-  }
-  return null;
-};
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) {
   const { plans: allPlans, alumnos, activeCicloId: cicloGlobalId, ciclos, currentUser } = useAppStore();
   const [activeCicloId, setCicloModuloId] = useCicloModulo('deudores', ciclos, cicloGlobalId, currentUser?.id);
+  const fechaConsulta = useFechaFinanciera();
   const activeCiclo = ciclos.find(c => c.id === activeCicloId);
   const plans = allPlans.filter(p => p.ciclo_id === activeCicloId);
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,61 +57,8 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
     });
   }, [plans, alumnos]);
 
-  const debtors = useMemo(() => {
-    const records: DebtRecord[] = [];
-    // Fecha de hoy al final del día (cualquier vencimiento <= hoy aplica)
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-
-    const checkDebt = (plan: PaymentPlan, alumnoId: string, concepto: string, cantidad: number, estatus: string, fecha: string) => {
-      if (cantidad > 0 && !isPaid(estatus)) {
-        // --- NUEVO: solo incluir si ya venció (fecha_limite <= hoy) ---
-        const fechaDate = parsePaymentDate(fecha);
-        if (!fechaDate || fechaDate > today) return;
-
-        let fallbackGrado = '';
-        let fallbackTurno = '';
-        if (plan.grado_turno && plan.grado_turno.includes('/')) {
-            const parts = plan.grado_turno.split('/');
-            fallbackGrado = parts[0].trim();
-            fallbackTurno = parts[1].trim();
-        }
-
-        // Usar el saldo real pendiente (no el monto original del concepto)
-        const montoReal = getRestanteFromEstatus(estatus, Number(cantidad));
-
-        records.push({
-          id: `${plan.id}-${concepto}`,
-          alumno_id: alumnoId,
-          alumno: plan.nombre_alumno,
-          licenciatura: plan.licenciatura || '',
-          grado: plan.grado || fallbackGrado,
-          turno: plan.turno || fallbackTurno,
-          concepto: concepto,
-          tipo_plan: plan.tipo_plan || 'Indefinido',
-          monto: montoReal,
-          fecha_limite: fecha
-        });
-      }
-    };
-
-    filteredPlans.forEach(plan => {
-      const alumno = alumnos.find(a => a.id === plan.alumno_id || a.nombre_completo === plan.nombre_alumno);
-      const alumnoId = alumno?.id || plan.alumno_id || '';
-      for (let i = 1; i <= 18; i++) {
-        const concepto = plan[`concepto_${i}` as keyof PaymentPlan] as string | undefined;
-        const cantidad = plan[`cantidad_${i}` as keyof PaymentPlan] as number | undefined;
-        const estatus = plan[`estatus_${i}` as keyof PaymentPlan] as string | undefined;
-        const fecha = plan[`fecha_${i}` as keyof PaymentPlan] as string | undefined;
-        if (concepto && cantidad && fecha) {
-          checkDebt(plan, alumnoId, concepto, cantidad, estatus || '', fecha);
-        }
-      }
-    });
-
-    // Sort by student name
-    return records.sort((a, b) => a.alumno.localeCompare(b.alumno));
-  }, [filteredPlans, alumnos]);
+  const debtors = useMemo(() => construirDeudasVencidas(filteredPlans, alumnos, fechaConsulta), [filteredPlans, alumnos, fechaConsulta]);
+  const saldoSinFecha = useMemo(() => filteredPlans.reduce((total, plan) => total + saldosPorVencimiento(plan, undefined, 'Todos', fechaConsulta).revisarFecha, 0), [filteredPlans, fechaConsulta]);
 
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return '';
@@ -210,11 +136,6 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
     setSortConfig({ key, direction });
   };
 
-  const getSortIcon = (key: SortKey) => {
-    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown size={14} className="text-[#8e8e93] opacity-50 group-hover:opacity-100" />;
-    return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-blue-600" /> : <ArrowDown size={14} className="text-blue-600" />;
-  };
-
   const clearAllFilters = () => {
     setFilterLicenciaturas([]);
     setFilterGrados([]);
@@ -242,66 +163,28 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
   ].filter(Boolean) as string[];
 
   return (
-    <div className="w-full font-sans">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-8">
-        
-        <div className="flex items-center justify-between mb-6">
-          <button 
-            onClick={onBack}
-            className="flex items-center gap-2 text-[#45515e] hover:text-black dark:text-gray-300 dark:hover:text-white font-bold transition-colors"
-          >
-            <ArrowLeft size={20} /> Volver al Inicio
-          </button>
-          <button
-            onClick={() => { if (printDeudoresRef.current) printElement(printDeudoresRef.current, { landscape: true }); }}
-            className="flex items-center gap-2 bg-[#1c2228] hover:bg-gray-900 border border-[rgba(255,255,255,0.08)] text-white px-4 py-2 rounded-[8px] font-medium shadow-[var(--shadow-subtle)] transition-colors"
-          >
-            <Printer size={18} /> Imprimir PDF
-          </button>
-        </div>
-
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#222222] dark:text-gray-100 mb-1 flex items-center gap-3">
-              Lista de Deudores <AlertTriangle className="text-red-500" size={24} />
-            </h1>
-            <p className="text-[#8e8e93] dark:text-[#8e8e93]">Alumnos con pagos vencidos a la fecha de hoy</p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId || ''}
-              label="Ciclo de deudores" onChange={id => { setCicloModuloId(id); setCurrentPage(1); }}
-              className="w-full sm:w-56" />
-            <div className="relative w-full sm:w-72">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={18} className="text-[#8e8e93] dark:text-[#8e8e93]" />
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-[rgba(255,255,255,0.08)] rounded-[8px] leading-5 bg-white dark:bg-[#1c2228] dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3b82f6] focus:border-blue-500 sm:text-sm transition-all"
-                placeholder="Buscar alumno o concepto..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+    <div className="consulta-financiera paleta-dashboard cf-deudores">
+      <div className="cf-deudores-contenido">
+        <button type="button" onClick={onBack} className="cf-volver"><ArrowLeft size={17}/>Volver al Inicio</button>
+        <section className="cf-panel">
+          <CabeceraConsultaFinanciera titulo="Lista de Deudores" descripcion="Saldo pendiente de conceptos cuya fecha límite ya pasó. Lo que vence hoy sigue en plazo." icono={<AlertTriangle size={23}/>}
+            acciones={<button type="button" onClick={()=>{if(printDeudoresRef.current)printElement(printDeudoresRef.current,{landscape:true});}} className="cf-boton cf-primario"><Printer size={16}/>Imprimir PDF</button>}>
+            <div className="cf-controles-deudores">
+              <SelectorCicloModulo ciclos={ciclos} cicloId={activeCicloId||''} label="Ciclo de deudores" onChange={id=>{setCicloModuloId(id);setCurrentPage(1);}}/>
+              <label htmlFor="deudores-busqueda" className="cf-busqueda">Buscar alumno o concepto<span><Search size={17} aria-hidden="true"/>
+                <input id="deudores-busqueda" type="text" placeholder="Buscar alumno o concepto..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/>
+              </span></label>
+              <button type="button" onClick={()=>setShowFilters(!showFilters)} className="cf-boton" aria-expanded={showFilters} aria-controls="cf-deudores-filtros">
+                <Filter size={16}/>Filtros{hasActiveFilters&&<span className="cf-contador">{activeFilterSummary.length}</span>}
+              </button>
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-[8px] font-medium border transition-colors ${showFilters || hasActiveFilters ? 'bg-indigo-50 border-indigo-200 text-[#1456f0] dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white border-gray-300 text-[#45515e] hover:bg-[#f2f3f5] dark:bg-[#1c2228] dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'}`}
-            >
-              <Filter size={18} />
-              Filtros
-              {hasActiveFilters && (
-                <span className="bg-[#1456f0] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  {activeFilterSummary.length}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
+            <p className="cf-nota cf-fecha-deudores">Fecha de consulta: {fechaConsulta.split('-').reverse().join('/')} · Hora de Ciudad de México.</p>
+          </CabeceraConsultaFinanciera>
+        </section>
+        {saldoSinFecha > 0 && <p role="status" className="cf-aviso">En este ciclo hay ${saldoSinFecha.toLocaleString('es-MX', {minimumFractionDigits:2})} pendientes con fecha ausente o inválida. No se clasifican como vencidos. Revisa las fechas en los planes de pago.</p>}
         {/* Filtros activos — chips resumen siempre visibles */}
         {hasActiveFilters && !showFilters && (
-          <div className="flex flex-wrap gap-2 mb-4 items-center">
+          <div className="cf-chips flex flex-wrap gap-2 items-center">
             <span className="text-xs text-[#8e8e93] dark:text-[#8e8e93] font-semibold uppercase tracking-wider">Filtros:</span>
             {filterLicenciaturas.map(v => (
               <span key={v} className="flex items-center gap-1 bg-indigo-50 dark:bg-indigo-900/40 text-[#1456f0] dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 rounded-full px-2.5 py-0.5 text-xs font-semibold">
@@ -348,10 +231,10 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="overflow-visible mb-6"
+              id="cf-deudores-filtros" className="overflow-visible"
             >
-              <div className="bg-white dark:bg-[#1c2228] p-4 rounded-[13px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] shadow-[var(--shadow-subtle)]">
-                <div className="flex flex-wrap gap-3 items-center">
+              <div className="cf-panel cf-filtros-panel">
+                <div className="cf-filtros">
                   <span className="text-xs font-semibold text-[#8e8e93] dark:text-[#8e8e93] uppercase tracking-wider mr-1">Filtrar por:</span>
 
                   <MultiSelectFilter
@@ -441,148 +324,23 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
           )}
         </AnimatePresence>
 
-        <div className="bg-white dark:bg-[#1c2228] rounded-[20px] shadow-[var(--shadow-subtle)] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] overflow-hidden flex flex-col">
+        <div className="cf-tabla-panel">
           
-          {/* Resumen compacto */}
-          <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-red-100 dark:border-red-900/30 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950/20 dark:to-rose-950/20">
-            <div className="flex-1 bg-white dark:bg-gray-900 rounded-[13px] px-4 py-3 border border-red-100 dark:border-red-900/40 shadow-[var(--shadow-subtle)] flex items-center gap-3">
-              <div className="w-8 h-8 bg-red-100 dark:bg-red-900/40 rounded-[8px] flex items-center justify-center">
-                <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-red-500 dark:text-red-400 uppercase tracking-wider">Registros Pendientes</p>
-                <p className="text-lg font-semibold text-red-800 dark:text-red-200 leading-none">{filteredDebtors.length.toLocaleString()}
-                  {hasActiveFilters && <span className="ml-1.5 text-xs font-semibold text-red-500">(filtrado)</span>}</p>
-              </div>
-            </div>
-            <div className="flex-1 bg-white dark:bg-gray-900 rounded-[13px] px-4 py-3 border border-rose-100 dark:border-rose-900/40 shadow-[var(--shadow-subtle)] flex items-center gap-3">
-              <div className="w-8 h-8 bg-rose-100 dark:bg-rose-900/40 rounded-[8px] flex items-center justify-center">
-                <span className="text-rose-600 dark:text-rose-400 font-black text-sm">$</span>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider">Total Adeudado</p>
-                <p className="text-lg font-semibold text-rose-800 dark:text-rose-200 leading-none">${totalDebt.toLocaleString()}</p>
-              </div>
-            </div>
+          <div className="cf-deudores-resumen" aria-label="Resumen de deudores">
+            <div><span className="cf-icono" aria-hidden="true"><AlertTriangle size={19}/></span><div><p>Conceptos vencidos{hasActiveFilters&&<span> (filtrado)</span>}</p><strong>{filteredDebtors.length.toLocaleString()}</strong></div></div>
+            <div><span className="cf-icono" aria-hidden="true">$</span><div><p>Vencido por pagar</p><strong className="cf-vencido">${totalDebt.toLocaleString()}</strong></div></div>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-[#eef2ff] dark:bg-gray-900/50 text-[#45515e] dark:text-gray-300 text-sm uppercase tracking-wider border-b border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)]">
-                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-[#1c2228] transition-colors" onClick={() => requestSort('alumno')}>
-                     <div className="flex items-center gap-2">Alumno {getSortIcon('alumno')}</div>
-                  </th>
-                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-[#1c2228] transition-colors" onClick={() => requestSort('licenciatura')}>
-                     <div className="flex items-center gap-2">Licenciatura {getSortIcon('licenciatura')}</div>
-                  </th>
-                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-[#1c2228] transition-colors w-24" onClick={() => requestSort('grado')}>
-                     <div className="flex items-center gap-2">Grado {getSortIcon('grado')}</div>
-                  </th>
-                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-[#1c2228] transition-colors w-24" onClick={() => requestSort('turno')}>
-                     <div className="flex items-center gap-2">Turno {getSortIcon('turno')}</div>
-                  </th>
-                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-[#1c2228] transition-colors" onClick={() => requestSort('concepto')}>
-                     <div className="flex items-center gap-2">Concepto Adeudado {getSortIcon('concepto')}</div>
-                  </th>
-                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-[#1c2228] transition-colors w-32" onClick={() => requestSort('tipo_plan')}>
-                     <div className="flex items-center gap-2">Tipo Plan {getSortIcon('tipo_plan')}</div>
-                  </th>
-                  <th className="py-4 px-4 font-semibold cursor-pointer group hover:bg-gray-100 dark:hover:bg-[#1c2228] transition-colors" onClick={() => requestSort('fecha_limite')}>
-                     <div className="flex items-center gap-2">Fecha Límite {getSortIcon('fecha_limite')}</div>
-                  </th>
-                  <th className="py-4 px-4 font-semibold text-right cursor-pointer group hover:bg-gray-100 dark:hover:bg-[#1c2228] transition-colors" onClick={() => requestSort('monto')}>
-                     <div className="flex items-center justify-end gap-2">{getSortIcon('monto')} Monto</div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {paginatedDebtors.length > 0 ? (
-                  paginatedDebtors.map((record, idx) => (
-                    <motion.tr 
-                      initial={{ opacity: 0, x: -10 }} 
-                      animate={{ opacity: 1, x: 0 }} 
-                      transition={{ delay: idx * 0.05, duration: 0.2 }}
-                      key={record.id} className="hover:bg-red-50/30 dark:hover:bg-red-900/20 transition-colors">
-                      <td className="py-3 px-4 font-bold text-[#222222] dark:text-gray-100">
-                        {record.alumno_id ? (
-                          <button
-                            onClick={() => onNavigateToAlumno(record.alumno_id)}
-                            className="text-left hover:text-blue-700 dark:hover:text-blue-400 hover:underline underline-offset-2 transition-colors"
-                            title="Ver ficha del alumno"
-                          >
-                            {toTitleCase(record.alumno)}
-                          </button>
-                        ) : (
-                          toTitleCase(record.alumno)
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-[#45515e] dark:text-[#8e8e93] text-sm max-w-[150px] truncate" title={toTitleCase(record.licenciatura)}>{toTitleCase(record.licenciatura)}</td>
-                      <td className="py-3 px-4 text-[#1456f0] dark:text-indigo-400 font-medium text-sm">{record.grado}</td>
-                      <td className="py-3 px-4 text-cyan-700 dark:text-cyan-400 font-medium text-sm">{record.turno}</td>
-                      <td className="py-3 px-4 text-[#222222] dark:text-gray-200 font-medium">{record.concepto}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                          record.tipo_plan === 'Titulación' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
-                          record.tipo_plan === 'Especialidad Completa' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
-                          'bg-[#bfdbfe] text-[#1456f0] dark:bg-indigo-900/40 dark:text-indigo-300'
-                        }`}>
-                          {record.tipo_plan}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-[#8e8e93] dark:text-[#8e8e93] text-sm">{formatDate(record.fecha_limite)}</td>
-                      <td className="py-3 px-4 text-right font-bold text-red-600 dark:text-red-400">${record.monto.toLocaleString()}</td>
-                    </motion.tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="py-16 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        {searchTerm || hasActiveFilters ? (
-                          <>
-                            <div className="bg-gray-100 dark:bg-gray-700 text-[#8e8e93] w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                              <Search size={32} />
-                            </div>
-                            <h3 className="text-lg font-bold text-[#222222] dark:text-gray-100 mb-1">Sin resultados</h3>
-                            <p className="text-[#8e8e93] dark:text-[#8e8e93]">No se encontraron deudores con los filtros actuales.</p>
-                            {hasActiveFilters && (
-                              <button onClick={clearAllFilters} className="mt-4 flex items-center gap-2 text-sm font-semibold text-[#1456f0] dark:text-indigo-400 hover:underline">
-                                <X size={14} /> Limpiar filtros
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <div className="relative">
-                              <div className="absolute inset-0 bg-green-500/20 dark:bg-green-400/20 rounded-full blur-xl animate-pulse" />
-                              <div className="relative bg-gradient-to-br from-green-100 to-emerald-50 dark:from-green-900/40 dark:to-emerald-900/20 text-green-600 dark:text-green-400 w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-[var(--shadow-subtle)] border border-green-200 dark:border-green-800/50">
-                                <CheckCircle size={40} className="drop-shadow-[var(--shadow-subtle)]" />
-                              </div>
-                            </div>
-                            <h3 className="text-xl font-bold text-[#222222] dark:text-gray-100 mb-2">¡Todo al corriente!</h3>
-                            <p className="text-[#8e8e93] dark:text-[#8e8e93] mb-6">No hay alumnos con pagos pendientes en este ciclo escolar.</p>
-                            <button 
-                              onClick={onBack} 
-                              className="bg-[#1c2228] dark:bg-gray-700 hover:bg-gray-900 dark:hover:bg-gray-600 text-white px-6 py-2 rounded-[8px] font-medium transition-colors flex items-center gap-2"
-                            >
-                              <ArrowLeft size={18} /> Volver al Inicio
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <p className="cf-ayuda-tabla">Desplaza la tabla para consultar todas las columnas. El alumno permanece visible.</p>
+          <TablaDeudores paginatedDebtors={paginatedDebtors} sortConfig={sortConfig} requestSort={requestSort} formatDate={formatDate}
+            onNavigateToAlumno={onNavigateToAlumno} hasActiveFilters={hasActiveFilters} searchTerm={searchTerm} clearAllFilters={clearAllFilters} onBack={onBack}/>
 
           {sortedDebtors.length > 0 && (
-            <div className="p-4 border-t border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] bg-[#f2f3f5] dark:bg-gray-800/50 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="cf-paginacion">
               <div className="flex items-center gap-3">
                 <span className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium">Mostrar</span>
                 <select 
                   className="border border-gray-300 dark:border-gray-600 rounded-md text-sm p-1.5 bg-white dark:bg-gray-700 dark:text-gray-200 outline-none focus:ring-2 focus:ring-[#3b82f6] font-medium cursor-pointer"
+                  aria-label="Conceptos por página"
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
                 >
@@ -593,7 +351,7 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
                 </select>
                 <span className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium">deudores</span>
               </div>
-              <div className="text-sm text-[#8e8e93] dark:text-[#8e8e93] font-medium bg-white dark:bg-gray-700 px-3 py-1.5 rounded-[8px] border border-[#e5e7eb] dark:border-gray-600 shadow-[var(--shadow-subtle)]">
+              <div className="cf-paginacion-cuenta">
                 Mostrando <span className="text-gray-900 dark:text-white font-bold">{startIndex + 1}</span> a <span className="text-gray-900 dark:text-white font-bold">{endIndex}</span> de <span className="text-gray-900 dark:text-white font-bold">{sortedDebtors.length}</span>
               </div>
               <div className="flex items-center gap-2">
@@ -608,6 +366,7 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
                   <span className="text-sm text-[#45515e] dark:text-gray-300 font-medium">Página</span>
                   <input
                     type="number"
+                    aria-label="Ir a página"
                     min={1}
                     max={totalPages || 1}
                     value={currentPage || ''}
@@ -642,8 +401,10 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
         <div ref={printDeudoresRef} style={{ position: 'fixed', top: '-10000px', left: '-10000px', width: '1020px', background: 'white', color: 'black', fontFamily: 'sans-serif', padding: '10px' }}>
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <h1 style={{ fontSize: '20px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>Reporte de Deudores</h1>
-            <p style={{ color: '#4b5563', fontWeight: 500 }}>Documento generado el {new Date().toLocaleDateString('es-MX')}</p>
+            <p style={{ color: '#4b5563', fontWeight: 500 }}>Consulta al {fechaConsulta.split('-').reverse().join('/')} (Ciudad de México) · Ciclo: {activeCiclo?.nombre} · {activeCiclo?.tipo_periodo}</p>
+            <p style={{fontSize:10,marginTop:5}}>Solo saldos cuya fecha límite ya pasó. Lo que vence hoy permanece en plazo.</p>
           </div>
+          {saldoSinFecha>0&&<p style={{fontSize:10,border:'1px solid #92400e',padding:8,marginBottom:12}}>En el ciclo hay ${saldoSinFecha.toLocaleString('es-MX',{minimumFractionDigits:2})} pendientes con fecha ausente o inválida, no incluidos como vencidos.</p>}
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px', borderBottom: '2px solid #1f2937', paddingBottom: '8px' }}>
             <div>
@@ -664,7 +425,7 @@ export default function Deudores({ onBack, onNavigateToAlumno }: DeudoresProps) 
                </p>
             </div>
             <div style={{ textAlign: 'right' }}>
-               <div style={{ fontWeight: 600, fontSize: '11px', marginBottom: '4px' }}>Total de Alumnos: {sortedDebtors.length}</div>
+               <div style={{ fontWeight: 600, fontSize: '11px', marginBottom: '4px' }}>Conceptos vencidos: {sortedDebtors.length}</div>
                <div style={{ fontWeight: 'bold', fontSize: '15px' }}>Monto Total: ${totalDebt.toLocaleString()}</div>
             </div>
           </div>
