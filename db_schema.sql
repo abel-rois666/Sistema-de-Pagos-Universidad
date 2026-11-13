@@ -498,6 +498,7 @@ CREATE TABLE IF NOT EXISTS public.alumnos_grupos (
 
 CREATE INDEX IF NOT EXISTS idx_alumnos_grupos_alumno ON public.alumnos_grupos(alumno_id);
 CREATE INDEX IF NOT EXISTS idx_alumnos_grupos_grupo ON public.alumnos_grupos(grupo_id);
+CREATE UNIQUE INDEX IF NOT EXISTS alumnos_grupos_unique_alumno_grupo_asignatura ON public.alumnos_grupos(alumno_id, grupo_id, asignatura_id);
 
 -- Kardex e historial académico de calificaciones
 CREATE TABLE IF NOT EXISTS public.inscripciones_academicas (
@@ -532,6 +533,9 @@ CREATE TABLE IF NOT EXISTS public.inscripciones_academicas (
   CONSTRAINT inscripciones_academicas_asignatura_id_fkey FOREIGN KEY (asignatura_id) REFERENCES public.asignaturas(id) ON DELETE RESTRICT
 );
 
+CREATE INDEX IF NOT EXISTS idx_inscripciones_alumno ON public.inscripciones_academicas(alumno_id);
+CREATE INDEX IF NOT EXISTS idx_inscripciones_asignatura ON public.inscripciones_academicas(asignatura_id);
+CREATE INDEX IF NOT EXISTS idx_inscripciones_academicas_ciclo ON public.inscripciones_academicas(ciclo_id);
 CREATE INDEX IF NOT EXISTS idx_inscripciones_alumno_ciclo ON public.inscripciones_academicas(alumno_id, ciclo_id);
 
 -- ==========================================
@@ -613,6 +617,8 @@ CREATE TABLE IF NOT EXISTS public.planes_pago (
   CONSTRAINT planes_pago_ciclo_id_fkey FOREIGN KEY (ciclo_id) REFERENCES public.ciclos_escolares(id) ON DELETE RESTRICT
 );
 
+CREATE INDEX IF NOT EXISTS idx_planes_pago_alumno ON public.planes_pago(alumno_id);
+CREATE INDEX IF NOT EXISTS idx_planes_pago_ciclo ON public.planes_pago(ciclo_id);
 CREATE INDEX IF NOT EXISTS idx_planes_pago_alumno_ciclo ON public.planes_pago(alumno_id, ciclo_id);
 
 -- Desglose normalizado de conceptos de pago
@@ -630,6 +636,7 @@ CREATE TABLE IF NOT EXISTS public.planes_pago_detalles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_planes_pago_detalles_plan ON public.planes_pago_detalles(plan_id);
+CREATE INDEX IF NOT EXISTS idx_pp_detalles_plan_indice ON public.planes_pago_detalles(plan_id, indice_concepto);
 
 -- Secuencia para folios únicos de recibo (OBLIGATORIA antes de recibos)
 CREATE SEQUENCE IF NOT EXISTS public.recibos_folio_seq START WITH 1000 INCREMENT BY 1;
@@ -1035,20 +1042,28 @@ BEGIN
     );
   END LOOP;
 
-  -- 3. Actualizar Plan de Pagos
+  -- 3. Actualizar Plan de Pagos (consolidado en un único UPDATE sobre planes_pago para reducir I/O de disco)
   IF p_plan_id IS NOT NULL AND p_plan_updates IS NOT NULL THEN
+    v_sql := '';
     FOR v_key, v_val IN SELECT key, value#>>'{}' FROM jsonb_each(p_plan_updates) LOOP
       v_val := replace(v_val, '{{FOLIO}}', v_folio::text);
       IF v_key LIKE 'estatus_%' THEN
         v_idx := cast(split_part(v_key, '_', 2) as integer);
-        UPDATE public.planes_pago_detalles SET estatus = v_val WHERE plan_id = p_plan_id AND indice_concepto = v_idx;
-        v_sql := format('UPDATE public.planes_pago SET %I = %L WHERE id = %L', v_key, v_val, p_plan_id); 
-        EXECUTE v_sql;
-      ELSE
-        v_sql := format('UPDATE public.planes_pago SET %I = %L WHERE id = %L', v_key, v_val, p_plan_id); 
-        EXECUTE v_sql;
+        UPDATE public.planes_pago_detalles
+          SET estatus = v_val
+          WHERE plan_id = p_plan_id
+            AND indice_concepto = v_idx
+            AND estatus IS DISTINCT FROM v_val;
       END IF;
+      v_sql := CASE
+        WHEN v_sql = '' THEN format('%I = %L', v_key, v_val)
+        ELSE v_sql || ', ' || format('%I = %L', v_key, v_val)
+      END;
     END LOOP;
+
+    IF v_sql <> '' THEN
+      EXECUTE format('UPDATE public.planes_pago SET %s WHERE id = %L', v_sql, p_plan_id);
+    END IF;
   END IF;
 
   -- 4. Actualizar Monedero / Saldo a favor

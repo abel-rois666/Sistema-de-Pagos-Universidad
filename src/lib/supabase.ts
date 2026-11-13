@@ -549,7 +549,7 @@ export const getAppConfig = async (): Promise<import('../types').AppConfig> => {
   return config;
 };
 
-/** Actualizar configuración general de la App */
+/** Actualizar configuración general de la App (solo escribe claves cuyo valor cambió en un único lote) */
 export const updateAppConfig = async (
   title: string,
   logoUrl: string,
@@ -564,53 +564,70 @@ export const updateAppConfig = async (
   plantillaObservacionesPlan?: string,
   formatoListaObservaciones?: boolean,
 ): Promise<string | null> => {
-  const { error: err1 } = await supabase.from('configuracion_app').upsert({ id: 'app_title',       valor: title,          updated_at: new Date().toISOString() });
-  if (err1) return err1.message;
-  const { error: err2 } = await supabase.from('configuracion_app').upsert({ id: 'app_logo',        valor: logoUrl,        updated_at: new Date().toISOString() });
-  if (err2) return err2.message;
-  const { error: errS } = await supabase.from('configuracion_app').upsert({ id: 'sello_institucional', valor: selloUrl,  updated_at: new Date().toISOString() });
-  if (errS) return errS.message;
-  const { error: err3 } = await supabase.from('configuracion_app').upsert({ id: 'director_nombre', valor: directorNombre, updated_at: new Date().toISOString() });
-  if (err3) return err3.message;
-  const { error: err4 } = await supabase.from('configuracion_app').upsert({ id: 'director_cargo',  valor: directorCargo,  updated_at: new Date().toISOString() });
-  if (err4) return err4.message;
-  
+  const candidatos: Array<{ id: string; valor: string }> = [
+    { id: 'app_title', valor: title },
+    { id: 'app_logo', valor: logoUrl },
+    { id: 'sello_institucional', valor: selloUrl },
+    { id: 'director_nombre', valor: directorNombre },
+    { id: 'director_cargo', valor: directorCargo },
+  ];
+
   if (claveInstitucion !== undefined) {
-    const { error: err5 } = await supabase.from('configuracion_app').upsert({ id: 'clave_institucion', valor: claveInstitucion, updated_at: new Date().toISOString() });
-    if (err5) return err5.message;
+    candidatos.push({ id: 'clave_institucion', valor: claveInstitucion });
   }
   if (claveDgair !== undefined) {
-    const { error } = await supabase.from('configuracion_app').upsert({ id: 'clave_dgair', valor: claveDgair, updated_at: new Date().toISOString() });
-    if (error) return error.message;
+    candidatos.push({ id: 'clave_dgair', valor: claveDgair });
   }
   if (nombreEntidadUniversidad !== undefined) {
-    const { error } = await supabase.from('configuracion_app').upsert({ id: 'nombre_entidad_universidad', valor: nombreEntidadUniversidad, updated_at: new Date().toISOString() });
-    if (error) return error.message;
+    candidatos.push({ id: 'nombre_entidad_universidad', valor: nombreEntidadUniversidad });
   }
   if (claveEntidadUniversidad !== undefined) {
-    const { error } = await supabase.from('configuracion_app').upsert({ id: 'clave_entidad_universidad', valor: claveEntidadUniversidad, updated_at: new Date().toISOString() });
-    if (error) return error.message;
+    candidatos.push({ id: 'clave_entidad_universidad', valor: claveEntidadUniversidad });
   }
   if (claveEntidadFederativa !== undefined) {
-    const { error } = await supabase.from('configuracion_app').upsert({ id: 'clave_entidad_federativa', valor: claveEntidadFederativa, updated_at: new Date().toISOString() });
-    if (error) return error.message;
+    candidatos.push({ id: 'clave_entidad_federativa', valor: claveEntidadFederativa });
   }
   if (plantillaObservacionesPlan !== undefined) {
-    const { error } = await supabase.from('configuracion_app').upsert({ id: 'plantilla_observaciones_plan', valor: plantillaObservacionesPlan, updated_at: new Date().toISOString() });
-    if (error) return error.message;
+    candidatos.push({ id: 'plantilla_observaciones_plan', valor: plantillaObservacionesPlan });
   }
   if (formatoListaObservaciones !== undefined) {
-    const { error } = await supabase.from('configuracion_app').upsert({ id: 'formato_lista_observaciones', valor: String(formatoListaObservaciones), updated_at: new Date().toISOString() });
-    if (error) return error.message;
+    candidatos.push({ id: 'formato_lista_observaciones', valor: String(formatoListaObservaciones) });
   }
-  return null;
+
+  const { data: existentes } = await supabase
+    .from('configuracion_app')
+    .select('id, valor')
+    .in('id', candidatos.map(c => c.id));
+
+  const mapaExistentes = new Map<string, string>(
+    (existentes || []).map((item: { id: string; valor: string }) => [item.id, item.valor])
+  );
+
+  const ahora = new Date().toISOString();
+  const cambios = candidatos
+    .filter(c => mapaExistentes.get(c.id) !== c.valor)
+    .map(c => ({ id: c.id, valor: c.valor, updated_at: ahora }));
+
+  if (cambios.length === 0) return null;
+
+  const { error } = await supabase.from('configuracion_app').upsert(cambios);
+  return error ? error.message : null;
 };
 
-/** Guardar parámetros de formato de constancias SS */
+/** Guardar parámetros de formato de constancias SS (evita escritura redundante si no cambió el valor) */
 export const saveConstanciaParams = async (params: import('../types').ConstanciaParams): Promise<string | null> => {
+  const nuevoValor = JSON.stringify(params);
+  const { data: actual } = await supabase
+    .from('configuracion_app')
+    .select('valor')
+    .eq('id', 'constancia_ss_params')
+    .maybeSingle();
+
+  if (actual && actual.valor === nuevoValor) return null;
+
   const { error } = await supabase.from('configuracion_app').upsert({
     id: 'constancia_ss_params',
-    valor: JSON.stringify(params),
+    valor: nuevoValor,
     updated_at: new Date().toISOString(),
   });
   return error ? error.message : null;
