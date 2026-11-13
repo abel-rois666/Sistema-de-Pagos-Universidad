@@ -61,7 +61,7 @@ export default function NavegacionMovil({items,onSalir,apariencia,notificaciones
       </header>
       <div className="nav-movil-cuerpo">
         {seccion?<nav aria-label={`Opciones de ${seccion.name}`}>
-          {seccion.path!=='#'&&<Link className="nav-movil-opcion nav-movil-resumen" to={seccion.path} onClick={cerrar}><IconoMenu icono={seccion.icon}/><span>Inicio de {seccion.name}</span><ChevronRight size={16}/></Link>}
+          {seccion.incluirInicioMovil!==false&&seccion.path!=='#'&&!seccion.children?.some(h=>h.path===seccion.path)&&<Link className="nav-movil-opcion nav-movil-resumen" to={seccion.path} onClick={cerrar}><IconoMenu icono={seccion.icon}/><span>Inicio de {seccion.name}</span><ChevronRight size={16}/></Link>}
           {seccion.children?.map(enlace)}
         </nav>:<>
           <nav aria-label="Más secciones">{adicionales.map(item=>item.children?.length?<button key={item.path} className="nav-movil-opcion" type="button" onClick={()=>setPanel(item.name)} aria-current={activo===item?'page':undefined}>

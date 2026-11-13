@@ -1,0 +1,35 @@
+import {createRequire} from 'node:module';
+import {readFile,mkdir} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULO||'C:/Users/sopor/AppData/Local/npm-cache/_npx/e41f203b7505f1fb/node_modules/playwright');
+const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM||'C:/Users/sopor/AppData/Local/ms-playwright/chromium_headless_shell-1200/chrome-headless-shell-win64/chrome-headless-shell.exe'});
+const raiz=path.resolve('.tmp-inicio-dist');await mkdir('.tmp-inicio-capturas',{recursive:true});const errores=[];
+const rgb=c=>{if(c.startsWith('#')){const h=c.length===4?[...c.slice(1)].map(x=>x+x).join(''):c.slice(1);return [...h.matchAll(/.{2}/g)].slice(0,3).map(m=>parseInt(m[0],16));}return c.match(/[\d.]+/g).slice(0,3).map(Number);};
+const luminancia=c=>rgb(c).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((t,v,i)=>t+v*[.2126,.7152,.0722][i],0);
+const contraste=(a,b)=>{const x=luminancia(a),y=luminancia(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+try{for(const ancho of [390,820,1440])for(const oscuro of [false,true]){
+ const p=await browser.newPage({viewport:{width:ancho,height:1000}});p.on('pageerror',e=>errores.push(e.message));
+ await p.route('**/*',async r=>{const u=new URL(r.request().url());if(u.hostname!=='ensayo.invalid')return r.abort();const f=path.resolve(raiz,'.'+u.pathname);if(!f.startsWith(raiz+path.sep))return r.abort();try{await r.fulfill({body:await readFile(f),contentType:f.endsWith('.js')?'text/javascript':f.endsWith('.css')?'text/css':'text/html'});}catch{await r.fulfill({status:404,body:''});}});
+ await p.goto(`https://ensayo.invalid/scripts/ensayoInicio.html?${oscuro?'oscuro':''}`);
+ await p.getByRole('heading',{name:'¿Qué necesitas hacer?',exact:true}).waitFor();
+ const paleta=await p.locator('.inicio-directorio').evaluate(e=>{const s=getComputedStyle(e),v=n=>s.getPropertyValue('--inicio-'+n).trim();return Object.fromEntries(['texto','secundario','acento','fondo','suave','pie','seleccion','seleccion-borde','icono-fondo','encabezado-inicio','encabezado-fin','ayuda-encabezado','insignia'].map(n=>[n,v(n)]));});
+ for(const [frente,fondo] of [['texto','fondo'],['secundario','fondo'],['secundario','suave'],['secundario','pie'],['acento','fondo'],['acento','suave'],['texto','seleccion'],['texto','insignia'],['texto','encabezado-inicio'],['texto','encabezado-fin'],['ayuda-encabezado','encabezado-inicio'],['ayuda-encabezado','encabezado-fin']])assert.ok(contraste(paleta[frente],paleta[fondo])>=4.5,`${oscuro?'Oscuro':'Claro'}: ${frente}/${fondo}`);
+ assert.ok(contraste(paleta['seleccion-borde'],paleta.seleccion)>=3);assert.ok(contraste(paleta.acento,paleta['icono-fondo'])>=3);
+ assert.equal(await p.locator('.inicio-cabecera h1').evaluate(e=>getComputedStyle(e).fontSize),ancho<=560?'27px':'32px');
+ assert.equal(await p.getByRole('link').count(),6);
+ await p.keyboard.press('Control+k');assert.equal(await p.getByLabel('Buscar una función',{exact:true}).evaluate(e=>e===document.activeElement),true);
+ await p.keyboard.press('Tab');assert.equal(await p.getByRole('button',{name:/Control Escolar/}).evaluate(e=>e===document.activeElement&&getComputedStyle(e).outlineWidth==='2px'),true);
+ const tarjetaFinanzas=p.getByRole('button',{name:/Control Financiero/});await tarjetaFinanzas.hover();assert.equal(await p.getByRole('button',{name:/Control Escolar/}).getAttribute('aria-pressed'),'true');
+ await p.getByRole('button',{name:'Mostrar 8 funciones más',exact:true}).click();assert.equal(await p.getByRole('link').count(),14);
+ await p.getByRole('button',{name:'Mostrar menos funciones',exact:true}).click();assert.equal(await p.getByRole('link').count(),6);assert.equal(await p.getByRole('link',{name:/Herramientas administrativas/}).count(),0);
+ await p.getByRole('button',{name:/Control Financiero/}).click();await p.getByRole('link',{name:/Consultar recibos/}).waitFor();assert.equal(await p.getByRole('link',{name:/Gestión de alumnos/}).count(),0);
+ await p.getByLabel('Buscar una función',{exact:true}).fill('boletas');await p.getByRole('link',{name:/Generador de boletas/}).waitFor();
+ await p.getByLabel('Buscar una función',{exact:true}).fill('xyz inexistente');await p.getByRole('heading',{name:'Sin coincidencias'}).waitFor();
+ await p.getByRole('button',{name:'Ver funciones disponibles'}).click();await p.getByRole('link',{name:/Consultar recibos/}).waitFor();
+ await p.getByRole('button',{name:/Control Escolar/}).click();assert.equal(await p.getByRole('link',{name:/Aprobación de prospectos/}).count(),0);
+ await p.getByLabel('Buscar una función',{exact:true}).fill('prospectos');await p.getByRole('link',{name:/Aprobación de prospectos/}).waitFor();
+ await p.getByRole('button',{name:'Limpiar búsqueda'}).click();assert.equal(await p.getByRole('link').count(),6);
+ assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await p.getByRole('heading',{name:'¿Qué necesitas hacer?',exact:true}).click();await p.mouse.move(5,5);await p.screenshot({path:`.tmp-inicio-capturas/inicio-${ancho}-${oscuro?'oscuro':'claro'}.png`,fullPage:true});await p.close();
+}assert.deepEqual(errores,[]);console.log('Inicio: contraste de texto >=4.5:1, selección/iconos >=3:1, foco, fuentes, áreas, búsqueda y adaptación 390/820/1440 en ambos temas, sin red real.');}finally{await browser.close();}

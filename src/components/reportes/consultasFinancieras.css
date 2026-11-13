@@ -1,0 +1,167 @@
+@import "../../app/paletaDashboard.css";
+
+/* Solo consulta en pantalla; las versiones de impresión conservan su formato. */
+.consulta-financiera{--cf-pagado:#047857;--cf-vencido:#be123c;--cf-revisar:#92400e;color:var(--inicio-texto);font-family:var(--font-ui,sans-serif);min-width:0}
+.dark .consulta-financiera{--cf-pagado:#6ee7b7;--cf-vencido:#fda4af;--cf-revisar:#fcd34d}
+.consulta-financiera .cf-panel{width:100%;min-width:0;background:var(--inicio-fondo);border:1px solid var(--inicio-borde);border-radius:16px;box-shadow:var(--inicio-sombra)}
+.consulta-financiera .cf-cabecera{padding:22px 24px;border-bottom:1px solid var(--inicio-borde)}
+.consulta-financiera .cf-cabecera-fila{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px}
+.consulta-financiera .cf-identidad{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 300px}
+.consulta-financiera .cf-identidad>div{min-width:0}
+.consulta-financiera .cf-icono{display:flex;align-items:center;justify-content:center;width:42px;height:42px;flex-shrink:0;border:1px solid var(--inicio-icono-borde);background:var(--inicio-icono-fondo);color:var(--inicio-acento);border-radius:10px}
+.consulta-financiera .cf-cabecera h2{font-family:var(--font-display);font-size:22px;font-weight:600;line-height:1.4;color:var(--inicio-texto)}
+.consulta-financiera .cf-cabecera-fila p{font-size:12px;color:var(--inicio-secundario);line-height:1.6;margin-top:3px}
+.consulta-financiera .cf-acciones{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.consulta-financiera .cf-boton{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:9px 13px;border:1px solid var(--inicio-borde);border-radius:8px;background:var(--inicio-fondo);color:var(--inicio-texto);font-size:13px;font-weight:600;line-height:1.5;transition:background-color .15s,border-color .15s}
+.consulta-financiera .cf-boton:not(:disabled):hover{background:var(--inicio-suave);border-color:var(--inicio-borde-hover)}
+.consulta-financiera .cf-boton:disabled{color:var(--inicio-secundario);background:var(--inicio-pie);cursor:not-allowed}
+.consulta-financiera .cf-primario{background:#1456f0;color:#fff;border-color:#1456f0}
+.consulta-financiera .cf-primario:not(:disabled):hover{background:#1247c7;border-color:#1247c7}
+.consulta-financiera .cf-cerrar{padding:9px}
+.consulta-financiera .cf-parametros{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 20px;border-top:1px solid var(--inicio-divisor);padding-top:16px;margin-top:16px}
+.consulta-financiera .cf-campo{display:flex;flex-direction:column;gap:6px;width:210px;max-width:100%;font-size:12px;font-weight:600;color:var(--inicio-secundario);line-height:1.5}
+.consulta-financiera .cf-contexto{display:flex;flex-direction:column;gap:6px;min-height:66px;justify-content:center;font-size:12px;color:var(--inicio-secundario)}
+.consulta-financiera .cf-contexto strong{font-size:14px;color:var(--inicio-texto)}
+.consulta-financiera .cf-campo select,.consulta-financiera .reporte-busqueda input,.consulta-financiera .cf-paginacion select,.consulta-financiera .cf-paginacion input,.consulta-financiera .cf-busqueda input{min-width:0;min-height:42px;background:var(--inicio-fondo);color:var(--inicio-texto);border:1px solid var(--inicio-borde);border-radius:8px;font-family:inherit;font-size:13px;font-weight:500;padding:0 12px;outline:none}
+.consulta-financiera .cf-campo select{width:100%}
+.consulta-financiera input::placeholder{color:var(--inicio-secundario);opacity:1}
+.consulta-financiera .cf-campo select:hover,.consulta-financiera .reporte-busqueda input:hover,.consulta-financiera .cf-busqueda input:hover{border-color:var(--inicio-borde-hover);background:var(--inicio-suave)}
+.consulta-financiera .selector-ciclo-modulo label,.consulta-financiera .campo-con-ayuda-etiqueta{color:var(--inicio-secundario);font-size:12px;min-height:18px;font-weight:600;line-height:1.5}
+.consulta-financiera .selector-ciclo-modulo label{margin-bottom:6px}
+.consulta-financiera .selector-busqueda-control{border-color:var(--inicio-borde);background:var(--inicio-fondo);color:var(--inicio-texto);font-size:13px}
+.consulta-financiera .selector-busqueda-control:not(:disabled):hover{border-color:var(--inicio-borde-hover);background:var(--inicio-suave)}
+.consulta-financiera .cf-checkbox{display:flex;align-items:center;gap:9px;min-height:42px;max-width:100%;font-size:13px;line-height:1.5;color:var(--inicio-texto);cursor:pointer}
+.consulta-financiera input[type=checkbox]{accent-color:#1456f0;flex-shrink:0;width:16px;height:16px}
+.consulta-financiera .cf-cuerpo{display:flex;flex-direction:column;gap:20px;padding:20px 24px;min-width:0}
+.consulta-financiera .cf-nota{color:var(--inicio-secundario);font-size:12px;line-height:1.7}
+.consulta-financiera .cf-fecha{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+.consulta-financiera .cf-fecha strong{font-weight:600}
+.consulta-financiera .cf-fecha details{flex-basis:100%}
+.consulta-financiera .cf-fecha summary{cursor:pointer;color:var(--inicio-acento);width:fit-content;border-radius:4px}
+.consulta-financiera .cf-fecha details p{padding-top:6px}
+.consulta-financiera .cf-aviso{padding:12px 14px;border:1px solid #e5c38a;border-radius:10px;background:#fffbeb;color:#78350f;font-size:12px;line-height:1.7}
+.dark .consulta-financiera .cf-aviso{background:#302715;border-color:#6e592f;color:#fde3ab}
+.consulta-financiera .cf-aviso details{margin-top:8px}
+.consulta-financiera .cf-aviso summary{cursor:pointer}
+.consulta-financiera .cf-resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.consulta-financiera .cf-indicador{min-width:0;padding:14px 16px;background:var(--inicio-fondo);border:1px solid var(--inicio-borde);border-radius:12px}
+.consulta-financiera .cf-indicador-secundario{background:var(--inicio-pie)}
+.consulta-financiera .cf-indicador-etiqueta{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.consulta-financiera .cf-indicador-etiqueta p{font-size:12px;font-weight:600;color:var(--inicio-secundario);line-height:1.6}
+.consulta-financiera .cf-indicador-valor{font-size:25px;font-weight:600;line-height:1.35;margin-top:8px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.consulta-financiera .cf-indicador-secundario .cf-indicador-valor{font-size:22px;margin-top:6px}
+.consulta-financiera [data-tono=pagado] .cf-indicador-valor,.consulta-financiera .cf-pagado{color:var(--cf-pagado)}
+.consulta-financiera [data-tono=vencido] .cf-indicador-valor,.consulta-financiera .cf-vencido{color:var(--cf-vencido)}
+.consulta-financiera [data-tono=revisar] .cf-indicador-valor,.consulta-financiera .cf-revisar{color:var(--cf-revisar)}
+.consulta-financiera [data-tono=total] .cf-indicador-valor,.consulta-financiera .cf-total{color:var(--inicio-acento);font-weight:600}
+.consulta-financiera .cf-secundario{color:var(--inicio-secundario)}
+.consulta-financiera .cf-tabla-panel{min-width:0;border:1px solid var(--inicio-borde);border-radius:12px;overflow:hidden;background:var(--inicio-fondo)}
+.consulta-financiera .cf-tabla-barra{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:16px}
+.consulta-financiera .cf-tabla-barra h3{font-size:14px;font-weight:600;color:var(--inicio-texto)}
+.consulta-financiera .cf-tabla-barra p{font-size:12px;color:var(--inicio-secundario);margin-top:4px}
+.consulta-financiera .cf-orden{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.consulta-financiera .cf-orden .cf-campo{width:210px}
+.consulta-financiera .cf-ayuda-tabla{padding:0 16px 12px;color:var(--inicio-secundario);font-size:11px;line-height:1.6}
+.consulta-financiera .cf-tabla-desplazable{overflow:auto;max-width:100%;scrollbar-color:var(--inicio-borde-hover) var(--inicio-pie);scrollbar-width:thin}
+.consulta-financiera .cf-tabla{width:100%;text-align:left;border-collapse:separate;border-spacing:0;font-size:12px;line-height:1.5;color:var(--inicio-texto)}
+.consulta-financiera .cf-tabla-saldos{min-width:1060px}
+.consulta-financiera .cf-tabla thead th{position:sticky;top:0;z-index:1;padding:10px 12px;background:var(--inicio-icono-seleccion);color:var(--inicio-texto);border-top:1px solid var(--inicio-separador);border-bottom:1px solid var(--inicio-separador);font-size:11px;font-weight:600;letter-spacing:.02em;line-height:1.5}
+.consulta-financiera .cf-tabla td{padding:10px 12px;border-bottom:1px solid var(--inicio-divisor);background:var(--inicio-fondo)}
+.consulta-financiera .cf-tabla tr:hover td{background:var(--inicio-suave)}
+.consulta-financiera .cf-tabla tbody tr:last-child td{border-bottom:0}
+.consulta-financiera .cf-tabla th:first-child,.consulta-financiera .cf-tabla td:first-child{position:sticky;left:0;z-index:2;min-width:180px;max-width:200px;border-right:1px solid var(--inicio-divisor)}
+.consulta-financiera .cf-tabla th:first-child{z-index:3}
+.consulta-financiera .cf-alumno{font-size:13px;font-weight:600;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+.consulta-financiera .cf-numero{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.consulta-financiera .cf-tabla thead .cf-numero{white-space:normal;min-width:100px;max-width:135px}
+.consulta-financiera .cf-centrado{text-align:center}
+.consulta-financiera .cf-centrado svg{margin:auto}
+.consulta-financiera .cf-estado{display:inline-flex;align-items:center;min-height:24px;padding:2px 7px;border:1px solid var(--inicio-borde);border-radius:6px;background:var(--inicio-pie);font-size:10px;font-weight:600;white-space:nowrap}
+.consulta-financiera .cf-estado[data-estado=BAJA]{color:var(--cf-vencido)}
+.consulta-financiera .cf-estado[data-estado=ACTIVO]{color:var(--cf-pagado)}
+.consulta-financiera .cf-estado[data-estado=EGRESADO]{color:var(--cf-revisar)}
+.consulta-financiera .cf-vacio{text-align:center;padding:40px 20px!important;color:var(--inicio-secundario)}
+.consulta-financiera .cf-paginacion{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding:14px 16px;border-top:1px solid var(--inicio-borde);background:var(--inicio-pie);font-size:12px;color:var(--inicio-secundario)}
+.consulta-financiera .cf-paginacion>div,.consulta-financiera .cf-paginacion>label{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.consulta-financiera .cf-paginacion .cf-boton{font-size:12px;min-height:38px;padding:8px 11px}
+.consulta-financiera .cf-paginacion select{padding:0 8px;min-height:38px}
+.consulta-financiera .cf-paginacion input{width:60px;padding:0 6px;min-height:38px;text-align:center}
+.consulta-financiera .cf-nota-exportacion{font-size:11px}
+.consulta-financiera .cf-sin-resultados{padding:24px 16px;text-align:center;color:var(--inicio-secundario);font-size:13px;border-top:1px solid var(--inicio-borde)}
+.cf-deudores{width:100%;max-width:1280px;margin:0 auto}
+.consulta-financiera .cf-deudores-contenido{display:flex;flex-direction:column;gap:18px;min-width:0;padding-bottom:24px}
+.consulta-financiera .cf-volver{display:inline-flex;align-items:center;gap:8px;min-height:42px;align-self:flex-start;font-size:13px;font-weight:600;border-radius:8px;color:var(--inicio-secundario)}
+.consulta-financiera .cf-volver:hover{color:var(--inicio-acento)}
+.consulta-financiera .cf-controles-deudores{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;margin-top:18px;padding-top:18px;border-top:1px solid var(--inicio-divisor)}
+.consulta-financiera .cf-controles-deudores>.selector-ciclo-modulo{width:270px;max-width:100%}
+.consulta-financiera .cf-busqueda{width:340px;max-width:100%;font-size:12px;font-weight:600;line-height:1.5;color:var(--inicio-secundario)}
+.consulta-financiera .cf-busqueda>span{display:flex;align-items:center;position:relative;margin-top:6px}
+.consulta-financiera .cf-busqueda svg{position:absolute;left:12px;color:var(--inicio-secundario)}
+.consulta-financiera .cf-busqueda input{width:100%;padding-left:38px}
+.consulta-financiera .cf-fecha-deudores{margin-top:14px;font-size:11px}
+.consulta-financiera .cf-contador{border-radius:20px;padding:1px 6px;background:#1456f0;color:#fff;font-size:11px}
+.consulta-financiera .cf-filtros-panel{padding:16px}
+.consulta-financiera .cf-filtros{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.consulta-financiera .cf-chips{font-size:12px}
+.consulta-financiera .cf-chips>span:first-child{color:var(--inicio-secundario)}
+.consulta-financiera .cf-deudores-resumen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:20px}
+.consulta-financiera .cf-deudores-resumen>div{display:flex;align-items:center;gap:12px;min-width:0;padding:14px 16px;border:1px solid var(--inicio-borde);border-radius:10px;background:var(--inicio-pie)}
+.consulta-financiera .cf-deudores-resumen>div>div{min-width:0}
+.consulta-financiera .cf-deudores-resumen p{font-size:12px;color:var(--inicio-secundario);font-weight:600;line-height:1.5}
+.consulta-financiera .cf-deudores-resumen strong{display:block;font-size:25px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.consulta-financiera .cf-tabla-deudores{min-width:960px}
+.consulta-financiera .cf-tabla-deudores th:nth-child(6){min-width:130px}
+.consulta-financiera .cf-tabla-deudores th:last-child{text-align:right}
+.consulta-financiera .cf-orden-columna{display:flex;align-items:center;gap:7px;width:100%;text-align:left;color:inherit;min-height:24px}
+.consulta-financiera th:last-child .cf-orden-columna{justify-content:flex-end}
+.consulta-financiera .cf-orden-columna:hover{color:var(--inicio-acento)}
+.consulta-financiera .cf-orden-columna svg{flex-shrink:0}
+.consulta-financiera .cf-tabla .cf-alumno button{color:var(--inicio-acento);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:4px}
+.consulta-financiera .cf-tabla .cf-alumno button:hover{text-decoration-style:solid}
+.consulta-financiera .cf-fecha-tabla{color:var(--inicio-secundario);white-space:nowrap}
+.consulta-financiera .cf-grado{white-space:nowrap}
+.consulta-financiera .cf-paginacion-cuenta{font-size:12px;color:var(--inicio-secundario)}
+.consulta-financiera .cf-paginacion-cuenta span{color:var(--inicio-texto)}
+.consulta-financiera .cf-paginacion button{font-size:12px;min-height:38px;padding:8px 11px;border:1px solid var(--inicio-borde);border-radius:8px;background:var(--inicio-fondo);color:var(--inicio-texto);box-shadow:none}
+.consulta-financiera .cf-paginacion button:not(:disabled):hover{background:var(--inicio-suave);border-color:var(--inicio-borde-hover)}
+.consulta-financiera .cf-paginacion button:disabled{opacity:1;color:var(--inicio-secundario);background:var(--inicio-pie);cursor:not-allowed}
+.consulta-financiera .cf-paginacion>div>span{color:var(--inicio-secundario);font-size:12px}
+.consulta-financiera .cf-tabla .cf-vacio{position:static!important;max-width:none!important}
+.consulta-financiera .cf-vacio h3{color:var(--inicio-texto)}
+.consulta-financiera .cf-vacio p{color:var(--inicio-secundario)}
+.consulta-financiera .reporte-filtros>div>button,.consulta-financiera .cf-filtros>div>button{min-height:42px;border-color:var(--inicio-borde);background:var(--inicio-fondo);color:var(--inicio-texto);font-size:12px}
+.consulta-financiera .reporte-filtros>div>button:hover,.consulta-financiera .cf-filtros>div>button:hover{background:var(--inicio-suave);border-color:var(--inicio-borde-hover)}
+.consulta-financiera .reporte-filtros>div>button[aria-expanded=true],.consulta-financiera .cf-filtros>div>button[aria-expanded=true]{border-color:var(--inicio-acento);color:var(--inicio-acento)}
+.consulta-financiera button:focus-visible,.consulta-financiera summary:focus-visible,.consulta-financiera .cf-tabla-desplazable:focus-visible,.consulta-financiera input:focus-visible,.consulta-financiera select:focus-visible{outline:2px solid var(--inicio-acento);outline-offset:2px}
+.consulta-financiera.cf-modal-fondo{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:#0009;backdrop-filter:blur(4px);padding:16px}
+.consulta-financiera .cf-modal-panel{display:flex;flex-direction:column;max-height:90vh;max-width:1340px;overflow:hidden}
+.consulta-financiera .cf-modal-panel .cf-cuerpo{overflow:auto;flex:1;min-height:0}
+@media(max-width:1000px){.consulta-financiera .cf-resumen{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:639px){
+  .consulta-financiera .cf-cabecera,.consulta-financiera .cf-cuerpo{padding:16px}
+  .consulta-financiera .cf-identidad{flex-basis:100%}
+  .consulta-financiera .cf-cabecera h2{font-size:20px}
+  .consulta-financiera .cf-acciones{width:100%}
+  .consulta-financiera .cf-acciones>.cf-boton{flex:1;font-size:12px;padding:10px}
+  .consulta-financiera .cf-acciones>.cf-cerrar{flex:0}
+  .consulta-financiera .cf-campo{width:100%}
+  .consulta-financiera .cf-parametros{gap:12px;align-items:stretch}
+  .consulta-financiera .cf-parametros>.cf-campo{flex:1 1 130px;min-width:0}
+  .consulta-financiera .cf-resumen{grid-template-columns:1fr;gap:10px}
+  .consulta-financiera .cf-indicador{padding:12px 14px}
+  .consulta-financiera .cf-indicador-valor,.consulta-financiera .cf-indicador-secundario .cf-indicador-valor{font-size:22px;margin-top:4px}
+  .consulta-financiera .cf-tabla-barra{padding:14px}
+  .consulta-financiera .cf-orden{width:100%}
+  .consulta-financiera .cf-orden .cf-campo{flex:1;width:auto;min-width:135px}
+  .consulta-financiera .cf-orden .cf-boton{font-size:12px}
+  .consulta-financiera .cf-tabla th:first-child,.consulta-financiera .cf-tabla td:first-child{min-width:155px;max-width:175px}
+  .consulta-financiera .cf-paginacion{padding:12px;gap:12px}
+  .consulta-financiera .cf-paginacion>div{justify-content:center;width:100%}
+  .consulta-financiera .cf-controles-deudores>.selector-ciclo-modulo,.consulta-financiera .cf-busqueda{width:100%;max-width:none}
+  .consulta-financiera .cf-controles-deudores>.cf-boton{width:100%}
+  .consulta-financiera .cf-deudores-resumen{grid-template-columns:1fr;padding:14px;gap:10px}
+  .consulta-financiera .cf-deudores-resumen strong{font-size:22px}
+  .consulta-financiera .cf-filtros>div{flex:1 1 130px;min-width:0}
+  .consulta-financiera .cf-filtros>div>button{width:100%;justify-content:space-between}
+  .consulta-financiera .reporte-filtros>div:nth-of-type(even)>div,.consulta-financiera .cf-filtros>div:nth-of-type(even)>div{left:auto;right:0}
+}

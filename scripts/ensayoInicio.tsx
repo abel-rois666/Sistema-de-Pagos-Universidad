@@ -1,0 +1,10 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {MemoryRouter} from 'react-router-dom';
+import '../src/index.css';
+const qs=new URLSearchParams(location.search);document.documentElement.classList.toggle('dark',qs.has('oscuro'));
+window.fetch=async()=>new Response('{}',{status:403});
+const {useAppStore}=await import('../src/store/useAppStore');
+useAppStore.setState({currentUser:{id:'ficticio',rol:qs.get('rol')||'ADMINISTRADOR',username:'Ensayo'} as any});
+const {default:InicioArea}=await import('../src/app/InicioArea');
+createRoot(document.getElementById('root')!).render(<MemoryRouter><main className="min-h-screen bg-slate-50 dark:bg-slate-950"><InicioArea/></main></MemoryRouter>);

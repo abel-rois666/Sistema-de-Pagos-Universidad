@@ -1,0 +1,24 @@
+/* Escala de Gestión de Alumnos, sin afectar el PDF ni las columnas elegidas. */
+.cobertura-planes{width:100%;max-width:1280px;min-width:0}
+.cobertura-planes h1{font-size:24px;line-height:1.4}
+.cobertura-planes select,.cobertura-planes input:not([type=checkbox]){min-height:42px;font-size:13px}
+.cobertura-planes button{font-size:13px}
+.cobertura-planes .cobertura-desplazamiento{max-width:100%;scrollbar-width:thin}
+.cobertura-planes .cobertura-tabla{border-collapse:collapse;font-size:12px;line-height:1.5}
+.cobertura-planes .cobertura-tabla th,.cobertura-planes .cobertura-tabla td{padding:10px 12px;vertical-align:top}
+.cobertura-planes .cobertura-tabla th{font-size:11px}
+.cobertura-planes .cobertura-tabla th button{font-size:11px;line-height:1.5;white-space:normal;text-align:inherit}
+.cobertura-planes .cobertura-tabla td{white-space:normal;overflow-wrap:anywhere}
+.cobertura-planes .cobertura-tabla [data-columna=alumnoNombre]{width:195px;max-width:200px}
+.cobertura-planes .cobertura-tabla td[data-columna=alumnoNombre]{font-size:13px;line-height:1.35}
+.cobertura-planes .cobertura-tabla td[data-columna=alumnoNombre] a{display:inline;overflow-wrap:anywhere}
+.cobertura-planes .cobertura-tabla td[data-columna=alumnoNombre] a svg{display:inline;vertical-align:middle}
+.cobertura-planes .cobertura-tabla [data-columna=licenciatura]{width:150px;max-width:180px}
+.cobertura-planes .cobertura-tabla [data-columna=tipo]{width:130px;max-width:150px}
+.cobertura-planes .cobertura-tabla [data-columna=observaciones],.cobertura-planes .cobertura-tabla [data-columna=faltantes]{width:160px;max-width:180px}
+.cobertura-planes .cobertura-tabla [data-columna=conceptos]{width:75px}
+.cobertura-planes .cobertura-tabla td[data-columna=monto]{white-space:nowrap;overflow-wrap:normal;font-variant-numeric:tabular-nums}
+.cobertura-planes .cobertura-tabla td span{font-size:11px}
+.cobertura-planes .cobertura-tabla td span.inline-flex{padding:3px 7px;line-height:1.4}
+.cobertura-planes .cobertura-desplazamiento:focus-visible{outline:2px solid #1456f0;outline-offset:-2px}
+@media(max-width:639px){.cobertura-planes h1{font-size:21px}}

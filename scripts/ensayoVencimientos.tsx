@@ -1,0 +1,20 @@
+import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
+import '../src/index.css';
+const qs = new URLSearchParams(location.search); document.documentElement.classList.toggle('dark', qs.has('oscuro'));
+window.fetch = async () => { throw new Error('El ensayo no permite red real'); };
+Object.assign(window,{ensayoCSV:[]});
+const crearURL=URL.createObjectURL.bind(URL);URL.createObjectURL=blob=>{(window as any).ensayoCSV.push(blob);return crearURL(blob);};
+HTMLAnchorElement.prototype.click=function(){};
+const alumnos = Array.from({length: 26}, (_,i) => ({id:`a${i}`,nombre_completo:`ALUMNO FICTICIO ${String(i).padStart(2,'0')}`,matricula:`00${i}`,licenciatura:'DERECHO',grado_actual:'5',turno:'MATUTINO',estatus:i===2?'BAJA':'ACTIVO'}));
+const plans = alumnos.filter(a=>a.id!=='a5').map((a,i)=>({id:`p${i}`,alumno_id:a.id,nombre_alumno:a.nombre_completo,ciclo_id:'c',tipo_plan:'Cuatrimestral',licenciatura:'DERECHO',concepto_1:'PAGO',cantidad_1:10,fecha_1:'2026-11-11',estatus_1:'PENDIENTE'}));
+Object.assign(plans[0],{cantidad_1:1000,estatus_1:'R-83 (Abono $400.00, Resta $600.00)',concepto_2:'VENCE HOY',cantidad_2:1000,fecha_2:'2026-11-12',estatus_2:'PENDIENTE',concepto_3:'SIGUIENTE MES',cantidad_3:500,fecha_3:'2026-12-11',estatus_3:'PENDIENTE',concepto_4:'SIN FECHA VÁLIDA',cantidad_4:200,fecha_4:'31/11/2026',estatus_4:'PENDIENTE'});
+plans[1].estatus_1='F-12306';
+const {useAppStore}=await import('../src/store/useAppStore');
+useAppStore.setState({alumnos:alumnos as any,plans:plans as any,ciclos:[{id:'c',nombre:'2027-1',tipo_periodo:'Cuatrimestral',activo:true}] as any,activeCicloId:'c',currentUser:{id:'ensayo',username:'Ensayo',rol:'ADMINISTRADOR'} as any});
+const {default:PagosAdeudosAlumnos}=await import('../src/components/reportes/PagosAdeudosAlumnos');
+const {default:Deudores}=await import('../src/components/Deudores');
+const {default:CoberturaPlanesPago}=await import('../src/components/reportes/CoberturaPlanesPago');
+function Ensayo(){const [deudores,setDeudores]=useState(false);return <main className="min-h-screen bg-gray-50 p-3 dark:bg-[#080e18] text-gray-900 dark:text-gray-100">{qs.has('cobertura')?<CoberturaPlanesPago/>:<><nav aria-label="Ensayo"><button className="p-3 underline" onClick={()=>setDeudores(v=>!v)}>{deudores?'Ver resumen':'Ver Deudores'}</button></nav>{deudores?<Deudores onBack={()=>setDeudores(false)} onNavigateToAlumno={()=>{}}/>:<PagosAdeudosAlumnos/>}</>}</main>;}
+createRoot(document.getElementById('root')!).render(<MemoryRouter><Ensayo/></MemoryRouter>);

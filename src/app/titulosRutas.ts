@@ -13,6 +13,7 @@ const titulos: Record<string, string> = {
   '/reportes-escolares': 'Reportes Escolares', '/reporte-egresados': 'Reporte de Egresados',
   '/certificacion': 'Exportar certificados', '/titulacion': 'Exportar títulos',
   '/rh': 'Recursos Humanos', '/rh/evaluacion': 'Evaluación NOM-035',
+  '/rh/personal': 'Personal administrativo', '/rh/resultados': 'Resultados NOM-035', '/rh/planes': 'Planes de acción NOM-035',
   '/catalogos': 'Catálogos', '/plantillas': 'Plantillas y Documentos', '/ciclos': 'Ciclos Escolares',
   '/configuracion-app': 'Configuración General', '/usuarios': 'Módulo de Usuarios', '/aprobacion-prospectos': 'Aprobación de Prospectos',
 };

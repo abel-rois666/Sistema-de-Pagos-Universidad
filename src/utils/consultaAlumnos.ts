@@ -1,5 +1,5 @@
 import type { Alumno, PaymentPlan, PlantillaPlan } from '../types';
-import { calculateStudentTotals } from '../utils';
+import { fechaFinancieraHoy, saldosPorVencimiento, type SaldoPorVencimiento } from '../finanzas/vencimientos';
 import { compararGrados, gradoCanonico } from './promocionAlumnos';
 
 export interface FiltrosPadron { busqueda: string; licenciaturas: string[]; grados: string[]; turnos: string[]; estatus: string[] }
@@ -21,8 +21,9 @@ export function ordenarPadron(alumnos: readonly Alumno[], campo: keyof Alumno, d
     : String(a[campo]||'').localeCompare(String(b[campo]||''),'es',{numeric:true,sensitivity:'base'})) * (direccion==='asc'?1:-1)
     || a.id.localeCompare(b.id));
 }
-export interface RegistroReporteFinanciero { id:string; nombre:string; licenciatura:string; grado:string; estatus:string; tienePlan:boolean; pagado:number; adeuda:number }
-export function ordenarReporteFinanciero(registros:readonly RegistroReporteFinanciero[], campo:'nombre'|'grado'|'pagado'|'adeuda', sentido:'asc'|'desc') {
+export interface RegistroReporteFinanciero extends SaldoPorVencimiento { id:string; nombre:string; licenciatura:string; grado:string; estatus:string; tienePlan:boolean }
+export type OrdenReporteFinanciero = 'nombre'|'grado'|'pagado'|'adeuda'|'vencido'|'enPlazo'|'revisarFecha';
+export function ordenarReporteFinanciero(registros:readonly RegistroReporteFinanciero[], campo:OrdenReporteFinanciero, sentido:'asc'|'desc') {
   return [...registros].sort((a,b)=>(campo==='nombre'?a.nombre.localeCompare(b.nombre,'es',{numeric:true,sensitivity:'base'}):campo==='grado'?compararGrados(a.grado,b.grado):a[campo]-b[campo])*(sentido==='asc'?1:-1)||a.id.localeCompare(b.id));
 }
 export function ordenarMesesReporte(meses:readonly string[]) {
@@ -31,7 +32,8 @@ export function ordenarMesesReporte(meses:readonly string[]) {
   return [...meses].sort((a,b)=>valor(b)-valor(a)||a.localeCompare(b,'es'));
 }
 /** No atribuye importes por nombre. Los legados sin identidad se muestran para revisión por separado. */
-export function construirReporteFinanciero(alumnos: readonly Alumno[], poblacion: readonly Alumno[], planes: readonly PaymentPlan[], opciones: {tipo:string; mes:string; omitirSinPlan:boolean}) {
+export function construirReporteFinanciero(alumnos: readonly Alumno[], poblacion: readonly Alumno[], planes: readonly PaymentPlan[], opciones: {tipo:string; mes:string; omitirSinPlan:boolean; fechaReferencia?:string}) {
+  const fechaReferencia = opciones.fechaReferencia || fechaFinancieraHoy();
   const ids = new Set(alumnos.map(a=>a.id));
   const porAlumno = new Map<string,PaymentPlan[]>();
   const pendientes: PaymentPlan[] = [];
@@ -42,7 +44,7 @@ export function construirReporteFinanciero(alumnos: readonly Alumno[], poblacion
   }
   const registros: RegistroReporteFinanciero[] = poblacion.map(a=>{
     const propios = porAlumno.get(a.id)||[];
-    const totales=propios.reduce((total,p)=>{const t=calculateStudentTotals(p,a.estatus,opciones.mes==='Todos'?undefined:opciones.mes);return {pagado:total.pagado+t.paid,adeuda:total.adeuda+t.owed};},{pagado:0,adeuda:0});
+    const totales=propios.reduce((total,p)=>{const t=saldosPorVencimiento(p,a.estatus,opciones.mes,fechaReferencia);return {pagado:total.pagado+t.pagado,adeuda:total.adeuda+t.adeuda,vencido:total.vencido+t.vencido,enPlazo:total.enPlazo+t.enPlazo,revisarFecha:total.revisarFecha+t.revisarFecha};},{pagado:0,adeuda:0,vencido:0,enPlazo:0,revisarFecha:0});
     return {id:a.id,nombre:a.nombre_completo,licenciatura:a.licenciatura||'',grado:a.grado_actual||'',estatus:a.estatus||'ACTIVO',tienePlan:propios.length>0,...totales};
   }).filter(r=>!opciones.omitirSinPlan||r.tienePlan);
   return {registros,pendientes};

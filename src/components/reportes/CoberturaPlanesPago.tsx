@@ -6,6 +6,7 @@ import { useCicloModulo } from '../../hooks/useCicloModulo';
 import { MultiSelectFilter } from '../MultiSelectFilter';
 import { buildPlanCoverage, countPlanObservations, filterPlanCoverage, PLAN_COVERAGE_COLUMNS, summarizeCoverage, type PlanCoverageColumn, type PlanCoverageEntry, type PlanCoverageFilters, type PlanCoverageIntegralFilter, type PlanCoverageStatus } from '../../utils/planCoverageUtils';
 import { createPlanCoveragePdf } from '../../utils/planCoveragePdf';
+import './coberturaPlanesPago.css';
 
 const money = (value: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
 const countStudents = (rows: PlanCoverageEntry[]) => new Set(rows.map(row => row.alumnoId)).size;
@@ -97,7 +98,7 @@ export default function CoberturaPlanesPago() {
   };
   const renderCell = (entry: PlanCoverageEntry, key: PlanCoverageColumn) => {
     switch (key) {
-      case 'alumnoNombre': return <td key={key} className="p-3 align-top font-medium">
+      case 'alumnoNombre': return <td key={key} data-columna={key} className="p-3 align-top font-medium">
         <Link
           to={entry.planId ? '/plan-pagos' : '/ficha-alumno'}
           state={{
@@ -113,22 +114,22 @@ export default function CoberturaPlanesPago() {
         </Link>
         {entry.matricula && <span className="block text-xs font-normal text-[#8e8e93]">{entry.matricula}</span>}
       </td>;
-      case 'licenciatura': return <td key={key} className="p-3 align-top">{entry.licenciatura}</td>;
-      case 'tipo': return <td key={key} className="p-3 align-top">{entry.tipo}<span className="block text-xs text-[#8e8e93]">{entry.folio}</span></td>;
-      case 'integral': return <td key={key} className="p-3 align-top">
+      case 'licenciatura': return <td key={key} data-columna={key} className="p-3 align-top">{entry.licenciatura}</td>;
+      case 'tipo': return <td key={key} data-columna={key} className="p-3 align-top">{entry.tipo}<span className="block text-xs text-[#8e8e93]">{entry.folio}</span></td>;
+      case 'integral': return <td key={key} data-columna={key} className="p-3 align-top">
         {entry.estado === 'SIN_PLAN' ? '—' : <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${entry.integral ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>{entry.integral ? 'Integral' : 'No integral'}</span>}
       </td>;
-      case 'observaciones': return <td key={key} className="p-3 align-top text-xs text-[#45515e] dark:text-gray-300 min-w-[180px] max-w-[260px]">
+      case 'observaciones': return <td key={key} data-columna={key} className="p-3 align-top text-xs text-[#45515e] dark:text-gray-300 min-w-0 max-w-[180px]">
         {entry.observaciones.length ? <ul className="space-y-1">{entry.observaciones.map(observacion => <li key={observacion}>{observacion}</li>)}</ul> : '—'}
       </td>;
-      case 'estado': return <td key={key} className="p-3 align-top"><span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${entry.estado === 'COMPLETO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : entry.estado === 'INCOMPLETO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100'}`}>{entry.estado === 'SIN_PLAN' ? 'Sin plan' : entry.estado === 'COMPLETO' ? 'Completo' : 'Incompleto'}</span></td>;
-      case 'conceptos': return <td key={key} className="p-3 align-top text-right tabular-nums">{entry.conceptos || '—'}</td>;
-      case 'monto': return <td key={key} className="p-3 align-top text-right tabular-nums">{entry.estado === 'SIN_PLAN' ? '—' : money(entry.monto)}</td>;
-      case 'faltantes': return <td key={key} className="p-3 align-top text-xs text-[#45515e] dark:text-gray-400 max-w-[210px]">{entry.faltantes.length ? entry.faltantes.join('; ') : '—'}</td>;
+      case 'estado': return <td key={key} data-columna={key} className="p-3 align-top"><span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${entry.estado === 'COMPLETO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : entry.estado === 'INCOMPLETO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100'}`}>{entry.estado === 'SIN_PLAN' ? 'Sin plan' : entry.estado === 'COMPLETO' ? 'Completo' : 'Incompleto'}</span></td>;
+      case 'conceptos': return <td key={key} data-columna={key} className="p-3 align-top text-right tabular-nums">{entry.conceptos || '—'}</td>;
+      case 'monto': return <td key={key} data-columna={key} className="p-3 align-top text-right tabular-nums">{entry.estado === 'SIN_PLAN' ? '—' : money(entry.monto)}</td>;
+      case 'faltantes': return <td key={key} data-columna={key} className="p-3 align-top text-xs text-[#45515e] dark:text-gray-400 max-w-[180px]">{entry.faltantes.length ? entry.faltantes.join('; ') : '—'}</td>;
     }
   };
   return (
-    <main className="w-full max-w-7xl mx-auto pb-10 text-[#222222] dark:text-gray-100">
+    <main className="cobertura-planes w-full mx-auto pb-10 text-[#222222] dark:text-gray-100">
       <div className="rounded-[20px] border border-[#e5e7eb] dark:border-white/10 bg-white dark:bg-[#181e25] shadow-[var(--shadow-subtle)] overflow-hidden">
         <div className="px-4 sm:px-6 py-5 border-b border-[#e5e7eb] dark:border-white/10 bg-[#eef2ff] dark:bg-[#1c2228]">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -274,10 +275,10 @@ export default function CoberturaPlanesPago() {
                   <span className="text-[#8e8e93]">Un plan puede figurar en varias.</span>
                 </div>}
               </div>
-              <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-sm">
+              <div className="cobertura-desplazamiento overflow-x-auto custom-scrollbar" tabIndex={0} role="region" aria-label={`Cobertura de ${ciclo.cicloNombre}, tabla desplazable`}>
+                <table className="cobertura-tabla w-full" style={{minWidth:visibleColumnDefs.length>6?1000:visibleColumnDefs.length>3?680:0}}>
                   <thead className="bg-[#f2f3f5] dark:bg-[#202831] text-[#45515e] dark:text-gray-300 text-xs uppercase tracking-wide">
-                    <tr>{visibleColumnDefs.map(({ key, label }) => <th key={key} scope="col" aria-sort={sortKey === key ? sortDirection === 'asc' ? 'ascending' : 'descending' : 'none'} className={`p-3 ${key === 'conceptos' || key === 'monto' ? 'text-right' : 'text-left'}`}><button type="button" onClick={() => changeSort(key)} className={`inline-flex items-center gap-1 hover:text-[#1456f0] dark:hover:text-blue-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1456f0] ${key === 'conceptos' || key === 'monto' ? 'justify-end w-full' : ''}`}>{label}<ArrowUpDown size={13} aria-hidden="true" /></button></th>)}</tr>
+                    <tr>{visibleColumnDefs.map(({ key, label }) => <th key={key} data-columna={key} scope="col" aria-sort={sortKey === key ? sortDirection === 'asc' ? 'ascending' : 'descending' : 'none'} className={`p-3 ${key === 'conceptos' || key === 'monto' ? 'text-right' : 'text-left'}`}><button type="button" onClick={() => changeSort(key)} className={`inline-flex items-center gap-1 hover:text-[#1456f0] dark:hover:text-blue-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1456f0] ${key === 'conceptos' || key === 'monto' ? 'justify-end w-full' : ''}`}>{label}<ArrowUpDown size={13} aria-hidden="true" /></button></th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-[#e5e7eb] dark:divide-white/10">
                     {pageEntries.map(entry => <tr key={entry.key} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10">
