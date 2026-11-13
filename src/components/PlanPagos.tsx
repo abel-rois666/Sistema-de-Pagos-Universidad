@@ -13,9 +13,10 @@ import { PaymentPlan, Alumno, CicloEscolar } from '../types';
 import { isPaid, getMaxFolioCounter, getCyclePrefix, toTitleCase } from '../utils';
 import { formatGrado } from '../utils/formatUtils';
 import { estatusVisiblePlanPago } from '../utils/estatusPlanPago';
+import { indicesRestablecidosPlan, referenciaHistoricaRequiereRevision } from '../finanzas/cambiosEstatusPlan';
 import { resolverCicloPlanPagoImportado, tipoPeriodoPlanPago, validarCicloPlanPago, validarPeriodicidadAcademicaPlanPago } from '../utils/cicloPlanPago';
 import { cargarPeriodicidadAcademicaAlumno, tieneVinculoExplicitoPlan } from '../services/asociacionPlanPagoService';
-import { supabase } from '../lib/supabase';
+import { supabase, fetchAllSupabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -1131,16 +1132,7 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
         return;
       }
     }
-    const indicesToFree: number[] = [];
-    for (let i = 1; i <= 18; i++) {
-        const estatusKey = `estatus_${i}` as keyof PaymentPlan;
-        const oldStatus = selectedPlan[estatusKey] as string || '';
-        const newStatus = editForm[estatusKey] as string || 'PENDIENTE';
-        
-        if (oldStatus !== 'PENDIENTE' && (newStatus.trim() === '' || newStatus === 'PENDIENTE')) {
-             indicesToFree.push(i);
-        }
-    }
+    const indicesToFree = indicesRestablecidosPlan(selectedPlan, editForm);
 
     if (indicesToFree.length > 0) {
       if (await tieneVinculoExplicitoPlan(selectedPlan.id, indicesToFree)) {
@@ -1156,12 +1148,12 @@ export default function PlanPagos({ initialAlumnoId, initialPlanId, origenComuni
         .in('ciclo_id', idsHomonomos.length ? idsHomonomos : [selectedPlan.ciclo_id]);
       if (errorRecibos) throw errorRecibos;
       if (recibos?.length) {
-        const { data: detalles, error: errorDetalles } = await supabase.from('recibos_detalles')
-          .select('id').in('recibo_id', recibos.map(recibo => recibo.id))
-          .in('indice_concepto_plan', indicesToFree).limit(1);
+        const { data: detalles, error: errorDetalles } = await fetchAllSupabase(() => supabase.from('recibos_detalles')
+          .select('id, vinculos:planes_pago_vinculos_recibo(plan_id, anulado_en)').in('recibo_id', recibos.map(recibo => recibo.id))
+          .in('indice_concepto_plan', indicesToFree).order('id'));
         if (errorDetalles) throw errorDetalles;
-        if (detalles?.length) {
-          toast.error('Hay recibos vinculados a esos pagos. Revísalos antes de cambiar el estatus; el plan no se modificó.');
+        if (detalles?.some(detalle => referenciaHistoricaRequiereRevision(selectedPlan.id, detalle.vinculos || []))) {
+          toast.error('Hay referencias históricas de recibos en esas posiciones sin identificar el plan. Revisa su conciliación antes de restablecer el estatus. El plan no se modificó.');
           return;
         }
       }

@@ -112,7 +112,10 @@ begin
       insert into public.planes_pago_detalles
         (plan_id, indice_concepto, concepto, fecha_vencimiento, cantidad, estatus)
       values (new.id, v_indice, v_concepto, v_fecha, v_cantidad, v_estatus);
-    else
+    elsif (v_cambio_concepto and v_detalle.concepto is distinct from v_concepto)
+      or (v_cambio_fecha and v_detalle.fecha_vencimiento is distinct from v_fecha)
+      or (v_detalle.cantidad is distinct from v_cantidad)
+      or (v_cambio_estatus and v_detalle.estatus is distinct from v_estatus) then
       update public.planes_pago_detalles set
         concepto = case when v_cambio_concepto then v_concepto else v_detalle.concepto end,
         fecha_vencimiento = case when v_cambio_fecha then v_fecha else v_detalle.fecha_vencimiento end,

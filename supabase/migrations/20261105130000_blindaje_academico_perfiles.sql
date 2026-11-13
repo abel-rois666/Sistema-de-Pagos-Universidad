@@ -31,22 +31,44 @@ create or replace function public.academico_alcance_docente_v1(
 $$;
 
 -- Las lecturas de caja/finanzas se conservan; docentes ven únicamente su carga.
+-- Se usa (select ...) para que PostgreSQL evalúe el rol y usuario activo una sola vez por consulta (InitPlan)
+-- en lugar de ejecutar funciones SECURITY DEFINER por cada fila leída en usuarios no docentes.
 drop policy if exists guardia_grupos_lectura_v1 on public.grupos;
 create policy guardia_grupos_lectura_v1 on public.grupos as restrictive for select to public
-using (public.academico_alcance_docente_v1(id));
+using (
+  (select public.academico_usuario_activo_v1())
+  and ((select coalesce(public.get_my_rol(),'')<>'DOCENTE') or public.academico_alcance_docente_v1(id))
+);
 drop policy if exists guardia_relaciones_alumnos_lectura_v1 on public.alumnos_grupos;
 create policy guardia_relaciones_alumnos_lectura_v1 on public.alumnos_grupos as restrictive for select to public
-using (public.academico_alcance_docente_v1(grupo_id,alumno_id));
+using (
+  (select public.academico_usuario_activo_v1())
+  and ((select coalesce(public.get_my_rol(),'')<>'DOCENTE') or public.academico_alcance_docente_v1(grupo_id,alumno_id))
+);
 drop policy if exists guardia_cargas_lectura_v1 on public.docentes_grupos_asignaturas;
 create policy guardia_cargas_lectura_v1 on public.docentes_grupos_asignaturas as restrictive for select to public
-using (public.academico_alcance_docente_v1(grupo_id,null,null,asignatura_id)
-  and (public.get_my_rol()<>'DOCENTE' or exists(select 1 from public.usuarios u where u.auth_id=auth.uid() and u.docente_id=docentes_grupos_asignaturas.docente_id)));
+using (
+  (select public.academico_usuario_activo_v1())
+  and (
+    (select coalesce(public.get_my_rol(),'')<>'DOCENTE')
+    or (
+      public.academico_alcance_docente_v1(grupo_id,null,null,asignatura_id)
+      and exists(select 1 from public.usuarios u where u.auth_id=auth.uid() and u.docente_id=docentes_grupos_asignaturas.docente_id)
+    )
+  )
+);
 drop policy if exists guardia_programas_lectura_v1 on public.alumno_programas;
 create policy guardia_programas_lectura_v1 on public.alumno_programas as restrictive for select to public
-using (public.academico_alcance_docente_v1(null,alumno_id,null,null,plan_id));
+using (
+  (select public.academico_usuario_activo_v1())
+  and ((select coalesce(public.get_my_rol(),'')<>'DOCENTE') or public.academico_alcance_docente_v1(null,alumno_id,null,null,plan_id))
+);
 drop policy if exists guardia_calificaciones_lectura_v1 on public.inscripciones_academicas;
 create policy guardia_calificaciones_lectura_v1 on public.inscripciones_academicas as restrictive for select to public
-using (public.academico_alcance_docente_v1(null,alumno_id,ciclo_id,asignatura_id));
+using (
+  (select public.academico_usuario_activo_v1())
+  and ((select coalesce(public.get_my_rol(),'')<>'DOCENTE') or public.academico_alcance_docente_v1(null,alumno_id,ciclo_id,asignatura_id))
+);
 
 do $politicas$
 declare v_tabla text; v_roles text; v_rol_sql text;
@@ -56,7 +78,7 @@ begin
       when v_tabla='inscripciones_academicas' then '(''ADMINISTRADOR'',''COORDINADOR CONTROL ESCOLAR'',''COORDINADOR ACADEMICO'',''DOCENTE'')'
       else '(''ADMINISTRADOR'',''COORDINADOR CONTROL ESCOLAR'',''COORDINADOR ACADEMICO'')' end;
     -- Identificadores y valores proceden exclusivamente de la lista fija anterior.
-    v_rol_sql := 'public.academico_usuario_activo_v1() and public.get_my_rol() in '||v_roles;
+    v_rol_sql := '(select public.academico_usuario_activo_v1() and public.get_my_rol() in '||v_roles||')';
     execute format('drop policy if exists guardia_insertar_v1 on public.%I',v_tabla);
     execute format('create policy guardia_insertar_v1 on public.%I as restrictive for insert to public with check (%s)',v_tabla,v_rol_sql);
     execute format('drop policy if exists guardia_actualizar_v1 on public.%I',v_tabla);
@@ -68,16 +90,17 @@ end $politicas$;
 
 create or replace function public.blindar_captura_docente_v1()
 returns trigger language plpgsql security definer set search_path = pg_catalog, public as $$
-declare v_campo text; v_bloqueo text; v_nota numeric; v_promedio numeric; v_cambio boolean;
+declare v_campo text; v_bloqueo text; v_nota numeric; v_promedio numeric; v_cambio boolean; v_rol text;
 begin
   if auth.role()='service_role' or (auth.uid() is null and session_user in ('postgres','supabase_admin')) then
     if tg_op='DELETE' then return old; else return new; end if;
   end if;
-  if not public.academico_usuario_activo_v1() then raise exception 'Se requiere un usuario activo.' using errcode='42501'; end if;
-  if coalesce(public.get_my_rol(),'') not in ('ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR','COORDINADOR ACADEMICO','DOCENTE') then
+  select u.rol into v_rol from public.usuarios u where u.auth_id = auth.uid() and u.activo is true limit 1;
+  if v_rol is null then raise exception 'Se requiere un usuario activo.' using errcode='42501'; end if;
+  if v_rol not in ('ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR','COORDINADOR ACADEMICO','DOCENTE') then
     raise exception 'No tienes permiso para modificar calificaciones.' using errcode='42501';
   end if;
-  if public.get_my_rol()<>'DOCENTE' then if tg_op='DELETE' then return old; else return new; end if; end if;
+  if v_rol<>'DOCENTE' then if tg_op='DELETE' then return old; else return new; end if; end if;
   if tg_op='DELETE' then raise exception 'Un docente no puede eliminar la inscripción del alumno. Usa el guardado de la captura.' using errcode='42501'; end if;
   if not public.academico_alcance_docente_v1(null,new.alumno_id,new.ciclo_id,new.asignatura_id) then raise exception 'La materia y el alumno no pertenecen a tu carga.' using errcode='42501'; end if;
   if tg_op='INSERT' and (new.id_observacion_certificacion is not null or new.ciclo_legado is not null) then
