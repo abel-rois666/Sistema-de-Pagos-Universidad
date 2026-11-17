@@ -16,6 +16,7 @@ import { es } from 'date-fns/locale/es';
 import { formatGrado } from '../utils/formatUtils';
 import TabDatosGenerales from './tabs/TabDatosGenerales';
 import TabHistorialAcademico from './tabs/TabHistorialAcademico';
+import TabReportesAlumno from './tabs/TabReportesAlumno';
 import { useFichaAlumnoLogic, type TabId, type TabDef } from '../hooks/useFichaAlumnoLogic';
 import ModalConfirmacion from './ui/ModalConfirmacion';
 import SelectorCicloModulo from './ui/SelectorCicloModulo';
@@ -26,6 +27,7 @@ const TABS: TabDef[] = [
   { id: 'datos_generales',  label: 'Datos Generales',  icon: <ClipboardList size={15} /> },
   { id: 'inscripciones', label: 'Trayectoria e inscripciones', icon: <ClipboardList size={15} /> },
   { id: 'academico',        label: 'Historial académico',  icon: <BookOpen size={15} /> },
+  { id: 'reportes',         label: 'Reportes',             icon: <ShieldCheck size={15} /> },
   { id: 'pagos', label: 'Pagos', icon: <FileText size={15} /> },
   { id: 'servicio_social',  label: 'Servicio Social',  icon: <Briefcase size={15} />, adminOnly: true },
   { id: 'certificacion',    label: 'Certificación',    icon: <ScrollText size={15} />, adminOnly: true },
@@ -253,6 +255,13 @@ export default function FichaAlumno({
           {activeTab === 'inscripciones' && <TabInscripcionesAlumno key={selectedAlumno.id} alumno={selectedAlumno} onAlumnoUpdated={()=>onRefreshAlumnos?.()} programaInicialId={programaTrayectoriaId} onCapturaChange={setCapturaIngresoAbierta} />}
           {activeTab === 'academico' && (
             <TabHistorialAcademico key={selectedAlumno.id} alumno={selectedAlumno} ampliado={historialAmpliado} onAmpliar={()=>setHistorialAmpliado(a=>!a)} />
+          )}
+          {activeTab === 'reportes' && visibleTabs.some(t => t.id === 'reportes') && (
+            <TabReportesAlumno
+              key={selectedAlumno.id}
+              alumno={selectedAlumno}
+              onCapturaChange={setCapturaIngresoAbierta}
+            />
           )}
           {activeTab === 'servicio_social' && isAdmin && (
             <TabServicioSocial

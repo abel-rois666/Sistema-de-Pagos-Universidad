@@ -5,7 +5,7 @@ const titulos: Record<string, string> = {
   '/dashboard': 'Inicio', '/control-escolar': 'Control Escolar', '/control-academico': 'Control Académico',
   '/alumnos': 'Gestión de Alumnos', '/inscripciones': 'Inscripciones por ciclo',
   '/estadistica-911': 'Estadística Educativa 911', '/comunicados': 'Comunicados Escolares',
-  '/planes-estudio': 'Planes de Estudio', '/grupos': 'Gestión de Grupos', '/docentes': 'Gestión de Docentes',
+  '/planes-estudio': 'Planes de Estudio', '/grupos': 'Gestión de Grupos', '/docentes': 'Gestión de Docentes', '/reportes-academicos': 'Reportes Académicos',
   '/calificaciones': 'Captura de Calificaciones', '/horarios': 'Generador de Horarios', '/calendarios': 'Calendarios académicos',
   '/plan-pagos': 'Planes de Pago', '/ficha-alumno': 'Ficha del Alumno', '/control-ingresos': 'Control de Ingresos',
   '/pagos-adeudos-alumnos': 'Pagos y adeudos por alumno',
