@@ -34,6 +34,7 @@ const ControlAcademico = lazy(() => import('./components/ControlAcademico'));
 const GruposConfig = lazy(() => import('./components/GruposConfig'));
 const DocentesConfig = lazy(() => import('./components/DocentesConfig'));
 const HorariosAcademicos = lazy(() => import('./components/horarios/HorariosAcademicos'));
+const ReportesAcademicosModule = lazy(() => import('./components/reportesAcademicos/ReportesAcademicosModule'));
 const CalendarioAcademico = lazy(() => import('./components/calendario/CalendarioAcademico'));
 const ComunicadosEscolares = lazy(() => import('./components/comunicados/ComunicadosEscolares'));
 const Estadistica911 = lazy(() => import('./components/estadistica911/Estadistica911'));
@@ -404,6 +405,7 @@ export default function App() {
               ? <PageWrapper keyStr="horarios"><HorariosAcademicos /></PageWrapper>
               : <Navigate to="/" replace />
           } />
+          <Route path="/reportes-academicos" element={<PageWrapper keyStr="reportes-academicos"><ReportesAcademicosModule /></PageWrapper>} />
           <Route path="/rh" element={<InicioArea area="rh" />} />
           <Route path="/rh/personal" element={<PageWrapper keyStr="rh"><RecursosHumanosRuta seccion="directorio"/></PageWrapper>} />
           <Route path="/rh/resultados" element={<PageWrapper keyStr="rh"><RecursosHumanosRuta seccion="resultados"/></PageWrapper>} />

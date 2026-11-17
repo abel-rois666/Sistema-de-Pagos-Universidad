@@ -36,6 +36,7 @@ export function menuAplicacion(rol: string): ElementoMenu[] {
     {name:'Control Académico',shortName:'Académico',path:'/control-academico',icon:'academico',children:[
       {name:'Docentes',path:'/docentes',icon:'docentes'},
       {name:'Generador de Horarios',path:'/horarios',icon:'horarios'},
+      {name:'Reportes Académicos',path:'/reportes-academicos',icon:'documento'},
     ]},
     {name:'Recursos Humanos',shortName:'RRHH',path:'/rh',icon:'rh',incluirInicioMovil:false,children:[
       {name:'Personal administrativo',path:'/rh/personal',icon:'alumnos'},
@@ -78,6 +79,7 @@ export function menuActivo(items: readonly ElementoMenu[], ruta: string): Elemen
     return items.find(i=>i.path==='/') || (path==='/pagos-adeudos-alumnos'?items.find(i=>i.path==='/control-escolar'):undefined);
   // Las rutas académicas compartidas conservan la sección disponible para ese rol.
   if (['/calificaciones','/grupos','/planes-estudio'].some(p=>coincide(path,p))) return items.find(i=>i.path==='/control-academico');
+  if (coincide(path,'/reportes-academicos')) return items.find(i=>i.path==='/control-academico') || items.find(i=>i.path==='/control-escolar');
   return undefined;
 }
 export function dividirMenuMovil(items: readonly ElementoMenu[]) {

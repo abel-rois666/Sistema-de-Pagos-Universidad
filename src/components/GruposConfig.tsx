@@ -14,12 +14,14 @@ import { useAppStore } from '../store/useAppStore';
 import { useCicloModulo } from '../hooks/useCicloModulo';
 import { formatCicloEscolar } from '../utils/formatUtils';
 import ResumenInscripcionesCiclo from './inscripciones/ResumenInscripcionesCiclo';
+import PanelReportesGrupo from './reportesAcademicos/PanelReportesGrupo';
 
 export default function GruposConfig() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorConsulta, setErrorConsulta] = useState('');
   const [selectedGrupo, setSelectedGrupo] = useState<Grupo | null>(null);
+  const [grupoReportesSeleccionado, setGrupoReportesSeleccionado] = useState<Grupo | null>(null);
   const [isModalDetallesOpen, setIsModalDetallesOpen] = useState(false);
   const [isModalCrearOpen, setIsModalCrearOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -29,11 +31,15 @@ export default function GruposConfig() {
   const [turnoFilter, setTurnoFilter] = useState('');
   const [confirmModal, setConfirmModal] = useState<ModalConfirmacionProps>({ isOpen: false, title: '', message: '', onCancel: () => setConfirmModal(prev => ({ ...prev, isOpen: false })) });
   const { activeCicloId, ciclos, currentUser } = useAppStore();
+  const puedeVerReportesGrupo = ['ADMINISTRADOR', 'COORDINADOR ACADEMICO', 'COORDINADOR CONTROL ESCOLAR'].includes(
+    currentUser?.rol || ''
+  );
   const [cicloFiltroId, setCicloFiltroId] = useCicloModulo('grupos', ciclos, activeCicloId, currentUser?.id);
   const consultaGrupos = useRef(0);
 
   useEffect(() => {
     setSelectedIds([]);
+    setGrupoReportesSeleccionado(null);
     void fetchGrupos();
   }, [cicloFiltroId]);
 
@@ -319,6 +325,14 @@ export default function GruposConfig() {
           </div>
         </div>
 
+        {grupoReportesSeleccionado && (
+          <PanelReportesGrupo
+            key={grupoReportesSeleccionado.id}
+            grupo={grupoReportesSeleccionado}
+            onCerrar={() => setGrupoReportesSeleccionado(null)}
+          />
+        )}
+
         {/* Tabla */}
         <div className="bg-white dark:bg-[#1c2228] border border-gray-200 dark:border-[rgba(255,255,255,0.08)] rounded-[20px] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -400,6 +414,15 @@ export default function GruposConfig() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-3">
+                          {puedeVerReportesGrupo && (
+                            <button
+                              type="button"
+                              onClick={() => setGrupoReportesSeleccionado(grupo)}
+                              className="text-sm font-semibold text-indigo-700 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-200 transition-colors"
+                            >
+                              Reportes del grupo
+                            </button>
+                          )}
                           <button 
                             onClick={() => {
                               setSelectedGrupo(grupo);

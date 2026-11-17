@@ -6,7 +6,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useCicloModulo } from './useCicloModulo';
 import type { Alumno, ServicioSocial } from '../types';
 
-export type TabId = 'inscripciones' | 'pagos' | 'datos_generales' | 'academico' | 'servicio_social' | 'certificacion' | 'titulacion';
+export type TabId = 'inscripciones' | 'pagos' | 'datos_generales' | 'academico' | 'reportes' | 'servicio_social' | 'certificacion' | 'titulacion';
 
 export interface TabDef {
   id: TabId;
@@ -110,6 +110,7 @@ export function useFichaAlumnoLogic(initialAlumnoId?: string | null, allTabs: Ta
   const visibleTabs = allTabs.filter(t => {
     if (t.id === 'certificacion') return ['ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR'].includes(currentUser?.rol || '');
     if (t.id === 'inscripciones' && !['ADMINISTRADOR','COORDINADOR CONTROL ESCOLAR'].includes(currentUser?.rol || '')) return false;
+    if (t.id === 'reportes') return ['ADMINISTRADOR', 'COORDINADOR ACADEMICO', 'COORDINADOR CONTROL ESCOLAR'].includes(currentUser?.rol || '');
     if (t.adminOnly && !isAdmin) return false;
     if (currentUser?.rol === 'COORDINADOR FINANCIERO' && t.id === 'academico') return false;
     return true;

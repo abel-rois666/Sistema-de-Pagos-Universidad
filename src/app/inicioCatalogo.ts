@@ -1,5 +1,6 @@
 import { puedeAccederRuta } from './capacidades';
 import { tareasAreas,type TareaArea } from './navegacion';
+export { tareasAreas };
 export const AREAS_INICIO = [
  {id:'escolar',titulo:'Control Escolar',descripcion:'Alumnos, inscripciones, documentos y reportes.'},
  {id:'academico',titulo:'Control Académico',descripcion:'Docentes, asignaturas y horarios.'},
