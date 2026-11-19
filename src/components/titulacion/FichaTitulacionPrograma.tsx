@@ -4,20 +4,20 @@ import {guardarTitulacion,archivarTitulacion} from '../../services/titulacionSer
 import {useProteccionCaptura} from '../../app/ProteccionCaptura';
 import {useRequisitosTitulacion} from '../../hooks/useRequisitosTitulacion';
 import {aplicarRequisitos} from '../../titulacion/requisitos';
-import RequisitosTitulacionPanel from './RequisitosTitulacionPanel';
+import RequisitosTitulacionPanel, { coloresEstadoTitulacion, EstadoTitulacion, FilaRequisitoTitulacion } from './RequisitosTitulacionPanel';
+import DatosActaTitulacion from './DatosActaTitulacion';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   GraduationCap, Loader2, Save, CheckCircle2, Clock, Ban,
-  AlertCircle, ChevronDown, FileCheck, X, Edit3, CalendarDays, Flag, Lock, Trash2, AlertTriangle,
-  BookOpen, Award,
+  AlertCircle, ChevronDown, FileCheck, X, Edit3, Award,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAppStore } from '../../store/useAppStore';
-import type { FichaTitulacion, ServicioSocial, Alumno } from '../../types';
+import type { Carrera, FichaTitulacion } from '../../types';
 import { generateFolioControl, esModalidadExamen } from '../../utils/titulacionExportUtils';
 import DrivePicker from '../DrivePicker';
+import './fichaTitulacion.css';
 
 // ── Constantes de modalidad ──────────────────────────────────────────────────
 // Modalidades exclusivas de Especialidad (no disponibles para Licenciatura)
@@ -27,14 +27,8 @@ const ESPECIALIDAD_MODALIDADES = ['ALTO RENDIMIENTO ACADÉMICO', 'TESINA'];
 // Modalidad que activa el campo de promedio
 const MODALIDAD_ALTO_REND = 'ALTO RENDIMIENTO ACADÉMICO';
 
-// Modalidades que requieren título profesional y cédula (solo Especialidad con esas 2)
+// En estas modalidades de Especialidad se revisan título y cédula en lugar de Inglés y Servicio Social.
 function requiresDocEspecialidad(modalidad: string | null, esEspecialidad: boolean): boolean {
-  if (!modalidad) return false;
-  return esEspecialidad && ESPECIALIDAD_MODALIDADES.includes(modalidad);
-}
-
-// Modalidades que NO requieren inglés ni SS (Tesina / Alto Rend. en Especialidad)
-function skipInglesYSS(modalidad: string | null, esEspecialidad: boolean): boolean {
   if (!modalidad) return false;
   return esEspecialidad && ESPECIALIDAD_MODALIDADES.includes(modalidad);
 }
@@ -67,27 +61,23 @@ function toInputDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-// Verifica si todos los requisitos están cubiertos
-function checkRequisitosMet(ficha: FichaTitulacion, esEsp: boolean): boolean {
-  if (!ficha.modalidad) return false;
-  if (ficha.modalidad === MODALIDAD_ALTO_REND && ficha.promedio_alto_rendimiento !== 'APLICA') return false;
-  const base =
-    ficha.pago_titulacion      === 'COMPLETADO' &&
-    ficha.certificado_estudios === 'TRAMITADO'  &&
-    ficha.fotografias          === 'ENTREGADAS' &&
-    ficha.doc_antecedente      === 'APROBADO'   &&
-    ficha.doc_acta_nacimiento  === 'APROBADO'   &&
-    ficha.doc_curp             === 'APROBADO';
-  if (!base) return false;
-  if (!skipInglesYSS(ficha.modalidad, esEsp)) {
-    if (ficha.ingles            !== 'COMPLETADO') return false;
-    if (ficha.servicio_social_req !== 'COMPLETADO') return false;
-  }
+// La misma lista alimenta el avance visible y la habilitación del acta.
+function resumirRequisitos(ficha: Omit<FichaTitulacion, 'id' | 'alumno_id' | 'created_at' | 'updated_at'>, esEsp: boolean) {
+  const requisitos = [
+    ficha.pago_titulacion === 'COMPLETADO',
+    ficha.certificado_estudios === 'TRAMITADO',
+    ficha.fotografias === 'ENTREGADAS',
+    ficha.doc_antecedente === 'APROBADO',
+    ficha.doc_acta_nacimiento === 'APROBADO',
+    ficha.doc_curp === 'APROBADO',
+  ];
   if (requiresDocEspecialidad(ficha.modalidad, esEsp)) {
-    if (ficha.doc_titulo_profesional !== 'APROBADO') return false;
-    if (ficha.doc_cedula_profesional !== 'APROBADO') return false;
+    requisitos.push(ficha.doc_titulo_profesional === 'APROBADO', ficha.doc_cedula_profesional === 'APROBADO');
+  } else {
+    requisitos.push(ficha.ingles === 'COMPLETADO', ficha.servicio_social_req === 'COMPLETADO');
   }
-  return true;
+  if (ficha.modalidad === MODALIDAD_ALTO_REND) requisitos.push(ficha.promedio_alto_rendimiento === 'APLICA');
+  return { cubiertos: requisitos.filter(Boolean).length, total: requisitos.length };
 }
 
 // ── Helpers de estatus ───────────────────────────────────────────────────────
@@ -109,151 +99,47 @@ const BADGE_ESTATUS = {
   COMPLETADO:  'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700',
 };
 
-const BADGE_DOC = {
-  SIN_INICIAR: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700',
-  APROBADO:    'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700',
-  RECHAZADO:   'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700',
-};
+const opcionesFotografias = [
+  { valor: 'PENDIENTES', etiqueta: 'Pendientes' },
+  { valor: 'ENTREGADAS', etiqueta: 'Entregadas' },
+];
+const opcionesDocumentales = [
+  { valor: 'SIN_INICIAR', etiqueta: 'Sin iniciar' },
+  { valor: 'APROBADO', etiqueta: 'Aprobado' },
+  { valor: 'RECHAZADO', etiqueta: 'Rechazado' },
+];
+const documentosGenerales = [
+  { campo: 'doc_antecedente', nota: 'doc_antecedente_nota', nombre: 'Antecedente académico' },
+  { campo: 'doc_acta_nacimiento', nota: 'doc_acta_nacimiento_nota', nombre: 'Acta de nacimiento' },
+  { campo: 'doc_curp', nota: 'doc_curp_nota', nombre: 'CURP' },
+] as const;
 
-// ── Custom Dropdown — panel con posición fija para evitar overflow-hidden ──────
-interface CustomDropdownProps {
-  opciones: { value: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-  badgeMap: Record<string, string>;
-  disabled?: boolean;
-  placeholder?: string;
-}
-
-function CustomDropdown({ opciones, value, onChange, badgeMap, disabled, placeholder }: CustomDropdownProps) {
-  const [open, setOpen]         = useState(false);
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
-  const btnRef  = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const badge = badgeMap[value] || BADGE_ESTATUS.SIN_INICIAR;
-  const label = opciones.find(o => o.value === value)?.label ?? placeholder ?? value;
-
-  // Calcular posición del panel al abrir
-  const handleOpen = () => {
-    if (!btnRef.current) { setOpen(v => !v); return; }
-    const r = btnRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - r.bottom;
-    const panelH = opciones.length * 34 + 8; // aprox
-    const openUp = spaceBelow < panelH + 16;
-    setPanelStyle({
-      position:  'fixed',
-      zIndex:    9999,
-      left:      r.left,
-      minWidth:  Math.max(r.width, 140),
-      ...(openUp
-        ? { bottom: window.innerHeight - r.top + 4 }
-        : { top: r.bottom + 4 }),
-    });
-    setOpen(v => !v);
-  };
-
-  // Cerrar al clic fuera
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (
-        btnRef.current && !btnRef.current.contains(e.target as Node) &&
-        panelRef.current && !panelRef.current.contains(e.target as Node)
-      ) setOpen(false);
-    };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [open]);
-
-  if (disabled) {
-    return (
-      <span className={`inline-flex items-center gap-1.5 pl-3 pr-3 py-1.5 text-xs font-semibold rounded-full border ${badge} opacity-80`}>
-        {label}
-      </span>
-    );
-  }
-
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={handleOpen}
-        className={`inline-flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs font-semibold rounded-full border cursor-pointer outline-none focus:ring-2 focus:ring-[#3b82f6] transition-colors ${badge}`}
-      >
-        {label}
-        <ChevronDown size={11} className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div
-          ref={panelRef}
-          style={panelStyle}
-          className="bg-white dark:bg-[#1c2228] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] rounded-[10px] shadow-2xl overflow-hidden"
-        >
-          {opciones.map(o => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors
-                ${o.value === value
-                  ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
-                  : 'text-[#222222] dark:text-gray-200 hover:bg-[#f2f3f5] dark:hover:bg-[rgba(255,255,255,0.07)]'
-                }`}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-
-// ── Sub-componente: selector genérico con badge ───────────────────────────────
-interface SelectorRequisitoProps {
-  label: string;
-  field: keyof FichaTitulacion;
-  opciones: { value: string; label: string }[];
-  value: string;
+function RevisionManual({ nombre, valor, editing, onChange, nota, onNota, fotografias = false }: {
+  key?: string;
+  nombre: string;
+  valor?: string | null;
+  editing: boolean;
+  onChange: (valor: string) => void;
   nota?: string | null;
-  conNota?: boolean;
-  onChange: (field: keyof FichaTitulacion, value: string) => void;
-  onNota?: (field: keyof FichaTitulacion, value: string) => void;
-  badgeMap: Record<string, string>;
-  disabled?: boolean;
-}
+  onNota?: (valor: string) => void;
+  fotografias?: boolean;
+}) {
+  const id = useId();
+  const opciones = fotografias ? opcionesFotografias : opcionesDocumentales;
+  const seleccion = opciones.find(opcion => opcion.valor === valor) ?? opciones[0];
+  const tono = valor === 'APROBADO' || valor === 'ENTREGADAS' ? 'aprobado' : valor === 'RECHAZADO' ? 'rechazado' : 'neutro';
+  const estado = editing ? (
+    <select aria-label={`Estado de ${nombre}`} value={seleccion.valor} onChange={evento => onChange(evento.target.value)} className={`min-h-9 w-full max-w-33 rounded-lg border px-2 py-1 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${coloresEstadoTitulacion[tono]}`}>
+      {opciones.map(opcion => <option key={opcion.valor} value={opcion.valor} className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100">{opcion.etiqueta}</option>)}
+    </select>
+  ) : <EstadoTitulacion tono={tono}>{seleccion.etiqueta}</EstadoTitulacion>;
 
-const SelectorRequisito: React.FC<SelectorRequisitoProps> = ({
-  label, field, opciones, value, nota, conNota, onChange, onNota, badgeMap, disabled,
-}) => {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm font-medium text-[#45515e] dark:text-gray-300 min-w-[200px]">{label}</label>
-        <CustomDropdown
-          opciones={opciones}
-          value={value}
-          onChange={v => onChange(field, v)}
-          badgeMap={badgeMap}
-          disabled={disabled}
-        />
-      </div>
-      {conNota && value === 'RECHAZADO' && (
-        <div className="ml-[212px] mt-1">
-          <textarea
-            rows={2}
-            placeholder="Motivo del rechazo..."
-            value={nota ?? ''}
-            onChange={e => onNota && onNota(field, e.target.value)}
-            className="w-full text-xs border border-red-200 dark:border-red-800 rounded-[8px] px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 outline-none focus:ring-2 focus:ring-red-400 resize-none"
-          />
-        </div>
-      )}
-    </div>
-  );
+  return <FilaRequisitoTitulacion nombre={nombre} estado={estado}>
+    {valor === 'RECHAZADO' && (editing ? <div className="space-y-1">
+      <label htmlFor={id} className="block text-xs font-medium">Motivo del rechazo</label>
+      <textarea id={id} rows={2} value={nota ?? ''} onChange={evento => onNota?.(evento.target.value)} className="block w-full rounded-lg border border-gray-400 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-gray-500 dark:bg-[#1c2228] dark:text-gray-100" />
+    </div> : <p className="whitespace-pre-wrap">{nota || 'Sin motivo registrado'}</p>)}
+  </FilaRequisitoTitulacion>;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -322,11 +208,8 @@ interface TabTitulacionProps {
   programaId:string;
   onArchivada?:()=>void;
   alumnoId: string;
-  esEspecialidad: boolean;
+  carreraPrograma?: Pick<Carrera, 'nombre' | 'nivel_educativo'> | null;
   modalidadesCatalogo: string[];
-  servicioSocialRegistros?: ServicioSocial[];
-  planesAlumno?: any[];
-  alumno?: Alumno;
   onUpdate?: () => void;
 }
 
@@ -364,14 +247,24 @@ const BLANK: Omit<FichaTitulacion, 'id' | 'alumno_id' | 'created_at' | 'updated_
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function FichaTitulacionPrograma({
-  onArchivada, programaId, alumnoId, esEspecialidad, modalidadesCatalogo, servicioSocialRegistros = [], planesAlumno = [], alumno, onUpdate,
+  onArchivada, programaId, alumnoId, carreraPrograma, modalidadesCatalogo, onUpdate,
 }: TabTitulacionProps) {
+
+  const folioId = useId();
+  const modalidadId = `${folioId}-modalidad`;
+  const requisitosId = `${folioId}-requisitos`;
+  const actaId = `${folioId}-acta`;
+  const carreraNombre = carreraPrograma?.nombre?.trim();
+  const nivelCarrera = carreraPrograma?.nivel_educativo?.trim();
+  const esEspecialidad = nivelCarrera?.toUpperCase() === 'ESPECIALIDAD';
 
   const [errorCarga,setErrorCarga]=useState('');
   const [accionOperacion,setAccionOperacion]=useState<AccionTitulacion|null>(null);
   const [motivoOperacion,setMotivoOperacion]=useState('');
   const [ficha, setFicha] = useState<FichaTitulacion | null>(null);
   const [draft, setDraft] = useState<Omit<FichaTitulacion, 'id' | 'alumno_id' | 'created_at' | 'updated_at'>>(BLANK);
+  const modalidad = draft.modalidad;
+  const requiereExamen = esModalidadExamen(modalidad);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [editing, setEditing]     = useState(false);
@@ -382,7 +275,6 @@ export default function FichaTitulacionPrograma({
   const [resetting, setResetting]           = useState(false);
 
   const solicitarSalida=useProteccionCaptura(editing||Boolean(accionOperacion),saving||resetting);
-  const [carreraNombre, setCarreraNombre] = useState<string>('');
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
   const loadFicha = useCallback(async () => {
@@ -397,16 +289,6 @@ export default function FichaTitulacionPrograma({
       .maybeSingle();
 
     if(error)throw error;
-    // Obtener datos del alumno / carrera para construcción del folio de control
-    const { data: alData } = await supabase
-      .from('alumnos')
-      .select('id, matricula, licenciatura, carrera_nombre')
-      .eq('id', alumnoId)
-      .maybeSingle();
-
-    const resolvedCarrera = alumno?.carrera_nombre || alumno?.licenciatura || alData?.carrera_nombre || alData?.licenciatura || '';
-    setCarreraNombre(resolvedCarrera);
-
     if (data) {
       setFicha(data as FichaTitulacion);
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -420,7 +302,7 @@ export default function FichaTitulacionPrograma({
       setDraft({ ...BLANK, alumno_programa_id: programaId });
     }
     }catch(e){setErrorCarga((e as Error).message||'No se pudo consultar el trámite.');}finally{setLoading(false);}
-  }, [alumnoId, alumno,programaId]);
+  }, [alumnoId, programaId]);
 
   useEffect(() => { loadFicha(); }, [loadFicha]);
 
@@ -433,42 +315,41 @@ export default function FichaTitulacionPrograma({
       return JSON.stringify(prev)===JSON.stringify(next)?prev:next;
     });
   },[editing,draft.modalidad,requisitos.datos,ficha?.tramite_completado]);
-  const estadosVisibles=!editing&&!ficha?.tramite_completado&&requisitos.datos?aplicarRequisitos(draft,requisitos.datos):draft;
-  // Manejo reactivo de Libro y Foja con autogeneración del Folio de Control
-  const handleLibroChange = (val: string) => {
-    const num = val === '' ? null : parseInt(val, 10);
-    const nextLibro = isNaN(num as number) ? null : num;
-    setDraft(prev => {
-      const autoFolio = generateFolioControl(
-        esEspecialidad ? 'ESPECIALIDAD' : 'LICENCIATURA',
-        carreraNombre,
-        nextLibro,
-        prev.foja
-      );
-      return {
-        ...prev,
-        libro: nextLibro,
-        folio_control: autoFolio
-      };
-    });
-  };
+  const estadosVisibles = !ficha?.tramite_completado && requisitos.datos ? aplicarRequisitos(draft, requisitos.datos) : draft;
+  const resumenRequisitos = modalidad && requisitos.datos && !requisitos.loading && !requisitos.error && !ficha?.tramite_completado
+    ? resumirRequisitos(estadosVisibles, esEspecialidad)
+    : null;
+  const requisitosMet = resumenRequisitos !== null && resumenRequisitos.cubiertos === resumenRequisitos.total;
+  const folioPropuesto = carreraNombre && nivelCarrera && draft.libro != null && draft.foja != null
+    ? generateFolioControl(nivelCarrera, carreraNombre, draft.libro, draft.foja)
+    : null;
+  const folioParaGuardar = draft.folio_control?.trim() || folioPropuesto;
+  const fechaActa = requiereExamen ? draft.fecha_examen : draft.fecha_exencion;
+  const etiquetaFechaActa = requiereExamen ? 'Fecha de examen profesional' : 'Fecha de exención de examen';
+  const camposPendientes = [
+    { id: `${folioId}-libro`, nombre: 'el libro oficial', falta: draft.libro == null },
+    { id: `${folioId}-foja`, nombre: 'la foja oficial', falta: draft.foja == null },
+    { id: `${folioId}-fecha`, nombre: etiquetaFechaActa.toLowerCase().replace(/^fecha/, 'la fecha'), falta: !fechaActa },
+    { id: folioId, nombre: 'el folio de control', falta: !folioParaGuardar && draft.libro != null && draft.foja != null },
+  ].filter(campo => campo.falta);
 
-  const handleFojaChange = (val: string) => {
-    const num = val === '' ? null : parseInt(val, 10);
-    const nextFoja = isNaN(num as number) ? null : num;
-    setDraft(prev => {
-      const autoFolio = generateFolioControl(
-        esEspecialidad ? 'ESPECIALIDAD' : 'LICENCIATURA',
-        carreraNombre,
-        prev.libro,
-        nextFoja
-      );
-      return {
-        ...prev,
-        foja: nextFoja,
-        folio_control: autoFolio
-      };
-    });
+  let pendienteActa: string | null = null;
+  if (!ficha) {
+    pendienteActa = 'Guarda la ficha para poder asentar el acta.';
+  } else if (camposPendientes.length) {
+    const pendientes = new Intl.ListFormat('es-MX').format(camposPendientes.map(campo => campo.nombre));
+    pendienteActa = camposPendientes.length === 1 ? `Falta ${pendientes}.` : `Faltan ${pendientes}.`;
+  } else if ((draft.libro ?? 0) < 0 || (draft.foja ?? 0) < 0) {
+    pendienteActa = 'El libro y la foja deben ser números no negativos.';
+  } else if (fechaActa && draft.fecha_inicio_tramite && fechaActa < draft.fecha_inicio_tramite) {
+    pendienteActa = 'La fecha del acta debe ser igual o posterior al inicio del trámite.';
+  } else if (draft.fecha_inicio_tramite && draft.fecha_estimada_culminacion && draft.fecha_inicio_tramite > draft.fecha_estimada_culminacion) {
+    pendienteActa = 'La fecha estimada de culminación debe ser igual o posterior al inicio del trámite.';
+  }
+
+  const cambiarDatoActa = (campo: 'libro' | 'foja', valor: string) => {
+    const numero = Number.parseInt(valor, 10);
+    setDraft(prev => ({ ...prev, [campo]: Number.isNaN(numero) ? null : numero }));
   };
 
   // ── Guardar ────────────────────────────────────────────────────────────────
@@ -478,19 +359,11 @@ export default function FichaTitulacionPrograma({
     setWarnNoModal(false);
     setSaving(true);
 
-    const requiereExamen = esModalidadExamen(draft.modalidad);
-    const folioFinal = draft.folio_control || generateFolioControl(
-      esEspecialidad ? 'ESPECIALIDAD' : 'LICENCIATURA',
-      carreraNombre,
-      draft.libro,
-      draft.foja
-    );
-
     const payloadDraft = {
       ...draft,
       libro: draft.libro !== null && draft.libro !== undefined ? Number(draft.libro) : null,
       foja: draft.foja !== null && draft.foja !== undefined ? Number(draft.foja) : null,
-      folio_control: folioFinal,
+      folio_control: folioParaGuardar,
       fecha_examen: requiereExamen ? (draft.fecha_examen || null) : null,
       fecha_exencion: !requiereExamen ? (draft.fecha_exencion || null) : null,
     };
@@ -541,38 +414,30 @@ export default function FichaTitulacionPrograma({
   // Marcar trámite como completado, asentar Acta oficial y cambiar estatus del alumno
   const ejecutarCompletar = async () => {
     if (requisitos.loading || requisitos.error || !requisitos.datos) { toast.error(requisitos.error || 'Espera la comprobación de requisitos.'); return; }
-    if (!ficha) return;
-
-    if (!draft.modalidad) {
-      toast.error('Debes seleccionar una Modalidad de Titulación antes de completar el trámite.');
+    if (!ficha || ficha.tramite_completado || saving) return;
+    if (!requisitosMet) {
+      toast.error('Cubre los requisitos de la modalidad antes de asentar el acta.');
       return;
     }
-
-    if (draft.libro === null || draft.libro === undefined || draft.foja === null || draft.foja === undefined) {
-      toast.error('Debes capturar el Libro y la Foja del acta oficial antes de marcar el trámite como completado.');
+    if (pendienteActa) {
+      toast.error(pendienteActa);
       return;
     }
-
-    const requiereExamen = esModalidadExamen(draft.modalidad);
-    if (requiereExamen && !draft.fecha_examen) {
-      toast.error('Para modalidad con réplica oral (Tesis/Tesina), debes registrar la Fecha del Examen Profesional.');
-      return;
+    setSaving(true);
+    try {
+      const datosActa = {
+        ...draft,
+        folio_control: folioParaGuardar,
+        fecha_examen: requiereExamen ? fechaActa : null,
+        fecha_exencion: requiereExamen ? null : fechaActa,
+      };
+      setFicha(await guardarTitulacion(alumnoId, programaId, ficha, datosActa, 'COMPLETAR', motivoOperacion));
+      onUpdate?.();
+      setEditing(false);
+      toast.success('Trámite completado para este programa.');
+      await loadFicha();
+      return true;
     }
-    if (!requiereExamen && !draft.fecha_exencion) {
-      toast.error('Para esta modalidad de titulación, debes registrar la Fecha de Exención de Examen del protocolo oficial.');
-      return;
-    }
-
-    const ahora = new Date().toISOString();
-    const folioCalculado = draft.folio_control || generateFolioControl(
-      esEspecialidad ? 'ESPECIALIDAD' : 'LICENCIATURA',
-      carreraNombre,
-      draft.libro,
-      draft.foja
-    );
-
-    if(saving)return;setSaving(true);
-    try{setFicha(await guardarTitulacion(alumnoId,programaId,ficha,{...draft,folio_control:folioCalculado},'COMPLETAR',motivoOperacion));onUpdate?.();setEditing(false);toast.success('Trámite completado para este programa.');await loadFicha();return true;}
     catch(e){toast.error((e as Error).message);}finally{setSaving(false);}
   };
   const ejecutarReabrir=async()=>{
@@ -587,7 +452,9 @@ export default function FichaTitulacionPrograma({
   const pedirMotivo=(accion:AccionTitulacion)=>{if(saving||resetting)return;setMotivoOperacion('');setAccionOperacion(accion);};
   const handleSave=()=>{if(!draft.modalidad){setWarnNoModal(true);return;}pedirMotivo('GUARDAR');};
   const handleCancel=()=>solicitarSalida(ejecutarCancelar);
-  const handleCompletarTramite=()=>pedirMotivo('COMPLETAR');
+  const handleCompletarTramite = () => {
+    if (requisitosMet && !pendienteActa) pedirMotivo('COMPLETAR');
+  };
   const handleRevertirTramite=()=>pedirMotivo('REABRIR');
   const confirmarOperacion=async()=>{
     const ejecutar=accionOperacion==='GUARDAR'?ejecutarGuardar:accionOperacion==='COMPLETAR'?ejecutarCompletar:accionOperacion==='REABRIR'?ejecutarReabrir:ejecutarArchivar;
@@ -595,19 +462,16 @@ export default function FichaTitulacionPrograma({
   };
 
   // ── Derivados ──────────────────────────────────────────────────────────────
-  const modalidad    = draft.modalidad;
-  const skipSS       = skipInglesYSS(modalidad, esEspecialidad);
   const showDocEsp   = requiresDocEspecialidad(modalidad, esEspecialidad);
+  const requierePromedio = modalidad === MODALIDAD_ALTO_REND;
   const estatusGlobal = getEstatusTitulacion(ficha);
 
-  // Requisitos cubiertos:
-  // • Mientras se edita → se evalúa el draft en tiempo real (sin guardar)
-  // • Sin editar       → se evalúa la ficha guardada
-  const requisitosMet = !requisitos.loading && !requisitos.error && Boolean(requisitos.datos) && checkRequisitosMet(aplicarRequisitos(draft,requisitos.datos!) as FichaTitulacion,esEspecialidad);
+  const mostrarActa = Boolean(ficha?.modalidad || (editing && modalidad));
+  const mostrarRequisitos = Boolean(modalidad || editing);
 
   // Días hábiles restantes para culminación
   const diasRestantes = (() => {
-    const fechaFin = ficha?.fecha_estimada_culminacion ?? draft.fecha_estimada_culminacion;
+    const fechaFin = draft.fecha_estimada_culminacion;
     if (!fechaFin) return null;
     return businessDaysLeft(new Date(fechaFin + 'T23:59:59'));
   })();
@@ -623,6 +487,9 @@ export default function FichaTitulacionPrograma({
   const modalidadesDisponibles = esEspecialidad
     ? modalidadesCatalogo.filter(m => ESPECIALIDAD_MODALIDADES.includes(m))
     : modalidadesCatalogo.filter(m => !SOLO_ESPECIALIDAD.includes(m));
+  const sugerirAltoRendimiento = editing && !ficha?.tramite_completado && !requierePromedio
+    && modalidadesDisponibles.includes(MODALIDAD_ALTO_REND)
+    && requisitos.datos?.estados.promedio_alto_rendimiento === 'APLICA';
 
   if(errorCarga)return <div role="alert" className="p-4"><p>No se pudo consultar el trámite: {errorCarga}</p><button onClick={()=>loadFicha()}>Reintentar consulta</button></div>;
   if (loading) {
@@ -634,8 +501,16 @@ export default function FichaTitulacionPrograma({
   }
 
   return (
-    <div className="p-0 sm:p-2">
-      <ConfirmarOperacionTitulacion accion={accionOperacion} motivo={motivoOperacion} busy={saving||resetting} onMotivo={setMotivoOperacion} onCancelar={()=>setAccionOperacion(null)} onConfirmar={confirmarOperacion}/>
+    <div className="titulacion-ficha min-w-0 p-0 sm:p-2">
+      <ConfirmarOperacionTitulacion accion={accionOperacion} motivo={motivoOperacion} busy={saving||resetting}
+        onMotivo={setMotivoOperacion} onCancelar={()=>setAccionOperacion(null)} onConfirmar={confirmarOperacion}
+        resumen={accionOperacion === 'COMPLETAR' && <dl className="grid grid-cols-2 gap-3 rounded-lg bg-gray-100 p-3 text-sm text-gray-800 dark:bg-gray-900/50 dark:text-gray-100">
+          <div><dt className="font-semibold">Libro</dt><dd>{draft.libro}</dd></div>
+          <div><dt className="font-semibold">Foja</dt><dd>{draft.foja}</dd></div>
+          <div><dt className="font-semibold">Folio de control</dt><dd className="break-words">{folioParaGuardar}</dd></div>
+          <div><dt className="font-semibold">{etiquetaFechaActa}</dt><dd>{fechaActa?.split('-').reverse().join('/')}</dd></div>
+        </dl>}
+      />
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
@@ -703,166 +578,90 @@ export default function FichaTitulacionPrograma({
         </div>
       </div>
 
+      <div className="space-y-5">
+        {(ficha || editing) && <section aria-labelledby={modalidadId} className="rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-[#181e25]">
+          <header className="rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4 sm:px-5 dark:border-gray-700 dark:bg-[#202936]">
+            <h3 id={modalidadId} className="text-base font-semibold text-gray-900 dark:text-gray-100">Modalidad de titulación</h3>
+          </header>
+          <div className="space-y-3 px-4 py-4 sm:px-5">
+            {editing ? (
+              <ModalidadDropdown
+                opciones={modalidadesDisponibles}
+                value={draft.modalidad ?? ''}
+                onChange={v => { handleChange('modalidad', v); setWarnNoModal(false); }}
+                hasWarning={warnNoModal}
+              />
+            ) : (
+              <p className={`text-sm font-semibold ${draft.modalidad ? 'text-indigo-700 dark:text-indigo-300' : 'italic text-gray-600 dark:text-gray-300'}`}>
+                {draft.modalidad || 'Sin modalidad asignada'}
+              </p>
+            )}
+            {esEspecialidad && (
+              <p className="flex items-start gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+                <AlertCircle size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
+                Especialidad: solo disponibles Alto Rendimiento Académico y Tesina.
+              </p>
+            )}
+            {modalidad && !ficha?.tramite_completado && (
+              <p className="text-xs text-gray-600 dark:text-gray-300">
+                Para asentar el acta se requiere {requiereExamen ? 'la fecha del examen profesional' : 'la fecha de exención de examen'}.
+              </p>
+            )}
+            {sugerirAltoRendimiento && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-indigo-200 pt-3 dark:border-indigo-800">
+                <p className="text-sm text-indigo-900 dark:text-indigo-200">El promedio permite elegir Alto Rendimiento Académico.</p>
+                <button type="button" onClick={() => { handleChange('modalidad', MODALIDAD_ALTO_REND); setWarnNoModal(false); }} className="min-h-10 rounded-lg border border-indigo-400 bg-white px-3 py-2 text-xs font-semibold text-indigo-800 outline-none hover:bg-indigo-100 focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-indigo-500 dark:bg-indigo-950 dark:text-indigo-100 dark:hover:bg-indigo-900">
+                  Usar Alto Rendimiento Académico
+                </button>
+              </div>
+            )}
+          </div>
+        </section>}
 
-
-      {/* ── Contenido principal ── */}
-      <div className="space-y-6">
-
-        {/* La modalidad se presenta después de iniciar o cuando existe una ficha. */}
-        {(ficha || editing) && <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/40 rounded-[16px] p-5">
-          <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3">Modalidad de Titulación</p>
-          {editing ? (
-            <ModalidadDropdown
-              opciones={modalidadesDisponibles}
-              value={draft.modalidad ?? ''}
-              onChange={v => { handleChange('modalidad', v); setWarnNoModal(false); }}
-              hasWarning={warnNoModal}
-            />
-          ) : (
-            <p className={`text-sm font-semibold ${draft.modalidad ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-400 dark:text-gray-500 italic'}`}>
-              {draft.modalidad || 'Sin modalidad asignada'}
-            </p>
-          )}
-          {esEspecialidad && (
-            <p className="text-[11px] text-indigo-500 dark:text-indigo-400 mt-2 flex items-center gap-1">
-              <AlertCircle size={11} /> Especialidad: solo disponibles Alto Rendimiento Académico y Tesina.
-            </p>
-          )}
-        </div>}
-
-        {(draft.modalidad || editing) && <RequisitosTitulacionPanel
+        {mostrarRequisitos && <RequisitosTitulacionPanel
+          id={requisitosId} resumen={resumenRequisitos}
           datos={requisitos.datos} estados={estadosVisibles} respaldo={ficha?.requisitos_verificados}
           completada={Boolean(ficha?.tramite_completado)} loading={requisitos.loading} error={requisitos.error}
-          editing={editing} exentoInglesSS={skipSS} pago={draft.plan_pago_requisito_id||null}
-          ss={draft.servicio_social_requisito_id||null} modalidad={draft.modalidad}
+          editing={editing} exentoInglesSS={showDocEsp} requierePromedio={requierePromedio}
+          pago={draft.plan_pago_requisito_id||null} ss={draft.servicio_social_requisito_id||null}
           onPago={id=>setDraft(p=>({...p,plan_pago_requisito_id:id||null}))}
           onSS={id=>setDraft(p=>({...p,servicio_social_requisito_id:id||null}))}
-          onActualizar={()=>setRevisionRequisitos(r=>r+1)} onSugerir={()=>handleChange('modalidad',MODALIDAD_ALTO_REND)}>
-            {/* Sección: Revisión Documental */}
-            <div className="px-5 py-4 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-              <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-4">Revisión manual</p>
-              <div className="space-y-3">
-                {/* Fotografías */}
-                <SelectorRequisito
-                  label="Fotografías tamaño título"
-                  field="fotografias"
-                  opciones={[
-                    { value: 'PENDIENTES', label: 'Pendientes' },
-                    { value: 'ENTREGADAS', label: 'Entregadas' },
-                  ]}
-                  value={draft.fotografias}
-                  badgeMap={{ PENDIENTES: BADGE_ESTATUS.SIN_INICIAR, ENTREGADAS: BADGE_ESTATUS.COMPLETADO }}
-                  onChange={handleChange}
-                  disabled={!editing}
-                />
-
-
-
-                {[
-                  { field: 'doc_antecedente'   as const, label: 'Antecedente Académico',  notaField: 'doc_antecedente_nota'   as const },
-                  { field: 'doc_acta_nacimiento' as const, label: 'Acta de Nacimiento',   notaField: 'doc_acta_nacimiento_nota' as const },
-                  { field: 'doc_curp'           as const, label: 'CURP',                  notaField: 'doc_curp_nota'           as const },
-                ].map(({ field, label, notaField }) => (
-                  <SelectorRequisito
-                    key={field}
-                    label={label}
-                    field={field}
-                    opciones={[
-                      { value: 'SIN_INICIAR', label: 'Sin iniciar' },
-                      { value: 'APROBADO',    label: 'Aprobado' },
-                      { value: 'RECHAZADO',   label: 'Rechazado' },
-                    ]}
-                    value={draft[field] as string}
-                    nota={draft[notaField] as string | null}
-                    conNota
-                    badgeMap={BADGE_DOC}
-                    onChange={handleChange}
-                    onNota={(_f, v) => setDraft(prev => ({ ...prev, [notaField]: v }))}
-                    disabled={!editing}
-                  />
-                ))}
-
-              </div>
-            </div>
-
-            {/* Sección: Documentos Exclusivos de Especialidad */}
-            {showDocEsp && (
-              <div className="px-5 py-4">
-                <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1">Documentos — Especialidad</p>
-                <p className="text-[11px] text-gray-600 dark:text-gray-300 mb-4">Aplica para Tesina y Alto Rendimiento Académico en especialidades.</p>
-                <div className="space-y-3">
-
-                  {[
-                    { field: 'doc_titulo_profesional'  as const, label: 'Título Profesional',   notaField: 'doc_titulo_profesional_nota'  as const },
-                    { field: 'doc_cedula_profesional'  as const, label: 'Cédula Profesional',   notaField: 'doc_cedula_profesional_nota'  as const },
-                  ].map(({ field, label, notaField }) => (
-                    <SelectorRequisito
-                      key={field}
-                      label={label}
-                      field={field}
-                      opciones={[
-                        { value: 'SIN_INICIAR', label: 'Sin iniciar' },
-                        { value: 'APROBADO',    label: 'Aprobado' },
-                        { value: 'RECHAZADO',   label: 'Rechazado' },
-                      ]}
-                      value={draft[field] as string}
-                      nota={draft[notaField] as string | null}
-                      conNota
-                      badgeMap={BADGE_DOC}
-                      onChange={handleChange}
-                      onNota={(_f, v) => setDraft(prev => ({ ...prev, [notaField]: v }))}
-                      disabled={!editing}
-                    />
-                  ))}
-
-                </div>
-              </div>
-            )}
+          onActualizar={()=>setRevisionRequisitos(r=>r+1)}>
+          <h4 className="border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 sm:px-5 dark:border-gray-700 dark:bg-[#202936] dark:text-gray-200">Revisión manual</h4>
+          <dl aria-label="Revisión manual">
+            <RevisionManual nombre="Fotografías tamaño título" valor={draft.fotografias} editing={editing} fotografias onChange={valor=>handleChange('fotografias', valor)} />
+            {documentosGenerales.map(({ campo, nota, nombre }) => <RevisionManual
+              key={campo} nombre={nombre} valor={draft[campo]} editing={editing}
+              onChange={valor=>handleChange(campo, valor)} nota={draft[nota]}
+              onNota={valor=>handleChange(nota, valor)}
+            />)}
+          </dl>
+          {showDocEsp && <>
+            <h4 className="border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 sm:px-5 dark:border-gray-700 dark:bg-[#202936] dark:text-gray-200">Documentos de Especialidad</h4>
+            <dl aria-label="Documentos de Especialidad">
+              <RevisionManual nombre="Título Profesional" valor={draft.doc_titulo_profesional} editing={editing}
+                onChange={valor=>handleChange('doc_titulo_profesional', valor)} nota={draft.doc_titulo_profesional_nota}
+                onNota={valor=>handleNota('doc_titulo_profesional', valor)} />
+              <RevisionManual nombre="Cédula Profesional" valor={draft.doc_cedula_profesional} editing={editing}
+                onChange={valor=>handleChange('doc_cedula_profesional', valor)} nota={draft.doc_cedula_profesional_nota}
+                onNota={valor=>handleNota('doc_cedula_profesional', valor)} />
+            </dl>
+          </>}
         </RequisitosTitulacionPanel>}
 
-        {/* ── Sección: Trámite y Protocolo Oficial de Titulación ── */}
-        {(ficha?.modalidad || (editing && draft.modalidad)) && (
-          <div className={`border rounded-[16px] overflow-visible transition-all duration-300 ${
-            requisitosMet
-              ? 'bg-white dark:bg-[#181e25] border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] shadow-sm'
-              : 'bg-[#f8f9ff] dark:bg-[#1a1f26] border-dashed border-gray-200 dark:border-gray-700/50'
-          }`}>
-
-            {/* Header de la sección */}
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-              <div className={`p-1.5 rounded-[8px] ${
-                ficha?.tramite_completado
-                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                  : requisitosMet
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-400'
-              }`}>
-                <Flag size={16} />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-[#222222] dark:text-gray-100">
-                  Trámite y Protocolo Oficial de Titulación
-                </p>
-                <p className="text-[11px] text-[#8e8e93]">
-                  {ficha?.tramite_completado
-                    ? 'Grado asentado — Acta y Folio de Control oficial registrados'
-                    : requisitosMet
-                      ? 'Requisitos cubiertos — listo para asentar Acta de Titulación'
-                      : 'Se habilita automáticamente al cubrir el 100% de los requisitos'}
+        {mostrarActa && (
+          <section aria-labelledby={actaId} className="rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-[#181e25]">
+            <header className="flex flex-wrap items-center justify-between gap-3 rounded-t-2xl border-b border-gray-200 bg-gray-50 px-4 py-4 sm:px-5 dark:border-gray-700 dark:bg-[#202936]">
+              <div className="space-y-1">
+                <h3 id={actaId} className="text-base font-semibold text-gray-900 dark:text-gray-100">Acta oficial</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  {ficha?.tramite_completado ? 'Acta y folio de control registrados.' : requisitosMet ? 'Requisitos cubiertos para esta modalidad.' : 'Cubre los requisitos de la modalidad para habilitar el registro del acta.'}
                 </p>
               </div>
-              {!requisitosMet && !ficha?.tramite_completado && (
-                <Lock size={14} className="ml-auto text-gray-400" />
-              )}
-            </div>
-
-            {/* Contenido bloqueado si no cumple requisitos */}
-            {!requisitosMet && !ficha?.tramite_completado && (
-              <div className="flex items-center gap-3 px-5 py-5 text-sm text-[#8e8e93]">
-                <AlertCircle size={16} className="text-amber-400 shrink-0" />
-                Cubre todos los requisitos generales y documentales para habilitar el registro del acta oficial.
-              </div>
-            )}
+              <EstadoTitulacion tono={ficha?.tramite_completado || (requisitosMet && !pendienteActa) ? 'aprobado' : 'aviso'}>
+                {ficha?.tramite_completado ? 'Acta registrada' : !requisitosMet ? 'Requisitos pendientes' : pendienteActa ? 'Captura pendiente' : 'Lista para confirmar'}
+              </EstadoTitulacion>
+            </header>
 
             {/* Vista Resumen del Acta si el trámite ya está COMPLETADO */}
             {ficha?.tramite_completado && (
@@ -883,7 +682,7 @@ export default function FichaTitulacionPrograma({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                     <div className="bg-white/80 dark:bg-[#1c2228]/80 backdrop-blur-xs p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
                       <p className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500">Folio de Control</p>
-                      <p className="text-sm font-mono font-bold text-indigo-700 dark:text-indigo-300 truncate">
+                      <p className="break-words text-sm font-mono font-bold text-indigo-700 dark:text-indigo-300">
                         {draft.folio_control || 'N/A'}
                       </p>
                     </div>
@@ -901,10 +700,10 @@ export default function FichaTitulacionPrograma({
                     </div>
                     <div className="bg-white/80 dark:bg-[#1c2228]/80 backdrop-blur-xs p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
                       <p className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500">
-                        {esModalidadExamen(draft.modalidad) ? 'Examen Profesional' : 'Exención de Examen'}
+                        {requiereExamen ? 'Examen Profesional' : 'Exención de Examen'}
                       </p>
                       <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                        {(esModalidadExamen(draft.modalidad) ? draft.fecha_examen : draft.fecha_exencion) || 'Sin fecha'}
+                        {(requiereExamen ? draft.fecha_examen : draft.fecha_exencion) || 'Sin fecha'}
                       </p>
                     </div>
                   </div>
@@ -927,182 +726,32 @@ export default function FichaTitulacionPrograma({
               </div>
             )}
 
-            {/* Trámite habilitado (Requisitos cubiertos y no completado, o en edición) */}
-            {requisitosMet && (!ficha?.tramite_completado || editing) && (
-              <div className="px-5 py-5 space-y-6">
+            {requisitosMet && <DatosActaTitulacion
+              id={folioId} datos={draft} editing={editing} ocupado={saving || resetting}
+              diasRestantes={diasRestantes}
+              fechaActa={fechaActa} etiquetaFecha={etiquetaFechaActa} folioPropuesto={folioPropuesto}
+              folioVisible={draft.folio_control ?? (editing ? folioPropuesto : null) ?? ''}
+              ayudaFolio={carreraNombre && nivelCarrera
+                ? 'Si dejas el campo vacío, se propone un folio con la carrera, el libro y la foja.'
+                : 'Falta la carrera o el nivel educativo del programa para proponer un folio. Puedes capturar el folio oficial.'}
+              pendiente={pendienteActa}
+              onFechaInicio={handleFechaInicio}
+              onFechaFin={valor=>setDraft(prev=>({...prev, fecha_estimada_culminacion: valor || null}))}
+              onFechaActa={valor=>setDraft(prev=>({
+                ...prev,
+                fecha_examen: requiereExamen ? valor || null : null,
+                fecha_exencion: requiereExamen ? null : valor || null,
+              }))}
+              onNumero={cambiarDatoActa}
+              onFolio={valor=>handleChange('folio_control', valor.toUpperCase())}
+              onEditar={()=>{
+                setEditing(true);
+                const campo = camposPendientes[0]?.id ?? (folioId + '-libro');
+                requestAnimationFrame(()=>document.getElementById(campo)?.focus());
+              }}
+              onCompletar={handleCompletarTramite}
+            />}
 
-                {/* Fechas de Seguimiento */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider flex items-center gap-1.5">
-                      <CalendarDays size={12} /> Fecha de Inicio de Trámite
-                    </label>
-                    <input
-                      type="date"
-                      disabled={!editing}
-                      value={(draft.fecha_inicio_tramite as string) ?? ''}
-                      onChange={e => handleFechaInicio(e.target.value)}
-                      className="px-3 py-2 text-sm rounded-[10px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider flex items-center gap-1.5">
-                      <CalendarDays size={12} /> Fecha Estimada de Culminación
-                      <span className="ml-1 text-[10px] normal-case text-indigo-500 dark:text-indigo-400 font-normal">(90 días hábiles)</span>
-                    </label>
-                    <input
-                      type="date"
-                      disabled={!editing}
-                      value={(draft.fecha_estimada_culminacion as string) ?? ''}
-                      onChange={e => setDraft(prev => ({ ...prev, fecha_estimada_culminacion: e.target.value || null }))}
-                      className="px-3 py-2 text-sm rounded-[10px] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] bg-white dark:bg-[#1c2228] text-[#222222] dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
-                    />
-                  </div>
-                </div>
-
-                {/* Tiempo restante */}
-                {ficha?.fecha_estimada_culminacion && diasRestantes !== null && (
-                  <div className={`flex items-center gap-3 px-4 py-3 rounded-[10px] border ${
-                    diasRestantes <= 0
-                      ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
-                      : diasRestantes <= 15
-                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300'
-                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
-                  }`}>
-                    <Clock size={16} className="shrink-0" />
-                    <span className="text-sm font-semibold">
-                      {diasRestantes <= 0
-                        ? 'Fecha de culminación vencida'
-                        : `${diasRestantes} días hábiles restantes`}
-                    </span>
-                  </div>
-                )}
-
-                {/* Subsección: Asentamiento del Acta Oficial */}
-                <div className="p-4.5 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <BookOpen size={16} className="text-indigo-600 dark:text-indigo-400" />
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
-                        Asentamiento en Libros y Folio de Control Oficial
-                      </h4>
-                    </div>
-                    <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-100/70 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
-                      Estándar DGAIR / SEP
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* Libro */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                        Libro Oficial <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="Ej. 1 (Libro 001)"
-                        disabled={!editing}
-                        value={draft.libro ?? ''}
-                        onChange={e => handleLibroChange(e.target.value)}
-                        className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 font-mono"
-                      />
-                      <p className="text-[10px] text-gray-500 mt-0.5">Formato a 3 dígitos</p>
-                    </div>
-
-                    {/* Foja */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                        Foja Oficial <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="Ej. 40 (Foja 0040)"
-                        disabled={!editing}
-                        value={draft.foja ?? ''}
-                        onChange={e => handleFojaChange(e.target.value)}
-                        className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 font-mono"
-                      />
-                      <p className="text-[10px] text-gray-500 mt-0.5">Formato a 4 dígitos</p>
-                    </div>
-
-                    {/* Folio de Control */}
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                        Folio de Control Oficial
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ej. LD-001-0040"
-                        disabled={!editing}
-                        value={draft.folio_control ?? ''}
-                        onChange={e => setDraft(prev => ({ ...prev, folio_control: e.target.value.toUpperCase() }))}
-                        className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 font-mono uppercase font-bold text-indigo-700 dark:text-indigo-400"
-                      />
-                      <p className="text-[10px] text-gray-500 mt-0.5">Auto-generado con carrera, libro y foja</p>
-                    </div>
-                  </div>
-
-                  {/* Campo de fecha según modalidad */}
-                  <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/30">
-                    {esModalidadExamen(draft.modalidad) ? (
-                      <div className="max-w-md">
-                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                          Fecha de Examen Profesional <span className="text-red-500">*</span>
-                          <span className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400 ml-1.5">
-                            (Tesis / Tesina — Réplica oral ante sínodo)
-                          </span>
-                        </label>
-                        <input
-                          type="date"
-                          disabled={!editing}
-                          value={(draft.fecha_examen as string) ?? ''}
-                          onChange={e => setDraft(prev => ({ ...prev, fecha_examen: e.target.value || null, fecha_exencion: null }))}
-                          className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
-                        />
-                        <p className="text-[11px] text-gray-500 mt-1">
-                          Columna 33 en el Layout DGAIR. La fecha de exención se mantiene vacía automáticamente.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="max-w-md">
-                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                          Fecha de Exención de Examen <span className="text-red-500">*</span>
-                          <span className="text-[11px] font-normal text-purple-600 dark:text-purple-400 ml-1.5">
-                            (Protocolo oficial sin réplica oral)
-                          </span>
-                        </label>
-                        <input
-                          type="date"
-                          disabled={!editing}
-                          value={(draft.fecha_exencion as string) ?? ''}
-                          onChange={e => setDraft(prev => ({ ...prev, fecha_exencion: e.target.value || null, fecha_examen: null }))}
-                          className="w-full px-3 py-2 text-sm rounded-[10px] border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1c2228] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
-                        />
-                        <p className="text-[11px] text-gray-500 mt-1">
-                          Columna 34 en el Layout DGAIR. La fecha de examen se mantiene vacía automáticamente.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Botón completar proceso */}
-                {!ficha?.tramite_completado && (
-                  <div className="flex justify-end pt-2">
-                    <button
-                      onClick={handleCompletarTramite}
-                      className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-[10px] shadow-sm transition-colors cursor-pointer"
-                    >
-                      <CheckCircle2 size={15} /> Asentar Acta y Marcar como TITULADO
-                    </button>
-                  </div>
-                )}
-
-              </div>
-            )}
-            
             <DrivePicker
               label="Expediente de Titulación"
               value={draft.enlace_drive}
@@ -1110,7 +759,7 @@ export default function FichaTitulacionPrograma({
               disabled={!draft.tramite_completado}
               isEditing={editing}
             />
-          </div>
+          </section>
         )}
 
         {/* Estado vacío */}

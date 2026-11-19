@@ -62,7 +62,7 @@ export default function FichaAlumno({
     guardandoMonedero, setGuardandoMonedero,
     showConfirmMonedero, setShowConfirmMonedero,
     empresasLocales, setEmpresasLocales,
-    ssRegistros, setSsRegistros,
+    setSsRegistros,
     isEditingEstatus, setIsEditingEstatus,
     tempEstatus, setTempEstatus,
     guardandoEstatus, setGuardandoEstatus,
@@ -289,11 +289,7 @@ export default function FichaAlumno({
           {activeTab === 'titulacion' && isAdmin && (
             <TabTitulacion
               alumnoId={selectedAlumno.id}
-              esEspecialidad={esEspecialidad}
               modalidadesCatalogo={catalogos?.modalidades_titulacion ?? []}
-              servicioSocialRegistros={ssRegistros}
-              planesAlumno={planesDelAlumno}
-              alumno={selectedAlumno}
               onUpdate={() => onRefreshAlumnos?.()}
             />
           )}
