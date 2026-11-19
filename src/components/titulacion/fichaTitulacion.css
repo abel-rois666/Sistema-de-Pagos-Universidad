@@ -1,0 +1,46 @@
+.titulacion-ficha {
+  container: ficha-titulacion / inline-size;
+}
+
+.titulacion-requisito {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+  align-items: start;
+  gap: .4rem .75rem;
+  padding: .7rem 1rem;
+}
+
+.titulacion-columnas {
+  display: none;
+}
+
+.titulacion-requisito-respaldo {
+  grid-column: 1 / -1;
+}
+
+.titulacion-campos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+@container ficha-titulacion (min-width: 26rem) {
+  .titulacion-campos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container ficha-titulacion (min-width: 37rem) {
+  .titulacion-requisito {
+    grid-template-columns: minmax(0, 1fr) 8.25rem minmax(0, 1.5fr);
+    padding-inline: 1.25rem;
+  }
+
+  .titulacion-columnas {
+    display: grid;
+  }
+
+  .titulacion-requisito-respaldo {
+    grid-column: 3;
+  }
+}

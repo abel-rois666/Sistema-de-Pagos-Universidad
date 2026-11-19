@@ -11,7 +11,14 @@ try{for(const ancho of [390,820,1440])for(const oscuro of [false,true]){
  await p.goto(`https://ensayo.invalid/scripts/ensayoRequisitosTitulacion.html?${oscuro?'oscuro':''}`);
  await p.getByRole('button',{name:'Iniciar Registro'}).click();
  await p.getByRole('button',{name:'— Sin modalidad asignada —',exact:true}).click();await p.getByRole('button',{name:'TESIS',exact:true}).click();
+ const requisitos=p.getByRole('region',{name:'Requisitos de titulación',exact:true});
+ const filaPromedio=requisitos.getByText('Promedio de 9.50 o superior',{exact:true});
+ assert.equal(await filaPromedio.count(),0);
+ await p.getByText('Para asentar el acta se requiere la fecha del examen profesional.',{exact:true}).waitFor();
+ assert.equal(await requisitos.getByRole('button',{name:'Usar Alto Rendimiento Académico'}).count(),0);
  await p.getByRole('button',{name:'Usar Alto Rendimiento Académico'}).click();
+ await filaPromedio.waitFor();
+ await p.getByText('Para asentar el acta se requiere la fecha de exención de examen.',{exact:true}).waitFor();
  await p.getByRole('combobox',{name:/Plan de pagos que corresponde/}).selectOption('p1');
  await p.getByRole('combobox',{name:/Servicio social que corresponde/}).selectOption('s1');
  await p.getByText('2 de 2 conceptos liquidados.',{exact:true}).waitFor();
@@ -41,6 +48,132 @@ try{for(const ancho of [390,820,1440])for(const oscuro of [false,true]){
  await p.getByRole('button',{name:'Iniciar Registro'}).click();await p.getByRole('button',{name:'— Sin modalidad asignada —',exact:true}).click();await p.getByRole('button',{name:'ALTO RENDIMIENTO ACADÉMICO',exact:true}).click();
  await p.getByText('Inglés y servicio social no se exigen para esta modalidad de Especialidad.',{exact:true}).waitFor();
  assert.equal(await p.getByRole('combobox',{name:/Servicio social que corresponde/}).count(),0);
- assert.equal(await p.getByText('Título Profesional',{exact:true}).count(),1);assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ assert.equal(await p.getByText('Título Profesional',{exact:true}).count(),1);
+ await p.getByRole('button',{name:'ALTO RENDIMIENTO ACADÉMICO',exact:true}).click();await p.getByRole('button',{name:'TESINA',exact:true}).click();
+ await p.getByText('Para asentar el acta se requiere la fecha del examen profesional.',{exact:true}).waitFor();
+ assert.equal(await filaPromedio.count(),0);assert.equal(await p.getByText('Cédula Profesional',{exact:true}).count(),1);
+ assert.equal(await requisitos.getByText('Inglés',{exact:true}).count(),0);
+ assert.equal(await p.getByRole('combobox',{name:/Servicio social que corresponde/}).count(),0);
+ assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await p.goto(`https://ensayo.invalid/scripts/ensayoRequisitosTitulacion.html?folios&${oscuro?'oscuro':''}`);
+ const programa=p.getByRole('button',{name:'Programa de titulación',exact:true});
+ const folio=p.getByRole('textbox',{name:'Folio de Control Oficial'});
+ const elegirPrograma=async nombre=>{
+  await programa.click();await p.getByRole('option',{name:nombre}).click();
+  await p.getByRole('button',{name:'Editar',exact:true}).click();await folio.waitFor();
+ };
+ const guardarFolio=async()=>{
+  await p.getByRole('button',{name:'Guardar',exact:true}).click();
+  await p.getByLabel('Motivo de este cambio').fill('Ensayo ficticio de folio');
+  await p.getByRole('button',{name:'Guardar cambios',exact:true}).click();
+  await p.getByRole('button',{name:'Editar',exact:true}).waitFor();
+ };
+ await elegirPrograma(/PLAN HISTÓRICO/);
+ await p.evaluate(()=>window.ensayo.promedio=9.49);
+ await p.getByRole('button',{name:'Actualizar requisitos'}).click();
+ await folio.waitFor();
+ assert.equal(await filaPromedio.count(),0);
+ await p.getByRole('button',{name:'TESIS',exact:true}).click();await p.getByRole('button',{name:'ALTO RENDIMIENTO ACADÉMICO',exact:true}).click();
+ await p.getByText('El promedio no alcanza 9.50. Revisa la modalidad antes de completar.').waitFor();
+ assert.equal(await p.getByRole('button',{name:'Asentar acta y titular'}).count(),0);
+ await p.getByRole('button',{name:'ALTO RENDIMIENTO ACADÉMICO',exact:true}).click();await p.getByRole('button',{name:'TESIS',exact:true}).click();
+ await p.getByRole('button',{name:'Asentar acta y titular'}).waitFor();
+ assert.equal(await filaPromedio.count(),0);
+ await p.getByLabel('Libro Oficial').fill('2');
+ assert.equal(await folio.inputValue(),'FOLIO-HISTÓRICO');
+ await folio.fill('');await guardarFolio();
+ await elegirPrograma(/PLAN VIGENTE/);
+ assert.equal(await folio.inputValue(),'ME-001-0040');
+ await p.getByLabel('Foja Oficial').fill('50');assert.equal(await folio.inputValue(),'ME-001-0050');
+ await guardarFolio();
+ await elegirPrograma(/PLAN SIN CARRERA/);
+ assert.equal(await folio.inputValue(),'');
+ await p.getByText(/Falta la carrera o el nivel educativo del programa/).waitFor();
+ await guardarFolio();
+ await p.getByRole('button',{name:'Editar',exact:true}).click();
+ await folio.fill('MANUAL-001-0040');await guardarFolio();
+ const folios=await p.evaluate(()=>window.ensayo.guardados.map(x=>[x.p_programa,x.p_datos.folio_control]));
+ assert.deepEqual(folios,[['pr','LD-002-0040'],['pos','ME-001-0050'],['sin',null],['sin','MANUAL-001-0040']]);
+ assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await p.goto(`https://ensayo.invalid/scripts/ensayoRequisitosTitulacion.html?acta&${oscuro?'oscuro':''}`);
+ await p.getByText('9 de 9 requisitos cubiertos para esta modalidad',{exact:true}).waitFor();
+ assert.equal(await p.getByRole('navigation',{name:'Secciones de titulación'}).count(),0);
+ const modalidad=p.getByRole('region',{name:'Modalidad de titulación',exact:true});
+ const acta=p.getByRole('region',{name:'Acta oficial',exact:true});
+ const cabeceras=await Promise.all([modalidad,requisitos,acta].map(seccion=>seccion.locator(':scope > header').evaluate(e=>({
+  fondo:getComputedStyle(e).backgroundColor,
+  rect:e.getBoundingClientRect().toJSON(),
+ }))));
+ for (const cabecera of cabeceras.slice(1)) {
+  assert.equal(cabecera.fondo,cabeceras[0].fondo);
+  assert.equal(cabecera.rect.left,cabeceras[0].rect.left);
+  assert.equal(cabecera.rect.width,cabeceras[0].rect.width);
+ }
+ assert.ok(cabeceras[0].rect.bottom<cabeceras[1].rect.top && cabeceras[1].rect.bottom<cabeceras[2].rect.top);
+ const geometria=await p.evaluate(()=>{
+  const estadoAutomatico=document.querySelector('dl[aria-label="Comprobación automática"] dd');
+  const estadoManual=document.querySelector('dl[aria-label="Revisión manual"] dd');
+  const fila=estadoAutomatico.parentElement;
+  return {posiciones:[estadoAutomatico,estadoManual].map(e=>e.getBoundingClientRect().left),columnas:getComputedStyle(fila).gridTemplateColumns.split(' ').length};
+ });
+ assert.equal(geometria.columnas,ancho===390?2:3);
+ const columnas=requisitos.locator('.titulacion-columnas');
+ assert.equal(await columnas.isVisible(),ancho>390);
+ if(ancho>390){
+  assert.equal(geometria.posiciones[0],geometria.posiciones[1]);
+  const tipografia=await columnas.evaluate(e=>{
+   const estilo=getComputedStyle(e);
+   const lienzo=document.createElement('canvas');
+   lienzo.width=lienzo.height=1;
+   const contexto=lienzo.getContext('2d');
+   const luminancia=color=>{
+    contexto.fillStyle=color;
+    contexto.fillRect(0,0,1,1);
+    const canales=Array.from(contexto.getImageData(0,0,1,1).data.slice(0,3),valor=>valor/255);
+    return canales.map(c=>c<=0.04045?c/12.92:((c+0.055)/1.055)**2.4)
+     .reduce((suma,c,i)=>suma+c*[0.2126,0.7152,0.0722][i],0);
+   };
+   const luces=[luminancia(estilo.color),luminancia(estilo.backgroundColor)];
+   const fila=e.parentElement.querySelector('dl dt');
+   return {
+    contraste:(Math.max(...luces)+0.05)/(Math.min(...luces)+0.05),
+    tamano:parseFloat(estilo.fontSize),
+    tamanoFila:parseFloat(getComputedStyle(fila).fontSize),
+    peso:parseInt(estilo.fontWeight,10),
+    estado:e.children[1].getBoundingClientRect().left,
+   };
+  });
+  assert.ok(tipografia.contraste>=4.5 && tipografia.tamano>tipografia.tamanoFila && tipografia.peso>=700);
+  assert.equal(tipografia.estado,geometria.posiciones[0]);
+ }
+ await p.screenshot({path:`.tmp-requisitos-capturas/ficha-${ancho}-${oscuro?'oscuro':'claro'}.png`});
+ const finalizar=acta.getByRole('button',{name:'Asentar acta y titular'});
+ await acta.getByText('Captura pendiente',{exact:true}).waitFor();
+ assert.equal(await finalizar.isDisabled(),true);
+ await acta.getByRole('button',{name:'Editar datos del acta'}).click();
+ const fechaActa=p.getByLabel('Fecha de exención de examen',{exact:true});
+ await p.waitForFunction(()=>document.activeElement?.matches('input[type="date"][aria-required="true"]'));
+ await fechaActa.fill('2026-11-19');
+ const curp=p.getByRole('combobox',{name:'Estado de CURP'});
+ await curp.selectOption('RECHAZADO');
+ await p.getByLabel('Motivo del rechazo').fill('Documento de prueba');
+ await p.getByText('8 de 9 requisitos cubiertos para esta modalidad',{exact:true}).waitFor();
+ assert.equal(await finalizar.count(),0);
+ await curp.selectOption('APROBADO');
+ await acta.getByText('Lista para confirmar',{exact:true}).waitFor();
+ assert.equal(await fechaActa.inputValue(),'2026-11-19');
+ assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await p.screenshot({path:`.tmp-requisitos-capturas/acta-${ancho}-${oscuro?'oscuro':'claro'}.png`});
+ await finalizar.click();
+ const confirmar=p.getByRole('dialog',{name:'Completar trámite de titulación'});
+ await confirmar.getByText('LD-001-0040',{exact:true}).waitFor();
+ await confirmar.getByText('19/11/2026',{exact:true}).waitFor();
+ assert.equal(await p.evaluate(()=>window.ensayo.guardados.length),0);
+ await confirmar.getByLabel('Motivo de este cambio').fill('Acta revisada en el ensayo');
+ await confirmar.getByRole('button',{name:'Asentar acta y completar'}).click();
+ await acta.getByText('Acta registrada',{exact:true}).waitFor();
+ const cierre=await p.evaluate(()=>window.ensayo.guardados[0]);
+ assert.equal(cierre.p_accion,'COMPLETAR');assert.equal(cierre.p_programa,'pr');
+ assert.equal(cierre.p_datos.fecha_exencion,'2026-11-19');assert.equal(cierre.p_datos.fecha_examen,null);
  await p.close();
-}assert.deepEqual(errores,[]);console.log('Requisitos: selección de modalidad, sugerencia >=9.50, fuentes explícitas, guardado auditado, actualización 9.49 sin cambiar modalidad y bloqueo/recuperación ante error. 390/820/1440 y ambos temas, sin red real.');}finally{await browser.close();}
+}assert.deepEqual(errores,[]);console.log('Titulación: cabeceras uniformes, contraste y cuadrícula adaptable, revisión documental, foco, folios por programa y confirmación auditada. 390/820/1440 y ambos temas, sin red real.');}finally{await browser.close();}
