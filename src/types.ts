@@ -358,6 +358,9 @@ export type EstatusTresOpciones = 'SIN_INICIAR' | 'EN_CURSO' | 'COMPLETADO';
 export type EstatusDocumental   = 'SIN_INICIAR' | 'APROBADO' | 'RECHAZADO';
 
 export interface FichaTitulacion {
+  plan_pago_requisito_id?: string | null;
+  servicio_social_requisito_id?: string | null;
+  requisitos_verificados?: Record<string,unknown> | null;
   revision?: number;
   archivado_en?: string | null;
   id: string;

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, getAppConfig } from '../../lib/supabase';
+import { supabase, getAppConfig, fetchAllSupabase } from '../../lib/supabase';
 import { Search, ChevronRight, FileSpreadsheet, AlertTriangle, CheckCircle, ChevronLeft, UserPlus, X, Settings, Users, Save, ChevronDown, ChevronUp, ShieldCheck, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { generarLayoutTitulacionDGAIR, TitulacionAlumnoData, ENTIDADES_CATALOGO, TIPOS_ANTECEDENTE_CATALOGO, generateFolioControl } from '../../utils/titulacionExportUtils';
+import { generarLayoutTitulacionDGAIR, TitulacionAlumnoData, ENTIDADES_CATALOGO, TIPOS_ANTECEDENTE_CATALOGO, generateFolioControl, prepararDatosLayoutTitulacion } from '../../utils/titulacionExportUtils';
 import type { AppConfig, Empleado } from '../../types';
+import RevisionLayoutTitulacion, {AvisoDatosPropuestosTitulacion, IncidenciasLayoutTitulacion} from './RevisionLayoutTitulacion';
+import './layoutTitulacion.css';
 
 export default function WizardLayoutTitulacion() {
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
@@ -24,6 +26,10 @@ export default function WizardLayoutTitulacion() {
   // Queue
   const [queue, setQueue] = useState<TitulacionAlumnoData[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [erroresExportacion, setErroresExportacion] = useState<string[]>([]);
+  const [datosRevisados, setDatosRevisados] = useState(false);
+  const [revisionPendiente, setRevisionPendiente] = useState(false);
+  useEffect(()=>{setDatosRevisados(false);setRevisionPendiente(false);},[queue,firmante1Id,firmante2Id,incluirFirmante2]);
 
   useEffect(() => {
     const loadGlobals = async () => {
@@ -67,6 +73,7 @@ export default function WizardLayoutTitulacion() {
         .select(`
           *,
           alumno_programas(
+            id,
             plan_id,
             planes_estudio(*, carrera:carreras(*))
           )
@@ -89,18 +96,19 @@ export default function WizardLayoutTitulacion() {
     try {
       setLoading(true);
       
-      if (!prog || !prog.planes_estudio) throw new Error('Plan de estudios inválido.');
+      if (!prog?.id || !prog.planes_estudio) throw new Error('No se pudo identificar el programa del alumno. Vuelve a consultar.');
       const plan = prog.planes_estudio;
       const carrera = plan.carrera;
-      const uid = `${al.id}_${plan.id}`;
+      const uid = `${al.id}_${prog.id}`;
 
       if (queue.find(q => q.alumno.uid === uid)) throw new Error('El alumno ya está en la cola.');
 
       // Obtener historial e inscripciones para las fechas
-      const { data: inscDataRaw } = await supabase
+      const { data: inscDataRaw, error: errorHistorial } = await fetchAllSupabase(() => supabase
         .from('inscripciones_academicas')
-        .select(`*, ciclo:ciclos_escolares(*), asignatura:asignaturas(*)`)
-        .eq('alumno_id', al.id);
+        .select(`*, ciclo:ciclos_escolares(*), asignatura:asignaturas!inner(*)`)
+        .eq('alumno_id', al.id).eq('asignatura.plan_id', plan.id).order('id'));
+      if(errorHistorial)throw new Error('No se pudo consultar el historial para proponer las fechas. Reintenta la consulta.');
         
       const inscData = (inscDataRaw || []).filter((i: any) => i.asignatura?.plan_id === plan.id);
 
@@ -115,7 +123,7 @@ export default function WizardLayoutTitulacion() {
         .limit(1);
 
       // Obtener servicio social
-      const { data: ssData } = await supabase
+      const { data: ssData, error: errorServicioSocial } = await supabase
         .from('servicio_social')
         .select('*')
         .eq('alumno_id', al.id)
@@ -123,6 +131,7 @@ export default function WizardLayoutTitulacion() {
         .limit(1);
 
       if(errorFichaTitulacion)throw errorFichaTitulacion;
+      if(errorServicioSocial)throw new Error('No se pudo comprobar el servicio social. Reintenta la consulta.');
       const fTit = fichaTitulacionData?.[0];
       if(!fTit)throw new Error('No hay ficha de titulación activa asociada al programa seleccionado. Revisa su asociación antes de exportar.');
       const alumnoObj = { ...al, plan, carrera, uid, inscripciones: inscData || [], servicio_social: ssData?.[0], doc_curp: fTit?.doc_curp };
@@ -197,7 +206,7 @@ export default function WizardLayoutTitulacion() {
       const newItem: TitulacionAlumnoData = {
         alumno: alumnoObj,
         configuracion: {
-          correo: 'control.escolar@cuom.edu.mx',
+          correo: al.email || '',
           modalidad_id: defaultModalidadId,
           fecha_examen: defFechaExamen,
           fecha_exencion: defFechaExencion,
@@ -232,6 +241,7 @@ export default function WizardLayoutTitulacion() {
   };
 
   const updateConfig = (uid: string, field: string, value: string) => {
+    setErroresExportacion([]);
     setQueue(prev => prev.map(q => {
       if (q.alumno.uid === uid) {
         const nextCfg = { ...q.configuracion, [field]: value };
@@ -322,67 +332,17 @@ export default function WizardLayoutTitulacion() {
       f2 = firmantes.find(f => f.id === firmante2Id);
     }
 
-    // Validar si hay campos obligatorios faltantes (Modalidad, Entidad, Servicio Social Variante)
-    let warnings: string[] = [];
-
-    queue.forEach(q => {
-      if (!q.configuracion.modalidad_id) {
-        warnings.push(`Modalidad no seleccionada para ${q.alumno.nombre_completo}`);
-      }
-      if (!q.alumno.estado_escolaridad && !q.configuracion.entidad_federativa_antecedente) {
-        warnings.push(`Falta Entidad Federativa de procedencia para ${q.alumno.nombre_completo}`);
-      }
-      if (q.alumno.carrera?.nivel_educativo?.toUpperCase() === 'LICENCIATURA' && q.alumno.servicio_social?.estatus === 'LIBERADO' && !q.alumno.servicio_social?.variante_legal) {
-        warnings.push(`Falta variante de Servicio Social para ${q.alumno.nombre_completo}`);
-      }
-      
-      // Validación cronológica de fechas
-      const f1Str = q.configuracion.antecedente_inicio;
-      const f2Str = q.configuracion.antecedente_fin;
-      const f3Str = q.configuracion.fecha_examen || q.configuracion.fecha_exencion;
-
-      let fInicioCarrera: Date | null = q.configuracion.fecha_inicio_carrera ? new Date(q.configuracion.fecha_inicio_carrera + 'T00:00:00') : null;
-      let fFinCarrera: Date | null = q.configuracion.fecha_termino_carrera ? new Date(q.configuracion.fecha_termino_carrera + 'T00:00:00') : null;
-
-      if (f1Str && f2Str) {
-        if (new Date(f1Str + 'T00:00:00') > new Date(f2Str + 'T00:00:00')) {
-          warnings.push(`La Fecha Inicio Antecedente no puede ser mayor a la Fecha Término Antecedente para ${q.alumno.nombre_completo}`);
-        }
-      }
-
-      if (f2Str && fInicioCarrera) {
-        if (new Date(f2Str + 'T00:00:00') > fInicioCarrera) {
-          warnings.push(`La Fecha Término Antecedente no puede ser mayor a la Fecha Inicio de Carrera para ${q.alumno.nombre_completo}`);
-        }
-      }
-
-      if (fInicioCarrera && fFinCarrera) {
-        if (fInicioCarrera > fFinCarrera) {
-          warnings.push(`Las fechas de inicio y fin de carrera (obtenidas de los ciclos escolares) son inconsistentes para ${q.alumno.nombre_completo}`);
-        }
-      }
-
-      if (fFinCarrera && f3Str) {
-        if (fFinCarrera > new Date(f3Str + 'T00:00:00')) {
-          warnings.push(`La Fecha Término de Carrera no puede ser mayor a la Fecha Examen/Exención para ${q.alumno.nombre_completo}`);
-        }
-      }
-
-      if (f3Str && q.configuracion.fecha_expedicion) {
-        const fExpedicion = new Date(q.configuracion.fecha_expedicion + 'T00:00:00');
-        if (new Date(f3Str + 'T00:00:00') > fExpedicion) {
-          warnings.push(`La Fecha Examen/Exención no puede ser mayor a la Fecha de Expedición para ${q.alumno.nombre_completo}`);
-        }
-      }
-    });
-
-    if (warnings.length > 0) {
-      const errorMsg = `ADVERTENCIA CRÍTICA: Faltan campos o existen errores de cronología en las fechas.\n- ${warnings.join('\n- ')}\n\nPor favor, revisa y corrige estos datos antes de exportar.`;
-      toast.error(errorMsg, { duration: 8000 });
-      setLoading(false);
+    try {
+      if(!f1 || (incluirFirmante2 && !f2)) throw new Error('Vuelve a seleccionar los firmantes disponibles.');
+      prepararDatosLayoutTitulacion(queue,configApp,f1,f2);
+      setErroresExportacion([]);
+    } catch(error) {
+      setRevisionPendiente(false);
+      setErroresExportacion((error instanceof Error ? error.message : 'Revisa los datos del lote.').split('\n'));
+      toast.error('Revisa los datos indicados antes de exportar. La captura se conserva.');
       return;
     }
-
+    if(!datosRevisados){setRevisionPendiente(true);return;}
     try {
       setLoading(true);
       await generarLayoutTitulacionDGAIR(queue, configApp, f1!, f2);
@@ -395,7 +355,7 @@ export default function WizardLayoutTitulacion() {
   };
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-6">
+    <div className="layout-titulos p-4 sm:p-6 max-w-[1400px] mx-auto space-y-6">
       
       <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-4">
         <div className="flex items-center gap-4">
@@ -408,7 +368,7 @@ export default function WizardLayoutTitulacion() {
       </div>
 
       {/* Stepper */}
-      <div className="flex items-center justify-between my-8 relative px-4 max-w-4xl mx-auto">
+      <div className="layout-titulos-pasos flex items-center justify-between gap-2 my-8 relative max-w-4xl mx-auto">
         <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-200 dark:bg-gray-800 -z-10 -translate-y-1/2 rounded-full"></div>
         <div className="absolute top-1/2 left-0 h-1 bg-[#1456f0] -z-10 -translate-y-1/2 rounded-full transition-all duration-500" style={{ width: paso === 1 ? '0%' : paso === 2 ? '50%' : '100%' }}></div>
 
@@ -417,9 +377,9 @@ export default function WizardLayoutTitulacion() {
           { num: 2, label: 'Firmantes' },
           { num: 3, label: 'Ajustes y Exportación' }
         ].map((step) => (
-          <div key={step.num} className={`flex flex-col items-center gap-3 px-8 py-4 rounded-2xl shadow-sm border-2 transition-all duration-300 ${
+          <div key={step.num} className={`min-w-0 flex-1 flex flex-col items-center gap-3 px-2 sm:px-8 py-4 rounded-2xl shadow-sm border-2 transition-all duration-300 ${
             paso === step.num 
-              ? 'border-[#1456f0] bg-white dark:bg-[#1456f0]/10 dark:border-[#1456f0]/50 scale-105' 
+              ? 'border-[#1456f0] bg-white dark:bg-[#1456f0]/10 dark:border-[#1456f0]/50'
               : paso > step.num
                 ? 'border-emerald-500 bg-white dark:bg-emerald-900/10 dark:border-emerald-500/30'
                 : 'border-gray-200 bg-white dark:bg-[#1c2228] dark:border-gray-800'
@@ -433,7 +393,7 @@ export default function WizardLayoutTitulacion() {
             }`}>
               {paso > step.num ? <CheckCircle size={20} /> : step.num}
             </div>
-            <span className={`text-sm font-bold ${
+            <span className={`text-center text-xs sm:text-sm font-bold ${
               paso === step.num ? 'text-[#1456f0] dark:text-blue-400' 
               : paso > step.num ? 'text-emerald-600 dark:text-emerald-400'
               : 'text-gray-500 dark:text-gray-500'
@@ -469,7 +429,7 @@ export default function WizardLayoutTitulacion() {
                   const programas = al.alumno_programas || [];
                   if (programas.length === 0) return [];
                   return programas.map((prog: any, idx: number) => {
-                    const isInQueue = queue.some(q => q.alumno.uid === `${al.id}_${prog.plan_id}`);
+                    const isInQueue = queue.some(q => q.alumno.uid === `${al.id}_${prog.id}`);
                     return (
                       <div key={`${al.id}-${idx}`} onClick={() => !isInQueue && agregarACola(al, prog)} className={`p-4 border rounded-xl transition relative overflow-hidden group ${isInQueue ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10 cursor-not-allowed' : 'border-gray-200 dark:border-gray-700 cursor-pointer hover:border-[#1456f0] hover:bg-blue-50 dark:hover:bg-[#1456f0]/10'}`}>
                         {isInQueue && (
@@ -528,13 +488,13 @@ export default function WizardLayoutTitulacion() {
 
       {/* PASO 2 */}
       {paso === 2 && (
-        <div className="max-w-2xl mx-auto bg-white dark:bg-[#1c2228] p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+        <div className="max-w-2xl mx-auto bg-white dark:bg-[#1c2228] p-4 sm:p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Selección de Firmantes</h2>
           
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Firmante 1 (Obligatorio)</label>
-              <select value={firmante1Id} onChange={e => setFirmante1Id(e.target.value)} className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#181e25] focus:ring-2 focus:ring-[#1456f0]">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2" htmlFor="firmante-layout-1">Firmante 1 (Obligatorio)</label>
+              <select id="firmante-layout-1" value={firmante1Id} onChange={e => setFirmante1Id(e.target.value)} className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#181e25] focus:ring-2 focus:ring-[#1456f0]">
                 <option value="" disabled>Seleccionar...</option>
                 {firmantes.map(f => <option key={f.id} value={f.id}>{f.nombres} {f.apellido_paterno} - {f.puesto}</option>)}
               </select>
@@ -548,8 +508,8 @@ export default function WizardLayoutTitulacion() {
 
               {incluirFirmante2 && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Firmante 2</label>
-                  <select value={firmante2Id} onChange={e => setFirmante2Id(e.target.value)} className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#181e25] focus:ring-2 focus:ring-[#1456f0]">
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2" htmlFor="firmante-layout-2">Firmante 2</label>
+                  <select id="firmante-layout-2" value={firmante2Id} onChange={e => setFirmante2Id(e.target.value)} className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#181e25] focus:ring-2 focus:ring-[#1456f0]">
                     <option value="" disabled>Seleccionar...</option>
                     {firmantes.map(f => <option key={f.id} value={f.id}>{f.nombres} {f.apellido_paterno} - {f.puesto}</option>)}
                   </select>
@@ -558,9 +518,9 @@ export default function WizardLayoutTitulacion() {
             </div>
           </div>
 
-          <div className="mt-8 flex items-center justify-between">
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
             <button onClick={() => setPaso(1)} className="px-6 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-800">Atrás</button>
-            <button onClick={() => { if(!firmante1Id) return toast.error('Selecciona el Firmante 1'); if(incluirFirmante2 && !firmante2Id) return toast.error('Selecciona el Firmante 2'); setPaso(3); }} className="px-6 py-2.5 bg-[#1456f0] text-white rounded-xl font-bold hover:bg-blue-600 flex items-center gap-2">Configurar Alumnos <ChevronRight size={18}/></button>
+            <button onClick={() => { if(!firmante1Id) return toast.error('Selecciona el Firmante 1'); if(incluirFirmante2 && !firmante2Id) return toast.error('Selecciona el Firmante 2'); if(!expandedId) setExpandedId(queue[0]?.alumno.uid || null); setPaso(3); }} className="px-6 py-2.5 bg-[#1456f0] text-white rounded-xl font-bold hover:bg-blue-600 flex items-center gap-2">Configurar Alumnos <ChevronRight size={18}/></button>
           </div>
         </div>
       )}
@@ -568,51 +528,51 @@ export default function WizardLayoutTitulacion() {
       {/* PASO 3 */}
       {paso === 3 && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between bg-white dark:bg-[#1c2228] p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+          <AvisoDatosPropuestosTitulacion/>
+          <IncidenciasLayoutTitulacion errores={erroresExportacion}/>
+          <div className="flex flex-wrap gap-3 items-center justify-between bg-white dark:bg-[#1c2228] p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
             <button onClick={() => setPaso(2)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2 text-sm font-medium transition-colors">
               <ChevronLeft size={16}/> Volver a Firmantes
             </button>
-            <button onClick={handleExportar} disabled={loading} className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 text-sm font-bold shadow-md transition-colors disabled:opacity-50">
-              <Save size={18}/> Exportar Excel
-            </button>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Revisa {queue.length===1?'el registro':`los ${queue.length} registros`} del lote antes de exportar.</p>
           </div>
 
           <div className="space-y-4">
             {queue.map((item) => {
               const isExpanded = expandedId === item.alumno.uid;
-              const hasErrors = !item.configuracion.modalidad_id || !item.alumno.estado_escolaridad || (item.alumno.carrera?.nivel_educativo === 'LICENCIATURA' && item.alumno.servicio_social?.estatus === 'LIBERADO' && !item.alumno.servicio_social?.variante_legal);
+              const hasErrors = !item.configuracion.modalidad_id || (!item.configuracion.entidad_federativa_antecedente && !item.alumno.estado_escolaridad);
               
               return (
                 <div key={item.alumno.uid} className={`bg-white dark:bg-[#1c2228] rounded-xl border transition-all overflow-hidden ${hasErrors ? 'border-orange-300 dark:border-orange-800/50' : 'border-gray-200 dark:border-gray-700'}`}>
-                  <div className={`p-4 flex flex-wrap gap-4 items-center justify-between cursor-pointer ${hasErrors ? 'bg-orange-50/50 dark:bg-orange-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`} onClick={() => setExpandedId(isExpanded ? null : item.alumno.uid)}>
-                    <div className="flex items-center gap-3">
+                  <button type="button" aria-expanded={isExpanded} aria-controls={`layout-${item.alumno.uid}-datos`} className={`w-full text-left p-4 flex flex-wrap gap-4 items-center justify-between cursor-pointer ${hasErrors ? 'bg-orange-50/50 dark:bg-orange-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`} onClick={() => setExpandedId(isExpanded ? null : item.alumno.uid)}>
+                    <span className="flex min-w-0 items-center gap-3">
                       {hasErrors && <AlertTriangle className="text-orange-500 w-5 h-5" />}
-                      <div>
-                        <h3 className="font-bold text-gray-900 dark:text-white">{item.alumno.nombre_completo}</h3>
-                        <p className="text-sm text-gray-500">{item.alumno.matricula} • {item.alumno.carrera?.nivel_educativo} en {item.alumno.carrera?.nombre}</p>
-                      </div>
-                    </div>
+                      <span className="min-w-0">
+                        <span className="block font-bold text-gray-900 dark:text-white">{item.alumno.nombre_completo}</span>
+                        <span className="block text-sm text-gray-500">{item.alumno.matricula} • {item.alumno.carrera?.nivel_educativo} en {item.alumno.carrera?.nombre}</span>
+                      </span>
+                    </span>
                     {isExpanded ? <ChevronUp className="text-gray-400"/> : <ChevronDown className="text-gray-400"/>}
-                  </div>
+                  </button>
 
                   {isExpanded && (
-                    <div className="p-6 border-t border-gray-100 dark:border-gray-800 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-gray-50/50 dark:bg-[#181e25]">
+                    <div id={`layout-${item.alumno.uid}-datos`} className="p-4 sm:p-6 border-t border-gray-100 dark:border-gray-800 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-gray-50/50 dark:bg-[#181e25]">
                       
                       {/* Fila 1 */}
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Folio de Control</label>
-                        <input type="text" value={item.configuracion.folio_control} onChange={e => updateConfig(item.alumno.uid, 'folio_control', e.target.value)} className="w-full p-2 text-sm font-mono border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] uppercase" />
+                        <label htmlFor={`layout-${item.alumno.uid}-folio_control`} className="block text-xs font-bold text-gray-500 mb-1">Folio de Control</label>
+                        <input type="text" id={`layout-${item.alumno.uid}-folio_control`} value={item.configuracion.folio_control} onChange={e => updateConfig(item.alumno.uid, 'folio_control', e.target.value)} className="w-full p-2 text-sm font-mono border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] uppercase" />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Correo Electrónico</label>
-                        <input type="email" value={item.configuracion.correo} onChange={e => updateConfig(item.alumno.uid, 'correo', e.target.value.toLowerCase())} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] lowercase" />
+                        <label htmlFor={`layout-${item.alumno.uid}-correo`} className="block text-xs font-bold text-gray-500 mb-1">Correo Electrónico</label>
+                        <input type="email" id={`layout-${item.alumno.uid}-correo`} value={item.configuracion.correo} onChange={e => updateConfig(item.alumno.uid, 'correo', e.target.value.toLowerCase())} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] lowercase" />
                       </div>
 
                       <div className="md:col-span-2 lg:col-span-1">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">CURP Oficial</label>
+                        <label className="block text-xs font-bold text-gray-500 mb-1" htmlFor={`layout-${item.alumno.uid}-curp`}>CURP Oficial</label>
                         <div className="flex items-center gap-2">
-                          <input type="text" readOnly value={item.alumno.curp || ''} className="w-full p-2 text-sm font-mono border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-[#151a1f] uppercase text-gray-500" />
+                          <input id={`layout-${item.alumno.uid}-curp`} type="text" readOnly value={item.alumno.curp || ''} className="w-full p-2 text-sm font-mono border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-[#151a1f] uppercase text-gray-500" />
                           {item.alumno.doc_curp === 'APROBADO' ? (
                             <div title="CURP Validada en RENAPO" className="flex items-center justify-center text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 w-10 h-10 rounded-lg shrink-0 cursor-default">
                               <ShieldCheck size={20} />
@@ -626,8 +586,8 @@ export default function WizardLayoutTitulacion() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Modalidad de Titulación <span className="text-red-500">*</span></label>
-                        <select value={item.configuracion.modalidad_id} onChange={e => updateConfig(item.alumno.uid, 'modalidad_id', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.modalidad_id ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`}>
+                        <label htmlFor={`layout-${item.alumno.uid}-modalidad_id`} className="block text-xs font-bold text-gray-500 mb-1">Modalidad de Titulación <span className="text-red-500">*</span></label>
+                        <select id={`layout-${item.alumno.uid}-modalidad_id`} value={item.configuracion.modalidad_id} onChange={e => updateConfig(item.alumno.uid, 'modalidad_id', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.modalidad_id ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`}>
                           <option value="">(SIN SELECCIONAR)</option>
                           <option value="1">1 - POR TESIS</option>
                           <option value="2">2 - POR PROMEDIO</option>
@@ -640,61 +600,61 @@ export default function WizardLayoutTitulacion() {
 
                       {/* Fechas Cronológicas */}
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Inicio Antecedente (Opcional)</label>
-                        <input type="date" value={item.configuracion.antecedente_inicio} onChange={e => updateConfig(item.alumno.uid, 'antecedente_inicio', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
+                        <label htmlFor={`layout-${item.alumno.uid}-antecedente_inicio`} className="block text-xs font-bold text-gray-500 mb-1">Fecha Inicio Antecedente (Opcional)</label>
+                        <input type="date" id={`layout-${item.alumno.uid}-antecedente_inicio`} value={item.configuracion.antecedente_inicio} onChange={e => updateConfig(item.alumno.uid, 'antecedente_inicio', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Término Antecedente <span className="text-red-500">*</span></label>
-                        <input type="date" value={item.configuracion.antecedente_fin} onChange={e => updateConfig(item.alumno.uid, 'antecedente_fin', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
+                        <label htmlFor={`layout-${item.alumno.uid}-antecedente_fin`} className="block text-xs font-bold text-gray-500 mb-1">Fecha Término Antecedente <span className="text-red-500">*</span></label>
+                        <input type="date" id={`layout-${item.alumno.uid}-antecedente_fin`} value={item.configuracion.antecedente_fin} onChange={e => updateConfig(item.alumno.uid, 'antecedente_fin', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Inicio de Carrera <span className="text-red-500">*</span></label>
-                        <input type="date" value={item.configuracion.fecha_inicio_carrera} onChange={e => updateConfig(item.alumno.uid, 'fecha_inicio_carrera', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.fecha_inicio_carrera ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`} />
+                        <label htmlFor={`layout-${item.alumno.uid}-fecha_inicio_carrera`} className="block text-xs font-bold text-gray-500 mb-1">Fecha Inicio de Carrera <span className="text-red-500">*</span></label>
+                        <input type="date" id={`layout-${item.alumno.uid}-fecha_inicio_carrera`} value={item.configuracion.fecha_inicio_carrera} onChange={e => updateConfig(item.alumno.uid, 'fecha_inicio_carrera', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.fecha_inicio_carrera ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`} />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Fecha Término de Carrera <span className="text-red-500">*</span></label>
-                        <input type="date" value={item.configuracion.fecha_termino_carrera} onChange={e => updateConfig(item.alumno.uid, 'fecha_termino_carrera', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.fecha_termino_carrera ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`} />
+                        <label htmlFor={`layout-${item.alumno.uid}-fecha_termino_carrera`} className="block text-xs font-bold text-gray-500 mb-1">Fecha Término de Carrera <span className="text-red-500">*</span></label>
+                        <input type="date" id={`layout-${item.alumno.uid}-fecha_termino_carrera`} value={item.configuracion.fecha_termino_carrera} onChange={e => updateConfig(item.alumno.uid, 'fecha_termino_carrera', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] ${!item.configuracion.fecha_termino_carrera ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`} />
                       </div>
 
                       {item.configuracion.modalidad_id === '1' ? (
                         <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1">
+                          <label htmlFor={`layout-${item.alumno.uid}-fecha_examen`} className="block text-xs font-bold text-gray-500 mb-1">
                             Fecha Examen Profesional <span className="text-red-500">*</span>
                             <span className="text-[10px] text-blue-600 dark:text-blue-400 font-normal ml-1">(Tesis / Tesina con sínodo)</span>
                           </label>
-                          <input type="date" value={item.configuracion.fecha_examen} onChange={e => updateConfig(item.alumno.uid, 'fecha_examen', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
+                          <input type="date" id={`layout-${item.alumno.uid}-fecha_examen`} value={item.configuracion.fecha_examen} onChange={e => updateConfig(item.alumno.uid, 'fecha_examen', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                         </div>
                       ) : item.configuracion.modalidad_id !== '' ? (
                         <div>
-                          <label className="block text-xs font-bold text-gray-500 mb-1">
+                          <label htmlFor={`layout-${item.alumno.uid}-fecha_exencion`} className="block text-xs font-bold text-gray-500 mb-1">
                             Fecha Exención de Examen <span className="text-red-500">*</span>
                             <span className="text-[10px] text-purple-600 dark:text-purple-400 font-normal ml-1">(Protocolo sin réplica)</span>
                           </label>
-                          <input type="date" value={item.configuracion.fecha_exencion} onChange={e => updateConfig(item.alumno.uid, 'fecha_exencion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
+                          <input type="date" id={`layout-${item.alumno.uid}-fecha_exencion`} value={item.configuracion.fecha_exencion} onChange={e => updateConfig(item.alumno.uid, 'fecha_exencion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                         </div>
                       ) : <div />}
 
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Fecha de Expedición <span className="text-red-500">*</span></label>
-                        <input type="date" value={item.configuracion.fecha_expedicion} onChange={e => updateConfig(item.alumno.uid, 'fecha_expedicion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
+                        <label htmlFor={`layout-${item.alumno.uid}-fecha_expedicion`} className="block text-xs font-bold text-gray-500 mb-1">Fecha de Expedición <span className="text-red-500">*</span></label>
+                        <input type="date" id={`layout-${item.alumno.uid}-fecha_expedicion`} value={item.configuracion.fecha_expedicion} onChange={e => updateConfig(item.alumno.uid, 'fecha_expedicion', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" />
                       </div>
 
-                      {['ESPECIALIDAD', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO'].includes((item.alumno.carrera?.nivel_educativo || '').toUpperCase()) ? (
+                      {(
                         <>
                           <div className="md:col-span-2">
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Institución de Procedencia</label>
-                            <input type="text" value={item.configuracion.escuela_procedencia} onChange={e => updateConfig(item.alumno.uid, 'escuela_procedencia', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] uppercase" placeholder="Ej. UNIVERSIDAD NACIONAL AUTONOMA DE MÉXICO" />
+                            <label htmlFor={`layout-${item.alumno.uid}-escuela_procedencia`} className="block text-xs font-bold text-gray-500 mb-1">Institución de Procedencia</label>
+                            <input type="text" id={`layout-${item.alumno.uid}-escuela_procedencia`} value={item.configuracion.escuela_procedencia} onChange={e => updateConfig(item.alumno.uid, 'escuela_procedencia', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228] uppercase" placeholder="Ej. UNIVERSIDAD NACIONAL AUTONOMA DE MÉXICO" />
                           </div>
+                          {['ESPECIALIDAD','MAESTRÍA','MAESTRIA','DOCTORADO'].includes((item.alumno.carrera?.nivel_educativo||'').toUpperCase()) && <div>
+                            <label htmlFor={`layout-${item.alumno.uid}-cedula_especialidad`} className="block text-xs font-bold text-gray-500 mb-1">Cédula Profesional Antecedente (Obligatorio)</label>
+                            <input type="text" id={`layout-${item.alumno.uid}-cedula_especialidad`} value={item.configuracion.cedula_especialidad} onChange={e => updateConfig(item.alumno.uid, 'cedula_especialidad', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" placeholder="Núm. de Cédula" />
+                          </div>}
                           <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Cédula Profesional Antecedente (Obligatorio)</label>
-                            <input type="text" value={item.configuracion.cedula_especialidad} onChange={e => updateConfig(item.alumno.uid, 'cedula_especialidad', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]" placeholder="Núm. de Cédula" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Tipo de Antecedente</label>
-                            <select value={item.configuracion.id_tipo_antecedente} onChange={e => updateConfig(item.alumno.uid, 'id_tipo_antecedente', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]">
+                            <label htmlFor={`layout-${item.alumno.uid}-id_tipo_antecedente`} className="block text-xs font-bold text-gray-500 mb-1">Tipo de Antecedente</label>
+                            <select id={`layout-${item.alumno.uid}-id_tipo_antecedente`} value={item.configuracion.id_tipo_antecedente} onChange={e => updateConfig(item.alumno.uid, 'id_tipo_antecedente', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]">
                               <option value="">(SIN SELECCIONAR)</option>
                               {Object.entries(TIPOS_ANTECEDENTE_CATALOGO).map(([id, nombre]) => (
                                 <option key={id} value={id}>{id} - {nombre}</option>
@@ -702,8 +662,8 @@ export default function WizardLayoutTitulacion() {
                             </select>
                           </div>
                           <div className="md:col-span-2">
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Entidad Federativa Antecedente</label>
-                            <select value={item.configuracion.entidad_federativa_antecedente} onChange={e => updateConfig(item.alumno.uid, 'entidad_federativa_antecedente', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]">
+                            <label htmlFor={`layout-${item.alumno.uid}-entidad_federativa_antecedente`} className="block text-xs font-bold text-gray-500 mb-1">Entidad Federativa Antecedente</label>
+                            <select id={`layout-${item.alumno.uid}-entidad_federativa_antecedente`} value={item.configuracion.entidad_federativa_antecedente} onChange={e => updateConfig(item.alumno.uid, 'entidad_federativa_antecedente', e.target.value)} className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1c2228]">
                               <option value="">(SELECCIONE UNA ENTIDAD)</option>
                               {Array.from(new Set(Object.values(ENTIDADES_CATALOGO).map(e => JSON.stringify(e)))).map(str => JSON.parse(str)).sort((a,b) => parseInt(a.id) - parseInt(b.id)).map(e => (
                                 <option key={e.id} value={e.id}>{e.id} - {e.nombre}</option>
@@ -711,12 +671,12 @@ export default function WizardLayoutTitulacion() {
                             </select>
                           </div>
                         </>
-                      ) : <div />}
+                      )}
 
                       {/* Fila 3: Autorización y SS */}
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Fundamento Legal Servicio Social</label>
-                        <select value={item.configuracion.fundamento_legal_ss} onChange={e => updateConfig(item.alumno.uid, 'fundamento_legal_ss', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] truncate ${!item.configuracion.fundamento_legal_ss ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`}>
+                        <label htmlFor={`layout-${item.alumno.uid}-fundamento_legal_ss`} className="block text-xs font-bold text-gray-500 mb-1">Fundamento Legal Servicio Social</label>
+                        <select id={`layout-${item.alumno.uid}-fundamento_legal_ss`} value={item.configuracion.fundamento_legal_ss} onChange={e => updateConfig(item.alumno.uid, 'fundamento_legal_ss', e.target.value)} className={`w-full p-2 text-sm border rounded-lg bg-white dark:bg-[#1c2228] truncate ${!item.configuracion.fundamento_legal_ss ? 'border-orange-400' : 'border-gray-300 dark:border-gray-700'}`}>
                           <option value="">(SIN SELECCIONAR)</option>
                           <option value="1">1 - ART. 52 LRART. 5 CONST</option>
                           <option value="2">2 - ART. 55 LRART. 5 CONST</option>
@@ -746,6 +706,11 @@ export default function WizardLayoutTitulacion() {
               );
             })}
           </div>
+          <RevisionLayoutTitulacion revisado={datosRevisados} onRevisar={valor=>{setDatosRevisados(valor);setRevisionPendiente(false);}} cantidad={queue.length} busy={loading} pendiente={revisionPendiente}>
+            <button onClick={handleExportar} disabled={loading} className="shrink-0 justify-center px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2 text-sm font-bold shadow-md transition-colors disabled:opacity-50">
+              <Save size={18}/> Exportar Excel
+            </button>
+          </RevisionLayoutTitulacion>
         </div>
       )}
 

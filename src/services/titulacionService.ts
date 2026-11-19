@@ -4,7 +4,7 @@ import type {FichaTitulacion,AlumnoPrograma} from '../types';
 const campos=['modalidad','pago_titulacion','certificado_estudios','ingles','servicio_social_req','fotografias','doc_antecedente','doc_antecedente_nota','doc_acta_nacimiento','doc_acta_nacimiento_nota','doc_curp','doc_curp_nota','doc_titulo_profesional','doc_titulo_profesional_nota','doc_cedula_profesional','doc_cedula_profesional_nota','promedio_alto_rendimiento','fecha_inicio_tramite','fecha_estimada_culminacion','enlace_drive','libro','foja','folio_control','fecha_examen','fecha_exencion'];
 export async function guardarTitulacion(alumno:string,programa:string,ficha:FichaTitulacion|null,draft:object,accion='GUARDAR',motivo='Actualización revisada del trámite'){
  if(motivo.trim().length<5)throw new Error('Describe el motivo de la operación (mínimo 5 caracteres).');
- const datos=Object.fromEntries(Object.entries(draft).filter(([k])=>campos.includes(k)));
+ const datos=Object.fromEntries(Object.entries(draft).filter(([k])=>campos.includes(k)||['plan_pago_requisito_id','servicio_social_requisito_id'].includes(k)));
  const {data,error}=await supabase.rpc('titulacion_guardar_v1',{p_alumno:alumno,p_programa:programa,p_id:ficha?.id||null,p_revision:(ficha as any)?.revision??0,p_datos:datos,p_accion:accion,p_motivo:motivo});
  if(error)throw new Error(['PGRST202','42883'].includes(error.code)?'Falta instalar titulación por programa (20261110100000). La captura se conserva.':error.message);
  if(!data?.id)throw new Error('El servidor no confirmó el guardado. Consulta antes de repetir.');return data as FichaTitulacion;

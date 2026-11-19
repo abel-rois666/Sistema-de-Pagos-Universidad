@@ -1,0 +1,343 @@
+import ExcelJS from 'exceljs';
+import { prepararFilaLayout, validarPlantillaLayout } from './layoutTitulosContrato';
+import type { AppConfig, Empleado } from '../types';
+
+export interface TitulacionAlumnoData {
+  alumno: any;
+  configuracion: {
+    correo: string;
+    modalidad_id: string;
+    fecha_examen: string;
+    fecha_exencion: string;
+    antecedente_inicio: string;
+    antecedente_fin: string;
+    cedula_especialidad: string;
+    folio_control: string;
+    id_autorizacion: string;
+    fundamento_legal_ss: string;
+    escuela_procedencia: string;
+    id_tipo_antecedente: string;
+    entidad_federativa_antecedente: string;
+    fecha_inicio_carrera: string;
+    fecha_termino_carrera: string;
+    fecha_expedicion: string;
+  };
+}
+
+/**
+ * Determina si la modalidad requiere Examen Profesional (Tesis / Tesina con defensa y sínodo)
+ * o si corresponde a Exención de Examen (Promedio/Alto Rendimiento, CENEVAL, Posgrado, etc.).
+ */
+export function esModalidadExamen(modalidad?: string | null): boolean {
+  if (!modalidad) return false;
+  const mod = modalidad.toUpperCase().trim();
+  return mod.includes('TESIS') || mod.includes('TESINA');
+}
+
+/**
+ * Genera el Folio de Control oficial según las normas institucionales y DGAIR:
+ * PREFIJO_CARRERA - LIBRO (3 dígitos) - FOJA (4 dígitos)
+ * Ejemplo: Licenciatura en Derecho, Libro 1, Foja 40 -> LD-001-0040
+ */
+export function generateFolioControl(
+  nivel?: string | null,
+  carreraNombre?: string | null,
+  libro?: number | string | null,
+  foja?: number | string | null
+): string {
+  if (!nivel && !carreraNombre) return 'XX-000-0000';
+  let prefix = '';
+  const n = (nivel || '').toUpperCase().trim();
+  if (n === 'LICENCIATURA') prefix = 'L';
+  else if (n === 'ESPECIALIDAD') prefix = 'ESP';
+  else if (n.includes('MAESTR')) prefix = 'M';
+  else if (n === 'DOCTORADO') prefix = 'D';
+  else prefix = n.charAt(0) || 'L';
+
+  const ignoredWords = ['DE', 'LA', 'EN', 'EL', 'LOS', 'LAS', 'Y', 'A', 'CON', 'LICENCIATURA', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO', 'ESPECIALIDAD'];
+  const words = (carreraNombre || '').split(' ').filter(w => !ignoredWords.includes(w.toUpperCase()));
+  const suffix = words.map(w => w.charAt(0).toUpperCase()).join('');
+  const codigoCarrera = `${prefix}${suffix}` || 'TIT';
+
+  const libroStr = libro !== null && libro !== undefined && String(libro).trim() !== ''
+    ? String(libro).trim().padStart(3, '0')
+    : '000';
+
+  const fojaStr = foja !== null && foja !== undefined && String(foja).trim() !== ''
+    ? String(foja).trim().padStart(4, '0')
+    : '0000';
+
+  return `${codigoCarrera}-${libroStr}-${fojaStr}`;
+}
+
+export const ENTIDADES_CATALOGO: Record<string, { id: string, nombre: string }> = {
+  'AGUASCALIENTES': { id: '01', nombre: 'AGUASCALIENTES' },
+  'BAJA CALIFORNIA': { id: '02', nombre: 'BAJA CALIFORNIA' },
+  'BAJA CALIFORNIA SUR': { id: '03', nombre: 'BAJA CALIFORNIA SUR' },
+  'CAMPECHE': { id: '04', nombre: 'CAMPECHE' },
+  'COAHUILA': { id: '05', nombre: 'COAHUILA DE ZARAGOZA' },
+  'COAHUILA DE ZARAGOZA': { id: '05', nombre: 'COAHUILA DE ZARAGOZA' },
+  'COLIMA': { id: '06', nombre: 'COLIMA' },
+  'CHIAPAS': { id: '07', nombre: 'CHIAPAS' },
+  'CHIHUAHUA': { id: '08', nombre: 'CHIHUAHUA' },
+  'CIUDAD DE MÉXICO': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
+  'CIUDAD DE MEXICO': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
+  'CDMX': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
+  'DF': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
+  'D.F.': { id: '09', nombre: 'CIUDAD DE MÉXICO' },
+  'DURANGO': { id: '10', nombre: 'DURANGO' },
+  'GUANAJUATO': { id: '11', nombre: 'GUANAJUATO' },
+  'GUERRERO': { id: '12', nombre: 'GUERRERO' },
+  'HIDALGO': { id: '13', nombre: 'HIDALGO' },
+  'JALISCO': { id: '14', nombre: 'JALISCO' },
+  'ESTADO DE MÉXICO': { id: '15', nombre: 'MÉXICO' },
+  'ESTADO DE MEXICO': { id: '15', nombre: 'MÉXICO' },
+  'MÉXICO': { id: '15', nombre: 'MÉXICO' },
+  'MEXICO': { id: '15', nombre: 'MÉXICO' },
+  'MEX': { id: '15', nombre: 'MÉXICO' },
+  'MICHOACÁN': { id: '16', nombre: 'MICHOACÁN DE OCAMPO' },
+  'MICHOACÁN DE OCAMPO': { id: '16', nombre: 'MICHOACÁN DE OCAMPO' },
+  'MICHOACAN': { id: '16', nombre: 'MICHOACÁN DE OCAMPO' },
+  'MORELOS': { id: '17', nombre: 'MORELOS' },
+  'NAYARIT': { id: '18', nombre: 'NAYARIT' },
+  'NUEVO LEÓN': { id: '19', nombre: 'NUEVO LEÓN' },
+  'NUEVO LEON': { id: '19', nombre: 'NUEVO LEÓN' },
+  'OAXACA': { id: '20', nombre: 'OAXACA' },
+  'PUEBLA': { id: '21', nombre: 'PUEBLA' },
+  'QUERÉTARO': { id: '22', nombre: 'QUERÉTARO' },
+  'QUERETARO': { id: '22', nombre: 'QUERÉTARO' },
+  'QUINTANA ROO': { id: '23', nombre: 'QUINTANA ROO' },
+  'SAN LUIS POTOSÍ': { id: '24', nombre: 'SAN LUIS POTOSÍ' },
+  'SAN LUIS POTOSI': { id: '24', nombre: 'SAN LUIS POTOSÍ' },
+  'SINALOA': { id: '25', nombre: 'SINALOA' },
+  'SONORA': { id: '26', nombre: 'SONORA' },
+  'TABASCO': { id: '27', nombre: 'TABASCO' },
+  'TAMAULIPAS': { id: '28', nombre: 'TAMAULIPAS' },
+  'TLAXCALA': { id: '29', nombre: 'TLAXCALA' },
+  'VERACRUZ': { id: '30', nombre: 'VERACRUZ DE IGNACIO DE LA LLAVE' },
+  'VERACRUZ DE IGNACIO DE LA LLAVE': { id: '30', nombre: 'VERACRUZ DE IGNACIO DE LA LLAVE' },
+  'VER': { id: '30', nombre: 'VERACRUZ DE IGNACIO DE LA LLAVE' },
+  'YUCATÁN': { id: '31', nombre: 'YUCATÁN' },
+  'YUCATAN': { id: '31', nombre: 'YUCATÁN' },
+  'YUC': { id: '31', nombre: 'YUCATÁN' },
+  'ZACATECAS': { id: '32', nombre: 'ZACATECAS' },
+  'ZAC': { id: '32', nombre: 'ZACATECAS' },
+  'EXTRANJERO': { id: '33', nombre: 'EXTRANJERO' }
+};
+
+const MODALIDADES_TITULACION: Record<string, string> = {
+  '1': 'POR TESIS',
+  '2': 'POR PROMEDIO',
+  '3': 'POR ESTUDIOS DE POSGRADOS',
+  '4': 'POR EXPERIENCIA LABORAL',
+  '5': 'POR CENEVAL',
+  '6': 'OTRO'
+};
+
+const AUTORIZACIONES_RECONOCIMIENTO: Record<string, string> = {
+  '1': 'RVOE FEDERAL',
+  '2': 'RVOE ESTATAL',
+  '3': 'AUTORIZACIÓN FEDERAL',
+  '4': 'AUTORIZACIÓN ESTATAL',
+  '5': 'ACTA DE SESIÓN',
+  '6': 'ACUERDO DE INCORPORACIÓN',
+  '7': 'ACUERDO SECRETARIAL SEP',
+  '8': 'DECRETO DE CREACIÓN',
+  '9': 'OTRO'
+};
+
+const FUNDAMENTOS_SERVICIO_SOCIAL: Record<string, string> = {
+  '1': 'ART. 52 LRART. 5 CONST',
+  '2': 'ART. 55 LRART. 5 CONST',
+  '3': 'ART. 91 RLRART. 5 CONST',
+  '4': 'ART. 10 REGLAMENTO PARA LA PRESTACIÓN DEL SERVICIO SOCIAL DE LOS ESTUDIANTES DE LAS INSTITUCIONES DE EDUCACIÓN SUPERIOR EN LA REPÚBLICA MEXICANA',
+  '5': 'NO APLICA'
+};
+
+export const TIPOS_ANTECEDENTE_CATALOGO: Record<string, string> = {
+  '1': 'MAESTRÍA',
+  '2': 'LICENCIATURA',
+  '3': 'ESPECIALIDAD',
+  '4': 'BACHILLERATO',
+  '5': 'PROFESIONAL TÉCNICO',
+  '6': 'TÉCNICO SUPERIOR UNIVERSITARIO'
+};
+
+const TIPOS_ANTECEDENTE: Record<string, { id: string, desc: string }> = {
+  'DOCTORADO': { id: '1', desc: 'MAESTRÍA' },
+  'ESPECIALIDAD': { id: '2', desc: 'LICENCIATURA' },
+  'MAESTRIA': { id: '2', desc: 'LICENCIATURA' },
+  'MAESTRÍA': { id: '2', desc: 'LICENCIATURA' },
+  'LICENCIATURA': { id: '4', desc: 'BACHILLERATO' }
+};
+
+export function getEntidadInfo(estadoName?: string | null): { id: string, nombre: string } {
+  if (!estadoName) return { id: '', nombre: '' };
+  let normalized = estadoName.trim().toUpperCase();
+
+  // If it's a numeric ID like "15" or "09" or "9"
+  const asNumber = parseInt(normalized, 10);
+  if (!isNaN(asNumber) && asNumber >= 1 && asNumber <= 33) {
+    const padded = asNumber.toString().padStart(2, '0');
+    const found = Object.values(ENTIDADES_CATALOGO).find(e => e.id === padded);
+    if (found) return found;
+  }
+
+  // Remove accents for searching
+  normalized = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // Direct match
+  if (ENTIDADES_CATALOGO[normalized]) {
+    return ENTIDADES_CATALOGO[normalized];
+  }
+
+  // Find in keys by removing accents from keys too
+  for (const key of Object.keys(ENTIDADES_CATALOGO)) {
+    const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (normalized === normalizedKey || normalizedKey.includes(normalized) || normalized.includes(normalizedKey)) {
+      return ENTIDADES_CATALOGO[key];
+    }
+  }
+
+  return { id: '', nombre: '' };
+}
+
+export async function crearLibroLayoutTitulacion(
+  arrayBuffer: ArrayBuffer, alumnosData: TitulacionAlumnoData[],
+  config: AppConfig,
+  firmante1: Empleado,
+  firmante2?: Empleado | null
+) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
+
+    const worksheet = validarPlantillaLayout(workbook);
+    const estilos = Array.from({length:47}, (_,i)=>structuredClone(worksheet.getRow(4).getCell(i+1).style));
+    const altura = worksheet.getRow(4).height;
+    const filas = prepararDatosLayoutTitulacion(alumnosData, config, firmante1, firmante2);
+    for (let i=0;i<filas.length;i++) {
+      const row=worksheet.getRow(i+4); row.height=altura;
+      filas[i].forEach((celda,j)=>{const cell=row.getCell(j+1);cell.style=structuredClone(estilos[j]);cell.numFmt=celda.formato;cell.value=celda.valor;});
+    }
+    return workbook;
+}
+
+export function prepararDatosLayoutTitulacion(alumnosData:TitulacionAlumnoData[],config:AppConfig,firmante1:Empleado,firmante2?:Empleado|null) {
+    if (!alumnosData.length) throw new Error('Selecciona al menos un alumno para exportar.');
+    const filas = [];
+    const incidencias: string[] = [];
+    const folios = new Set<string>();
+    for (const data of alumnosData) {
+      const { alumno, configuracion } = data;
+      const carrera = alumno.carrera || {};
+      const plan = alumno.plan || {};
+      const nivel = (carrera.nivel_educativo || '').toUpperCase();
+
+      // Folio Control (Manual del frontend)
+      const folioControl = (configuracion.folio_control || '').trim().toUpperCase();
+
+      // Nombre Carrera
+      const nombreCarreraFull = `${nivel} EN ${carrera.nombre || ''}`.toUpperCase();
+
+      // Fechas
+      const fInicioCiclo = configuracion.fecha_inicio_carrera;
+      const fFinCiclo = configuracion.fecha_termino_carrera;
+      const fechaExpedicionStr = configuracion.fecha_expedicion;
+
+      // Servicio Social
+      let cumplioSS = '0';
+      let idSS = configuracion.fundamento_legal_ss || '';
+      let descSS = idSS ? FUNDAMENTOS_SERVICIO_SOCIAL[idSS] || '' : '';
+
+      if (nivel === 'LICENCIATURA') {
+        const ss = alumno.servicio_social;
+        if (ss && ss.estatus === 'LIBERADO') {
+          cumplioSS = '1';
+        }
+      } else {
+        cumplioSS = '0';
+        // idSS ya vendrá de configuracion o lo forzamos a 5 si aplica en el frontend
+      }
+
+      // Autorizacion Reconocimiento
+      const idAut = configuracion.id_autorizacion || '';
+      const descAut = idAut ? AUTORIZACIONES_RECONOCIMIENTO[idAut] || '' : '';
+
+      // Entidades
+      // Entidades
+      const idEntidadManual = configuracion.entidad_federativa_antecedente;
+      const entidadProcedencia = idEntidadManual
+        ? Object.values(ENTIDADES_CATALOGO).find(e => e.id === idEntidadManual) || { id: '', nombre: '' }
+        : getEntidadInfo(alumno.estado_escolaridad);
+
+      // Tipo Antecedente
+      let idTipoAnt = configuracion.id_tipo_antecedente || '';
+      if (!idTipoAnt && TIPOS_ANTECEDENTE[nivel]) {
+        idTipoAnt = TIPOS_ANTECEDENTE[nivel].id;
+      }
+      const descTipoAnt = idTipoAnt ? (TIPOS_ANTECEDENTE_CATALOGO[idTipoAnt] || '') : '';
+
+      // Modalidad Desc
+      const descModalidad = MODALIDADES_TITULACION[configuracion.modalidad_id] || '';
+
+      const filaDatos = [
+        folioControl, // 1
+        firmante1.clave_puesto || '', // 2
+        (firmante1.puesto || '').toUpperCase(), // 3
+        (firmante1.titulo_academico || '').toUpperCase(), // 4
+        (firmante1.nombres || '').toUpperCase(), // 5
+        (firmante1.apellido_paterno || '').toUpperCase(), // 6
+        (firmante1.apellido_materno || '').toUpperCase(), // 7
+        (firmante1.curp || '').toUpperCase(), // 8
+        firmante2 ? firmante2.clave_puesto || '' : '', // 9
+        firmante2 ? (firmante2.puesto || '').toUpperCase() : '', // 10
+        firmante2 ? (firmante2.titulo_academico || '').toUpperCase() : '', // 11
+        firmante2 ? (firmante2.nombres || '').toUpperCase() : '', // 12
+        firmante2 ? (firmante2.apellido_paterno || '').toUpperCase() : '', // 13
+        firmante2 ? (firmante2.apellido_materno || '').toUpperCase() : '', // 14
+        firmante2 ? (firmante2.curp || '').toUpperCase() : '', // 15
+        config.claveInstitucion || '', // 16
+        'CENTRO UNIVERSITARIO ORIENTE DE MÉXICO', // 17
+        String(carrera.clave || '').toUpperCase(), // 18
+        nombreCarreraFull, // 19
+        fInicioCiclo, // 20
+        fFinCiclo, // 21
+        idAut, // 22
+        descAut.toUpperCase(), // 23
+        (plan.rvoe || '').toUpperCase(), // 24
+        (alumno.curp || '').toUpperCase(), // 25
+        (alumno.nombres || '').toUpperCase(), // 26
+        (alumno.apellido_paterno || '').toUpperCase(), // 27
+        (alumno.apellido_materno || '').toUpperCase(), // 28
+        (configuracion.correo || '').toLowerCase(), // 29
+        fechaExpedicionStr, // 30
+        configuracion.modalidad_id || '', // 31
+        descModalidad, // 32
+        configuracion.modalidad_id === '1' ? configuracion.fecha_examen : '', // 33
+        configuracion.modalidad_id !== '1' && configuracion.modalidad_id ? configuracion.fecha_exencion : '', // 34
+        cumplioSS, // 35
+        idSS, // 36
+        descSS, // 37
+        config.claveEntidadUniversidad || '', // 38
+        (config.nombreEntidadUniversidad || '').toUpperCase(), // 39
+        (configuracion.escuela_procedencia || alumno.escuela_procedencia || '').toUpperCase(), // 40
+        idTipoAnt, // 41
+        descTipoAnt, // 42
+        entidadProcedencia.id || '', // 43
+        entidadProcedencia.nombre || '', // 44
+        configuracion.antecedente_inicio, // 45
+        configuracion.antecedente_fin, // 46
+        ['ESPECIALIDAD', 'MAESTRÍA', 'MAESTRIA', 'DOCTORADO'].includes(nivel) ? configuracion.cedula_especialidad : '' // 47
+      ];
+
+      const etiqueta = alumno.nombre_completo || alumno.matricula || `Registro ${filas.length+1}`;
+      const fila = prepararFilaLayout(filaDatos);
+      if (['ESPECIALIDAD','MAESTRÍA','MAESTRIA','DOCTORADO'].includes(nivel) && !configuracion.cedula_especialidad?.trim()) incidencias.push(`${etiqueta}: falta la cédula profesional del antecedente.`);
+      if (folios.has(folioControl)) incidencias.push(`${etiqueta}: folio de control duplicado en el lote.`);
+      folios.add(folioControl);
+      incidencias.push(...fila.errores.map(error=>`${etiqueta}: ${error}`));
+      filas.push(fila.celdas);
+    }
+    if (incidencias.length) throw new Error(incidencias.join('\n'));
+    return filas;
+}
