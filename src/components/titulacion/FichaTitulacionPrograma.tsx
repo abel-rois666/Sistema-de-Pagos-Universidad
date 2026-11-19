@@ -2,8 +2,10 @@ import OpcionesCertificacion from '../certificacion/OpcionesCertificacion';
 import ConfirmarOperacionTitulacion,{type AccionTitulacion} from './ConfirmarOperacionTitulacion';
 import {guardarTitulacion,archivarTitulacion} from '../../services/titulacionService';
 import {useProteccionCaptura} from '../../app/ProteccionCaptura';
-import { certificacionService } from '../../services/certificacionService';
-import { resumirPagoTitulacion } from '../../reportes/estadoPagoTitulacion';
+import {useRequisitosTitulacion} from '../../hooks/useRequisitosTitulacion';
+import {aplicarRequisitos} from '../../titulacion/requisitos';
+import RequisitosTitulacionPanel from './RequisitosTitulacionPanel';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
@@ -68,6 +70,7 @@ function toInputDate(date: Date): string {
 // Verifica si todos los requisitos están cubiertos
 function checkRequisitosMet(ficha: FichaTitulacion, esEsp: boolean): boolean {
   if (!ficha.modalidad) return false;
+  if (ficha.modalidad === MODALIDAD_ALTO_REND && ficha.promedio_alto_rendimiento !== 'APLICA') return false;
   const base =
     ficha.pago_titulacion      === 'COMPLETADO' &&
     ficha.certificado_estudios === 'TRAMITADO'  &&
@@ -97,52 +100,6 @@ function getEstatusTitulacion(ficha: FichaTitulacion | null): 'SIN_INICIAR' | 'E
   ];
   const allDone = campos.every(c => c === 'COMPLETADO' || c === 'TRAMITADO' || c === 'ENTREGADAS' || c === 'APROBADO');
   return allDone ? 'EN_CURSO' : 'EN_CURSO'; // COMPLETADO solo via tramite_completado
-}
-
-// ── Helpers de Requisitos ───────────────────────────────────────────────────
-async function validarRequisitoIngles(alumnoId: string, calificacionMinima: number = 6): Promise<boolean> {
-  try {
-    // 1. Descubrir cuántas materias de Inglés tiene el plan de estudios asignado
-    const { data: historialTop } = await supabase
-      .from('inscripciones_academicas')
-      .select('asignaturas!inner(plan_id)')
-      .eq('alumno_id', alumnoId)
-      .limit(1)
-      .maybeSingle();
-
-    if (!(historialTop?.asignaturas as any)?.plan_id) return false;
-    const planId = (historialTop.asignaturas as any).plan_id;
-
-    const { data: materiasInglesPlan } = await supabase
-      .from('asignaturas')
-      .select('id')
-      .eq('plan_id', planId)
-      .ilike('nombre', '%ingl%');
-
-    const totalInglesPlan = materiasInglesPlan?.length || 0;
-
-    // Si el plan no requiere inglés, se da por exento/cubierto
-    if (totalInglesPlan === 0) return true;
-
-    const idsIngles = materiasInglesPlan.map(m => m.id);
-
-    // 2. Buscar en el historial académico cuáles de esas materias ya aprobó (umbral dinámico)
-    const { data: historialIngles } = await supabase
-      .from('inscripciones_academicas')
-      .select('asignatura_id, calificacion_final')
-      .eq('alumno_id', alumnoId)
-      .in('asignatura_id', idsIngles)
-      .gte('calificacion_final', calificacionMinima);
-
-    // Agrupar IDs únicos para no contar recursamientos o extraordinarios como materias distintas
-    const materiasAprobadasUnicas = new Set(historialIngles?.map(h => h.asignatura_id));
-
-    // 3. Validar
-    return materiasAprobadasUnicas.size >= totalInglesPlan;
-  } catch (error) {
-    console.error('Error al validar requisito de inglés:', error);
-    return false;
-  }
 }
 
 // ── Colores badge ─────────────────────────────────────────────────────────────
@@ -467,27 +424,16 @@ export default function FichaTitulacionPrograma({
 
   useEffect(() => { loadFicha(); }, [loadFicha]);
 
-  // Los pagos y el servicio social sin relación explícita no se atribuyen a otra carrera.
-  // Consulta el programa de la titulación, sin tomar la ficha de otra carrera o un legado sin asociar.
-  const [certificacionPrograma,setCertificacionPrograma] = useState<'SIN_INICIAR'|'EN_CURSO'|'COMPLETADO'>('SIN_INICIAR');
-  const [errorCertificacion,setErrorCertificacion] = useState('');
-  const [consultandoCertificacion,setConsultandoCertificacion] = useState(false);
-  useEffect(() => {
-    const control = new AbortController();
-    setCertificacionPrograma('SIN_INICIAR');setErrorCertificacion('');setConsultandoCertificacion(false);
-    if (!draft.alumno_programa_id) return;
-    setConsultandoCertificacion(true);
-    void certificacionService.consultar(alumnoId,control.signal).then(r => {
-      if(control.signal.aborted)return;
-      const cert = r.fichas.find(f=>f.alumno_programa_id===draft.alumno_programa_id);
-      if (!cert && r.fichas.some(f=>!f.alumno_programa_id)) { setErrorCertificacion('Asocia primero la ficha anterior de certificación al programa que le corresponde.'); return; }
-      const estado = cert?.tramite_completado ? 'COMPLETADO' : cert ? 'EN_CURSO' : 'SIN_INICIAR';
-      setCertificacionPrograma(estado);
-      setDraft(prev=>({...prev,certificado_estudios:estado==='COMPLETADO'?'TRAMITADO':estado==='EN_CURSO'?'EN_TRAMITE':'SIN_INICIAR'}));
-    }).catch(()=>{if(!control.signal.aborted)setErrorCertificacion('No se pudo comprobar el certificado de este programa. Reabre la sección para reintentar.');}).finally(()=>{if(!control.signal.aborted)setConsultandoCertificacion(false);});
-    return ()=>control.abort();
-  },[alumnoId,draft.alumno_programa_id,ficha]);
-
+  const [revisionRequisitos,setRevisionRequisitos]=useState(0);
+  const requisitos=useRequisitosTitulacion(alumnoId,programaId,draft.plan_pago_requisito_id||null,draft.servicio_social_requisito_id||null,revisionRequisitos);
+  useEffect(()=>{
+    if(!editing || !draft.modalidad || !requisitos.datos || ficha?.tramite_completado)return;
+    setDraft(prev=>{
+      const next=aplicarRequisitos(prev,requisitos.datos!);
+      return JSON.stringify(prev)===JSON.stringify(next)?prev:next;
+    });
+  },[editing,draft.modalidad,requisitos.datos,ficha?.tramite_completado]);
+  const estadosVisibles=!editing&&!ficha?.tramite_completado&&requisitos.datos?aplicarRequisitos(draft,requisitos.datos):draft;
   // Manejo reactivo de Libro y Foja con autogeneración del Folio de Control
   const handleLibroChange = (val: string) => {
     const num = val === '' ? null : parseInt(val, 10);
@@ -527,7 +473,7 @@ export default function FichaTitulacionPrograma({
 
   // ── Guardar ────────────────────────────────────────────────────────────────
   const ejecutarGuardar = async () => {
-    if (consultandoCertificacion || errorCertificacion) { toast.error(errorCertificacion || 'Espera a que termine la consulta del certificado.'); return; }
+    if (requisitos.loading || requisitos.error || !requisitos.datos) { toast.error(requisitos.error || 'Espera a que termine la comprobación de requisitos.'); return; }
     if (!draft.modalidad) { setWarnNoModal(true); return; }
     setWarnNoModal(false);
     setSaving(true);
@@ -594,7 +540,7 @@ export default function FichaTitulacionPrograma({
 
   // Marcar trámite como completado, asentar Acta oficial y cambiar estatus del alumno
   const ejecutarCompletar = async () => {
-    if (consultandoCertificacion || errorCertificacion) { toast.error(errorCertificacion || 'Espera la consulta del certificado.'); return; }
+    if (requisitos.loading || requisitos.error || !requisitos.datos) { toast.error(requisitos.error || 'Espera la comprobación de requisitos.'); return; }
     if (!ficha) return;
 
     if (!draft.modalidad) {
@@ -657,9 +603,7 @@ export default function FichaTitulacionPrograma({
   // Requisitos cubiertos:
   // • Mientras se edita → se evalúa el draft en tiempo real (sin guardar)
   // • Sin editar       → se evalúa la ficha guardada
-  const requisitosMet = editing
-    ? checkRequisitosMet(draft as FichaTitulacion, esEspecialidad)
-    : (ficha ? checkRequisitosMet(ficha, esEspecialidad) : false);
+  const requisitosMet = !requisitos.loading && !requisitos.error && Boolean(requisitos.datos) && checkRequisitosMet(aplicarRequisitos(draft,requisitos.datos!) as FichaTitulacion,esEspecialidad);
 
   // Días hábiles restantes para culminación
   const diasRestantes = (() => {
@@ -674,8 +618,6 @@ export default function FichaTitulacionPrograma({
     COMPLETADO:  'Proceso completado',
   };
 
-  // Derivado: mostrar campo promedio solo en Alto Rendimiento Académico
-  const showPromedio = modalidad === MODALIDAD_ALTO_REND;
 
   // Modalidades disponibles según tipo de alumno
   const modalidadesDisponibles = esEspecialidad
@@ -694,9 +636,6 @@ export default function FichaTitulacionPrograma({
   return (
     <div className="p-0 sm:p-2">
       <ConfirmarOperacionTitulacion accion={accionOperacion} motivo={motivoOperacion} busy={saving||resetting} onMotivo={setMotivoOperacion} onCancelar={()=>setAccionOperacion(null)} onConfirmar={confirmarOperacion}/>
-      {editing&&<p className="mb-4 text-sm text-gray-600 dark:text-gray-300">Revisa pago, Inglés y servicio social para este programa. Al guardar te pediremos el motivo de los cambios.</p>}
-      {consultandoCertificacion&&<p role="status" className="text-sm text-gray-600 dark:text-gray-300 mb-4">Comprobando el certificado del programa de titulación…</p>}
-      {errorCertificacion&&<p role="alert" className="text-sm text-red-700 dark:text-red-300 mb-4">{errorCertificacion}</p>}
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
@@ -742,7 +681,7 @@ export default function FichaTitulacionPrograma({
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving||requisitos.loading||Boolean(requisitos.error)}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-[8px] shadow-sm transition-colors active:scale-95"
                 >
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -791,79 +730,18 @@ export default function FichaTitulacionPrograma({
           )}
         </div>}
 
-        {/* Requisitos — solo si hay modalidad o se está editando */}
-        {(draft.modalidad || editing) && (
-          <div className="bg-white dark:bg-[#181e25] border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.08)] rounded-[16px] overflow-hidden">
-
-            {/* Sección: Requisitos Generales */}
+        {(draft.modalidad || editing) && <RequisitosTitulacionPanel
+          datos={requisitos.datos} estados={estadosVisibles} respaldo={ficha?.requisitos_verificados}
+          completada={Boolean(ficha?.tramite_completado)} loading={requisitos.loading} error={requisitos.error}
+          editing={editing} exentoInglesSS={skipSS} pago={draft.plan_pago_requisito_id||null}
+          ss={draft.servicio_social_requisito_id||null} modalidad={draft.modalidad}
+          onPago={id=>setDraft(p=>({...p,plan_pago_requisito_id:id||null}))}
+          onSS={id=>setDraft(p=>({...p,servicio_social_requisito_id:id||null}))}
+          onActualizar={()=>setRevisionRequisitos(r=>r+1)} onSugerir={()=>handleChange('modalidad',MODALIDAD_ALTO_REND)}>
+            {/* Sección: Revisión Documental */}
             <div className="px-5 py-4 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-              <p className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-4">Requisitos Generales</p>
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-4">Revisión manual</p>
               <div className="space-y-3">
-
-                {/* Pago de Titulación */}
-                <SelectorRequisito
-                  label="Pago de Titulación"
-                  field="pago_titulacion"
-                  opciones={[
-                    { value: 'SIN_INICIAR', label: 'Sin iniciar' },
-                    { value: 'EN_CURSO',    label: 'En curso' },
-                    { value: 'COMPLETADO',  label: 'Completado' },
-                  ]}
-                  value={draft.pago_titulacion}
-                  badgeMap={BADGE_ESTATUS}
-                  onChange={handleChange}
-                  disabled={!editing}
-                />
-
-                {/* Certificado de Estudios */}
-                <SelectorRequisito
-                  label="Certificado Total de Estudios"
-                  field="certificado_estudios"
-                  opciones={[
-                    { value: 'SIN_INICIAR', label: 'Sin iniciar' },
-                    { value: 'EN_TRAMITE',  label: 'En trámite' },
-                    { value: 'TRAMITADO',   label: 'Tramitado' },
-                  ]}
-                  value={draft.certificado_estudios}
-                  badgeMap={{ SIN_INICIAR: BADGE_ESTATUS.SIN_INICIAR, EN_TRAMITE: BADGE_ESTATUS.EN_CURSO, TRAMITADO: BADGE_ESTATUS.COMPLETADO }}
-                  onChange={handleChange}
-                  disabled={!editing || (certificacionPrograma !== 'SIN_INICIAR') || consultandoCertificacion || Boolean(errorCertificacion)}
-                />
-
-                {/* Inglés (se oculta en Especialidad con modalidad correspondiente) */}
-                {!skipSS && (
-                  <SelectorRequisito
-                    label="Inglés"
-                    field="ingles"
-                    opciones={[
-                      { value: 'SIN_INICIAR', label: 'Sin iniciar' },
-                      { value: 'EN_CURSO',    label: 'En curso' },
-                      { value: 'COMPLETADO',  label: 'Completado' },
-                    ]}
-                    value={draft.ingles}
-                    badgeMap={BADGE_ESTATUS}
-                    onChange={handleChange}
-                    disabled={!editing}
-                  />
-                )}
-
-                {/* Servicio Social */}
-                {!skipSS && (
-                  <SelectorRequisito
-                    label="Servicio Social"
-                    field="servicio_social_req"
-                    opciones={[
-                      { value: 'SIN_INICIAR', label: 'Sin iniciar' },
-                      { value: 'EN_CURSO',    label: 'En curso' },
-                      { value: 'COMPLETADO',  label: 'Completado' },
-                    ]}
-                    value={draft.servicio_social_req}
-                    badgeMap={BADGE_ESTATUS}
-                    onChange={handleChange}
-                    disabled={!editing}
-                  />
-                )}
-
                 {/* Fotografías */}
                 <SelectorRequisito
                   label="Fotografías tamaño título"
@@ -878,35 +756,7 @@ export default function FichaTitulacionPrograma({
                   disabled={!editing}
                 />
 
-                {/* Promedio — solo para Alto Rendimiento Académico */}
-                {showPromedio && (
-                  <SelectorRequisito
-                    label="Promedio mayor a 9.5"
-                    field="promedio_alto_rendimiento"
-                    opciones={[
-                      { value: 'SIN_INICIAR', label: 'Sin iniciar' },
-                      { value: 'NO_APLICA',   label: 'No aplica' },
-                      { value: 'APLICA',      label: 'Sí aplica' },
-                    ]}
-                    value={(draft as any).promedio_alto_rendimiento ?? 'SIN_INICIAR'}
-                    badgeMap={{
-                      SIN_INICIAR: BADGE_ESTATUS.SIN_INICIAR,
-                      NO_APLICA:   BADGE_ESTATUS.EN_CURSO,
-                      APLICA:      BADGE_ESTATUS.COMPLETADO,
-                    }}
-                    onChange={handleChange}
-                    disabled={!editing}
-                  />
-                )}
 
-              </div>
-            </div>
-
-
-            {/* Sección: Revisión Documental */}
-            <div className="px-5 py-4 border-b border-[#f2f3f5] dark:border-[rgba(255,255,255,0.06)]">
-              <p className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-4">Revisión Documental</p>
-              <div className="space-y-3">
 
                 {[
                   { field: 'doc_antecedente'   as const, label: 'Antecedente Académico',  notaField: 'doc_antecedente_nota'   as const },
@@ -938,8 +788,8 @@ export default function FichaTitulacionPrograma({
             {/* Sección: Documentos Exclusivos de Especialidad */}
             {showDocEsp && (
               <div className="px-5 py-4">
-                <p className="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider mb-1">Documentos — Especialidad</p>
-                <p className="text-[11px] text-[#8e8e93] mb-4">Aplica para Tesina y Alto Rendimiento Académico en especialidades.</p>
+                <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1">Documentos — Especialidad</p>
+                <p className="text-[11px] text-gray-600 dark:text-gray-300 mb-4">Aplica para Tesina y Alto Rendimiento Académico en especialidades.</p>
                 <div className="space-y-3">
 
                   {[
@@ -968,8 +818,7 @@ export default function FichaTitulacionPrograma({
                 </div>
               </div>
             )}
-          </div>
-        )}
+        </RequisitosTitulacionPanel>}
 
         {/* ── Sección: Trámite y Protocolo Oficial de Titulación ── */}
         {(ficha?.modalidad || (editing && draft.modalidad)) && (

@@ -1,0 +1,33 @@
+# Requisitos de titulación por programa
+
+Preparación del 18/11/2026. El criterio confirmado es **9.50 o superior**. No se instaló SQL ni se modificaron datos de Supabase.
+
+## Funcionamiento
+
+Al elegir modalidad en una ficha abierta, la consulta calcula los requisitos del programa exacto. Se aplican al borrador y se guardan con la confirmación habitual. En consulta se muestran los estados actuales comprobados; una ficha completada conserva sus estados históricos. Estados y respaldo se presentan juntos en Requisitos de titulación; las fuentes se eligen dentro de su fila al editar y se leen completas en consulta. Actualizar requisitos conserva las notas y documentos capturados. Un fallo no acredita ausencia ni permite guardar/finalizar.
+
+- Certificado: únicamente ficha activa TOTAL del mismo alumno_programa_id. Pago completo de un certificado no acredita su trámite, y un certificado parcial no sustituye al total.
+- Inglés: retícula activa del plan; una aprobación por asignatura, con el mínimo de la carrera. Repeticiones no duplican el conteo y no se usa la primera materia de otro plan. Una retícula existente sin Inglés lo considera no requerido; una retícula vacía no acredita cumplimiento. Las exclusiones de Inglés/SS de las modalidades de Especialidad se conservan.
+- Promedio: mejor nota de cada asignatura del plan, con NP representado como cero, como el historial. Se excluyen Inglés y complementarias. Se requiere nota en las asignaturas computables de la retícula; optativas no cursadas no bloquean. Se trunca a dos decimales y se compara >=9.50, sin redondear 9.499 hacia arriba. Se ofrece la modalidad solo mediante clic; no se cambia automáticamente. El promedio por sí solo no representa conclusión del trámite.
+- Servicio social: el origen sigue siendo el expediente del alumno. Se propone automáticamente solo si hay exactamente un programa y un registro (excepto Especialidad). En los demás casos Administración selecciona explícitamente el registro que corresponde. Liberado acredita Completado; En curso no. No puede respaldar dos programas activos a la vez.
+- Pago: Administración identifica explícitamente el plan financiero de Titulación del alumno. No se atribuye por texto de licenciatura ni por compartir ciclo. La existencia de un plan no liquida el requisito. Se comprueban todos sus conceptos: vínculos explícitos vigentes e importes aplicados de recibos activos, o interpretación conservadora de estatus históricos cuando nunca hubo vínculos. Un vínculo anulado no permite volver a acreditar por la anotación histórica. Abonos insuficientes, anotaciones ambiguas y recibos cancelados no liquidan. No se cobra, mueve dinero, cambia el ciclo ni toca el monedero. Un plan no puede respaldar dos programas activos.
+
+Las fuentes y la instantánea de cálculo se guardan en la ficha y en su auditoría existente. Los registros previos conservan fuentes nulas hasta su revisión: no se migran por nombre. El guardado no acepta instantáneas propuestas por el cliente; recalcula en el servidor. Al completar vuelve a revisar certificado total, notas, fuentes y requisitos de la modalidad, con bloqueos y control de revisión. GUARDAR conserva la regla previa de egreso cuando todos los requisitos están cubiertos; COMPLETAR conserva el acta y la titulación del programa. Reabrir/archivar conservan las reglas previas.
+
+## Instalación coordinada
+
+1. Ejecutar `supabase/checks/preflight_requisitos_titulacion.sql` en el proyecto correcto. Confirmar tablas, columnas, dependencias y la huella de la función instalada. No usar el rol nulo del SQL Editor para simular un usuario de la aplicación.
+2. La huella base debe coincidir con la versión revisada. Si no coincide, compartir la definición instalada para homologarla; no quitar la protección ni reemplazarla a ciegas. La migración completa revierte si encuentra discrepancias.
+3. Con respaldo y ventana de publicación, aplicar **una sola vez** `supabase/migrations/20261118150000_requisitos_titulacion_por_programa.sql`. Requiere titulación por programa, certificación por programa y conciliación financiera ya instaladas. No instalar nuevamente las migraciones históricas.
+4. Ejecutar `supabase/checks/verificar_requisitos_titulacion.sql`: consulta presente, revalidación verdadera, índices únicos presentes y permisos de anónimo/helper falsos.
+5. Publicar el cliente actualizado y comprobar con un usuario autorizado. Administración puede editar; Control Escolar conserva consulta. No se amplía acceso a Caja ni Docentes.
+
+La versión de la aplicación preparada requiere esta migración para editar requisitos; ante RPC ausente conserva la captura y avisa, sin volver al guardado permisivo antiguo. El cliente anterior tampoco podrá completar atribuyendo estados sin fuentes: el servidor recalcula la operación. No se recomienda desplegar por separado sin revisar este impacto.
+
+## Verificación
+
+Revisar 9.49/9.50/9.51, expediente incompleto y NP; Inglés de otro plan o recursado; certificados parciales y archivados; SS con varias carreras; plan financiero vacío, abonos, folios R-/F-, cancelación y fuentes de otro alumno. Verificar selección, actualización, guardado, finalización y concurrencia. Una comprobación local no acredita el esquema instalado ni sustituye el preflight. Los resultados del ensayo se registran en la memoria funcional.
+
+Ensayo ejecutado únicamente en base local vacía con datos ficticios: `scripts/tests/requisitosTitulacion.base.local.sql`, función base de guardado revisada, migración nueva y `scripts/tests/requisitosTitulacion.casos.local.sql`, en ese orden. Los scripts rechazan otro nombre de base o puerto. La base simuló las tablas necesarias; no reemplaza una prueba sobre una copia anonimizada del esquema completo. La finalización rechazó un recibo cancelado después de consultar. `scripts/comprobarConcurrenciaRequisitos.mjs` comprobó además dos conexiones simultáneas: finalizar espera la cancelación del recibo y la rechaza sin guardar parcialmente. Esto no acredita todas las combinaciones concurrentes. El preflight y la comprobación posterior son consultas de solo lectura y deben revisarse antes de la instalación real.
+
+Para reproducir el ensayo, iniciar un clúster local desechable sin datos en 127.0.0.1:55449 y ejecutar `node scripts/probarRequisitosTitulacionLocal.mjs`, seguido de `node scripts/comprobarConcurrenciaRequisitos.mjs`. El primer script crea solo `ensayo_titulacion` si no existe y extrae el guardado base del archivo histórico revisado; no elimina bases ni toma una URL configurable. `PSQL_LOCAL` permite indicar la ruta del ejecutable instalado, sin añadir dependencias. Al terminar se debe detener el servidor desechable.
